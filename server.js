@@ -3111,9 +3111,11 @@ app.get('/api/projects', async (req, res) => {
     }
     
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(pageSize), (parseInt(page) - 1) * parseInt(pageSize));
+    const pageSizeInt = parseInt(pageSize, 10);
+    const offset = (parseInt(page, 10) - 1) * pageSizeInt;
+    params.push(pageSizeInt, offset);
     
-    const [projects] = await pool.execute(sql, params);
+    const [projects] = await pool.query(sql, params);
     
     // 获取总数
     let countSql = 'SELECT COUNT(*) as total FROM project_applications WHERE 1=1';
@@ -4906,9 +4908,11 @@ app.get('/api/projects', async (req, res) => {
     }
     
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(pageSize), (parseInt(page) - 1) * parseInt(pageSize));
+    const pageSizeInt2 = parseInt(pageSize, 10);
+    const offset2 = (parseInt(page, 10) - 1) * pageSizeInt2;
+    params.push(pageSizeInt2, offset2);
     
-    const [projects] = await pool.execute(sql, params);
+    const [projects] = await pool.query(sql, params);
     
     // 获取总数
     let countSql = 'SELECT COUNT(*) as total FROM project_applications WHERE 1=1';

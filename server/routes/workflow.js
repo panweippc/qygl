@@ -29,10 +29,25 @@ router.get('/projects', async (req, res) => {
       params.push(status);
     }
     
-    sql += ' ORDER BY createdAt DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(pageSize), (parseInt(page) - 1) * parseInt(pageSize));
+    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    const pageSizeInt = parseInt(pageSize, 10);
+    const offset = (parseInt(page, 10) - 1) * pageSizeInt;
+    params.push(pageSizeInt, offset);
     
-    const [projects] = await pool.execute(sql, params);
+    const [projects] = await pool.query(sql, params);
+    
+    // 将字段名转换为前端期望的格式
+    const formattedProjects = projects.map((project) => ({
+      id: project.id,
+      project_name: project.projectName || project.project_name || '未命名项目',
+      project_type: project.projectType || project.project_type || '其他',
+      description: project.description || '',
+      applicant_name: project.applicant || project.applicant_name || '未知申请人',
+      created_at: project.createdAt || project.created_at || new Date().toISOString(),
+      project_link: project.projectLink || project.project_link || '',
+      status: project.status || '审批中',
+      applicant: project.applicant || ''
+    }));
     
     // 获取总数
     let countSql = 'SELECT COUNT(*) as total FROM project_applications WHERE 1=1';
@@ -53,7 +68,7 @@ router.get('/projects', async (req, res) => {
     res.json({
       success: true,
       data: {
-        list: projects,
+        list: formattedProjects,
         pagination: {
           page: parseInt(page),
           pageSize: parseInt(pageSize),
