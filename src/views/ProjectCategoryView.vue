@@ -352,35 +352,16 @@ const editProjectForm = ref({
   link: ''
 })
 
-// Mock数据
-const mockProjects: Project[] = [
-  { id: 1, project_name: '智能办公系统', project_type: '软件开发', description: '基于Vue3的企业办公管理系统', applicant_name: '潘伟', created_at: '2024-01-15' },
-  { id: 2, project_name: '数据分析平台', project_type: '数据服务', description: '企业数据可视化分析平台', applicant_name: '潘伟', created_at: '2024-01-16' },
-  { id: 3, project_name: '移动APP开发', project_type: '移动端', description: '企业移动办公APP', applicant_name: '总经理', created_at: '2024-01-17' },
-  { id: 4, project_name: 'CRM系统', project_type: '企业软件', description: '客户关系管理系统', applicant_name: '总经理', created_at: '2024-01-18' },
-  { id: 5, project_name: 'ERP系统', project_type: '企业软件', description: '企业资源规划系统', applicant_name: '李经理', created_at: '2024-01-19' },
-  { id: 6, project_name: '微信小程序', project_type: '移动端', description: '企业微信小程序', applicant_name: '潘伟', created_at: '2024-01-20' },
-  { id: 7, project_name: '云存储服务', project_type: '数据服务', description: '企业云存储解决方案', applicant_name: '李经理', created_at: '2024-01-21' },
-]
-
-// 从API加载项目分类数据
 const loadCategories = async () => {
   loading.value = true
   try {
-    let projects: Project[] = []
-    
-    try {
-      const response = await getProjects();
-      if (response.success && response.data?.list && response.data.list.length > 0) {
-        projects = response.data.list as Project[];
-      } else {
-        projects = mockProjects;
-      }
-    } catch (error) {
-      console.log('API调用失败，使用mock数据');
-      projects = mockProjects;
+    const response = await getProjects();
+    if (!response.success || !response.data?.list) {
+      ElMessage.error('加载项目分类数据失败')
+      return
     }
     
+    const projects = response.data.list as Project[];
     const categoryMap = new Map<string, Category>()
     
     projects.forEach(project => {

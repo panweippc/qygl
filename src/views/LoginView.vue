@@ -312,10 +312,9 @@ const handleLogin = async () => {
     console.log('Login API response:', response);
     
     if (response.success && response.user) {
-      // 登录成功
       const user = response.user;
       
-      localStorage.setItem('token', 'mock-token')
+      localStorage.setItem('token', `session-${user.id}-${Date.now()}`)
       localStorage.setItem('userId', user.id.toString())
       localStorage.setItem('username', user.username)
       
