@@ -63,7 +63,7 @@ router.get('/projects', async (req, res) => {
       countParams.push(status);
     }
     
-    const [countResult] = await pool.execute(countSql, countParams);
+    const [countResult] = await pool.query(countSql, countParams);
     
     res.json({
       success: true,
@@ -99,7 +99,7 @@ router.post('/projects', async (req, res) => {
     
     // 创建项目申请
     const now = new Date();
-    const [result] = await pool.execute(
+    const [result] = await pool.query(
       `INSERT INTO project_applications 
        (applicant, projectName, projectType, budget, priority, description, projectLink, status, approver, createdAt) 
        VALUES (?, ?, ?, ?, ?, ?, ?, '审批中', ?, ?)`,
@@ -135,7 +135,7 @@ router.get('/projects/:id', async (req, res) => {
     const { pool } = req.app.locals;
     const { id } = req.params;
     
-    const [projects] = await pool.execute(
+    const [projects] = await pool.query(
       'SELECT * FROM project_applications WHERE id = ?',
       [id]
     );
@@ -160,7 +160,7 @@ router.post('/projects/:id/approve', async (req, res) => {
     
     // 更新项目状态
     const newStatus = action === 'agree' ? '已批准' : '已拒绝';
-    await pool.execute(
+    await pool.query(
       `UPDATE project_applications 
        SET status = ?, comment = ?, result = ?, approver = ?
        WHERE id = ?`,
@@ -184,6 +184,10 @@ router.get('/business-trips', async (req, res) => {
     const { pool } = req.app.locals;
     const { applicant, status, page = 1, pageSize = 10 } = req.query;
     
+    const pageNum = parseInt(page) || 1;
+    const size = parseInt(pageSize) || 10;
+    const offset = (pageNum - 1) * size;
+    
     let sql = 'SELECT * FROM business_trip_applications WHERE 1=1';
     const params = [];
     
@@ -197,10 +201,10 @@ router.get('/business-trips', async (req, res) => {
       params.push(status);
     }
     
-    sql += ' ORDER BY createdAt DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(pageSize), (parseInt(page) - 1) * parseInt(pageSize));
+    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    params.push(size, offset);
     
-    const [trips] = await pool.execute(sql, params);
+    const [trips] = await pool.query(sql, params);
     
     // 获取总数
     let countSql = 'SELECT COUNT(*) as total FROM business_trip_applications WHERE 1=1';
@@ -216,7 +220,7 @@ router.get('/business-trips', async (req, res) => {
       countParams.push(status);
     }
     
-    const [countResult] = await pool.execute(countSql, countParams);
+    const [countResult] = await pool.query(countSql, countParams);
     
     res.json({
       success: true,
@@ -253,7 +257,7 @@ router.post('/business-trips', async (req, res) => {
     
     // 创建出差申请
     const now = new Date();
-    const [result] = await pool.execute(
+    const [result] = await pool.query(
       `INSERT INTO business_trip_applications 
        (applicant, destination, tripType, startDate, endDate, days, purpose, estimatedCost, status, approver, createdAt) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, '审批中', ?, ?)`,
@@ -290,7 +294,7 @@ router.get('/business-trips/:id', async (req, res) => {
     const { pool } = req.app.locals;
     const { id } = req.params;
     
-    const [trips] = await pool.execute(
+    const [trips] = await pool.query(
       'SELECT * FROM business_trip_applications WHERE id = ?',
       [id]
     );
@@ -315,7 +319,7 @@ router.post('/business-trips/:id/approve', async (req, res) => {
     
     // 更新出差状态
     const newStatus = action === 'agree' ? '已批准' : '已拒绝';
-    await pool.execute(
+    await pool.query(
       `UPDATE business_trip_applications 
        SET status = ?, comment = ?, result = ?, approver = ?
        WHERE id = ?`,
@@ -339,14 +343,14 @@ router.get('/approvals/todo', async (req, res) => {
     const { pool } = req.app.locals;
     
     // 获取项目申请待办
-    const [projectTasks] = await pool.execute(
+    const [projectTasks] = await pool.query(
       `SELECT 'project' as type, id, projectName as title, applicant, status, createdAt 
        FROM project_applications 
        WHERE status = '审批中'`
     );
     
     // 获取出差申请待办
-    const [tripTasks] = await pool.execute(
+    const [tripTasks] = await pool.query(
       `SELECT 'business_trip' as type, id, destination as title, applicant, status, createdAt, estimatedCost 
        FROM business_trip_applications 
        WHERE status = '审批中'`
@@ -368,14 +372,14 @@ router.get('/approvals/done', async (req, res) => {
     const { pool } = req.app.locals;
     
     // 获取已完成的项目申请
-    const [projectTasks] = await pool.execute(
+    const [projectTasks] = await pool.query(
       `SELECT 'project' as type, id, projectName as title, applicant, status, createdAt 
        FROM project_applications 
        WHERE status IN ('已批准', '已拒绝')`
     );
     
     // 获取已完成的出差申请
-    const [tripTasks] = await pool.execute(
+    const [tripTasks] = await pool.query(
       `SELECT 'business_trip' as type, id, destination as title, applicant, status, createdAt, estimatedCost 
        FROM business_trip_applications 
        WHERE status IN ('已批准', '已拒绝')`

@@ -197,6 +197,33 @@ const editForm = ref({
   nextYearFeeStatus: '未交'
 })
 
+// 模拟项目数据
+const mockProjects: Project[] = [
+  {
+    id: 1,
+    name: '项目1',
+    description: '这是一个成交项目的描述',
+    status: '进行中',
+    startDate: '2026-01-01',
+    dealTime: '2025-12-15',
+    price: 100000,
+    serviceEndTime: '2026-12-31',
+    nextYearFeeStatus: '未交'
+  },
+  {
+    id: 2,
+    name: '项目2',
+    description: '这是另一个成交项目的描述',
+    status: '已完成',
+    startDate: '2025-12-01',
+    dealTime: '2025-11-20',
+    price: 150000,
+    serviceEndTime: '2025-11-30',
+    nextYearFeeStatus: '已交'
+  }
+]
+
+// 加载项目详情
 const loadProjectDetail = async () => {
   const id = Number(route.params.id)
   try {

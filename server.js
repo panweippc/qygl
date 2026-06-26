@@ -5192,7 +5192,7 @@ app.get('/api/business-trips', async (req, res) => {
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     params.push(parseInt(pageSize), (parseInt(page) - 1) * parseInt(pageSize));
     
-    const [trips] = await pool.execute(sql, params);
+    const [trips] = await pool.query(sql, params);
     
     let countSql = 'SELECT COUNT(*) as total FROM business_trip_applications WHERE 1=1';
     const countParams = [];
