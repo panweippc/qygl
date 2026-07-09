@@ -26,11 +26,6 @@ const router = createRouter({
       component: () => import('../views/EmployeeManagementView.vue')
     },
     {
-      path: '/employee-chat',
-      name: 'employee-chat',
-      component: () => import('../views/EmployeeChatView.vue')
-    },
-    {
       path: '/file-storage',
       name: 'file-storage',
       component: () => import('../views/FileStorageView.vue')
@@ -100,8 +95,6 @@ const router = createRouter({
       name: 'system-management',
       component: () => import('../views/SystemManagementView.vue')
     },
-
-
     {
       path: '/city-sales/:cityName',
       name: 'city-sales',
@@ -122,7 +115,6 @@ const router = createRouter({
       name: 'project-detail',
       component: () => import('../views/ProjectDetailView.vue')
     },
-    // 新增：项目申请和出差申请路由
     {
       path: '/oa/project-apply',
       name: 'project-apply',
@@ -150,7 +142,6 @@ const router = createRouter({
   ]
 })
 
-// 全局路由守卫
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
   console.log('Route guard - Token:', token);

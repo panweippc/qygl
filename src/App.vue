@@ -1,11 +1,9 @@
 <template>
   <div class="app-container">
-    <!-- 全局科技背景 -->
     <div class="global-tech-bg">
       <div class="bg-grid"></div>
       <div class="bg-particles"></div>
     </div>
-    
     <router-view />
   </div>
 </template>
@@ -13,62 +11,12 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import websocketService from './services/websocket'
 
 const router = useRouter()
 
-// 连接WebSocket，用于监听被挤下线事件
-const connectWebSocket = () => {
-  try {
-    console.log('正在连接全局WebSocket服务..');
-    websocketService.connect();
-    
-    // 监听被挤下线事件
-    websocketService.on('kickedOut', (data: any) => {
-      console.log('被挤下线:', data);
-      ElMessage.error(data.message || '您的账号在其他设备登录，已被强制退出');
-      // 清除本地存储
-      localStorage.removeItem('token');
-      localStorage.removeItem('userId');
-      localStorage.removeItem('username');
-      // 跳转到登录页
-      router.push('/login');
-    });
-    
-  } catch (error) {
-    console.error('全局WebSocket连接失败:', error);
-  }
-};
+onMounted(() => {})
 
-// 页面加载时检查登录状态
-const checkLoginStatus = () => {
-  const username = localStorage.getItem('username');
-  if (username) {
-    console.log(`检查登录状态，用户: ${username}`);
-    // 确保WebSocket连接已建立并发送登录状态
-    setTimeout(() => {
-      if (websocketService.isConnected()) {
-        console.log(`重新发送用户登录状态 ${username}`);
-        websocketService.emit('setUserLogin', username);
-      } else {
-        console.log('WebSocket未连接，重新连接...');
-        connectWebSocket();
-      }
-    }, 1000);
-  }
-};
-
-// 组件挂载时连接WebSocket
-onMounted(() => {
-  connectWebSocket();
-  checkLoginStatus();
-});
-
-// 组件卸载时清理WebSocket连接
-onUnmounted(() => {
-  // 不需要断开WebSocket连接，因为它是单例的
-});
+onUnmounted(() => {})
 </script>
 
 <style scoped>
@@ -80,7 +28,6 @@ onUnmounted(() => {
   position: relative;
 }
 
-/* 全局科技背景 */
 .global-tech-bg {
   position: fixed;
   top: 0;
@@ -127,7 +74,6 @@ onUnmounted(() => {
   50% { transform: scale(1.1); opacity: 0.6; }
 }
 
-/* 科技风格过渡效果 */
 .tech-fade-enter-active,
 .tech-fade-leave-active {
   transition: all var(--transition-slow);

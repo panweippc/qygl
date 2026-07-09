@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="project-category-container">
     <!-- 顶部导航 -->
     <header class="header">
@@ -64,16 +64,7 @@
               <span>员工管理</span>
               <div class="sidebar-item-indicator"></div>
             </router-link>
-            <router-link to="/employee-chat" class="sidebar-item">
-              <div class="sidebar-icon">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2ZM20 16H6L4 18V4H20V16Z"/>
-                </svg>
-              </div>
-              <span>员工交流</span>
-              <div class="sidebar-item-indicator"></div>
-            </router-link>
-            <router-link to="/file-storage" class="sidebar-item">
+                        <router-link to="/file-storage" class="sidebar-item">
               <div class="sidebar-icon">
                 <svg viewBox="0 0 24 24" fill="currentColor">
                   <path d="M13 9H11V7H13V9ZM13 13H11V11H13V13ZM13 17H11V15H13V17ZM21 3H3C1.9 3 1 3.9 1 5V19C1 20.1 1.9 21 3 21H21C22.1 21 23 20.1 23 19V5C23 3.9 22.1 3 21 3ZM21 19H3V5H21V19Z"/>

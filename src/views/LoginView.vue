@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="login-container">
     <!-- 科技背景 -->
     <div class="tech-bg">
@@ -346,8 +346,7 @@ const handleLogin = async () => {
         { path: '/oa-office' },
         { path: '/monthly-report' },
         { path: '/employee-management' },
-        { path: '/employee-chat' },
-        { path: '/file-storage' },
+                { path: '/file-storage' },
         { path: '/project-category' },
         { path: '/closing-project' },
         { path: '/sales-funnel' },

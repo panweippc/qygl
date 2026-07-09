@@ -1,4 +1,4 @@
-import axios from 'axios';
+﻿import axios from 'axios';
 
 // 使用相对路径，这样在任何电脑上都能正确连接到后端服务器
 const api = axios.create({
@@ -97,17 +97,6 @@ export const addFile = async (file: any) => {
 
 export const deleteFile = async (id: number) => {
   const response = await api.delete(`/files/${id}`);
-  return response.data;
-};
-
-// 聊天管理
-export const getChats = async () => {
-  const response = await api.get('/chats');
-  return response.data;
-};
-
-export const addMessage = async (message: any) => {
-  const response = await api.post('/messages', message);
   return response.data;
 };
 
