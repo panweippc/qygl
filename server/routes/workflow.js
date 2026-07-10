@@ -1,5 +1,5 @@
-/**
- * 工作流API路由 - 简化版本
+﻿/**
+ * ������API·�� - �򻯰汾
  */
 
 import express from 'express';
@@ -7,10 +7,10 @@ import express from 'express';
 const router = express.Router();
 
 /**
- * 项目申请API
+ * ��Ŀ����API
  */
 
-// 获取项目申请列表
+// ��ȡ��Ŀ�����б�
 router.get('/projects', async (req, res) => {
   try {
     const { pool } = req.app.locals;
@@ -36,20 +36,31 @@ router.get('/projects', async (req, res) => {
     
     const [projects] = await pool.query(sql, params);
     
-    // 将字段名转换为前端期望的格式
-    const formattedProjects = projects.map((project) => ({
-      id: project.id,
-      project_name: project.projectName || project.project_name || '未命名项目',
-      project_type: project.projectType || project.project_type || '其他',
-      description: project.description || '',
-      applicant_name: project.applicant || project.applicant_name || '未知申请人',
-      created_at: project.createdAt || project.created_at || new Date().toISOString(),
-      project_link: project.projectLink || project.project_link || '',
-      status: project.status || '审批中',
-      applicant: project.applicant || ''
-    }));
+    // ���ֶ���ת��Ϊǰ�������ĸ�ʽ
+    const formattedProjects = projects.map((project) => {
+  let status = project.status || '审批中';
+  if (status === '审批中') status = 'pending';
+  else if (status === '已批准') status = 'approved';
+  else if (status === '已拒绝') status = 'rejected';
+  return {
+    id: project.id,
+    project_code: 'PRJ' + String(project.id).padStart(6, '0'),
+    project_name: project.projectName || project.project_name || '未命名项目',
+    project_type: project.projectType || project.project_type || '其他',
+    description: project.description || '',
+    applicant_name: project.applicant || project.applicant_name || '未知申请人',
+    applicant: project.applicant || '',
+    department: project.department || '',
+    priority: project.priority || '中',
+    budget: project.budget || 0,
+    created_at: project.createdAt || project.created_at || new Date().toISOString(),
+    project_link: project.projectLink || project.project_link || '',
+    status: status,
+    current_approvers: project.currentApprovers ? JSON.parse(project.currentApprovers) : [project.approverId || '']
+  };
+});
     
-    // 获取总数
+    // ��ȡ����
     let countSql = 'SELECT COUNT(*) as total FROM project_applications WHERE 1=1';
     const countParams = [];
     
@@ -77,13 +88,13 @@ router.get('/projects', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('获取项目申请列表失败:', error);
+    console.error('��ȡ��Ŀ�����б�ʧ��:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// 创建项目申请
-router.post('/projects', async (req, res) => {
+// ������Ŀ����
+router.post("/projects", async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const {
@@ -94,42 +105,54 @@ router.post('/projects', async (req, res) => {
       description,
       projectLink,
       applicant,
-      approver
+      approver,
+      applicantId,
+      approverId
     } = req.body;
     
-    // 创建项目申请
+    let applicantName = applicant;
+    let approverName = approver;
+    
+    if (applicantId && !applicant) {
+      const [employees] = await pool.query("SELECT name FROM employees WHERE id = ?", [applicantId]);
+      applicantName = employees.length > 0 ? employees[0].name : "δ֪������";
+    }
+    
+    if (approverId && !approver) {
+      const [employees] = await pool.query("SELECT name FROM employees WHERE id = ?", [approverId]);
+      approverName = employees.length > 0 ? employees[0].name : "�ܾ���";
+    }
+    
     const now = new Date();
     const [result] = await pool.query(
       `INSERT INTO project_applications 
        (applicant, projectName, projectType, budget, priority, description, projectLink, status, approver, createdAt) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, '审批中', ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, "������", ?, ?)`,
       [
-        applicant || '未知申请人',
+        applicantName || "δ֪������",
         projectName,
         projectType,
         budget || 0,
-        priority || '普通',
-        description || '',
-        projectLink,
-        approver || '总经理',
+        priority || "��ͨ",
+        description || "",
+        projectLink || "",
+        approverName || "�ܾ���",
         now
       ]
-    );
-    
-    res.json({
+    );res.json({
       success: true,
       data: {
         id: result.insertId,
-        status: '审批中'
+        status: '������'
       }
     });
   } catch (error) {
-    console.error('创建项目申请失败:', error);
+    console.error('������Ŀ����ʧ��:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// 获取项目详情
+// ��ȡ��Ŀ����
 router.get('/projects/:id', async (req, res) => {
   try {
     const { pool } = req.app.locals;
@@ -141,44 +164,44 @@ router.get('/projects/:id', async (req, res) => {
     );
     
     if (projects.length === 0) {
-      return res.status(404).json({ success: false, message: '项目不存在' });
+      return res.status(404).json({ success: false, message: '��Ŀ������' });
     }
     
     res.json({ success: true, data: projects[0] });
   } catch (error) {
-    console.error('获取项目详情失败:', error);
+    console.error('��ȡ��Ŀ����ʧ��:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// 审批项目
+// ������Ŀ
 router.post('/projects/:id/approve', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const { id } = req.params;
     const { action, comment, approver } = req.body;
     
-    // 更新项目状态
-    const newStatus = action === 'agree' ? '已批准' : '已拒绝';
+    // ������Ŀ״̬
+    const newStatus = action === 'agree' ? '����׼' : '�Ѿܾ�';
     await pool.query(
       `UPDATE project_applications 
        SET status = ?, comment = ?, result = ?, approver = ?
        WHERE id = ?`,
-      [newStatus, comment, newStatus, approver || '总经理', id]
+      [newStatus, comment, newStatus, approver || '�ܾ���', id]
     );
     
     res.json({ success: true });
   } catch (error) {
-    console.error('审批项目失败:', error);
+    console.error('������Ŀʧ��:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
 /**
- * 出差申请API
+ * ��������API
  */
 
-// 获取出差申请列表
+// ��ȡ���������б�
 router.get('/business-trips', async (req, res) => {
   try {
     const { pool } = req.app.locals;
@@ -205,7 +228,28 @@ router.get('/business-trips', async (req, res) => {
     params.push(size, offset);
     
     const [trips] = await pool.query(sql, params);
-    
+
+    const formattedTrips = trips.map((trip) => {
+      let status = trip.status || '审批中';
+      if (status === '审批中') status = 'pending';
+      else if (status === '已批准') status = 'approved';
+      else if (status === '已拒绝') status = 'rejected';
+      return {
+        id: trip.id,
+        trip_code: 'TRP' + String(trip.id).padStart(6, '0'),
+        destination: trip.destination || '',
+        applicant_name: trip.applicant || '',
+        department: trip.department || '',
+        trip_type: trip.tripType || 'domestic',
+        days: trip.days || 0,
+        estimated_cost: trip.estimatedCost || 0,
+        status: status,
+        start_date: trip.startDate || '',
+        end_date: trip.endDate || '',
+        current_approvers: [trip.approverId || '']
+      };
+    });
+
     // 获取总数
     let countSql = 'SELECT COUNT(*) as total FROM business_trip_applications WHERE 1=1';
     const countParams = [];
@@ -225,7 +269,7 @@ router.get('/business-trips', async (req, res) => {
     res.json({
       success: true,
       data: {
-        list: trips,
+        list: formattedTrips,
         pagination: {
           page: parseInt(page),
           pageSize: parseInt(pageSize),
@@ -234,13 +278,13 @@ router.get('/business-trips', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('获取出差申请列表失败:', error);
+    console.error('��ȡ���������б�ʧ��:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// 创建出差申请
-router.post('/business-trips', async (req, res) => {
+// ������������
+router.post("/business-trips", async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const {
@@ -252,17 +296,32 @@ router.post('/business-trips', async (req, res) => {
       purpose,
       estimatedCost,
       applicant,
-      approver
+      approver,
+      applicantId,
+      approverId,
+      applicantName
     } = req.body;
     
-    // 创建出差申请
+    let finalApplicantName = applicant || applicantName;
+    let approverName = approver;
+    
+    if (applicantId && !finalApplicantName) {
+      const [employees] = await pool.query("SELECT name FROM employees WHERE id = ?", [applicantId]);
+      finalApplicantName = employees.length > 0 ? employees[0].name : "δ֪������";
+    }
+    
+    if (approverId && !approverName) {
+      const [employees] = await pool.query("SELECT name FROM employees WHERE id = ?", [approverId]);
+      approverName = employees.length > 0 ? employees[0].name : "�ܾ���";
+    }
+    
     const now = new Date();
     const [result] = await pool.query(
       `INSERT INTO business_trip_applications 
        (applicant, destination, tripType, startDate, endDate, days, purpose, estimatedCost, status, approver, createdAt) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, '审批中', ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, "������", ?, ?)`,
       [
-        applicant || '未知申请人',
+        finalApplicantName || "δ֪������",
         destination,
         tripType,
         startDate,
@@ -270,25 +329,23 @@ router.post('/business-trips', async (req, res) => {
         days || 1,
         purpose,
         estimatedCost || 0,
-        approver || '总经理',
+        approverName || "�ܾ���",
         now
       ]
-    );
-    
-    res.json({
+    );res.json({
       success: true,
       data: {
         id: result.insertId,
-        status: '审批中'
+        status: '������'
       }
     });
   } catch (error) {
-    console.error('创建出差申请失败:', error);
+    console.error('������������ʧ��:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// 获取出差详情
+// ��ȡ��������
 router.get('/business-trips/:id', async (req, res) => {
   try {
     const { pool } = req.app.locals;
@@ -300,60 +357,60 @@ router.get('/business-trips/:id', async (req, res) => {
     );
     
     if (trips.length === 0) {
-      return res.status(404).json({ success: false, message: '出差申请不存在' });
+      return res.status(404).json({ success: false, message: '�������벻����' });
     }
     
     res.json({ success: true, data: trips[0] });
   } catch (error) {
-    console.error('获取出差详情失败:', error);
+    console.error('��ȡ��������ʧ��:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// 审批出差申请
+// ������������
 router.post('/business-trips/:id/approve', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const { id } = req.params;
     const { action, comment, approver } = req.body;
     
-    // 更新出差状态
-    const newStatus = action === 'agree' ? '已批准' : '已拒绝';
+    // ���³���״̬
+    const newStatus = action === 'agree' ? '����׼' : '�Ѿܾ�';
     await pool.query(
       `UPDATE business_trip_applications 
        SET status = ?, comment = ?, result = ?, approver = ?
        WHERE id = ?`,
-      [newStatus, comment, newStatus, approver || '总经理', id]
+      [newStatus, comment, newStatus, approver || '�ܾ���', id]
     );
     
     res.json({ success: true });
   } catch (error) {
-    console.error('审批出差申请失败:', error);
+    console.error('������������ʧ��:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
 /**
- * 审批中心API - 简化版本
+ * ��������API - �򻯰汾
  */
 
-// 获取待办任务
+// ��ȡ��������
 router.get('/approvals/todo', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     
-    // 获取项目申请待办
+    // ��ȡ��Ŀ�������
     const [projectTasks] = await pool.query(
       `SELECT 'project' as type, id, projectName as title, applicant, status, createdAt 
        FROM project_applications 
-       WHERE status = '审批中'`
+       WHERE status = '������'`
     );
     
-    // 获取出差申请待办
+    // ��ȡ�����������
     const [tripTasks] = await pool.query(
       `SELECT 'business_trip' as type, id, destination as title, applicant, status, createdAt, estimatedCost 
        FROM business_trip_applications 
-       WHERE status = '审批中'`
+       WHERE status = '������'`
     );
     
     const tasks = [...projectTasks, ...tripTasks];
@@ -361,28 +418,28 @@ router.get('/approvals/todo', async (req, res) => {
     
     res.json({ success: true, data: tasks });
   } catch (error) {
-    console.error('获取待办任务失败:', error);
+    console.error('��ȡ��������ʧ��:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// 获取已办任务
+// ��ȡ�Ѱ�����
 router.get('/approvals/done', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     
-    // 获取已完成的项目申请
+    // ��ȡ����ɵ���Ŀ����
     const [projectTasks] = await pool.query(
       `SELECT 'project' as type, id, projectName as title, applicant, status, createdAt 
        FROM project_applications 
-       WHERE status IN ('已批准', '已拒绝')`
+       WHERE status IN ('����׼', '�Ѿܾ�')`
     );
     
-    // 获取已完成的出差申请
+    // ��ȡ����ɵĳ�������
     const [tripTasks] = await pool.query(
       `SELECT 'business_trip' as type, id, destination as title, applicant, status, createdAt, estimatedCost 
        FROM business_trip_applications 
-       WHERE status IN ('已批准', '已拒绝')`
+       WHERE status IN ('����׼', '�Ѿܾ�')`
     );
     
     const tasks = [...projectTasks, ...tripTasks];
@@ -390,7 +447,7 @@ router.get('/approvals/done', async (req, res) => {
     
     res.json({ success: true, data: tasks });
   } catch (error) {
-    console.error('获取已办任务失败:', error);
+    console.error('��ȡ�Ѱ�����ʧ��:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

@@ -1,4 +1,4 @@
-﻿<template>
+﻿﻿<template>
   <div class="project-category-container">
     <!-- 顶部导航 -->
     <header class="header">

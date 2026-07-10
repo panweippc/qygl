@@ -1,4 +1,4 @@
-<template>
+﻿﻿﻿﻿<template>
   <div class="app-container">
     <div class="global-tech-bg">
       <div class="bg-grid"></div>
@@ -21,10 +21,11 @@ onUnmounted(() => {})
 
 <style scoped>
 .app-container {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  min-height: 100vh;
   background: var(--bg-color);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   position: relative;
 }
 

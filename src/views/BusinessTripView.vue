@@ -1,4 +1,4 @@
-<template>
+﻿﻿﻿﻿<template>
   <div class="business-trip-application">
     <div class="main-container">
       <!-- 左侧表单区域 -->
@@ -418,13 +418,11 @@ const submitting = ref(false);
 const employeeOptions = ref([]);
 const approverOptions = ref([]);
 
-// 获取当前用户信息
 const currentUser = computed(() => {
   const userStr = localStorage.getItem('user');
   return userStr ? JSON.parse(userStr) : null;
 });
 
-// 当前选择的审批人信息
 const selectedApprover = computed(() => {
   return approverOptions.value.find(emp => emp.id === form.approver) || null;
 });
@@ -476,7 +474,6 @@ const rules = {
   ]
 };
 
-// 计算出差天数
 const tripDays = computed(() => {
   if (!form.startDate || !form.endDate) return 0;
   const start = new Date(form.startDate);
@@ -485,19 +482,16 @@ const tripDays = computed(() => {
   return days > 0 ? days : 0;
 });
 
-// 计算费用总计
 const totalCost = computed(() => {
   const { transport, accommodation, meals, other } = form.costBreakdown;
   return (transport || 0) + (accommodation || 0) + (meals || 0) + (other || 0);
 });
 
-// 禁用结束日期
 const disabledEndDate = (time: Date) => {
   if (!form.startDate) return false;
   return time.getTime() < new Date(form.startDate).getTime();
 };
 
-// 添加行程
 const addItinerary = () => {
   form.itinerary.push({
     date: '',
@@ -506,12 +500,10 @@ const addItinerary = () => {
   });
 };
 
-// 删除行程
 const removeItinerary = (index: number) => {
   form.itinerary.splice(index, 1);
 };
 
-// 搜索员工
 const searchEmployees = async (query: string) => {
   try {
     const response = await getEmployees();
@@ -529,19 +521,16 @@ const searchEmployees = async (query: string) => {
   }
 };
 
-// 获取审批人选项（总经理、部门经理等管理角色）
 const loadApprovers = async () => {
   try {
     const response = await getEmployees();
     if (response.success) {
-      // 筛选出管理角色的员工（总经理、总监、经理等）
       const managers = response.data.filter((emp: any) => {
         const position = emp.position || '';
         return position.includes('总经理') || position.includes('总监') || position.includes('经理');
       });
       approverOptions.value = managers;
       
-      // 默认选择总经理
       const defaultManager = managers.find(emp => (emp.position || '').includes('总经理'));
       if (defaultManager) {
         form.approver = defaultManager.id;
@@ -552,7 +541,6 @@ const loadApprovers = async () => {
   }
 };
 
-// 提交表单
 const submitForm = async () => {
   if (!formRef.value) return;
 
@@ -598,25 +586,21 @@ const submitForm = async () => {
   });
 };
 
-// 重置表单
 const resetForm = () => {
   formRef.value?.resetFields();
   form.itinerary = [];
   form.costBreakdown = { transport: 0, accommodation: 0, meals: 0, other: 0 };
 };
 
-// 保存草稿
 const saveDraft = () => {
     localStorage.setItem('businessTripDraft', JSON.stringify(form));
     ElMessage.success('草稿已保存');
   };
 
-// 返回
 const goBack = () => {
   router.back();
 };
 
-// 加载草稿
 const loadDraft = () => {
   const draft = localStorage.getItem('businessTripDraft');
   if (draft) {
@@ -625,7 +609,6 @@ const loadDraft = () => {
   }
 };
 
-// 初始化
 loadDraft();
 searchEmployees('');
 loadApprovers();
@@ -649,14 +632,13 @@ loadApprovers();
 
 .scroll-container {
   width: 360px;
-  position: sticky;
-  top: 20px;
-  height: calc(100vh - 100px);
-  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .scroll-content {
-  height: 100%;
+  position: sticky;
+  top: 20px;
+  max-height: calc(100vh - 80px);
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 8px;

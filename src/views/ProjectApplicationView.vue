@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="project-application">
     <div class="main-container">
       <!-- 左侧表单区域 -->
@@ -521,14 +521,13 @@ loadApprovers();
 
 .scroll-container {
   width: 360px;
-  position: sticky;
-  top: 20px;
-  height: calc(100vh - 100px);
-  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .scroll-content {
-  height: 100%;
+  position: sticky;
+  top: 20px;
+  max-height: calc(100vh - 80px);
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 8px;
