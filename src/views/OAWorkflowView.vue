@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="approval-center-container">
     <!-- 顶部导航 -->
     <header class="header">
@@ -44,7 +44,7 @@
 
         <!-- 统计卡片 -->
         <div class="stats-bar">
-          <div class="stat-item" v-for="stat in approvalStats" :key="stat.key" :class="stat.key">
+<div class="stat-item" v-for="stat in approvalStats" :key="stat.key" :class="stat.key" @click="openStatDetail(stat.key)">
             <div class="stat-icon-wrapper" :style="{ background: stat.gradient }">
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <path :d="stat.icon"/>
@@ -53,7 +53,7 @@
             <div class="stat-content">
               <span class="stat-number">{{ stat.value }}</span>
               <span class="stat-name">{{ stat.label }}</span>
-            </div>
+</div><div class="stat-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></div>
           </div>
         </div>
 
@@ -1338,6 +1338,47 @@
         </div>
       </div>
     </main>
+    <!-- 统计详情对话框 -->
+    <el-dialog v-model="statDetailDialogVisible" :title="statDetailTitle" width="800px">
+      <el-table :data="statDetailRecords" style="width: 100%">
+        <el-table-column prop="id" label="编号" width="80">
+          <template #default="{ row }">#{{ row.id }}</template>
+        </el-table-column>
+        <el-table-column label="类型" width="100">
+          <template #default="{ row }">
+            <span class="type-tag">{{ getStatDetailTypeLabel(row._type) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="标题" min-width="150">
+          <template #default="{ row }">{{ getStatDetailName(row) }}</template>
+        </el-table-column>
+        <el-table-column label="申请人" width="120">
+          <template #default="{ row }">{{ row.applicant || row.organizer || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="金额" width="100">
+          <template #default="{ row }">
+            <span v-if="row.amount || row.budget || row.estimatedCost">
+              ¥{{ row.amount || row.budget || row.estimatedCost }}
+            </span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <span :class="['status-tag', getStatusClass(row.status)]">{{ getStatusText(row.status) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="提交时间" width="160">
+          <template #default="{ row }">{{ row.submitDate || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="100">
+          <template #default="{ row }">
+            <el-button size="small" @click="viewDetail(row, row._type)">详情</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
+
 
     <!-- 请假申请对话框 -->
     <el-dialog v-model="leaveDialogVisible" title="请假申请" width="600px" class="custom-dialog">
@@ -1743,6 +1784,67 @@ const approvalStats = ref([
 const allEmployees = ref([])
 
 // 数据列表
+// 统计详情对话框
+const statDetailDialogVisible = ref(false)
+const statDetailTitle = ref('')
+const statDetailRecords = ref([])
+
+// 打开统计详情
+const openStatDetail = (statKey: string) => {
+  const allRecords = [
+    ...(isAdmin.value ? allLeaveRecords.value : leaveRecords.value),
+    ...(isAdmin.value ? allReimbursementRecords.value : reimbursementRecords.value),
+    ...meetingRecords.value,
+    ...(isAdmin.value ? allProjectRecords.value : projectRecords.value),
+    ...(isAdmin.value ? allBusinessTripRecords.value : businessTripRecords.value)
+  ].map(record => ({
+    ...record,
+    _type: record.projectName ? 'project' : record.reimburseType ? 'reimbursement' : record.leaveType ? 'leave' : record.destination ? 'businessTrip' : 'meeting'
+  }))
+
+  let filteredRecords = []
+  
+  switch (statKey) {
+    case 'pending':
+      statDetailTitle.value = '待审批列表'
+      filteredRecords = allRecords.filter(r => r.status === '审批中' || r.status === 'pending')
+      break
+    case 'approved':
+      statDetailTitle.value = '已批准列表'
+      filteredRecords = allRecords.filter(r => r.status === '已批准' || r.status === 'approved')
+      break
+    case 'rejected':
+      statDetailTitle.value = '已拒绝列表'
+      filteredRecords = allRecords.filter(r => r.status === '已拒绝' || r.status === '拒绝' || r.status === 'rejected')
+      break
+    case 'total':
+      statDetailTitle.value = '所有申请列表'
+      filteredRecords = allRecords
+      break
+    default:
+      return
+  }
+
+  statDetailRecords.value = filteredRecords
+  statDetailDialogVisible.value = true
+}
+
+// 获取统计详情中的类型标签
+const getStatDetailTypeLabel = (type: string) => {
+  const typeMap: Record<string, string> = {
+    'project': '项目申请',
+    'reimbursement': '报销申请',
+    'leave': '请假申请',
+    'businessTrip': '出差申请',
+    'meeting': '会议申请'
+  }
+  return typeMap[type] || type
+}
+
+// 获取统计详情中的名称
+const getStatDetailName = (record: any) => {
+  return record.projectName || record.title || record.reimburseType || record.leaveType || record.destination || '未知'
+}
 const leaveRecords = ref([])
 const reimbursementRecords = ref([])
 const meetingRecords = ref([])
