@@ -41,6 +41,14 @@
             </button>
             <button 
               class="tab-btn" 
+              :class="{ active: activeTab === 'users' }"
+              @click="activeTab = 'users'"
+            >
+              <span class="tab-icon">👤</span>
+              用户管理
+            </button>
+            <button 
+              class="tab-btn" 
               :class="{ active: activeTab === 'menus' }"
               @click="activeTab = 'menus'"
             >
@@ -94,6 +102,55 @@
                     权限
                   </el-button>
                   <el-button size="small" type="danger" @click="deleteRole(row.id)" class="delete-btn">
+                    删除
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
+
+        <!-- 用户管理 -->
+        <div v-if="activeTab === 'users'" class="management-section">
+          <div class="section-header">
+            <h3 class="subsection-title">用户列表</h3>
+            <el-button type="primary" @click="openAddUserDialog" class="add-btn">
+              添加用户
+            </el-button>
+          </div>
+
+          <div class="table-container">
+            <el-table :data="users" style="width: 100%" class="data-table" v-loading="userLoading">
+              <el-table-column prop="id" label="ID" width="80" />
+              <el-table-column prop="name" label="姓名" width="120" />
+              <el-table-column prop="department" label="部门" width="120" />
+              <el-table-column prop="position" label="职位" width="120" />
+              <el-table-column prop="roleId" label="角色" width="120">
+                <template #default="{ row }">
+                  <el-tag v-if="row.roleId" size="small" type="info">{{ getRoleName(row.roleId) }}</el-tag>
+                  <span v-else>-</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="phone" label="电话" width="140" />
+              <el-table-column prop="email" label="邮箱" min-width="160" show-overflow-tooltip />
+              <el-table-column prop="status" label="状态" width="100">
+                <template #default="{ row }">
+                  <el-tag :type="row.status === '在职' ? 'success' : 'danger'">
+                    {{ row.status || '在职' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="createdAt" label="创建时间" width="180">
+                <template #default="{ row }">
+                  {{ row.createdAt ? new Date(row.createdAt).toLocaleString() : '-' }}
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="180" fixed="right">
+                <template #default="{ row }">
+                  <el-button size="small" @click="editUser(row)" class="edit-btn">
+                    编辑
+                  </el-button>
+                  <el-button size="small" type="danger" @click="deleteUser(row)" class="delete-btn">
                     删除
                   </el-button>
                 </template>
@@ -303,6 +360,54 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 添加/编辑用户对话框 -->
+    <el-dialog
+      v-model="userDialogVisible"
+      :title="isEditingUser ? '编辑用户' : '添加用户'"
+      width="500px"
+      class="dialog"
+    >
+      <el-form :model="userForm" :rules="userRules" ref="userFormRef" label-position="top">
+        <el-form-item label="姓名" prop="name">
+          <el-input v-model="userForm.name" placeholder="请输入姓名" />
+        </el-form-item>
+        <el-form-item label="部门" prop="department">
+          <el-input v-model="userForm.department" placeholder="请输入部门" />
+        </el-form-item>
+        <el-form-item label="职位">
+          <el-input v-model="userForm.position" placeholder="请输入职位" />
+        </el-form-item>
+        <el-form-item label="角色">
+          <el-select v-model="userForm.roleId" placeholder="请选择角色" style="width: 100%" clearable>
+            <el-option
+              v-for="role in roles"
+              :key="role.id"
+              :label="role.name"
+              :value="role.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="电话">
+          <el-input v-model="userForm.phone" placeholder="请输入电话" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="userForm.email" placeholder="请输入邮箱" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-radio-group v-model="userForm.status">
+            <el-radio label="在职">在职</el-radio>
+            <el-radio label="离职">离职</el-radio>
+          </el-radio-group>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="userDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="saveUser" :loading="saving">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -323,7 +428,11 @@ import {
   updateMenu,
   deleteMenu as apiDeleteMenu,
   getRolePermissions,
-  assignRolePermissions
+  assignRolePermissions,
+  getEmployees,
+  addEmployee,
+  updateEmployee,
+  deleteEmployee
 } from '../services/api'
 
 const router = useRouter()
@@ -381,6 +490,33 @@ const menuRules = {
     name: [{ required: true, message: '请输入菜单名称', trigger: 'blur' }],
     path: [{ required: true, message: '请输入路由路径', trigger: 'blur' }]
   }
+
+// 用户数据
+const users = ref<any[]>([])
+const userLoading = ref(false)
+const userDialogVisible = ref(false)
+const isEditingUser = ref(false)
+const userFormRef = ref()
+const userForm = ref({
+  id: null as number | null,
+  name: '',
+  department: '',
+  position: '',
+  roleId: null as number | null,
+  phone: '',
+  email: '',
+  status: '在职'
+})
+
+const userRules = {
+  name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
+  department: [{ required: true, message: '请输入部门', trigger: 'blur' }]
+}
+
+const getRoleName = (roleId: number) => {
+  const role = roles.value.find((r: any) => r.id === roleId)
+  return role ? role.name : '-'
+}
 
 // 计算属性：扁平化的菜单列表（用于表格显示）
 const flattenMenus = computed(() => {
@@ -803,6 +939,79 @@ const savePermissions = async () => {
   }
 }
 
+// ========== 用户管理 ==========
+
+const loadUsers = async () => {
+  try {
+    userLoading.value = true
+    const response = await getEmployees()
+    if (response.success) {
+      users.value = response.data || []
+    }
+  } catch (error) {
+    console.error('获取用户列表失败:', error)
+  } finally {
+    userLoading.value = false
+  }
+}
+
+const openAddUserDialog = () => {
+  isEditingUser.value = false
+  userForm.value = { id: null, name: '', department: '', position: '', roleId: null, phone: '', email: '', status: '在职' }
+  userDialogVisible.value = true
+}
+
+const editUser = (row: any) => {
+  isEditingUser.value = true
+  userForm.value = {
+    id: row.id,
+    name: row.name,
+    department: row.department,
+    position: row.position || '',
+    roleId: row.roleId || null,
+    phone: row.phone || '',
+    email: row.email || '',
+    status: row.status || '在职'
+  }
+  userDialogVisible.value = true
+}
+
+const saveUser = async () => {
+  if (!userFormRef.value) return
+  await userFormRef.value.validate(async (valid: boolean) => {
+    if (!valid) return
+    try {
+      saving.value = true
+      if (isEditingUser.value) {
+        await updateEmployee(userForm.value)
+        ElMessage.success('更新成功')
+      } else {
+        await addEmployee(userForm.value)
+        ElMessage.success('添加成功')
+      }
+      userDialogVisible.value = false
+      loadUsers()
+    } catch (error) {
+      ElMessage.error('操作失败')
+    } finally {
+      saving.value = false
+    }
+  })
+}
+
+const deleteUser = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(`确定要删除用户"${row.name}"吗？`, '确认删除', { type: 'warning' })
+    await deleteEmployee(row.name)
+    ElMessage.success('删除成功')
+    loadUsers()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
 // 返回
 const handleBack = () => {
   router.back()
@@ -812,6 +1021,7 @@ const handleBack = () => {
 onMounted(() => {
   loadRoles()
   loadMenus()
+  loadUsers()
 })
 </script>
 
