@@ -665,7 +665,7 @@ const submitForm = async () => {
 
         if (response.success) {
           ElMessage.success('出差申请提交成功');
-          router.push('/oa-office');
+          router.push('/oa-office?tab=businessTrip');
         } else {
           ElMessage.error(response.message || '提交失败');
         }

@@ -1694,7 +1694,7 @@ const route = useRoute()
 const loading = ref(false)
 
 // 当前标签页
-const activeTab = ref('project')
+const activeTab = ref((route.query.tab as string) || 'project')
 
 // 视图模式
 const viewMode = ref('list')
