@@ -1964,7 +1964,7 @@ app.put('/api/employees/:name', async (req, res) => {
     await connection.execute('SET CHARACTER SET utf8mb4');
     
     // 格式化日期
-    const formattedEntryDate = entryDate ? new Date(entryDate).toISOString().slice(0, 19).replace('T', ' ') : null;
+    const formattedEntryDate = entryDate ? new Date(entryDate).toISOString().slice(0, 19).replace('T', ' ') : new Date().toISOString().slice(0, 19).replace('T', ' ');
     const formattedBirthDate = birthDate ? new Date(birthDate).toISOString().slice(0, 19).replace('T', ' ') : null;
     
     // 查找角色ID：优先使用直接传入的roleId，否则通过角色名查找
@@ -1977,19 +1977,14 @@ app.put('/api/employees/:name', async (req, res) => {
     }
     
     // 更新员工数据
-    const [result] = await connection.execute(
-      'UPDATE employees SET department = ?, position = ?, email = ?, phone = ?, roleId = ?, status = ?, employeeType = ?, education = ?, birthDate = ?, idCard = ?, address = ?, emergencyContact = ?, emergencyPhone = ? WHERE name = ?',
-      [department, position, email, phone, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', name]
+    await connection.execute(
+      'UPDATE employees SET department = ?, position = ?, email = ?, phone = ?, entryDate = ?, roleId = ?, status = ?, employeeType = ?, education = ?, birthDate = ?, idCard = ?, address = ?, emergencyContact = ?, emergencyPhone = ? WHERE name = ?',
+      [department, position, email, phone, formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', name]
     );
-    
-    if (result.affectedRows === 0) {
-      console.warn(`[警告] 更新员工 ${name}: 未找到匹配记录或数据未变化`);
-    } else {
-      console.log(`[成功] 更新员工 ${name}: roleId=${roleId}, affectedRows=${result.affectedRows}`);
-    }
     
     // 如果设置了密码，更新对应的用户账户
     if (password) {
+      // 查找与该员工关联的用户账户
       const [users] = await connection.execute('SELECT * FROM users WHERE username = ?', [name]);
       if (users.length > 0) {
         await connection.execute(
@@ -1999,11 +1994,14 @@ app.put('/api/employees/:name', async (req, res) => {
       }
     }
     
+    // 角色权限更新逻辑已移除，因为权限是基于角色的，不是基于用户的
+    // 只需要更新employees表中的roleId字段即可
+    
     connection.release();
     res.json({ success: true, message: '员工更新成功' });
   } catch (error) {
     console.error('更新员工失败:', error);
-    res.status(500).json({ success: false, message: '更新员工失败: ' + error.message });
+    res.status(500).json({ success: false, message: '更新员工失败' });
   }
 });
 

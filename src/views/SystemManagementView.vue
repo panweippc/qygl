@@ -370,7 +370,7 @@
     >
       <el-form :model="userForm" :rules="userRules" ref="userFormRef" label-position="top">
         <el-form-item label="姓名" prop="name">
-          <el-input v-model="userForm.name" placeholder="请输入姓名" :disabled="isEditingUser" />
+          <el-input v-model="userForm.name" placeholder="请输入姓名" />
         </el-form-item>
         <el-form-item label="部门" prop="department">
           <el-input v-model="userForm.department" placeholder="请输入部门" />
@@ -978,24 +978,25 @@ const editUser = (row: any) => {
 
 const saveUser = async () => {
   if (!userFormRef.value) return
-  try {
-    const valid = await userFormRef.value.validate()
+  await userFormRef.value.validate(async (valid: boolean) => {
     if (!valid) return
-    saving.value = true
-    if (isEditingUser.value) {
-      await updateEmployee(userForm.value)
-      ElMessage.success('更新成功')
-    } else {
-      await addEmployee(userForm.value)
-      ElMessage.success('添加成功')
+    try {
+      saving.value = true
+      if (isEditingUser.value) {
+        await updateEmployee(userForm.value)
+        ElMessage.success('更新成功')
+      } else {
+        await addEmployee(userForm.value)
+        ElMessage.success('添加成功')
+      }
+      userDialogVisible.value = false
+      loadUsers()
+    } catch (error) {
+      ElMessage.error('操作失败')
+    } finally {
+      saving.value = false
     }
-    userDialogVisible.value = false
-    loadUsers()
-  } catch (error) {
-    ElMessage.error('操作失败')
-  } finally {
-    saving.value = false
-  }
+  })
 }
 
 const deleteUser = async (row: any) => {
