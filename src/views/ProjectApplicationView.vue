@@ -182,8 +182,6 @@
           <el-button type="primary" @click="submitForm" :loading="submitting">
             提交申请
           </el-button>
-          <el-button @click="resetForm">重置</el-button>
-          <el-button @click="saveDraft">保存草稿</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -528,8 +526,7 @@ const submitForm = async () => {
 
         if (response.success) {
           ElMessage.success('项目申请提交成功');
-          resetForm();
-          loadMyProjects();
+          router.push('/oa-office');
         } else {
           ElMessage.error(response.message || '提交失败');
         }
@@ -543,34 +540,13 @@ const submitForm = async () => {
   });
 };
 
-const resetForm = () => {
-  formRef.value?.resetFields();
-};
-
-// 保存草稿
-const saveDraft = () => {
-    localStorage.setItem('projectDraft', JSON.stringify(form));
-    ElMessage.success('草稿已保存');
-  };
-
 // 返回
 const goBack = () => {
   router.back();
 };
 
-// 加载草稿
-const loadDraft = () => {
-  const draft = localStorage.getItem('projectDraft');
-  if (draft) {
-    Object.assign(form, JSON.parse(draft));
-  }
-};
-
-// 初始化
-loadDraft();
 searchEmployees('');
 loadApprovers();
-loadMyProjects();
 </script>
 
 <style scoped>

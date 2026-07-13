@@ -1090,7 +1090,7 @@
             <el-table-column prop="tripType" label="出差类型">
               <template #default="{ row }">
                 <span class="type-tag" :class="getTripTypeClass(row.tripType)">
-                  {{ row.tripType }}
+                  {{ row.tripType === 'domestic' ? '国内出差' : row.tripType === 'international' ? '国外出差' : row.tripType }}
                 </span>
               </template>
             </el-table-column>
@@ -1199,7 +1199,7 @@
               </div>
               <div class="card-row">
                 <span class="card-label">出差类型</span>
-                <span class="type-tag" :class="getTripTypeClass(row.tripType)">{{ row.tripType }}</span>
+                <span class="type-tag" :class="getTripTypeClass(row.tripType)">{{ row.tripType === 'domestic' ? '国内出差' : row.tripType === 'international' ? '国外出差' : row.tripType }}</span>
               </div>
               <div class="card-row">
                 <span class="card-label">出差天数</span>

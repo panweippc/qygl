@@ -282,8 +282,6 @@
           <el-button type="primary" @click="submitForm" :loading="submitting">
             提交申请
           </el-button>
-          <el-button @click="resetForm">重置</el-button>
-          <el-button @click="saveDraft">保存草稿</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -657,6 +655,7 @@ const submitForm = async () => {
       try {
         const submitData = {
           ...form,
+          days: tripDays.value,
           applicantId: currentUser.value.id,
           applicantName: currentUser.value.name,
           approverId: form.approver
@@ -666,8 +665,7 @@ const submitForm = async () => {
 
         if (response.success) {
           ElMessage.success('出差申请提交成功');
-          resetForm();
-          loadMyTrips();
+          router.push('/oa-office');
         } else {
           ElMessage.error(response.message || '提交失败');
         }
@@ -681,33 +679,12 @@ const submitForm = async () => {
   });
 };
 
-const resetForm = () => {
-  formRef.value?.resetFields();
-  form.itinerary = [];
-  form.costBreakdown = { transport: 0, accommodation: 0, meals: 0, other: 0 };
-};
-
-const saveDraft = () => {
-    localStorage.setItem('businessTripDraft', JSON.stringify(form));
-    ElMessage.success('草稿已保存');
-  };
-
 const goBack = () => {
   router.back();
 };
 
-const loadDraft = () => {
-  const draft = localStorage.getItem('businessTripDraft');
-  if (draft) {
-    const draftData = JSON.parse(draft);
-    Object.assign(form, draftData);
-  }
-};
-
-loadDraft();
 searchEmployees('');
 loadApprovers();
-loadMyTrips();
 </script>
 
 <style scoped>
