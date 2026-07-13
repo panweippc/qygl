@@ -1845,7 +1845,7 @@ app.get('/api/employees', async (req, res) => {
 });
 
 app.post('/api/employees', async (req, res) => {
-  const { name, department, position, email, phone, entryDate, password, role, status, employeeType, education, birthDate, idCard, address, emergencyContact, emergencyPhone } = req.body;
+  const { name, department, position, email, phone, entryDate, password, role, roleId: directRoleId, status, employeeType, education, birthDate, idCard, address, emergencyContact, emergencyPhone } = req.body;
   try {
     const connection = await pool.getConnection();
     
@@ -1859,9 +1859,9 @@ app.post('/api/employees', async (req, res) => {
     const formattedEntryDate = entryDate ? new Date(entryDate).toISOString().slice(0, 19).replace('T', ' ') : formattedDate;
     const formattedBirthDate = birthDate ? new Date(birthDate).toISOString().slice(0, 19).replace('T', ' ') : null;
     
-    // 查找角色ID
-    let roleId = null;
-    if (role) {
+    // 查找角色ID：优先使用直接传入的roleId，否则通过角色名查找
+    let roleId = directRoleId || null;
+    if (!roleId && role) {
       const [roles] = await connection.execute('SELECT id FROM roles WHERE name = ?', [role]);
       if (roles.length > 0) {
         roleId = roles[0].id;
@@ -1955,7 +1955,7 @@ app.delete('/api/employees/:name', async (req, res) => {
 
 app.put('/api/employees/:name', async (req, res) => {
   const { name } = req.params;
-  const { department, position, email, phone, entryDate, password, role, status, employeeType, education, birthDate, idCard, address, emergencyContact, emergencyPhone } = req.body;
+  const { department, position, email, phone, entryDate, password, role, roleId: directRoleId, status, employeeType, education, birthDate, idCard, address, emergencyContact, emergencyPhone } = req.body;
   try {
     const connection = await pool.getConnection();
     
@@ -1967,9 +1967,9 @@ app.put('/api/employees/:name', async (req, res) => {
     const formattedEntryDate = entryDate ? new Date(entryDate).toISOString().slice(0, 19).replace('T', ' ') : new Date().toISOString().slice(0, 19).replace('T', ' ');
     const formattedBirthDate = birthDate ? new Date(birthDate).toISOString().slice(0, 19).replace('T', ' ') : null;
     
-    // 查找角色ID
-    let roleId = null;
-    if (role) {
+    // 查找角色ID：优先使用直接传入的roleId，否则通过角色名查找
+    let roleId = directRoleId || null;
+    if (!roleId && role) {
       const [roles] = await connection.execute('SELECT id FROM roles WHERE name = ?', [role]);
       if (roles.length > 0) {
         roleId = roles[0].id;

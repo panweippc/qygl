@@ -7,115 +7,14 @@
         <div class="logo-glow"></div>
       </div>
       <nav class="nav">
-        <router-link to="/" class="nav-item">首页</router-link>
-        <button class="nav-item user-btn">{{ currentUser }}</button>
-        <button class="nav-item logout-btn" @click="handleLogout">退出</button>
+        <router-link to="/project-category" class="nav-item active">项目分类</router-link>
+        <button class="nav-item logout-btn" @click="handleBack">返回</button>
       </nav>
     </header>
 
     <!-- 主内容区 -->
-    <div class="main-container">
-      <!-- 左侧导航 -->
-      <aside class="sidebar">
-        <div class="sidebar-content">
-          <nav class="sidebar-nav">
-            <router-link to="/" class="sidebar-item">
-              <div class="sidebar-icon">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-                </svg>
-              </div>
-              <span>首页</span>
-              <div class="sidebar-item-indicator"></div>
-            </router-link>
-            <router-link to="/tool-inventory" class="sidebar-item">
-              <div class="sidebar-icon">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2ZM16 14H8V12H16V14ZM16 10H8V8H16V10Z"/>
-                </svg>
-              </div>
-              <span>工具入库</span>
-              <div class="sidebar-item-indicator"></div>
-            </router-link>
-            <router-link to="/oa-office" class="sidebar-item">
-              <div class="sidebar-icon">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM11 17H7V10H11V17ZM17 17H13V7H17V17Z"/>
-                </svg>
-              </div>
-              <span>OA办公</span>
-              <div class="sidebar-item-indicator"></div>
-            </router-link>
-            <router-link to="/monthly-report" class="sidebar-item">
-              <div class="sidebar-icon">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19ZM16 11H13V8H11V11H8V13H11V16H13V13H16V11Z"/>
-                </svg>
-              </div>
-              <span>月报</span>
-              <div class="sidebar-item-indicator"></div>
-            </router-link>
-            <router-link to="/employee-management" class="sidebar-item">
-              <div class="sidebar-icon">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M16 11C17.66 11 19 9.66 19 8C19 6.34 17.66 5 16 5C14.34 5 13 6.34 13 8C13 9.66 14.34 11 16 11ZM8 11C9.66 11 11 9.66 11 8C11 6.34 9.66 5 8 5C6.34 5 5 6.34 5 8C5 9.66 6.34 11 8 11ZM8 13C5.67 13 1 14.17 1 16.5V19H15V16.5C15 14.17 10.33 13 8 13ZM16 13C13.67 13 9 14.17 9 16.5V19H23V16.5C23 14.17 18.33 13 16 13Z"/>
-                </svg>
-              </div>
-              <span>员工管理</span>
-              <div class="sidebar-item-indicator"></div>
-            </router-link>
-                        <router-link to="/file-storage" class="sidebar-item">
-              <div class="sidebar-icon">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M13 9H11V7H13V9ZM13 13H11V11H13V13ZM13 17H11V15H13V17ZM21 3H3C1.9 3 1 3.9 1 5V19C1 20.1 1.9 21 3 21H21C22.1 21 23 20.1 23 19V5C23 3.9 22.1 3 21 3ZM21 19H3V5H21V19Z"/>
-                </svg>
-              </div>
-              <span>文件存储</span>
-              <div class="sidebar-item-indicator"></div>
-            </router-link>
-            <router-link to="/project-category" class="sidebar-item active">
-              <div class="sidebar-icon">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM9 17H7V10H9V17ZM13 17H11V7H13V17ZM17 17H15V13H17V17Z"/>
-                </svg>
-              </div>
-              <span>项目分类</span>
-              <div class="sidebar-item-indicator"></div>
-            </router-link>
-            <router-link to="/closing-project" class="sidebar-item">
-              <div class="sidebar-icon">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
-                </svg>
-              </div>
-              <span>成交项目</span>
-              <div class="sidebar-item-indicator"></div>
-            </router-link>
-            <router-link to="/sales-funnel" class="sidebar-item">
-              <div class="sidebar-icon">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                </svg>
-              </div>
-              <span>销售漏斗</span>
-              <div class="sidebar-item-indicator"></div>
-            </router-link>
-            <router-link to="/system" class="sidebar-item">
-              <div class="sidebar-icon">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM16 17H8V15H16V17ZM16 13H8V11H16V13ZM16 9H8V7H16V9Z"/>
-                </svg>
-              </div>
-              <span>系统管理</span>
-              <div class="sidebar-item-indicator"></div>
-            </router-link>
-          </nav>
-        </div>
-      </aside>
-
-      <!-- 右侧内容区 -->
-      <main class="main-content">
-        <div class="content-wrapper">
+    <main class="main-content">
+      <div class="content-wrapper">
         <!-- 项目分类管理 -->
         <div class="category-section">
           <div class="section-header">
@@ -185,7 +84,6 @@
         </div>
       </div>
     </main>
-    </div>
 
     <!-- 页脚 -->
     <footer class="footer">
@@ -283,17 +181,8 @@ import { getProjects, addProjectApplication, deleteProjectCategory, updateProjec
 
 const router = useRouter()
 
-const currentUser = ref(localStorage.getItem('username') || '用户')
-
 const handleBack = () => {
   router.back()
-}
-
-const handleLogout = () => {
-  localStorage.removeItem('token')
-  localStorage.removeItem('username')
-  localStorage.removeItem('permissions')
-  router.push('/login')
 }
 
 interface Project {
@@ -691,102 +580,6 @@ const updateProject = async () => {
 .logout-btn:hover {
   background: rgba(244, 67, 54, 0.2);
   box-shadow: 0 0 15px rgba(244, 67, 54, 0.2);
-}
-
-/* 主容器 */
-.main-container {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-}
-
-/* 左侧导航 */
-.sidebar {
-  width: 220px;
-  background: rgba(255, 255, 255, 0.9);
-  border-right: 1px solid rgba(100, 149, 237, 0.3);
-  padding: 1rem 0;
-  overflow-y: auto;
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
-}
-
-.sidebar-content {
-  padding: 0.5rem;
-}
-
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.sidebar-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  color: rgba(51, 51, 51, 0.7);
-  text-decoration: none;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.sidebar-item::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 4px;
-  height: 100%;
-  background: linear-gradient(45deg, #6495ED, #87CEEB);
-  transform: scaleY(0);
-  transition: transform 0.3s ease;
-}
-
-.sidebar-item:hover,
-.sidebar-item.active {
-  color: #333;
-  background: rgba(100, 149, 237, 0.15);
-}
-
-.sidebar-item:hover::before,
-.sidebar-item.active::before {
-  transform: scaleY(1);
-}
-
-.sidebar-icon {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #6495ED;
-}
-
-.sidebar-item.active .sidebar-icon {
-  color: #6495ED;
-}
-
-.sidebar-item span {
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.sidebar-item-indicator {
-  position: absolute;
-  right: 0.5rem;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: transparent;
-  transition: background 0.3s ease;
-}
-
-.sidebar-item.active .sidebar-item-indicator {
-  background: #6495ED;
-  box-shadow: 0 0 10px rgba(100, 149, 237, 0.5);
 }
 
 /* 主内容区 */
