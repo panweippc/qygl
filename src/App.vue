@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿<template>
   <div class="app-container">
     <div class="global-tech-bg">
       <div class="bg-grid"></div>

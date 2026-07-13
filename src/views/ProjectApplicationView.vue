@@ -277,61 +277,15 @@
         </div>
       </div>
     </div>
-
-    <!-- 我的项目申请列表 -->
-    <el-card class="my-list-card">
-      <template #header>
-        <div class="card-header">
-          <span class="title">我的项目申请</span>
-          <el-button type="primary" @click="refreshList" :loading="listLoading" size="small">
-            <el-icon><Refresh /></el-icon>刷新
-          </el-button>
-        </div>
-      </template>
-      <el-table :data="myProjectList" v-loading="listLoading" stripe empty-text="暂无项目申请记录">
-        <el-table-column type="index" width="50" />
-        <el-table-column prop="project_code" label="申请编号" width="140" />
-        <el-table-column prop="project_name" label="项目名称" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="project_type" label="项目类型" width="110" />
-        <el-table-column prop="priority" label="优先级" width="80">
-          <template #default="{ row }">
-            <el-tag :type="row.priority === '高' ? 'danger' : row.priority === '中' ? 'warning' : 'info'">
-              {{ row.priority }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="budget" label="预算" width="120">
-          <template #default="{ row }">¥{{ formatMoney(row.budget) }}</template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" label="提交时间" width="110">
-          <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
-        </el-table-column>
-      </el-table>
-      <div class="pagination" v-if="myProjectList.length > 0">
-        <el-pagination
-          v-model:current-page="listPagination.page"
-          :page-size="listPagination.pageSize"
-          :total="listPagination.total"
-          layout="total, prev, pager, next"
-          small
-          @current-change="handleListPageChange"
-        />
-      </div>
-    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { User, UserFilled, CircleCheck, Refresh } from '@element-plus/icons-vue';
-import { createProjectApplication, getProjectApplications } from '@/services/workflow';
+import { User, UserFilled, CircleCheck } from '@element-plus/icons-vue';
+import { createProjectApplication } from '@/services/workflow';
 import { getEmployees } from '@/services/api';
 
 const router = useRouter();
@@ -451,60 +405,7 @@ const loadApprovers = async () => {
   }
 };
 
-const myProjectList = ref<any[]>([]);
-const listLoading = ref(false);
-const listPagination = reactive({ page: 1, pageSize: 10, total: 0 });
-
-const loadMyProjects = async () => {
-  try {
-    listLoading.value = true;
-    const params: any = { page: listPagination.page, pageSize: listPagination.pageSize };
-    if (currentUser.value?.name) {
-      params.applicant = currentUser.value.name;
-    }
-    const response = await getProjectApplications(params);
-    if (response.success) {
-      myProjectList.value = response.data.list || [];
-      listPagination.total = response.data.pagination?.total || 0;
-    }
-  } catch (error) {
-    console.error('获取项目申请列表失败:', error);
-  } finally {
-    listLoading.value = false;
-  }
-};
-
-const refreshList = () => loadMyProjects();
-
-const handleListPageChange = (page: number) => {
-  listPagination.page = page;
-  loadMyProjects();
-};
-
-const getStatusType = (status: string) => {
-  if (status === 'approved') return 'success';
-  if (status === 'rejected') return 'danger';
-  return 'warning';
-};
-
-const getStatusText = (status: string) => {
-  if (status === 'approved') return '已批准';
-  if (status === 'rejected') return '已拒绝';
-  return '待审批';
-};
-
-const formatDate = (dateStr: string) => {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.getFullYear() + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0');
-};
-
-const formatMoney = (val: any) => {
-  const num = parseFloat(val);
-  if (isNaN(num)) return '0.00';
-  return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-};
-
+// 提交表单
 const submitForm = async () => {
   if (!formRef.value) return;
 
@@ -515,34 +416,64 @@ const submitForm = async () => {
         return;
       }
 
-      submitting.value = true;
+      console.log('currentUser:', currentUser.value);
+      console.log('currentUser.id:', currentUser.value.id);
+      
+      // 获取员工信息
       try {
-        const submitData = {
-          ...form,
-          applicantId: currentUser.value.id,
-          applicantName: currentUser.value.name,
-          approverId: form.approver
-        };
+        const employeesResponse = await getEmployees();
+        if (employeesResponse.success) {
+          let employeeName = currentUser.value.username;
+          // 处理 emp_姓名_时间戳 格式的用户名
+          if (employeeName.startsWith('emp_')) {
+            const parts = employeeName.split('_');
+            if (parts.length >= 2) {
+              employeeName = parts[1];
+            }
+          }
+          
+          const employee = employeesResponse.data.find((emp: any) => emp.name === employeeName);
+          if (employee) {
+            console.log('找到员工:', employee);
+            console.log('submitting form data:', {
+              ...form,
+              applicantId: employee.id
+            });
+            ElMessage.info(`当前用户ID: ${currentUser.value.id}, 员工ID: ${employee.id}`);
 
-        const response = await createProjectApplication(submitData);
+            submitting.value = true;
+            try {
+              const response = await createProjectApplication({
+                ...form,
+                applicantId: employee.id,
+                approverId: form.approver
+              });
 
-        if (response.success) {
-          ElMessage.success('项目申请提交成功');
-          resetForm();
-          loadMyProjects();
+              if (response.success) {
+                ElMessage.success('项目申请提交成功');
+                router.push('/oa/project-apply/list');
+              } else {
+                ElMessage.error(response.message || '提交失败');
+              }
+            } catch (error: any) {
+              ElMessage.error(error.message || '提交失败');
+            } finally {
+              submitting.value = false;
+            }
+          } else {
+            ElMessage.error('未找到对应员工信息');
+          }
         } else {
-          ElMessage.error(response.message || '提交失败');
+          ElMessage.error('获取员工信息失败');
         }
       } catch (error: any) {
-        console.error('提交错误:', error);
-        ElMessage.error(error.message || '提交失败');
-      } finally {
-        submitting.value = false;
+        ElMessage.error('获取员工信息失败');
       }
     }
   });
 };
 
+// 重置表单
 const resetForm = () => {
   formRef.value?.resetFields();
 };
@@ -570,7 +501,6 @@ const loadDraft = () => {
 loadDraft();
 searchEmployees('');
 loadApprovers();
-loadMyProjects();
 </script>
 
 <style scoped>
@@ -711,26 +641,5 @@ loadMyProjects();
   font-size: 13px;
   color: #606266;
   line-height: 1.6;
-}
-
-.my-list-card {
-  margin-top: 20px;
-}
-
-.my-list-card .card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.my-list-card .card-header .title {
-  font-size: 16px;
-  font-weight: bold;
-}
-
-.pagination {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
 }
 </style>
