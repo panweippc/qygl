@@ -86,11 +86,6 @@ const router = createRouter({
       component: () => import('../views/OfficeSuppliesView.vue')
     },
     {
-      path: '/oa-approval',
-      name: 'oa-approval',
-      component: () => import('../views/OAApprovalView.vue')
-    },
-    {
       path: '/system',
       name: 'system-management',
       component: () => import('../views/SystemManagementView.vue')

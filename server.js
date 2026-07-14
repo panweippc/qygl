@@ -47,6 +47,13 @@ app.use(express.urlencoded({
   charset: 'utf-8'
 }));
 
+// API 统一响应辅助函数
+app.use((req, res, next) => {
+  res.success = (data = null, message = '成功') => res.json({ success: true, data, message });
+  res.fail = (message = '失败', status = 400) => res.status(status).json({ success: false, message });
+  next();
+});
+
 // 挂载工作流路由
 app.use('/api', workflowRouter);
 
@@ -55,7 +62,7 @@ const pool = mysql.createPool({
   host: 'localhost',
   user: 'root',
   password: 'root123456',
-  database: 'qygl',
+  database: 'qyglfb',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -81,7 +88,7 @@ const createDatabase = async () => {
     
     const connection = await tempPool.getConnection();
     // 只在数据库不存在时创建，不删除现有数据库
-    await connection.execute('CREATE DATABASE IF NOT EXISTS qygl CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+    await connection.execute('CREATE DATABASE IF NOT EXISTS qyglfb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
     console.log('数据库检查/创建成功');
     connection.release();
     tempPool.end();
@@ -3112,63 +3119,6 @@ app.get('/api/office-supplies', async (req, res) => {
   }
 });
 
-// 项目申请管理API
-app.get('/api/projects', async (req, res) => {
-  try {
-    const { applicantId, status, page = 1, pageSize = 10 } = req.query;
-    
-    let sql = 'SELECT * FROM project_applications WHERE 1=1';
-    const params = [];
-    
-    if (applicantId) {
-      sql += ' AND applicant_id = ?';
-      params.push(applicantId);
-    }
-    
-    if (status) {
-      sql += ' AND status = ?';
-      params.push(status);
-    }
-    
-    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    const pageSizeInt = parseInt(pageSize, 10);
-    const offset = (parseInt(page, 10) - 1) * pageSizeInt;
-    params.push(pageSizeInt, offset);
-    
-    const [projects] = await pool.query(sql, params);
-    
-    // 获取总数
-    let countSql = 'SELECT COUNT(*) as total FROM project_applications WHERE 1=1';
-    const countParams = [];
-    
-    if (applicantId) {
-      countSql += ' AND applicant_id = ?';
-      countParams.push(applicantId);
-    }
-    
-    if (status) {
-      countSql += ' AND status = ?';
-      countParams.push(status);
-    }
-    
-    const [countResult] = await pool.execute(countSql, countParams);
-    
-    res.json({
-      success: true,
-      data: {
-        list: projects,
-        pagination: {
-          page: parseInt(page),
-          pageSize: parseInt(pageSize),
-          total: countResult[0].total
-        }
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
 app.post('/api/office-supplies', async (req, res) => {
   const { applicant, itemName, quantity, reason, approver } = req.body;
   try {
@@ -4908,64 +4858,6 @@ const createWorkflowTables = async () => {
   }
 };
 
-// 项目申请API
-// 获取项目列表
-app.get('/api/projects', async (req, res) => {
-  try {
-    const { applicantId, status, page = 1, pageSize = 10 } = req.query;
-    
-    let sql = 'SELECT * FROM project_applications WHERE 1=1';
-    const params = [];
-    
-    if (applicantId) {
-      sql += ' AND applicant_id = ?';
-      params.push(applicantId);
-    }
-    
-    if (status) {
-      sql += ' AND status = ?';
-      params.push(status);
-    }
-    
-    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    const pageSizeInt2 = parseInt(pageSize, 10);
-    const offset2 = (parseInt(page, 10) - 1) * pageSizeInt2;
-    params.push(pageSizeInt2, offset2);
-    
-    const [projects] = await pool.query(sql, params);
-    
-    // 获取总数
-    let countSql = 'SELECT COUNT(*) as total FROM project_applications WHERE 1=1';
-    const countParams = [];
-    
-    if (applicantId) {
-      countSql += ' AND applicant_id = ?';
-      countParams.push(applicantId);
-    }
-    
-    if (status) {
-      countSql += ' AND status = ?';
-      countParams.push(status);
-    }
-    
-    const [countResult] = await pool.execute(countSql, countParams);
-    
-    res.json({
-      success: true,
-      data: {
-        list: projects,
-        pagination: {
-          page: parseInt(page),
-          pageSize: parseInt(pageSize),
-          total: countResult[0].total
-        }
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
 // 创建项目申请
 app.post('/api/projects', async (req, res) => {
   try {
@@ -5438,6 +5330,15 @@ app.delete('/api/business-trips/:id', async (req, res) => {
   await createBusinessTripTable();
   await createWorkflowTables();
 })();
+
+// 全局错误处理中间件
+app.use((err, req, res, next) => {
+  console.error('未捕获的错误:', err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || '服务器内部错误'
+  });
+});
 
 // 启动服务器
 server.listen(port, '0.0.0.0', async () => {
