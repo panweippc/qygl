@@ -665,7 +665,7 @@ const loadLeaveRecords = async () => {
     const response = await getLeaveApplications()
     if (response.success) {
       // 过滤出当前用户的请假记录
-      leaveRecords.value = response.data.filter((item: any) => item.applicant === currentUsername.value)
+      leaveRecords.value = response.data.filter((item: any) => extractRealName(item.applicant) === extractRealName(currentUsername.value))
       // 转换createdAt为submitDate
       leaveRecords.value = leaveRecords.value.map((item: any) => ({
         ...item,

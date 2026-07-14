@@ -2336,7 +2336,7 @@ const loadLeaveRecords = async () => {
     if (response.success) {
       // 管理员/总经理可以看到所有人的记录，普通员工只能看到自己的
       leaveRecords.value = response.data
-        .filter((item: any) => isAdmin.value || item.applicant === currentUsername.value)
+        .filter((item: any) => isAdmin.value || extractRealName(item.applicant) === extractRealName(currentUsername.value))
         .map((item: any) => ({
           ...item,
           submitDate: item.createdAt?.substring(0, 10) || ''
@@ -2354,7 +2354,7 @@ const loadReimbursementRecords = async () => {
     if (response.success) {
       // 管理员/总经理可以看到所有人的记录，普通员工只能看到自己的
       reimbursementRecords.value = response.data
-        .filter((item: any) => isAdmin.value || item.applicant === currentUsername.value)
+        .filter((item: any) => isAdmin.value || extractRealName(item.applicant) === extractRealName(currentUsername.value))
         .map((item: any) => ({
           ...item,
           submitDate: item.createdAt?.substring(0, 10) || ''
@@ -2372,7 +2372,7 @@ const loadMeetingRecords = async () => {
     if (response.success) {
       // 管理员/总经理可以看到所有人的记录，普通员工只能看到自己的
       meetingRecords.value = response.data
-        .filter((item: any) => isAdmin.value || item.organizer === currentUsername.value)
+        .filter((item: any) => isAdmin.value || extractRealName(item.organizer) === extractRealName(currentUsername.value))
         .map((item: any) => ({
           ...item,
           submitDate: item.createdAt?.substring(0, 10) || ''
@@ -2464,8 +2464,7 @@ const loadProjectRecords = async () => {
       console.log('是否管理员:', isAdmin.value)
       // 管理员/总经理可以看到所有人的记录，普通员工只能看到自己的
       const filteredData = response.data.list.filter((item: any) => {
-        const result = isAdmin.value || item.applicant_name === currentUsername.value
-        console.log(`筛选项目 ${item.id}: ${item.applicant_name} === ${currentUsername.value} ? ${result}`)
+        const result = isAdmin.value || extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value)
         return result
       })
       console.log('筛选后的数据:', filteredData)
@@ -2592,8 +2591,7 @@ const loadBusinessTripRecords = async () => {
       console.log('是否管理员:', isAdmin.value)
       // 管理员/总经理可以看到所有人的记录，普通员工只能看到自己的
       const filteredData = response.data.list.filter((item: any) => {
-        const result = isAdmin.value || item.applicant_name === currentUsername.value
-        console.log(`筛选出差 ${item.id}: ${item.applicant_name} === ${currentUsername.value} ? ${result}`)
+        const result = isAdmin.value || extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value)
         return result
       })
       console.log('筛选后的数据:', filteredData)
@@ -2727,7 +2725,7 @@ const updateStats = () => {
   if (approvedStat) approvedStat.value = allRecords.filter(r => r.status === '已批准' || r.status === 'approved').length
   
   const rejectedStat = approvalStats.value.find(s => s.key === 'rejected')
-  if (rejectedStat) rejectedStat.value = allRecords.filter(r => r.status === '已拒绝' || r.status === '拒绝' || r.status === 'rejected').length
+  if (rejectedStat) rejectedStat.value = allRecords.filter(r => r.status === '已拒绝' || r.status === '拒绝' || r.status === 'rejected' || r.status === '已取消').length
   
   const totalStat = approvalStats.value.find(s => s.key === 'total')
   if (totalStat) totalStat.value = allRecords.length
