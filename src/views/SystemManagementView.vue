@@ -370,7 +370,7 @@
     >
       <el-form :model="userForm" :rules="userRules" ref="userFormRef" label-position="top">
         <el-form-item label="姓名" prop="name">
-          <el-input v-model="userForm.name" placeholder="请输入姓名" />
+          <el-input v-model="userForm.name" placeholder="请输入姓名" :disabled="isEditingUser" />
         </el-form-item>
         <el-form-item label="部门" prop="department">
           <el-input v-model="userForm.department" placeholder="请输入部门" />

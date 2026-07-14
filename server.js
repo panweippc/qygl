@@ -1932,19 +1932,16 @@ app.delete('/api/employees/:name', async (req, res) => {
 
 app.put('/api/employees/:name', async (req, res) => {
   const { name } = req.params;
-  const { department, position, email, phone, entryDate, password, role, roleId: directRoleId, status, employeeType, education, birthDate, idCard, address, emergencyContact, emergencyPhone } = req.body;
+  const { id, department, position, email, phone, entryDate, password, role, roleId: directRoleId, status, employeeType, education, birthDate, idCard, address, emergencyContact, emergencyPhone } = req.body;
   try {
     const connection = await pool.getConnection();
     
-    // 设置字符编码
     await connection.execute('SET NAMES utf8mb4');
     await connection.execute('SET CHARACTER SET utf8mb4');
     
-    // 格式化日期
     const formattedEntryDate = entryDate ? new Date(entryDate).toISOString().slice(0, 19).replace('T', ' ') : new Date().toISOString().slice(0, 19).replace('T', ' ');
     const formattedBirthDate = birthDate ? new Date(birthDate).toISOString().slice(0, 19).replace('T', ' ') : null;
     
-    // 查找角色ID：优先使用直接传入的roleId，否则通过角色名查找
     let roleId = directRoleId || null;
     if (!roleId && role) {
       const [roles] = await connection.execute('SELECT id FROM roles WHERE name = ?', [role]);
@@ -1953,26 +1950,25 @@ app.put('/api/employees/:name', async (req, res) => {
       }
     }
     
-    // 更新员工数据
-    await connection.execute(
-      'UPDATE employees SET department = ?, position = ?, email = ?, phone = ?, entryDate = ?, roleId = ?, status = ?, employeeType = ?, education = ?, birthDate = ?, idCard = ?, address = ?, emergencyContact = ?, emergencyPhone = ? WHERE name = ?',
-      [department, position, email, phone, formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', name]
-    );
-    
-    // 如果设置了密码，更新对应的用户账户
-    if (password) {
-      // 查找与该员工关联的用户账户
-      const [users] = await connection.execute('SELECT * FROM users WHERE username = ?', [name]);
-      if (users.length > 0) {
-        await connection.execute(
-          'UPDATE users SET password = ? WHERE username = ?',
-          [password, name]
-        );
-      }
+    // 优先使用 id 作为更新条件（name 可能被用户修改）
+    if (id) {
+      await connection.execute(
+        'UPDATE employees SET name = ?, department = ?, position = ?, email = ?, phone = ?, entryDate = ?, roleId = ?, status = ?, employeeType = ?, education = ?, birthDate = ?, idCard = ?, address = ?, emergencyContact = ?, emergencyPhone = ? WHERE id = ?',
+        [name, department, position, email, phone, formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', id]
+      );
+    } else {
+      await connection.execute(
+        'UPDATE employees SET department = ?, position = ?, email = ?, phone = ?, entryDate = ?, roleId = ?, status = ?, employeeType = ?, education = ?, birthDate = ?, idCard = ?, address = ?, emergencyContact = ?, emergencyPhone = ? WHERE name = ?',
+        [department, position, email, phone, formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', name]
+      );
     }
     
-    // 角色权限更新逻辑已移除，因为权限是基于角色的，不是基于用户的
-    // 只需要更新employees表中的roleId字段即可
+    if (password) {
+      const [users] = await connection.execute('SELECT * FROM users WHERE username = ?', [name]);
+      if (users.length > 0) {
+        await connection.execute('UPDATE users SET password = ? WHERE username = ?', [password, name]);
+      }
+    }
     
     connection.release();
     res.json({ success: true, message: '员工更新成功' });
