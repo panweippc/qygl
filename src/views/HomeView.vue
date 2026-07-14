@@ -308,7 +308,7 @@ const permissions = ref<any[]>([])
 const isAdmin = computed(() => {
   const role = localStorage.getItem('role')
   const username = localStorage.getItem('username')
-  return role === 'admin' || username === '总经理'
+  return role === 'admin' || username === '总经理' || username === '管理员'
 })
 
 // 检查是否有特定权限（基于菜单路径）
@@ -332,12 +332,13 @@ const loadUserPermissions = () => {
 // 从服务器获取最新的权限数据
 const fetchLatestPermissions = async () => {
   try {
-    const token = localStorage.getItem('token')
-    if (token) {
-      // 这里应该调用一个API来获取最新的权限数据
-      // 由于目前没有这样的API，我们暂时清空权限数据，强制用户重新登录
-      // 实际项目中，应该调用类似 /api/user/permissions 的API
-      console.log('获取最新权限数据')
+    const username = localStorage.getItem('username')
+    if (username) {
+      const response = await fetch('/api/user/permissions?username=' + encodeURIComponent(username)).then(r => r.json())
+      if (response.success) {
+        permissions.value = response.data
+        localStorage.setItem('permissions', JSON.stringify(response.data))
+      }
     }
   } catch (error) {
     console.error('获取最新权限数据失败:', error)
@@ -1666,6 +1667,7 @@ const loadDashboardData = async () => {
 onMounted(async () => {
   loadCurrentUser()
   loadUserPermissions()
+  await fetchLatestPermissions()
   await loadDashboardData()
   setTimeout(async () => {
     await initTrendChart()

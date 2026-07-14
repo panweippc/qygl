@@ -320,7 +320,7 @@ const handleLogin = async () => {
       
       // 存储用户角色信息
       let role = 'employee'
-      if (user.username === 'admin') {
+      if (user.username === 'admin' || user.username === '管理员') {
           role = 'admin'
         } else if (user.username === '总经理' || user.position === '总经理') {
           role = '总经理'
@@ -352,7 +352,7 @@ const handleLogin = async () => {
         { path: '/sales-funnel' },
         { path: '/system' }
       ]
-      localStorage.setItem('permissions', JSON.stringify(user.permissions || defaultPermissions))
+      localStorage.setItem('permissions', JSON.stringify(user.permissions && user.permissions.length > 0 ? user.permissions : defaultPermissions))
       
       console.log('登录成功，跳转到首页');
       router.push('/');
