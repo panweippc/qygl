@@ -190,16 +190,6 @@
               style="width: 100%"
             />
           </el-form-item>
-          <el-form-item label="系统角色" class="form-item">
-            <el-select v-model="employeeForm.role" placeholder="请选择系统角色" clearable>
-              <el-option
-                v-for="role in roles"
-                :key="role.name"
-                :label="role.name"
-                :value="role.name"
-              />
-            </el-select>
-          </el-form-item>
         </div>
 
         <!-- 扩展信息 -->
@@ -314,7 +304,7 @@
             <el-input v-model="editForm.phone" placeholder="请输入电话" />
           </el-form-item>
           <el-form-item label="登录密码" class="form-item">
-            <el-input v-model="editForm.password" type="password" placeholder="留空则不修改密码，输入则更新密码" show-password />
+            <el-input v-model="editForm.password" type="password" placeholder="不修改则保留原密码" show-password />
           </el-form-item>
         </div>
         <div class="form-row">
@@ -325,16 +315,6 @@
               placeholder="选择日期"
               style="width: 100%"
             />
-          </el-form-item>
-          <el-form-item label="系统角色" class="form-item">
-            <el-select v-model="editForm.role" placeholder="请选择系统角色" clearable>
-              <el-option
-                v-for="role in roles"
-                :key="role.name"
-                :label="role.name"
-                :value="role.name"
-              />
-            </el-select>
           </el-form-item>
         </div>
 
@@ -412,7 +392,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getEmployees, addEmployee as apiAddEmployee, deleteEmployee as apiDeleteEmployee, updateEmployee as apiUpdateEmployee, getRoles, getDepartments } from '../services/api'
+import { getEmployees, addEmployee as apiAddEmployee, deleteEmployee as apiDeleteEmployee, updateEmployee as apiUpdateEmployee, getDepartments } from '../services/api'
 
 const router = useRouter()
 
@@ -431,7 +411,6 @@ interface Employee {
   entryDate: string
   createdAt: string
   password?: string
-  role?: string
   // 扩展字段
   status?: string
   employeeType?: string
@@ -453,7 +432,6 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
 const exportLoading = ref(false)
-const roles = ref<any[]>([])
 const departments = ref<any[]>([])
 
 const employeeForm = ref({
@@ -464,7 +442,6 @@ const employeeForm = ref({
   phone: '',
   entryDate: '',
   password: '',
-  role: '',
   // 扩展字段
   status: '在职',
   employeeType: '正式员工',
@@ -487,7 +464,6 @@ const editForm = ref({
   phone: '',
   entryDate: '',
   password: '',
-  role: '',
   // 扩展字段
   status: '在职',
   employeeType: '正式员工',
@@ -624,25 +600,11 @@ const openAddEmployeeDialog = async () => {
     email: '',
     phone: '',
     entryDate: '',
-    password: '',
-    role: ''
+    password: ''
   }
-  // 加载角色和部门列表
-  await loadRoles()
+  // 加载部门列表
   await loadDepartments()
   addDialogVisible.value = true
-}
-
-// 加载角色列表
-const loadRoles = async () => {
-  try {
-    const response = await getRoles()
-    if (response.success) {
-      roles.value = response.data
-    }
-  } catch (error) {
-    console.error('加载角色列表失败:', error)
-  }
 }
 
 // 加载部门列表
@@ -673,7 +635,6 @@ const addEmployee = async () => {
             phone: employeeForm.value.phone,
             entryDate: employeeForm.value.entryDate || new Date().toISOString(),
             password: employeeForm.value.password,
-            role: employeeForm.value.role,
             // 扩展字段
             status: employeeForm.value.status,
             employeeType: employeeForm.value.employeeType,
@@ -715,8 +676,7 @@ const editEmployee = async (employee: Employee) => {
     email: employee.email,
     phone: employee.phone,
     entryDate: employee.entryDate,
-    password: '',
-    role: employee.role || '',
+    password: '********',
     // 扩展字段
     status: employee.status || '在职',
     employeeType: employee.employeeType || '正式员工',
@@ -727,8 +687,7 @@ const editEmployee = async (employee: Employee) => {
     emergencyContact: employee.emergencyContact || '',
     emergencyPhone: employee.emergencyPhone || ''
   }
-  // 加载角色和部门列表
-  await loadRoles()
+  // 加载部门列表
   await loadDepartments()
   editDialogVisible.value = true
 }
@@ -743,15 +702,13 @@ const updateEmployee = async () => {
         try {
           // 调用API更新员工
           console.log('调用API更新员工:', editForm.value)
-          const response = await apiUpdateEmployee({
+          const updateData: any = {
             name: editForm.value.name,
             department: editForm.value.department,
             position: editForm.value.position,
             email: editForm.value.email,
             phone: editForm.value.phone,
             entryDate: editForm.value.entryDate || new Date().toISOString(),
-            password: editForm.value.password,
-            role: editForm.value.role,
             // 扩展字段
             status: editForm.value.status,
             employeeType: editForm.value.employeeType,
@@ -761,7 +718,12 @@ const updateEmployee = async () => {
             address: editForm.value.address,
             emergencyContact: editForm.value.emergencyContact,
             emergencyPhone: editForm.value.emergencyPhone
-          });
+          };
+          // 仅当密码被修改时才发送
+          if (editForm.value.password && editForm.value.password !== '********') {
+            updateData.password = editForm.value.password;
+          }
+          const response = await apiUpdateEmployee(updateData);
           
           console.log('API响应:', response)
           if (response.success) {
