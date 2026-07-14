@@ -157,7 +157,7 @@
             </el-form-item>
             
             <el-form-item label="请假天数" prop="days">
-              <el-input v-model="form.days" type="number" placeholder="请输入请假天数"></el-input>
+              <el-input v-model="form.days" disabled placeholder="自动计算"></el-input>
             </el-form-item>
             
             <el-form-item label="请假原因" prop="reason">
@@ -205,7 +205,7 @@
             <el-form-item label="审批人">
               <el-select v-model="approverForm.approver" placeholder="请选择审批人" style="width: 100%">
                 <el-option
-                  v-for="employee in employees"
+                  v-for="employee in approverEmployees"
                   :key="employee.name"
                   :label="employee.name"
                   :value="employee.name"
@@ -315,7 +315,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getLeaveApplications, addLeaveApplication, updateLeaveApplication, getPendingLeaveApplications } from '../services/api'
@@ -343,6 +343,18 @@ const router = useRouter()
 })
 
 const fileList = ref([])
+
+// 根据开始/结束日期自动计算请假天数
+watch([() => form.value.startDate, () => form.value.endDate], ([start, end]) => {
+  if (start && end) {
+    const startD = new Date(start);
+    const endD = new Date(end);
+    const days = Math.ceil((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    form.value.days = days > 0 ? String(days) : '';
+  } else {
+    form.value.days = '';
+  }
+})
 
 // 对话框状态const applyDialogVisible = ref(false)
 const approverDialogVisible = ref(false)
@@ -374,6 +386,14 @@ const nextApproverForm = ref({
 
 // 员工列表
 const employees = ref([])
+
+// 审批人选项（按职位筛选：总经理、总监、经理）
+const approverEmployees = computed(() => {
+  return employees.value.filter((emp: any) => {
+    const position = emp.position || '';
+    return position.includes('总经理') || position.includes('总监') || position.includes('经理');
+  });
+});
 
 // 加载员工数据
 const loadEmployees = async () => {

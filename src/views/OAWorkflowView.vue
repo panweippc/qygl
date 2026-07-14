@@ -1400,14 +1400,14 @@
           <el-date-picker v-model="leaveForm.endDate" type="date" placeholder="选择结束日期" style="width: 100%"></el-date-picker>
         </el-form-item>
         <el-form-item label="请假天数" prop="days">
-          <el-input v-model="leaveForm.days" type="number" step="0.5" placeholder="请输入请假天数"></el-input>
+          <el-input v-model="leaveForm.days" disabled placeholder="自动计算"></el-input>
         </el-form-item>
         <el-form-item label="请假原因" prop="reason">
           <el-input v-model="leaveForm.reason" type="textarea" :rows="4" placeholder="请输入请假原因"></el-input>
         </el-form-item>
         <el-form-item label="审批人">
           <el-select v-model="leaveForm.approver" placeholder="请选择审批人" style="width: 100%">
-            <el-option v-for="employee in employees" :key="employee.name" :label="employee.name" :value="employee.name" />
+            <el-option v-for="employee in approverEmployees" :key="employee.name" :label="employee.name" :value="employee.name" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -1444,7 +1444,7 @@
         </el-form-item>
         <el-form-item label="审批人">
           <el-select v-model="reimbursementForm.approver" placeholder="请选择审批人" style="width: 100%">
-            <el-option v-for="employee in employees" :key="employee.name" :label="employee.name" :value="employee.name" />
+            <el-option v-for="employee in approverEmployees" :key="employee.name" :label="employee.name" :value="employee.name" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -1479,7 +1479,7 @@
         </el-form-item>
         <el-form-item label="审批人">
           <el-select v-model="meetingForm.approver" placeholder="请选择审批人" style="width: 100%">
-            <el-option v-for="employee in employees" :key="employee.name" :label="employee.name" :value="employee.name" />
+            <el-option v-for="employee in approverEmployees" :key="employee.name" :label="employee.name" :value="employee.name" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -1783,6 +1783,14 @@ const approvalStats = ref([
 // 员工列表
 const allEmployees = ref([])
 
+// 审批人选项（按职位筛选：总经理、总监、经理）
+const approverEmployees = computed(() => {
+  return allEmployees.value.filter((emp: any) => {
+    const position = emp.position || '';
+    return position.includes('总经理') || position.includes('总监') || position.includes('经理');
+  });
+});
+
 // 数据列表
 // 统计详情对话框
 const statDetailDialogVisible = ref(false)
@@ -1921,7 +1929,7 @@ const leaveRules = {
   leaveType: [{ required: true, message: '请选择请假类型', trigger: 'change' }],
   startDate: [{ required: true, message: '请选择开始日期', trigger: 'change' }],
   endDate: [{ required: true, message: '请选择结束日期', trigger: 'change' }],
-  days: [{ required: true, message: '请输入请假天数', trigger: 'blur' }],
+  days: [{ required: true, message: '请选择开始和结束日期自动计算', trigger: 'change' }],
   reason: [{ required: true, message: '请输入请假原因', trigger: 'blur' }]
 }
 
@@ -2886,6 +2894,18 @@ const submitLeaveApplication = async () => {
   })
 }
 
+// 根据开始/结束日期自动计算请假天数
+watch([() => leaveForm.value.startDate, () => leaveForm.value.endDate], ([start, end]) => {
+  if (start && end) {
+    const startD = new Date(start);
+    const endD = new Date(end);
+    const days = Math.ceil((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    leaveForm.value.days = days > 0 ? String(days) : '';
+  } else {
+    leaveForm.value.days = '';
+  }
+})
+
 const submitReimbursementApplication = async () => {
   reimbursementFormRef.value?.validate(async (valid: boolean) => {
     if (valid) {
@@ -3829,6 +3849,13 @@ const goToBusinessTripList = () => {
 
 // 处理URL参数（从快捷入口跳转）
 watch(() => route.query, (query) => {
+  // 处理 tab 参数（切换页签）
+  if (query.tab) {
+    const validTabs = ['leave', 'reimbursement', 'meeting', 'project', 'businessTrip', 'distributed']
+    if (validTabs.includes(query.tab as string)) {
+      activeTab.value = query.tab as string
+    }
+  }
   if (query.action === 'create' && query.type) {
     const type = query.type as string
     switch (type) {

@@ -312,10 +312,9 @@ const isAdmin = computed(() => {
 })
 
 // 检查是否有特定权限（基于菜单路径）
-// 简化权限检查，先让系统能正常运行
 const hasPermission = (menuPath: string) => {
-  console.log('权限检查 - menuPath:', menuPath, '-> 允许访问')
-  return true
+  if (isAdmin.value) return true
+  return permissions.value.some(p => p.path === menuPath)
 }
 
 // 加载用户权限

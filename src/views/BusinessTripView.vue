@@ -282,8 +282,6 @@
           <el-button type="primary" @click="submitForm" :loading="submitting">
             提交申请
           </el-button>
-          <el-button @click="resetForm">重置</el-button>
-          <el-button @click="saveDraft">保存草稿</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -402,62 +400,15 @@
       </div>
     </div>
 
-    <!-- 我的出差申请列表 -->
-    <el-card class="my-list-card">
-      <template #header>
-        <div class="card-header">
-          <span class="title">我的出差申请</span>
-          <el-button type="primary" @click="refreshList" :loading="listLoading" size="small">
-            <el-icon><Refresh /></el-icon>刷新
-          </el-button>
-        </div>
-      </template>
-      <el-table :data="myTripList" v-loading="listLoading" stripe empty-text="暂无出差申请记录">
-        <el-table-column type="index" width="50" />
-        <el-table-column prop="trip_code" label="出差编号" width="140" />
-        <el-table-column prop="destination" label="目的地" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="trip_type" label="类型" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.trip_type === 'international' ? 'warning' : 'info'">
-              {{ row.trip_type === 'international' ? '国外' : '国内' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="days" label="天数" width="80">
-          <template #default="{ row }">{{ row.days }}天</template>
-        </el-table-column>
-        <el-table-column prop="estimated_cost" label="预估费用" width="120">
-          <template #default="{ row }">¥{{ formatMoney(row.estimated_cost) }}</template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" label="提交时间" width="110">
-          <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
-        </el-table-column>
-      </el-table>
-      <div class="pagination" v-if="myTripList.length > 0">
-        <el-pagination
-          v-model:current-page="listPagination.page"
-          :page-size="listPagination.pageSize"
-          :total="listPagination.total"
-          layout="total, prev, pager, next"
-          small
-          @current-change="handleListPageChange"
-        />
-      </div>
-    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { User, UserFilled, CircleCheck, Plus, Delete, Refresh } from '@element-plus/icons-vue';
-import { createBusinessTrip, getBusinessTrips } from '@/services/workflow';
+import { User, UserFilled, CircleCheck, Plus, Delete } from '@element-plus/icons-vue';
+import { createBusinessTrip } from '@/services/workflow';
 import { getEmployees } from '@/services/api';
 
 const router = useRouter();
@@ -540,6 +491,43 @@ const disabledEndDate = (time: Date) => {
   return time.getTime() < new Date(form.startDate).getTime();
 };
 
+const submitForm = async () => {
+  if (!formRef.value) return;
+
+  await formRef.value.validate(async (valid: boolean) => {
+    if (valid) {
+      if (!currentUser.value?.id) {
+        ElMessage.error('请先登录');
+        return;
+      }
+
+      submitting.value = true;
+      try {
+        const submitData = {
+          ...form,
+          applicantId: currentUser.value.id,
+          applicantName: currentUser.value.name,
+          approverId: form.approver
+        };
+
+        const response = await createBusinessTrip(submitData);
+
+        if (response.success) {
+          ElMessage.success('出差申请提交成功');
+          router.replace('/oa-office?tab=businessTrip');
+        } else {
+          ElMessage.error(response.message || '提交失败');
+        }
+      } catch (error: any) {
+        console.error('提交错误:', error);
+        ElMessage.error(error.message || '提交失败');
+      } finally {
+        submitting.value = false;
+      }
+    }
+  });
+};
+
 const addItinerary = () => {
   form.itinerary.push({
     date: '',
@@ -589,125 +577,12 @@ const loadApprovers = async () => {
   }
 };
 
-const myTripList = ref<any[]>([]);
-const listLoading = ref(false);
-const listPagination = reactive({ page: 1, pageSize: 10, total: 0 });
-
-const loadMyTrips = async () => {
-  try {
-    listLoading.value = true;
-    const params: any = { page: listPagination.page, pageSize: listPagination.pageSize };
-    if (currentUser.value?.name) {
-      params.applicant = currentUser.value.name;
-    }
-    const response = await getBusinessTrips(params);
-    if (response.success) {
-      myTripList.value = response.data.list || [];
-      listPagination.total = response.data.pagination?.total || 0;
-    }
-  } catch (error) {
-    console.error('获取出差申请列表失败:', error);
-  } finally {
-    listLoading.value = false;
-  }
-};
-
-const refreshList = () => loadMyTrips();
-
-const handleListPageChange = (page: number) => {
-  listPagination.page = page;
-  loadMyTrips();
-};
-
-const getStatusType = (status: string) => {
-  if (status === 'approved') return 'success';
-  if (status === 'rejected') return 'danger';
-  return 'warning';
-};
-
-const getStatusText = (status: string) => {
-  if (status === 'approved') return '已批准';
-  if (status === 'rejected') return '已拒绝';
-  return '待审批';
-};
-
-const formatDate = (dateStr: string) => {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.getFullYear() + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0');
-};
-
-const formatMoney = (val: any) => {
-  const num = parseFloat(val);
-  if (isNaN(num)) return '0.00';
-  return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-};
-
-const submitForm = async () => {
-  if (!formRef.value) return;
-
-  await formRef.value.validate(async (valid: boolean) => {
-    if (valid) {
-      if (!currentUser.value?.id) {
-        ElMessage.error('请先登录');
-        return;
-      }
-
-      submitting.value = true;
-      try {
-        const submitData = {
-          ...form,
-          applicantId: currentUser.value.id,
-          applicantName: currentUser.value.name,
-          approverId: form.approver
-        };
-
-        const response = await createBusinessTrip(submitData);
-
-        if (response.success) {
-          ElMessage.success('出差申请提交成功');
-          resetForm();
-          loadMyTrips();
-        } else {
-          ElMessage.error(response.message || '提交失败');
-        }
-      } catch (error: any) {
-        console.error('提交错误:', error);
-        ElMessage.error(error.message || '提交失败');
-      } finally {
-        submitting.value = false;
-      }
-    }
-  });
-};
-
-const resetForm = () => {
-  formRef.value?.resetFields();
-  form.itinerary = [];
-  form.costBreakdown = { transport: 0, accommodation: 0, meals: 0, other: 0 };
-};
-
-const saveDraft = () => {
-    localStorage.setItem('businessTripDraft', JSON.stringify(form));
-    ElMessage.success('草稿已保存');
-  };
-
 const goBack = () => {
   router.back();
 };
 
-const loadDraft = () => {
-  const draft = localStorage.getItem('businessTripDraft');
-  if (draft) {
-    const draftData = JSON.parse(draft);
-    Object.assign(form, draftData);
-  }
-};
-
-loadDraft();
 searchEmployees('');
 loadApprovers();
-loadMyTrips();
 </script>
 
 <style scoped>
@@ -857,24 +732,4 @@ loadMyTrips();
   line-height: 1.6;
 }
 
-.my-list-card {
-  margin-top: 20px;
-}
-
-.my-list-card .card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.my-list-card .card-header .title {
-  font-size: 16px;
-  font-weight: bold;
-}
-
-.pagination {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
-}
 </style>
