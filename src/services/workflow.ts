@@ -1,96 +1,87 @@
-/**
- * 工作流相关API服务
- */
-
 import api from './api';
+import type { ApiResponse, Project, BusinessTrip } from './types';
 
-// 项目申请API
-export const createProjectApplication = async (data: any) => {
+export const createProjectApplication = async (data: Project): Promise<ApiResponse> => {
   const response = await api.post('/projects', data);
   return response.data;
 };
 
-export const getProjectApplications = async (params?: any) => {
+export const getProjectApplications = async (params?: any): Promise<ApiResponse<{ list: Project[] }>> => {
   const response = await api.get('/projects', { params });
   return response.data;
 };
 
-export const getProjectApplication = async (id: number) => {
+export const getProjectApplication = async (id: number): Promise<ApiResponse<Project>> => {
   const response = await api.get(`/projects/${id}`);
   return response.data;
 };
 
-export const approveProject = async (id: number, data: any) => {
+export const approveProject = async (id: number, data: any): Promise<ApiResponse> => {
   const response = await api.post(`/projects/${id}/approve`, data);
   return response.data;
 };
 
-// 出差申请API
-export const createBusinessTrip = async (data: any) => {
+export const createBusinessTrip = async (data: BusinessTrip): Promise<ApiResponse> => {
   const response = await api.post('/business-trips', data);
   return response.data;
 };
 
-export const getBusinessTrips = async (params?: any) => {
+export const getBusinessTrips = async (params?: any): Promise<ApiResponse<BusinessTrip[]>> => {
   const response = await api.get('/business-trips', { params });
   return response.data;
 };
 
-export const getBusinessTrip = async (id: number) => {
+export const getBusinessTrip = async (id: number): Promise<ApiResponse<BusinessTrip>> => {
   const response = await api.get(`/business-trips/${id}`);
   return response.data;
 };
 
-export const approveBusinessTrip = async (id: number, data: any) => {
+export const approveBusinessTrip = async (id: number, data: any): Promise<ApiResponse> => {
   const response = await api.post(`/business-trips/${id}/approve`, data);
   return response.data;
 };
 
-// 流程定义API
-export const getProcessDefinitions = async () => {
+export const getProcessDefinitions = async (): Promise<ApiResponse> => {
   const response = await api.get('/process-definitions');
   return response.data;
 };
 
-export const createProcessDefinition = async (data: any) => {
+export const createProcessDefinition = async (data: any): Promise<ApiResponse> => {
   const response = await api.post('/process-definitions', data);
   return response.data;
 };
 
-export const publishProcessDefinition = async (id: number) => {
+export const publishProcessDefinition = async (id: number): Promise<ApiResponse> => {
   const response = await api.post(`/process-definitions/${id}/publish`);
   return response.data;
 };
 
-// 审批中心API
-export const getTodoTasks = async (employeeId: string) => {
+export const getTodoTasks = async (employeeId: string): Promise<ApiResponse> => {
   const response = await api.get('/approvals/todo', { params: { employeeId } });
   return response.data;
 };
 
-export const getDoneTasks = async (employeeId: string) => {
+export const getDoneTasks = async (employeeId: string): Promise<ApiResponse> => {
   const response = await api.get('/approvals/done', { params: { employeeId } });
   return response.data;
 };
 
-// 流程实例API
-export const startProcessInstance = async (definitionId: number, data: any) => {
+export const startProcessInstance = async (definitionId: number, data: any): Promise<ApiResponse> => {
   const response = await api.post('/process-instances', { definitionId, ...data });
   return response.data;
 };
 
-export const getProcessInstance = async (id: number) => {
+export const getProcessInstance = async (id: number): Promise<ApiResponse> => {
   const response = await api.get(`/process-instances/${id}`);
   return response.data;
 };
 
-// 任务处理API
-export const processTask = async (taskId: number, data: any) => {
+export const processTask = async (taskId: number, data: any): Promise<ApiResponse> => {
   const response = await api.post(`/tasks/${taskId}/process`, data);
   return response.data;
 };
 
-export const transferTask = async (taskId: number, transferTo: string) => {
+export const transferTask = async (taskId: number, transferTo: string): Promise<ApiResponse> => {
   const response = await api.post(`/tasks/${taskId}/transfer`, { transferTo });
   return response.data;
 };

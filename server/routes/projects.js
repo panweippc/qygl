@@ -1,0 +1,72 @@
+import express from 'express';
+const router = express.Router();
+
+router.get('/project-categories', async (req, res) => {
+  const { pool } = req.app.locals;
+  try {
+    const [projects] = await pool.execute('SELECT * FROM projects');
+    res.json({ success: true, data: projects });
+  } catch (error) {
+    res.status(500).json({ success: false, message: '获取项目数据失败' });
+  }
+});
+
+router.post('/project-categories', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { name, category, description, manager, link } = req.body;
+  try {
+    await pool.execute(
+      'INSERT INTO projects (name, category, description, manager, link, createdAt) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, category, description, manager || '', link || '', new Date().toISOString().replace('T', ' ').replace('Z', '')]
+    );
+    res.json({ success: true, message: '项目分类添加成功' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: '添加项目分类失败' });
+  }
+});
+
+router.delete('/project-categories/:category', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { category } = req.params;
+  try {
+    await pool.execute('DELETE FROM project_applications WHERE project_type = ?', [category]);
+    res.json({ success: true, message: '项目分类删除成功' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: '删除项目分类失败' });
+  }
+});
+
+router.put('/project-categories/update-type', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { oldType, newType } = req.body;
+  try {
+    await pool.execute(
+      'UPDATE project_applications SET project_type = ? WHERE project_type = ?',
+      [newType, oldType]
+    );
+    res.json({ success: true, message: '项目类型更新成功' });
+  } catch (error) {
+    console.error('更新项目类型失败:', error);
+    res.status(500).json({ success: false, message: '更新项目类型失败' });
+  }
+});
+
+router.put('/project-categories/:id', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id } = req.params;
+  const { name, description, link } = req.body;
+  console.log('更新项目请求:', { id, name, description, link });
+  try {
+    await pool.execute(
+      'UPDATE projects SET name = ?, description = ?, link = ? WHERE id = ?',
+      [name, description, link, id]
+    );
+    console.log('项目更新成功:', id);
+    res.json({ success: true, message: '项目更新成功' });
+  } catch (error) {
+    console.error('更新项目失败:', error);
+    res.status(500).json({ success: false, message: '更新项目失败' });
+  }
+});
+
+export default router;
