@@ -1,6 +1,8 @@
 import express from 'express';
 const router = express.Router();
 
+import { createOperationLog } from '../utils/audit.js';
+
 router.post('/login', async (req, res) => {
   let { username, password } = req.body;
   const { pool, userSessions } = req.app.locals;
@@ -143,6 +145,16 @@ router.post('/login', async (req, res) => {
       } catch (permError) {
         console.error('获取用户权限失败:', permError.message);
       }
+
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      await createOperationLog(pool, {
+        userId: String(user.id),
+        username: user.username,
+        action: 'login',
+        module: 'auth',
+        detail: '用户登录系统',
+        ipAddress: ip
+      });
 
       res.json({ success: true, user: { ...user, permissions, department, position } });
     } else {

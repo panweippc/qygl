@@ -70,7 +70,7 @@
             导出
           </el-button>
         </template>
-        <el-button type="primary" @click="openMeetingDialog" class="action-btn">
+        <el-button v-if="!isAdmin" type="primary" @click="goToMeetingApply" class="action-btn">
           <span class="btn-icon">+</span>
           创建会议
         </el-button>
@@ -212,36 +212,53 @@
       </div>
     </div>
 
-    <el-dialog v-model="meetingDialogVisible" title="创建会议" width="600px" class="custom-dialog">
-      <el-form :model="meetingForm" :rules="meetingRules" ref="meetingFormRef" label-width="100px" class="custom-form">
-        <el-form-item label="会议主题" prop="title">
-          <el-input v-model="meetingForm.title" placeholder="请输入会议主题"></el-input>
-        </el-form-item>
-        <el-form-item label="会议日期" prop="meetingDate">
-          <el-date-picker v-model="meetingForm.meetingDate" type="date" placeholder="选择会议日期" style="width: 100%"></el-date-picker>
-        </el-form-item>
-        <el-form-item label="会议时间" prop="meetingTime">
-          <el-time-picker v-model="meetingForm.meetingTime" placeholder="选择会议时间" style="width: 100%"></el-time-picker>
-        </el-form-item>
-        <el-form-item label="会议地点" prop="location">
-          <el-input v-model="meetingForm.location" placeholder="请输入会议地点"></el-input>
-        </el-form-item>
-        <el-form-item label="参会人员" prop="participants">
-          <el-input v-model="meetingForm.participants" type="textarea" :rows="2" placeholder="请输入参会人员"></el-input>
-        </el-form-item>
-        <el-form-item label="会议议程" prop="agenda">
-          <el-input v-model="meetingForm.agenda" type="textarea" :rows="3" placeholder="请输入会议议程"></el-input>
-        </el-form-item>
-        <el-form-item label="审批人">
-          <el-select v-model="meetingForm.approver" placeholder="请选择审批人" style="width: 100%">
-            <el-option v-for="employee in approverEmployees" :key="employee.name" :label="employee.name" :value="employee.name" />
-          </el-select>
-        </el-form-item>
-      </el-form>
+    <el-dialog v-model="meetingDialogVisible" title="创建会议" width="850px" class="wide-dialog" :modal="false">
+      <div class="dialog-body">
+        <div class="dialog-section">
+          <div class="section-title">📅 会议信息</div>
+          <el-form :model="meetingForm" :rules="meetingRules" ref="meetingFormRef" label-width="100px" class="dialog-form">
+            <el-row :gutter="24">
+              <el-col :span="12">
+                <el-form-item label="会议主题" prop="title">
+                  <el-input v-model="meetingForm.title" placeholder="请输入会议主题" maxlength="100" show-word-limit></el-input>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="会议地点" prop="location">
+                  <el-input v-model="meetingForm.location" placeholder="请输入会议地点"></el-input>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="24">
+              <el-col :span="12">
+                <el-form-item label="会议日期" prop="meetingDate">
+                  <el-date-picker v-model="meetingForm.meetingDate" type="date" placeholder="选择日期" style="width: 100%"></el-date-picker>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="会议时间" prop="meetingTime">
+                  <el-time-picker v-model="meetingForm.meetingTime" placeholder="选择时间" style="width: 100%"></el-time-picker>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-form-item label="参会人员" prop="participants">
+              <el-input v-model="meetingForm.participants" placeholder="请输入参会人员姓名，多个用逗号分隔"></el-input>
+            </el-form-item>
+            <el-form-item label="会议议程" prop="agenda">
+              <el-input v-model="meetingForm.agenda" type="textarea" :rows="3" placeholder="请输入会议议程"></el-input>
+            </el-form-item>
+            <el-form-item label="审批人">
+              <el-select v-model="meetingForm.approver" placeholder="请选择" style="width: 100%">
+                <el-option v-for="employee in approverEmployees" :key="employee.name" :label="employee.name" :value="employee.name" />
+              </el-select>
+            </el-form-item>
+          </el-form>
+        </div>
+      </div>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="meetingDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitMeetingApplication">创建会议</el-button>
+          <el-button type="primary" size="large" @click="submitMeetingApplication">创建会议</el-button>
         </span>
       </template>
     </el-dialog>
@@ -249,7 +266,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getMeetings,
@@ -314,6 +332,7 @@ const meetingRules = {
 }
 
 const meetingFormRef = ref()
+const router = useRouter()
 
 const currentUsername = computed(() => {
   return localStorage.getItem('username') || '当前用户'
@@ -441,9 +460,8 @@ const fetchData = async () => {
   emit('stat-update')
 }
 
-const openMeetingDialog = () => {
-  meetingForm.value = { title: '', meetingDate: '', meetingTime: '', location: '', participants: '', agenda: '', approver: '总经理' }
-  meetingDialogVisible.value = true
+const goToMeetingApply = () => {
+  router.push('/oa/meeting-apply')
 }
 
 const submitMeetingApplication = async () => {
@@ -530,6 +548,10 @@ const exportMeetingData = () => {
     ['id', 'organizer', 'title', 'meetingDate', 'meetingTime', 'location', 'participants', 'agenda', 'status', 'approver', 'submitDate']
   )
 }
+
+onMounted(() => {
+  fetchData()
+})
 
 defineExpose({ fetchData })
 </script>
@@ -752,5 +774,36 @@ defineExpose({ fetchData })
 .card-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+.wide-dialog :deep(.el-dialog__body) {
+  padding: 0;
+}
+.dialog-body {
+  padding: 20px 24px;
+}
+.dialog-section {
+  margin-bottom: 20px;
+}
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #6495ED;
+}
+.dialog-form .el-form-item {
+  margin-bottom: 22px;
+}
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 10px 0;
+}
+.dialog-footer .el-button--primary {
+  padding: 12px 32px;
+  font-size: 15px;
 }
 </style>

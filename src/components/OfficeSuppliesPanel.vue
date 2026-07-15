@@ -232,7 +232,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getProjects,
@@ -248,6 +249,8 @@ import {
   getPriorityClass,
   exportToCSV
 } from '../utils/oaWorkflowUtils'
+
+const router = useRouter()
 
 const props = defineProps<{
   isAdmin: boolean
@@ -455,7 +458,7 @@ const deleteProjectApplication = async (row: any) => {
 }
 
 const goToProjectApply = () => {
-  window.location.href = '/#/oa/project-apply'
+  router.push('/oa/project-apply')
 }
 
 const exportProjectData = () => {
@@ -478,6 +481,10 @@ const exportProjectData = () => {
     ['id', 'applicant', 'projectName', 'projectType', 'budget', 'priority', 'status', 'submitDate']
   )
 }
+
+onMounted(() => {
+  fetchData()
+})
 
 defineExpose({ fetchData })
 </script>

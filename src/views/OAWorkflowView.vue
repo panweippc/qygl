@@ -268,7 +268,7 @@
       </div>
     </main>
 
-    <el-dialog v-model="statDetailDialogVisible" :title="statDetailTitle" width="800px">
+    <el-dialog v-model="statDetailDialogVisible" :title="statDetailTitle" width="800px" :modal="false">
       <el-table :data="statDetailRecords" style="width: 100%">
         <el-table-column prop="id" label="编号" width="80">
           <template #default="{ row }">#{{ row.id }}</template>
@@ -306,7 +306,7 @@
       </el-table>
     </el-dialog>
 
-    <el-dialog v-model="approvalDialogVisible" title="审批处理" width="500px" class="custom-dialog">
+    <el-dialog v-model="approvalDialogVisible" title="审批处理" width="500px" class="custom-dialog" :modal="false">
       <div class="approval-info" v-if="currentApprovalItem">
         <div class="info-row">
           <span class="info-label">申请类型：</span>
@@ -344,7 +344,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="detailDialogVisible" title="申请详情" width="600px" class="custom-dialog">
+    <el-dialog v-model="detailDialogVisible" title="申请详情" width="600px" class="custom-dialog" :modal="false">
       <div class="detail-content" v-if="currentDetailItem">
         <div class="detail-header">
           <span class="detail-id">申请编号：#{{ currentDetailItem.id }}</span>
@@ -367,7 +367,7 @@
       </div>
     </el-dialog>
 
-    <el-dialog v-model="distributeDialogVisible" title="申请下发" width="500px" class="custom-dialog">
+    <el-dialog v-model="distributeDialogVisible" title="申请下发" width="500px" class="custom-dialog" :modal="false">
       <div class="distribute-content" v-if="currentDistributeItem">
         <div class="distribute-info">
           <p><strong>申请编号：</strong>#{{ currentDistributeItem.id }}</p>
@@ -413,7 +413,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="processDialogVisible" title="处理申请" width="550px" class="custom-dialog">
+    <el-dialog v-model="processDialogVisible" title="处理申请" width="550px" class="custom-dialog" :modal="false">
       <div class="process-content" v-if="currentProcessItem">
         <div class="process-info">
           <div class="info-row">
@@ -607,7 +607,7 @@ const updateStats = () => {
   ]
 
   const pendingStat = approvalStats.value.find(s => s.key === 'pending')
-  if (pendingStat) pendingStat.value = allRecords.filter(r => r.status === '审批中' || r.status === 'pending').length
+  if (pendingStat) pendingStat.value = allRecords.filter(r => r.status === '审批中' || r.status === 'pending' || r.status === '待审核' || r.status === '待审批').length
 
   const approvedStat = approvalStats.value.find(s => s.key === 'approved')
   if (approvedStat) approvedStat.value = allRecords.filter(r => r.status === '已批准' || r.status === 'approved').length
@@ -639,7 +639,7 @@ const openStatDetail = (statKey: string) => {
   switch (statKey) {
     case 'pending':
       statDetailTitle.value = '待审批列表'
-      filteredRecords = allRecords.filter(r => r.status === '审批中' || r.status === 'pending')
+      filteredRecords = allRecords.filter(r => r.status === '审批中' || r.status === 'pending' || r.status === '待审核' || r.status === '待审批')
       break
     case 'approved':
       statDetailTitle.value = '已批准列表'
@@ -1122,21 +1122,13 @@ watch(() => route.query, (query) => {
   }
   if (query.action === 'create' && query.type) {
     const type = query.type as string
-    switch (type) {
-      case 'leave':
-        activeTab.value = 'leave'
-        leavePanelRef.value?.openLeaveDialog?.()
-        break
-      case 'reimbursement':
-        activeTab.value = 'reimbursement'
-        reimbursementPanelRef.value?.openReimbursementDialog?.()
-        break
-      case 'meeting':
-        activeTab.value = 'meeting'
-        meetingPanelRef.value?.openMeetingDialog?.()
-        break
+    if (type === 'leave') {
+      router.replace('/oa/leave-apply')
+    } else if (type === 'reimbursement') {
+      router.replace('/oa/reimbursement-apply')
+    } else if (type === 'meeting') {
+      router.replace('/oa/meeting-apply')
     }
-    router.replace({ path: '/oa-workflow' })
   }
 }, { immediate: true })
 

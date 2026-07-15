@@ -39,6 +39,8 @@ import approvalsRouter from './server/routes/approvals.js';
 import distributeRouter from './server/routes/distribute.js';
 import projectApplicationsRouter from './server/routes/project-applications.js';
 import businessTripsRouter from './server/routes/business-trips.js';
+import notificationsRouter from './server/routes/notifications.js';
+import operationLogsRouter from './server/routes/operation-logs.js';
 
 // 启用CORS
 
@@ -99,6 +101,8 @@ app.use('/api', approvalsRouter);
 app.use('/api', distributeRouter);
 app.use('/api', projectApplicationsRouter);
 app.use('/api', businessTripsRouter);
+app.use('/api', notificationsRouter);
+app.use('/api', operationLogsRouter);
 
 // 创建数据库连接池
 const pool = mysql.createPool({
@@ -1673,6 +1677,44 @@ const initDatabase = async () => {
     
 
     
+    // 创建通知表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        userId VARCHAR(50) NOT NULL,
+        title VARCHAR(200) NOT NULL,
+        content TEXT,
+        type VARCHAR(30) DEFAULT 'system',
+        relatedId INT,
+        relatedType VARCHAR(50),
+        isRead TINYINT(1) DEFAULT 0,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_notifications_userId (userId),
+        INDEX idx_notifications_isRead (isRead),
+        INDEX idx_notifications_createdAt (createdAt)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // 创建操作日志表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS operation_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        userId VARCHAR(50),
+        username VARCHAR(100),
+        action VARCHAR(50) NOT NULL,
+        module VARCHAR(50) NOT NULL,
+        targetId VARCHAR(100),
+        targetName VARCHAR(200),
+        detail TEXT,
+        ipAddress VARCHAR(50),
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_operation_logs_userId (userId),
+        INDEX idx_operation_logs_module (module),
+        INDEX idx_operation_logs_action (action),
+        INDEX idx_operation_logs_createdAt (createdAt)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
     connection.release();
     console.log('数据库表结构初始化成功');
   } catch (error) {

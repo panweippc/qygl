@@ -70,7 +70,7 @@
             导出
           </el-button>
         </template>
-        <el-button v-if="!isAdmin" type="primary" @click="openReimbursementDialog" class="action-btn">
+        <el-button v-if="!isAdmin" type="primary" @click="goToReimbursementApply" class="action-btn">
           <span class="btn-icon">+</span>
           发起报销申请
         </el-button>
@@ -227,38 +227,55 @@
       </div>
     </div>
 
-    <el-dialog v-model="reimbursementDialogVisible" title="报销申请" width="600px" class="custom-dialog">
-      <el-form :model="reimbursementForm" :rules="reimbursementRules" ref="reimbursementFormRef" label-width="100px" class="custom-form">
-        <el-form-item label="报销类型" prop="reimburseType">
-          <el-select v-model="reimbursementForm.reimburseType" placeholder="请选择报销类型" style="width: 100%">
-            <el-option label="差旅费" value="差旅费"></el-option>
-            <el-option label="办公用品" value="办公用品"></el-option>
-            <el-option label="餐饮费" value="餐饮费"></el-option>
-            <el-option label="交通费" value="交通费"></el-option>
-            <el-option label="其他" value="其他"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="报销金额" prop="amount">
-          <el-input v-model="reimbursementForm.amount" type="number" placeholder="请输入报销金额">
-            <template #prefix>¥</template>
-          </el-input>
-        </el-form-item>
-        <el-form-item label="报销日期" prop="reimburseDate">
-          <el-date-picker v-model="reimbursementForm.reimburseDate" type="date" placeholder="选择报销日期" style="width: 100%"></el-date-picker>
-        </el-form-item>
-        <el-form-item label="报销事由" prop="reason">
-          <el-input v-model="reimbursementForm.reason" type="textarea" :rows="4" placeholder="请输入报销事由"></el-input>
-        </el-form-item>
-        <el-form-item label="审批人">
-          <el-select v-model="reimbursementForm.approver" placeholder="请选择审批人" style="width: 100%">
-            <el-option v-for="employee in approverEmployees" :key="employee.name" :label="employee.name" :value="employee.name" />
-          </el-select>
-        </el-form-item>
-      </el-form>
+    <el-dialog v-model="reimbursementDialogVisible" title="报销申请" width="850px" class="wide-dialog" :modal="false">
+      <div class="dialog-body">
+        <div class="dialog-section">
+          <div class="section-title">💰 报销信息</div>
+          <el-form :model="reimbursementForm" :rules="reimbursementRules" ref="reimbursementFormRef" label-width="100px" class="dialog-form">
+            <el-row :gutter="24">
+              <el-col :span="12">
+                <el-form-item label="报销类型" prop="reimburseType">
+                  <el-select v-model="reimbursementForm.reimburseType" placeholder="请选择" style="width: 100%">
+                    <el-option label="差旅费" value="差旅费"></el-option>
+                    <el-option label="办公用品" value="办公用品"></el-option>
+                    <el-option label="餐饮费" value="餐饮费"></el-option>
+                    <el-option label="交通费" value="交通费"></el-option>
+                    <el-option label="其他" value="其他"></el-option>
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="报销金额" prop="amount">
+                  <el-input v-model="reimbursementForm.amount" type="number" placeholder="请输入金额">
+                    <template #prefix>¥</template>
+                  </el-input>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="24">
+              <el-col :span="12">
+                <el-form-item label="报销日期" prop="reimburseDate">
+                  <el-date-picker v-model="reimbursementForm.reimburseDate" type="date" placeholder="选择日期" style="width: 100%"></el-date-picker>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="审批人">
+                  <el-select v-model="reimbursementForm.approver" placeholder="请选择" style="width: 100%">
+                    <el-option v-for="employee in approverEmployees" :key="employee.name" :label="employee.name" :value="employee.name" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-form-item label="报销事由" prop="reason">
+              <el-input v-model="reimbursementForm.reason" type="textarea" :rows="4" placeholder="请输入报销事由" maxlength="500" show-word-limit></el-input>
+            </el-form-item>
+          </el-form>
+        </div>
+      </div>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="reimbursementDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitReimbursementApplication">提交申请</el-button>
+          <el-button type="primary" size="large" @click="submitReimbursementApplication">提交申请</el-button>
         </span>
       </template>
     </el-dialog>
@@ -266,7 +283,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   getReimbursements,
@@ -328,6 +346,7 @@ const reimbursementRules = {
 }
 
 const reimbursementFormRef = ref()
+const router = useRouter()
 
 const currentUsername = computed(() => {
   return localStorage.getItem('username') || '当前用户'
@@ -455,9 +474,8 @@ const fetchData = async () => {
   emit('stat-update')
 }
 
-const openReimbursementDialog = () => {
-  reimbursementForm.value = { reimburseType: '', amount: '', reimburseDate: '', reason: '', approver: '总经理' }
-  reimbursementDialogVisible.value = true
+const goToReimbursementApply = () => {
+  router.push('/oa/reimbursement-apply')
 }
 
 const submitReimbursementApplication = async () => {
@@ -514,6 +532,10 @@ const exportReimbursementData = () => {
     ['id', 'applicant', 'reimburseType', 'amount', 'reimburseDate', 'reason', 'status', 'approver', 'submitDate']
   )
 }
+
+onMounted(() => {
+  fetchData()
+})
 
 defineExpose({ fetchData })
 </script>
@@ -791,5 +813,36 @@ defineExpose({ fetchData })
 .no-distributed {
   color: #999;
   font-size: 0.9rem;
+}
+
+.wide-dialog :deep(.el-dialog__body) {
+  padding: 0;
+}
+.dialog-body {
+  padding: 20px 24px;
+}
+.dialog-section {
+  margin-bottom: 20px;
+}
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #6495ED;
+}
+.dialog-form .el-form-item {
+  margin-bottom: 22px;
+}
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 10px 0;
+}
+.dialog-footer .el-button--primary {
+  padding: 12px 32px;
+  font-size: 15px;
 }
 </style>

@@ -1,6 +1,8 @@
 import express from 'express';
 const router = express.Router();
 
+import { createNotification, createOperationLog } from '../utils/audit.js';
+
 // 获取报销记录列表
 router.get('/reimbursements', async (req, res) => {
   try {
@@ -23,6 +25,12 @@ router.post('/reimbursements', async (req, res) => {
       'INSERT INTO reimbursements (applicant, reimburseType, amount, reimburseDate, reason, approver, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [applicant, reimburseType, amount, reimburseDate, reason, approver, '审批中', now]
     );
+
+    await createNotification(pool, {
+      userId: approver, title: '报销审批提醒', content: `${applicant} 提交了${amount}元的${reimburseType}报销申请，请审批`, type: 'approval',
+    });
+    await createOperationLog(pool, { username: applicant, action: 'submit', module: 'reimbursement', targetName: `${reimburseType}报销(${amount}元)`, detail: `提交给${approver}审批` });
+
     res.json({ success: true, message: '报销申请提交成功' });
   } catch (error) {
     console.error('提交报销申请失败:', error);
@@ -41,6 +49,14 @@ router.put('/reimbursements/:id', async (req, res) => {
       'UPDATE reimbursements SET comment = ?, result = ?, status = ? WHERE id = ?',
       [comment || null, result || null, status, id]
     );
+
+    const [[app]] = await pool.query('SELECT applicant, reimburseType, amount FROM reimbursements WHERE id = ?', [id]);
+    if (app) {
+      const actionLabel = result === '批准' ? '已通过' : result === '拒绝' ? '被拒绝' : '已更新';
+      await createNotification(pool, { userId: app.applicant, title: `报销${actionLabel}`, content: `您的${app.reimburseType}报销(${app.amount}元)${actionLabel}`, type: 'approval' });
+      await createOperationLog(pool, { username: req.body.operator || '系统', action: result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update', module: 'reimbursement', targetName: `${app.applicant}的${app.reimburseType}报销`, detail: comment || '' });
+    }
+
     res.json({ success: true, message: '报销申请更新成功' });
   } catch (error) {
     console.error('更新报销申请失败:', error);

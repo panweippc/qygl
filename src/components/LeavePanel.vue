@@ -70,7 +70,7 @@
             导出
           </el-button>
         </template>
-        <el-button v-if="!isAdmin" type="primary" @click="openLeaveDialog" class="action-btn">
+        <el-button v-if="!isAdmin" type="primary" @click="goToLeaveApply" class="action-btn">
           <span class="btn-icon">+</span>
           发起请假申请
         </el-button>
@@ -251,40 +251,63 @@
       </div>
     </div>
 
-    <el-dialog v-model="leaveDialogVisible" title="请假申请" width="600px" class="custom-dialog">
-      <el-form :model="leaveForm" :rules="leaveRules" ref="leaveFormRef" label-width="100px" class="custom-form">
-        <el-form-item label="请假类型" prop="leaveType">
-          <el-select v-model="leaveForm.leaveType" placeholder="请选择请假类型" style="width: 100%">
-            <el-option label="事假" value="事假"></el-option>
-            <el-option label="病假" value="病假"></el-option>
-            <el-option label="年假" value="年假"></el-option>
-            <el-option label="婚假" value="婚假"></el-option>
-            <el-option label="产假" value="产假"></el-option>
-            <el-option label="其他" value="其他"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="开始日期" prop="startDate">
-          <el-date-picker v-model="leaveForm.startDate" type="date" placeholder="选择开始日期" style="width: 100%"></el-date-picker>
-        </el-form-item>
-        <el-form-item label="结束日期" prop="endDate">
-          <el-date-picker v-model="leaveForm.endDate" type="date" placeholder="选择结束日期" style="width: 100%"></el-date-picker>
-        </el-form-item>
-        <el-form-item label="请假天数" prop="days">
-          <el-input v-model="leaveForm.days" disabled placeholder="自动计算"></el-input>
-        </el-form-item>
-        <el-form-item label="请假原因" prop="reason">
-          <el-input v-model="leaveForm.reason" type="textarea" :rows="4" placeholder="请输入请假原因"></el-input>
-        </el-form-item>
-        <el-form-item label="审批人">
-          <el-select v-model="leaveForm.approver" placeholder="请选择审批人" style="width: 100%">
-            <el-option v-for="employee in approverEmployees" :key="employee.name" :label="employee.name" :value="employee.name" />
-          </el-select>
-        </el-form-item>
-      </el-form>
+    <el-dialog v-model="leaveDialogVisible" title="请假申请" width="850px" class="wide-dialog" :modal="false">
+      <div class="dialog-body">
+        <div class="dialog-section">
+          <div class="section-title">📋 请假信息</div>
+          <el-form :model="leaveForm" :rules="leaveRules" ref="leaveFormRef" label-width="100px" class="dialog-form">
+            <el-row :gutter="24">
+              <el-col :span="12">
+                <el-form-item label="请假类型" prop="leaveType">
+                  <el-select v-model="leaveForm.leaveType" placeholder="请选择" style="width: 100%">
+                    <el-option label="事假" value="事假"></el-option>
+                    <el-option label="病假" value="病假"></el-option>
+                    <el-option label="年假" value="年假"></el-option>
+                    <el-option label="婚假" value="婚假"></el-option>
+                    <el-option label="产假" value="产假"></el-option>
+                    <el-option label="其他" value="其他"></el-option>
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="审批人">
+                  <el-select v-model="leaveForm.approver" placeholder="请选择" style="width: 100%">
+                    <el-option v-for="employee in approverEmployees" :key="employee.name" :label="employee.name" :value="employee.name" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="24">
+              <el-col :span="12">
+                <el-form-item label="开始日期" prop="startDate">
+                  <el-date-picker v-model="leaveForm.startDate" type="date" placeholder="选择开始日期" style="width: 100%"></el-date-picker>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="结束日期" prop="endDate">
+                  <el-date-picker v-model="leaveForm.endDate" type="date" placeholder="选择结束日期" style="width: 100%"></el-date-picker>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="24">
+              <el-col :span="12">
+                <el-form-item label="请假天数" prop="days">
+                  <el-input v-model="leaveForm.days" disabled placeholder="自动计算">
+                    <template #append>天</template>
+                  </el-input>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-form-item label="请假原因" prop="reason">
+              <el-input v-model="leaveForm.reason" type="textarea" :rows="4" placeholder="请输入请假原因" maxlength="500" show-word-limit></el-input>
+            </el-form-item>
+          </el-form>
+        </div>
+      </div>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="leaveDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitLeaveApplication">提交申请</el-button>
+          <el-button type="primary" size="large" @click="submitLeaveApplication">提交申请</el-button>
         </span>
       </template>
     </el-dialog>
@@ -293,6 +316,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getLeaveApplications,
@@ -357,6 +381,7 @@ const leaveRules = {
 }
 
 const leaveFormRef = ref()
+const router = useRouter()
 
 const currentUsername = computed(() => {
   return localStorage.getItem('username') || '当前用户'
@@ -484,9 +509,8 @@ const fetchData = async () => {
   emit('stat-update')
 }
 
-const openLeaveDialog = () => {
-  leaveForm.value = { leaveType: '', startDate: '', endDate: '', days: '', reason: '', approver: '总经理' }
-  leaveDialogVisible.value = true
+const goToLeaveApply = () => {
+  router.push('/oa/leave-apply')
 }
 
 const submitLeaveApplication = async () => {
@@ -580,6 +604,10 @@ const exportLeaveData = () => {
     ['id', 'applicant', 'leaveType', 'startDate', 'endDate', 'days', 'reason', 'status', 'approver', 'submitDate']
   )
 }
+
+onMounted(() => {
+  fetchData()
+})
 
 defineExpose({ fetchData })
 </script>
@@ -858,5 +886,42 @@ defineExpose({ fetchData })
 .no-distributed {
   color: #999;
   font-size: 0.9rem;
+}
+
+/* 新增弹窗样式 */
+.wide-dialog :deep(.el-dialog__body) {
+  padding: 0;
+}
+.dialog-body {
+  padding: 20px 24px;
+}
+.dialog-section {
+  margin-bottom: 20px;
+}
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #6495ED;
+}
+.dialog-form .el-form-item {
+  margin-bottom: 22px;
+}
+.days-hint {
+  color: #909399;
+  font-size: 13px;
+  line-height: 32px;
+}
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 10px 0;
+}
+.dialog-footer .el-button--primary {
+  padding: 12px 32px;
+  font-size: 15px;
 }
 </style>

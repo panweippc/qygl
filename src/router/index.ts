@@ -133,6 +133,34 @@ const router = createRouter({
       name: 'business-trip-list',
       component: () => import('../views/BusinessTripListView.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/message-center',
+      name: 'message-center',
+      component: () => import('../views/MessageCenterView.vue')
+    },
+    {
+      path: '/operation-log',
+      name: 'operation-log',
+      component: () => import('../views/OperationLogView.vue')
+    },
+    {
+      path: '/oa/leave-apply',
+      name: 'leave-apply',
+      component: () => import('../views/LeaveApplicationPage.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/oa/reimbursement-apply',
+      name: 'reimbursement-apply',
+      component: () => import('../views/ReimbursementApplicationPage.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/oa/meeting-apply',
+      name: 'meeting-apply',
+      component: () => import('../views/MeetingApplicationPage.vue'),
+      meta: { requiresAuth: true }
     }
   ]
 })

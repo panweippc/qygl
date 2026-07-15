@@ -1,6 +1,8 @@
 import express from 'express';
 const router = express.Router();
 
+import { createNotification, createOperationLog } from '../utils/audit.js';
+
 // 获取出差列表
 router.get('/business-trips', async (req, res) => {
   const { pool } = req.app.locals;
@@ -103,6 +105,14 @@ router.post('/business-trips', async (req, res) => {
         JSON.stringify(accompanyPersons || []), isUrgent ? 1 : 0
       ]
     );
+
+    await createOperationLog(pool, {
+      username: applicant.name,
+      action: 'submit',
+      module: 'business_trip',
+      targetName: `${destination}出差(${tripCode})`,
+      detail: `出差天数:${days}天, 预估费用:${estimatedCost}元`
+    });
 
     res.json({
       success: true,
@@ -213,6 +223,23 @@ router.post('/business-trips/:id/approve', async (req, res) => {
        WHERE id = ?`,
       [newStatus, newStep, JSON.stringify(currentHistory), comment, id]
     );
+
+    const actionLabel = action === 'agree' ? '已通过' : '已驳回';
+    await createNotification(pool, {
+      userId: trip.applicant_name,
+      title: `出差申请${actionLabel}`,
+      content: `您的${trip.destination}出差申请(${trip.trip_code})${actionLabel}`,
+      type: 'approval',
+      relatedId: parseInt(id),
+      relatedType: 'business_trip'
+    });
+    await createOperationLog(pool, {
+      username: approver.name,
+      action: action === 'agree' ? 'approve' : 'reject',
+      module: 'business_trip',
+      targetName: `${trip.destination}出差(${trip.trip_code})`,
+      detail: comment || ''
+    });
 
     res.json({ success: true });
   } catch (error) {

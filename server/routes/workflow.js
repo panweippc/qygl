@@ -412,7 +412,15 @@ router.post("/business-trips", async (req, res) => {
     const finalTripType = tripType || trip_type || 'domestic';
     const finalStartDate = startDate || start_date || null;
     const finalEndDate = endDate || end_date || null;
-    const finalDays = days || 1;
+    let finalDays = days;
+    if (!finalDays && finalStartDate && finalEndDate) {
+      const d1 = new Date(finalStartDate);
+      const d2 = new Date(finalEndDate);
+      if (!isNaN(d1) && !isNaN(d2)) {
+        finalDays = Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+      }
+    }
+    finalDays = finalDays || 1;
 
     const [result] = await pool.query(
       `INSERT INTO business_trip_applications

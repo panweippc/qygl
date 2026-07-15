@@ -1,6 +1,8 @@
 import express from 'express';
 const router = express.Router();
 
+import { createNotification, createOperationLog } from '../utils/audit.js';
+
 // 获取请假申请列表
 router.get('/leave-applications', async (req, res) => {
   try {
@@ -23,6 +25,21 @@ router.post('/leave-applications', async (req, res) => {
       'INSERT INTO leave_applications (applicant, leaveType, startDate, endDate, days, reason, approver, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [applicant, leaveType, startDate, endDate, days, reason, approver, '审批中', now]
     );
+
+    await createNotification(pool, {
+      userId: approver,
+      title: '请假审批提醒',
+      content: `${applicant} 提交了${days}天的${leaveType}申请，请审批`,
+      type: 'approval',
+    });
+    await createOperationLog(pool, {
+      username: applicant,
+      action: 'submit',
+      module: 'attendance',
+      targetName: `${leaveType}请假(${days}天)`,
+      detail: `提交给${approver}审批`
+    });
+
     res.json({ success: true, message: '请假申请提交成功' });
   } catch (error) {
     console.error('提交请假申请失败:', error);
@@ -50,6 +67,25 @@ router.put('/leave-applications/:id', async (req, res) => {
       'UPDATE leave_applications SET comment = ?, result = ?, status = ?, nextApprover = ? WHERE id = ?',
       [comment || null, result || null, status, nextApprover || null, id]
     );
+
+    const [[app]] = await pool.query('SELECT applicant, leaveType, days FROM leave_applications WHERE id = ?', [id]);
+    if (app) {
+      const actionLabel = result === '批准' ? '已通过' : result === '拒绝' ? '被拒绝' : '已更新';
+      await createNotification(pool, {
+        userId: app.applicant,
+        title: `请假${actionLabel}`,
+        content: `您的${app.leaveType}申请(${app.days}天)${actionLabel}`,
+        type: 'approval',
+      });
+      await createOperationLog(pool, {
+        username: req.body.operator || '系统',
+        action: result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update',
+        module: 'attendance',
+        targetName: `${app.applicant}的${app.leaveType}请假`,
+        detail: comment || ''
+      });
+    }
+
     res.json({ success: true, message: '请假申请更新成功' });
   } catch (error) {
     console.error('更新请假申请失败:', error);

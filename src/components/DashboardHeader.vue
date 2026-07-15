@@ -9,6 +9,11 @@
         <span>首页</span>
         <div class="nav-item-indicator"></div>
       </router-link>
+      <router-link to="/message-center" class="nav-item notification-btn">
+        <span class="bell-icon">🔔</span>
+        <span v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+        <div class="nav-item-indicator"></div>
+      </router-link>
       <button class="nav-item user-btn" @click="handleUser">
         <span>{{ currentUser }}</span>
         <div class="nav-item-indicator"></div>
@@ -27,6 +32,18 @@ import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const currentUser = ref('用户')
+
+const unreadCount = ref(0)
+
+const fetchUnreadCount = async () => {
+  const userId = localStorage.getItem('userId')
+  if (!userId) return
+  try {
+    const res = await fetch(`/api/notifications/unread-count?userId=${userId}`)
+    const json = await res.json()
+    if (json.success) unreadCount.value = json.data.count
+  } catch { /* ignore */ }
+}
 
 const loadCurrentUser = () => {
   const username = localStorage.getItem('username') || '用户'
@@ -57,6 +74,7 @@ const handleLogout = () => {
 }
 
 loadCurrentUser()
+fetchUnreadCount()
 </script>
 
 <style scoped>
@@ -275,4 +293,7 @@ loadCurrentUser()
   .header { padding: 0 0.8rem; }
   .logo-text { font-size: 1.2rem; }
 }
+.notification-btn { position: relative; }
+.bell-icon { font-size: 20px; line-height: 1; }
+.badge { position: absolute; top: 2px; right: 2px; background: #f44336; color: #fff; font-size: 10px; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 4px; font-weight: 600; box-shadow: 0 2px 6px rgba(244,67,54,0.4); }
 </style>

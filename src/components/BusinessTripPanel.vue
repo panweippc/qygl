@@ -218,7 +218,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getBusinessTrips,
@@ -232,6 +233,8 @@ import {
   getTripTypeClass,
   exportToCSV
 } from '../utils/oaWorkflowUtils'
+
+const router = useRouter()
 
 const props = defineProps<{
   isAdmin: boolean
@@ -419,7 +422,7 @@ const cancelBusinessTripApplication = async (row: any) => {
 }
 
 const goToBusinessTripApply = () => {
-  window.location.href = '/#/oa/business-trip'
+  router.push('/oa/business-trip')
 }
 
 const exportBusinessTripData = () => {
@@ -442,6 +445,10 @@ const exportBusinessTripData = () => {
     ['id', 'applicant', 'destination', 'tripType', 'days', 'estimatedCost', 'status', 'submitDate']
   )
 }
+
+onMounted(() => {
+  fetchData()
+})
 
 defineExpose({ fetchData })
 </script>

@@ -1,6 +1,8 @@
 import express from 'express';
 const router = express.Router();
 
+import { createNotification, createOperationLog } from '../utils/audit.js';
+
 // 获取审批流程列表
 router.get('/oa/flows', async (req, res) => {
   const { pool } = req.app.locals;
@@ -247,6 +249,22 @@ router.post('/oa/submit', async (req, res) => {
 
     await connection.commit();
 
+    await createNotification(pool, {
+      userId: firstApprover.name,
+      title: 'OA审批提醒',
+      content: `${applicantName} 提交了${businessType}审批申请，请审批`,
+      type: 'approval',
+      relatedId: result.insertId,
+      relatedType: 'oa_approval'
+    });
+    await createOperationLog(pool, {
+      username: applicantName,
+      action: 'submit',
+      module: 'oa_approval',
+      targetName: `${businessType}审批`,
+      detail: `提交给${firstApprover.name}审批`
+    });
+
     res.json({
       success: true,
       message: '申请提交成功',
@@ -440,6 +458,57 @@ router.post('/oa/process', async (req, res) => {
     }
 
     await connection.commit();
+
+    if (action === 'agree') {
+      const currentIndex = approvalPath.findIndex(p => p.userId === approverId);
+      const nextNode = approvalPath[currentIndex + 1];
+
+      if (nextNode) {
+        await createNotification(pool, {
+          userId: nextNode.name,
+          title: 'OA审批提醒',
+          content: `${instance.applicantName}的${instance.businessType}审批申请待您审批`,
+          type: 'approval',
+          relatedId: instanceId,
+          relatedType: 'oa_approval'
+        });
+      } else {
+        await createNotification(pool, {
+          userId: instance.applicantName,
+          title: 'OA审批通过',
+          content: `您的${instance.businessType}审批申请已全部通过`,
+          type: 'approval',
+          relatedId: instanceId,
+          relatedType: 'oa_approval'
+        });
+      }
+    } else if (action === 'reject') {
+      await createNotification(pool, {
+        userId: instance.applicantName,
+        title: 'OA审批驳回',
+        content: `您的${instance.businessType}审批申请已被驳回`,
+        type: 'approval',
+        relatedId: instanceId,
+        relatedType: 'oa_approval'
+      });
+    } else if (action === 'return') {
+      await createNotification(pool, {
+        userId: instance.applicantName,
+        title: 'OA审批退回',
+        content: `您的${instance.businessType}审批申请已被退回修改`,
+        type: 'approval',
+        relatedId: instanceId,
+        relatedType: 'oa_approval'
+      });
+    }
+
+    await createOperationLog(pool, {
+      username: approverName,
+      action: action === 'agree' ? 'approve' : action,
+      module: 'oa_approval',
+      targetName: `${instance.businessType}审批(${instance.flowCode})`,
+      detail: comment || ''
+    });
 
     res.json({ success: true, message: '审批处理成功' });
   } catch (error) {

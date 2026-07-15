@@ -1,6 +1,8 @@
 import express from 'express';
 const router = express.Router();
 
+import { createNotification, createOperationLog } from '../utils/audit.js';
+
 // 创建项目申请
 router.post('/projects', async (req, res) => {
   const { pool } = req.app.locals;
@@ -67,6 +69,14 @@ router.post('/projects', async (req, res) => {
         JSON.stringify(teamMembers || []), resources
       ]
     );
+
+    await createOperationLog(pool, {
+      username: applicant.name,
+      action: 'submit',
+      module: 'project',
+      targetName: `${projectName}项目(${projectCode})`,
+      detail: `项目类型:${projectType}, 预算:${budget}元`
+    });
 
     res.json({
       success: true,
@@ -165,6 +175,23 @@ router.post('/projects/:id/approve', async (req, res) => {
        WHERE id = ?`,
       [newStatus, newStep, JSON.stringify(currentHistory), comment, id]
     );
+
+    const actionLabel = action === 'agree' ? '已通过' : '已驳回';
+    await createNotification(pool, {
+      userId: project.applicant_name,
+      title: `项目申请${actionLabel}`,
+      content: `您的${project.project_name}项目申请(${project.project_code})${actionLabel}`,
+      type: 'approval',
+      relatedId: parseInt(id),
+      relatedType: 'project'
+    });
+    await createOperationLog(pool, {
+      username: approver.name,
+      action: action === 'agree' ? 'approve' : 'reject',
+      module: 'project',
+      targetName: `${project.project_name}项目(${project.project_code})`,
+      detail: comment || ''
+    });
 
     res.json({ success: true });
   } catch (error) {
