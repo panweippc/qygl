@@ -32,11 +32,29 @@
 
         <!-- 内容区域 -->
         <div class="map-section">
-          <h3 class="map-title">内蒙古地区销售分布</h3>
+          <div class="map-header">
+            <h3 class="map-title">内蒙古地区销售分布</h3>
+            <el-button type="primary" size="small" @click="showAddCityDialog = true">+ 添加盟市</el-button>
+          </div>
           <div ref="mapRef" class="map-container"></div>
         </div>
       </div>
     </main>
+
+    <el-dialog v-model="showAddCityDialog" title="添加盟市" width="450px">
+      <el-form :model="cityForm" label-width="100px">
+        <el-form-item label="盟市名称" required>
+          <el-input v-model="cityForm.name" placeholder="请输入盟市名称" />
+        </el-form-item>
+        <el-form-item label="客户数量" required>
+          <el-input v-model.number="cityForm.customers" type="number" placeholder="请输入客户数量" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showAddCityDialog = false">取消</el-button>
+        <el-button type="primary" @click="submitAddCity" :loading="submittingCity">确定添加</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 页脚 -->
     <footer class="footer">
@@ -50,14 +68,52 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 
 const router = useRouter()
 const mapRef = ref<HTMLElement | null>(null)
 let mapChart: echarts.ECharts | null = null
 
+const showAddCityDialog = ref(false)
+const submittingCity = ref(false)
+const cityForm = ref({ name: '', customers: 0 })
+
+const submitAddCity = async () => {
+  if (!cityForm.value.name.trim()) {
+    ElMessage.warning('请输入盟市名称')
+    return
+  }
+  submittingCity.value = true
+  try {
+    const response = await fetch('http://localhost:3005/api/city-sales', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: cityForm.value.name.trim(),
+        sales: 0,
+        customers: cityForm.value.customers || 0,
+        growthRate: 0
+      })
+    })
+    const result = await response.json()
+    if (result.success) {
+      ElMessage.success('盟市添加成功')
+      showAddCityDialog.value = false
+      cityForm.value = { name: '', customers: 0 }
+      initMap()
+    } else {
+      ElMessage.error(result.message || '添加失败')
+    }
+  } catch (error) {
+    console.error('添加盟市失败:', error)
+    ElMessage.error('添加盟市失败')
+  } finally {
+    submittingCity.value = false
+  }
+}
+
 const handleBack = () => {
-  // 返回上一页
   router.back()
 }
 
@@ -497,15 +553,20 @@ onMounted(async () => {
   z-index: 2;
 }
 
+.map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+
 .map-title {
   font-size: 1.3rem;
   font-weight: 600;
   color: #333;
   margin: 0;
   text-shadow: 0 0 15px rgba(100, 149, 237, 0.3);
-  text-align: center;
-  position: relative;
-  z-index: 2;
 }
 
 .map-container {

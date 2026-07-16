@@ -66,10 +66,10 @@
               @change="handleDateRangeChange"
             />
           </template>
-          <el-button type="danger" @click="exportMeetingData" class="export-btn-small">
-            导出
-          </el-button>
         </template>
+        <el-button type="danger" @click="exportMeetingData" class="export-btn-small">
+          导出
+        </el-button>
         <el-button v-if="!isAdmin" type="primary" @click="goToMeetingApply" class="action-btn">
           <span class="btn-icon">+</span>
           创建会议
@@ -154,6 +154,13 @@
                 class="view-btn"
               >
                 详情
+              </el-button>
+              <el-button
+                size="small"
+                @click="exportMeetingRow(row)"
+                class="export-row-btn"
+              >
+                导出
               </el-button>
             </div>
           </template>
@@ -285,7 +292,8 @@ import {
   formatDate,
   getStatusClass,
   getStatusText,
-  exportToCSV
+  exportToCSV,
+  exportSingleRow
 } from '../utils/oaWorkflowUtils'
 
 const props = defineProps<{
@@ -421,7 +429,7 @@ const loadMeetingRecords = async () => {
     const response = await getMeetings()
     if (response.success) {
       meetingRecords.value = response.data
-        .filter((item: any) => props.isAdmin || extractRealName(item.organizer) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.startsWith(extractRealName(currentUsername.value) + ':')))
+        .filter((item: any) => props.isAdmin || extractRealName(item.organizer) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value))
         .map((item: any) => ({
           ...item,
           submitDate: item.createdAt?.substring(0, 10) || ''
@@ -550,6 +558,13 @@ const exportMeetingData = () => {
   exportToCSV(
     data,
     fileName,
+    ['会议编号', '组织者', '会议主题', '会议日期', '会议时间', '会议地点', '参会人员', '会议议程', '审批状态', '审批人', '创建时间'],
+    ['id', 'organizer', 'title', 'meetingDate', 'meetingTime', 'location', 'participants', 'agenda', 'status', 'approver', 'submitDate']
+  )
+}
+
+const exportMeetingRow = (row: any) => {
+  exportSingleRow(row, '会议申请_' + row.id,
     ['会议编号', '组织者', '会议主题', '会议日期', '会议时间', '会议地点', '参会人员', '会议议程', '审批状态', '审批人', '创建时间'],
     ['id', 'organizer', 'title', 'meetingDate', 'meetingTime', 'location', 'participants', 'agenda', 'status', 'approver', 'submitDate']
   )

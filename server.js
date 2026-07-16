@@ -42,6 +42,7 @@ import businessTripsRouter from './server/routes/business-trips.js';
 import notificationsRouter from './server/routes/notifications.js';
 import operationLogsRouter from './server/routes/operation-logs.js';
 import uploadRouter from './server/routes/upload.js';
+import entertainmentRouter from './server/routes/entertainment.js';
 
 // 启用CORS
 
@@ -105,6 +106,7 @@ app.use('/api', businessTripsRouter);
 app.use('/api', notificationsRouter);
 app.use('/api', operationLogsRouter);
 app.use('/api', uploadRouter);
+app.use('/api', entertainmentRouter);
 app.use('/uploads', express.static('uploads'));
 
 // 创建数据库连接池
@@ -116,7 +118,8 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  charset: 'utf8mb4'
+  charset: 'utf8mb4',
+  dateStrings: true
 });
 
 // 将数据库连接池设置到app.locals，供路由使用
@@ -653,6 +656,18 @@ const initDatabase = async () => {
       console.error('添加remainingAmount字段失败:', error);
     }
     
+    try {
+      const [columns] = await connection.execute(
+        `SHOW COLUMNS FROM closing_projects WHERE Field = 'applicant'`
+      );
+      if (columns.length === 0) {
+        await connection.execute(`ALTER TABLE closing_projects ADD COLUMN applicant VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT ''`);
+        console.log('applicant字段添加成功');
+      }
+    } catch (error) {
+      console.error('添加applicant字段失败:', error);
+    }
+    
     // 创建provinces表（省份）
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS provinces (
@@ -1015,6 +1030,25 @@ const initDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
+    // 创建entertainment_expenses表（业务招待费申请）
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS entertainment_expenses (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        applicant VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+        guestName VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+        guestCount INT NOT NULL DEFAULT 1,
+        expenseType VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+        expenseAmount DECIMAL(10,2) NOT NULL,
+        expenseDate DATE NOT NULL,
+        purpose TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+        status VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '审批中',
+        approver VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+        comment TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        result VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        createdAt DATETIME NOT NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    
     // 创建oa_approval_flows表（OA审批流程定义）
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS oa_approval_flows (

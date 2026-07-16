@@ -394,6 +394,22 @@ export const updateDistributedRecord = async (id: number, data: Partial<Distribu
   return response.data;
 };
 
+// 业务招待费管理
+export const getEntertainmentExpenses = async (): Promise<ApiResponse<any[]>> => {
+  const response = await api.get('/entertainment-expenses');
+  return response.data;
+};
+
+export const addEntertainmentExpense = async (data: any): Promise<ApiResponse> => {
+  const response = await api.post('/entertainment-expenses', data);
+  return response.data;
+};
+
+export const updateEntertainmentExpense = async (id: number, data: any): Promise<ApiResponse> => {
+  const response = await api.put(`/entertainment-expenses/${id}`, data);
+  return response.data;
+};
+
 // ==================== 多级 OA 审批工作流 ====================
 
 export const getOaFlows = async (): Promise<ApiResponse<import('./types').OaFlow[]>> => {

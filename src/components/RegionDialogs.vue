@@ -119,6 +119,9 @@
       <el-form-item label="剩余金额" required v-if="projectForm.contractFeeStatus === '未结算'">
         <el-input v-model.number="projectForm.remainingAmount" type="number" placeholder="请输入剩余金额" />
       </el-form-item>
+      <el-form-item label="申请人">
+        <el-input v-model="projectForm.applicant" placeholder="自动填入当前用户" :disabled="!isEditingProject" />
+      </el-form-item>
     </el-form>
     <template #footer>
       <span class="dialog-footer">
@@ -296,6 +299,13 @@ const projectDialogModel = computed({
   set: (val) => emit('update:projectDialogVisible', val)
 })
 
+const getCurrentUser = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    return user.name || user.username || ''
+  } catch { return '' }
+}
+
 const projectForm = ref({
   id: '',
   name: '',
@@ -306,7 +316,8 @@ const projectForm = ref({
   serviceEndTime: '',
   nextYearFeeStatus: '待确认',
   contractFeeStatus: '未结',
-  remainingAmount: 0
+  remainingAmount: 0,
+  applicant: getCurrentUser()
 })
 const isEditingProject = computed(() => !!projectForm.value.id)
 
@@ -337,7 +348,8 @@ watch(() => props.projectDialogVisible, (visible) => {
         serviceEndTime: '',
         nextYearFeeStatus: '待确认',
         contractFeeStatus: '未结',
-        remainingAmount: 0
+        remainingAmount: 0,
+        applicant: getCurrentUser()
       }
     }
   }

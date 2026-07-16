@@ -66,10 +66,10 @@
               @change="handleDateRangeChange"
             />
           </template>
-          <el-button type="danger" @click="exportReimbursementData" class="export-btn-small">
-            导出
-          </el-button>
         </template>
+        <el-button type="danger" @click="exportReimbursementData" class="export-btn-small">
+          导出
+        </el-button>
         <el-button v-if="!isAdmin" type="primary" @click="goToReimbursementApply" class="action-btn">
           <span class="btn-icon">+</span>
           发起报销申请
@@ -177,6 +177,13 @@
                 class="view-btn"
               >
                 详情
+              </el-button>
+              <el-button
+                size="small"
+                @click="exportReimbursementRow(row)"
+                class="export-row-btn"
+              >
+                导出
               </el-button>
             </div>
           </template>
@@ -303,7 +310,8 @@ import {
   getStatusClass,
   getStatusText,
   getReimburseTypeClass,
-  exportToCSV
+  exportToCSV,
+  exportSingleRow
 } from '../utils/oaWorkflowUtils'
 
 const props = defineProps<{
@@ -442,7 +450,7 @@ const loadReimbursementRecords = async () => {
     const response = await getReimbursements()
     if (response.success) {
       reimbursementRecords.value = response.data
-        .filter((item: any) => props.isAdmin || extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.startsWith(extractRealName(currentUsername.value) + ':')))
+        .filter((item: any) => props.isAdmin || extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value))
         .map((item: any) => ({
           ...item,
           submitDate: item.createdAt?.substring(0, 10) || ''
@@ -534,6 +542,13 @@ const exportReimbursementData = () => {
   exportToCSV(
     data,
     fileName,
+    ['报销编号', '申请人', '报销类型', '报销金额', '报销日期', '报销事由', '审批状态', '审批人', '提交时间'],
+    ['id', 'applicant', 'reimburseType', 'amount', 'reimburseDate', 'reason', 'status', 'approver', 'submitDate']
+  )
+}
+
+const exportReimbursementRow = (row: any) => {
+  exportSingleRow(row, '报销申请_' + row.id,
     ['报销编号', '申请人', '报销类型', '报销金额', '报销日期', '报销事由', '审批状态', '审批人', '提交时间'],
     ['id', 'applicant', 'reimburseType', 'amount', 'reimburseDate', 'reason', 'status', 'approver', 'submitDate']
   )

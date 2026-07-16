@@ -60,6 +60,18 @@ router.post('/distributed-records', async (req, res) => {
       });
     }
 
+    // 检查是否已下发给该用户
+    const [existing] = await pool.execute(
+      'SELECT id FROM distributed_records WHERE applicationId = ? AND targetUser = ?',
+      [applicationId, targetUser]
+    );
+    if (existing.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: `该记录已下发给 ${targetUser}，不能重复下发`
+      });
+    }
+
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
     const [result] = await pool.execute(

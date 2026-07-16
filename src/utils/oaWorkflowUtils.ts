@@ -147,7 +147,8 @@ export const getApprovalTypeName = (type: string) => {
     reimbursement: '报销申请',
     meeting: '会议申请',
     project: '项目申请',
-    businessTrip: '出差申请'
+    businessTrip: '出差申请',
+    entertainment: '业务招待费'
   }
   return typeMap[type] || type
 }
@@ -158,7 +159,8 @@ export const getApplicationTypeLabel = (type: string) => {
     'reimbursement': '报销申请',
     'meeting': '会议申请',
     'project': '项目申请',
-    'businessTrip': '出差申请'
+    'businessTrip': '出差申请',
+    'entertainment': '业务招待费'
   }
   return typeMap[type] || type
 }
@@ -211,9 +213,42 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
       '出差天数': item.days + '天',
       '预估费用': '¥' + item.estimatedCost,
       '提交时间': item.submitDate
+    },
+    entertainment: {
+      '申请人': item.applicant || currentUsername,
+      '客户名称': item.guestName,
+      '招待人数': item.guestCount + '人',
+      '费用类型': item.expenseType,
+      '招待金额': '¥' + item.expenseAmount,
+      '招待日期': item.expenseDate,
+      '招待事由': item.purpose,
+      '审批人': item.approver || '待分配',
+      '提交时间': item.submitDate
     }
   }
   return fields[type] || {}
+}
+
+const formatCellValue = (value: any): string => {
+  if (value === null || value === undefined) return ''
+  if (value instanceof Date) {
+    const y = value.getFullYear()
+    const m = String(value.getMonth() + 1).padStart(2, '0')
+    const d = String(value.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+  if (typeof value === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
+      return value.substring(0, 19).replace('T', ' ')
+    }
+    if (/^\d{4}[-\/]\d{2}[-\/]\d{2}$/.test(value)) {
+      return value.replace(/\//g, '-')
+    }
+    if (/^\d{4}[-\/]\d{2}[-\/]\d{2}\s+\d{2}:\d{2}/.test(value)) {
+      return value.replace(/\//g, '-')
+    }
+  }
+  return String(value)
 }
 
 export const exportToCSV = (data: any[], filename: string, headers: string[], fields: string[]) => {
@@ -223,7 +258,7 @@ export const exportToCSV = (data: any[], filename: string, headers: string[], fi
     const values = fields.map(field => {
       const value = row[field]
       if (value === null || value === undefined) return ''
-      const stringValue = String(value)
+      const stringValue = formatCellValue(value)
       if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
         return `"${stringValue.replace(/"/g, '""')}"`
       }
@@ -242,17 +277,22 @@ export const exportToCSV = (data: any[], filename: string, headers: string[], fi
   document.body.removeChild(link)
 }
 
+export const exportSingleRow = (row: any, filename: string, headers: string[], fields: string[]) => {
+  exportToCSV([row], filename, headers, fields)
+}
+
 export const getStatDetailTypeLabel = (type: string) => {
   const typeMap: Record<string, string> = {
     'project': '项目申请',
     'reimbursement': '报销申请',
     'leave': '请假申请',
     'businessTrip': '出差申请',
-    'meeting': '会议申请'
+    'meeting': '会议申请',
+    'entertainment': '业务招待费'
   }
   return typeMap[type] || type
 }
 
 export const getStatDetailName = (record: any) => {
-  return record.projectName || record.title || record.reimburseType || record.leaveType || record.destination || '未知'
+  return record.projectName || record.title || record.reimburseType || record.leaveType || record.destination || record.guestName || '未知'
 }

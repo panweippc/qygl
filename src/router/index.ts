@@ -161,6 +161,12 @@ const router = createRouter({
       name: 'meeting-apply',
       component: () => import('../views/MeetingApplicationPage.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/oa/entertainment-apply',
+      name: 'entertainment-apply',
+      component: () => import('../views/EntertainmentApplyPage.vue'),
+      meta: { requiresAuth: true }
     }
   ]
 })

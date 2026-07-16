@@ -21,10 +21,10 @@
             <el-option label="基建项目" value="基建项目" />
             <el-option label="其他项目" value="其他项目" />
           </el-select>
-          <el-button type="danger" @click="exportProjectData" class="export-btn-small">
-            导出
-          </el-button>
         </template>
+        <el-button type="danger" @click="exportProjectData" class="export-btn-small">
+          导出
+        </el-button>
         <el-button v-if="!isAdmin" type="primary" @click="goToProjectApply" class="action-btn">
           <span class="btn-icon">+</span>
           发起项目申请
@@ -161,6 +161,13 @@
               >
                 删除
               </el-button>
+              <el-button
+                size="small"
+                @click="exportProjectRow(row)"
+                class="export-row-btn"
+              >
+                导出
+              </el-button>
             </div>
           </template>
         </el-table-column>
@@ -253,7 +260,8 @@ import {
   getStatusText,
   getProjectTypeClass,
   getPriorityClass,
-  exportToCSV
+  exportToCSV,
+  exportSingleRow
 } from '../utils/oaWorkflowUtils'
 
 const router = useRouter()
@@ -327,7 +335,7 @@ const loadProjectRecords = async () => {
     const response = await getProjects()
     if (response.success && response.data && response.data.list) {
       const filteredData = response.data.list.filter((item: any) => {
-        return props.isAdmin || extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.startsWith(extractRealName(currentUsername.value) + ':'))
+        return props.isAdmin || extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value)
       })
       projectRecords.value = filteredData.map((item: any) => {
         let projectName = item.project_name ? String(item.project_name) : ''
@@ -483,6 +491,13 @@ const exportProjectData = () => {
   exportToCSV(
     data,
     fileName,
+    ['申请编号', '申请人', '项目名称', '项目类型', '预算金额', '优先级', '审批状态', '提交时间'],
+    ['id', 'applicant', 'projectName', 'projectType', 'budget', 'priority', 'status', 'submitDate']
+  )
+}
+
+const exportProjectRow = (row: any) => {
+  exportSingleRow(row, '项目申请_' + row.id,
     ['申请编号', '申请人', '项目名称', '项目类型', '预算金额', '优先级', '审批状态', '提交时间'],
     ['id', 'applicant', 'projectName', 'projectType', 'budget', 'priority', 'status', 'submitDate']
   )

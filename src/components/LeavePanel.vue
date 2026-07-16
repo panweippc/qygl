@@ -66,10 +66,10 @@
               @change="handleDateRangeChange"
             />
           </template>
-          <el-button type="danger" @click="exportLeaveData" class="export-btn-small">
-            导出
-          </el-button>
         </template>
+        <el-button type="danger" @click="exportLeaveData" class="export-btn-small">
+          导出
+        </el-button>
         <el-button v-if="!isAdmin" type="primary" @click="goToLeaveApply" class="action-btn">
           <span class="btn-icon">+</span>
           发起请假申请
@@ -194,6 +194,13 @@
                 class="view-btn"
               >
                 详情
+              </el-button>
+              <el-button
+                size="small"
+                @click="exportLeaveRow(row)"
+                class="export-row-btn"
+              >
+                导出
               </el-button>
             </div>
           </template>
@@ -336,7 +343,8 @@ import {
   getStatusText,
   getLeaveTypeText,
   getLeaveTypeClass,
-  exportToCSV
+  exportToCSV,
+  exportSingleRow
 } from '../utils/oaWorkflowUtils'
 
 const props = defineProps<{
@@ -477,7 +485,7 @@ const loadLeaveRecords = async () => {
     const response = await getLeaveApplications()
     if (response.success) {
       leaveRecords.value = response.data
-        .filter((item: any) => props.isAdmin || extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.startsWith(extractRealName(currentUsername.value) + ':')))
+        .filter((item: any) => props.isAdmin || extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value))
         .map((item: any) => ({
           ...item,
           submitDate: item.createdAt?.substring(0, 10) || ''
@@ -606,6 +614,13 @@ const exportLeaveData = () => {
   exportToCSV(
     data,
     fileName,
+    ['申请编号', '申请人', '请假类型', '开始日期', '结束日期', '请假天数', '请假原因', '审批状态', '审批人', '提交时间'],
+    ['id', 'applicant', 'leaveType', 'startDate', 'endDate', 'days', 'reason', 'status', 'approver', 'submitDate']
+  )
+}
+
+const exportLeaveRow = (row: any) => {
+  exportSingleRow(row, '请假申请_' + row.id,
     ['申请编号', '申请人', '请假类型', '开始日期', '结束日期', '请假天数', '请假原因', '审批状态', '审批人', '提交时间'],
     ['id', 'applicant', 'leaveType', 'startDate', 'endDate', 'days', 'reason', 'status', 'approver', 'submitDate']
   )

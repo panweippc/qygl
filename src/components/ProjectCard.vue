@@ -32,6 +32,10 @@
         <i class="meta-icon">📅</i>
         成交时间: {{ project.dealTime }}
       </span>
+      <span class="meta-item" v-if="project.applicant">
+        <i class="meta-icon">👤</i>
+        申请人: {{ project.applicant }}
+      </span>
     </div>
   </div>
 </template>

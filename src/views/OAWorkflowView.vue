@@ -178,6 +178,23 @@
               />
             </div>
 
+            <div v-show="activeTab === 'entertainment'" class="tab-panel">
+              <EntertainmentPanel
+                ref="entertainmentPanelRef"
+                :isAdmin="isAdminComputed"
+                :currentUser="currentUsername"
+                :searchKeyword="searchKeyword"
+                :viewMode="viewMode"
+                :allEmployees="allEmployees"
+                :approverEmployees="approverEmployees"
+                :allDistributedRecords="allDistributedRecords"
+                @approve="openApprovalDialog"
+                @terminate="terminateProcess"
+                @view-detail="viewDetail"
+                @stat-update="updateStats"
+              />
+            </div>
+
             <div v-show="activeTab === 'distributed'" class="tab-panel">
               <div class="panel-header">
                 <div class="panel-title">
@@ -386,12 +403,13 @@
             <span v-else-if="currentDistributeType === 'meeting'">会议申请</span>
             <span v-else-if="currentDistributeType === 'project'">项目申请</span>
             <span v-else-if="currentDistributeType === 'businessTrip'">出差申请</span>
+            <span v-else-if="currentDistributeType === 'entertainment'">业务招待费</span>
           </p>
           <p><strong>申请人：</strong>{{ extractRealName(currentDistributeItem.applicant || currentDistributeItem.organizer) }}</p>
         </div>
         <el-form label-width="100px" class="distribute-form">
-          <el-form-item label="下发对象" required>
-            <el-select
+        <el-form-item label="下发对象">
+          <el-select
               v-model="distributeTarget"
               placeholder="请选择下发对象"
               style="width: 100%"
@@ -450,16 +468,6 @@
             <span class="info-value">{{ currentProcessItem.comment || '-' }}</span>
           </div>
         </div>
-        <el-form label-width="100px" class="process-form">
-          <el-form-item label="处理过程" required>
-            <el-input
-              v-model="processContent"
-              type="textarea"
-              :rows="5"
-              placeholder="请输入具体的处理过程..."
-            />
-          </el-form-item>
-        </el-form>
       </div>
       <template #footer>
         <span class="dialog-footer">
@@ -497,7 +505,9 @@ import {
   getDistributedRecords,
   getAllDistributedRecords,
   addDistributedRecord,
-  updateDistributedRecord
+  updateDistributedRecord,
+  getEntertainmentExpenses,
+  updateEntertainmentExpense
 } from '../services/api'
 import {
   extractRealName,
@@ -516,6 +526,7 @@ import ReimbursementPanel from '../components/ReimbursementPanel.vue'
 import MeetingPanel from '../components/MeetingPanel.vue'
 import OfficeSuppliesPanel from '../components/OfficeSuppliesPanel.vue'
 import BusinessTripPanel from '../components/BusinessTripPanel.vue'
+import EntertainmentPanel from '../components/EntertainmentPanel.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -530,6 +541,7 @@ const reimbursementPanelRef = ref()
 const meetingPanelRef = ref()
 const projectPanelRef = ref()
 const businessTripPanelRef = ref()
+const entertainmentPanelRef = ref()
 
 const allEmployees = ref<any[]>([])
 const allDistributedRecords = ref<any[]>([])
@@ -571,11 +583,14 @@ const allReimbursementRecords = ref<any[]>([])
 const allMeetingRecords = ref<any[]>([])
 const allProjectRecords = ref<any[]>([])
 const allBusinessTripRecords = ref<any[]>([])
+const entertainmentRecords = ref<any[]>([])
+const allEntertainmentRecords = ref<any[]>([])
 const distributedRecords = ref<any[]>([])
 
 const pendingLeaveCount = computed(() => leaveRecords.value.length)
 const pendingReimbursementCount = computed(() => reimbursementRecords.value.length)
 const pendingBusinessTripCount = computed(() => businessTripRecords.value.length)
+const pendingEntertainmentCount = computed(() => entertainmentRecords.value.length)
 const pendingDistributedCount = computed(() => distributedRecords.value.length)
 
 const tabs = computed(() => {
@@ -594,7 +609,8 @@ const tabs = computed(() => {
     { name: 'reimbursement', label: '报销管理', icon: '💰', badge: pendingReimbursementCount.value },
     { name: 'meeting', label: '会议管理', icon: '📅', badge: uniqueMeetings.length },
     { name: 'project', label: '项目申请', icon: '📊', badge: uniqueProjects.length },
-    { name: 'businessTrip', label: '出差申请', icon: '✈️', badge: pendingBusinessTripCount.value }
+    { name: 'businessTrip', label: '出差申请', icon: '✈️', badge: pendingBusinessTripCount.value },
+    { name: 'entertainment', label: '业务招待费', icon: '🍽️', badge: pendingEntertainmentCount.value }
   ]
 
   if (!isAdminComputed.value) {
@@ -610,7 +626,8 @@ const updateStats = () => {
     ...reimbursementRecords.value,
     ...meetingRecords.value,
     ...projectRecords.value,
-    ...businessTripRecords.value
+    ...businessTripRecords.value,
+    ...entertainmentRecords.value
   ]
 
   const pendingStat = approvalStats.value.find(s => s.key === 'pending')
@@ -636,10 +653,11 @@ const openStatDetail = (statKey: string) => {
     ...(isAdminComputed.value ? allReimbursementRecords.value : reimbursementRecords.value),
     ...meetingRecords.value,
     ...(isAdminComputed.value ? allProjectRecords.value : projectRecords.value),
-    ...(isAdminComputed.value ? allBusinessTripRecords.value : businessTripRecords.value)
+    ...(isAdminComputed.value ? allBusinessTripRecords.value : businessTripRecords.value),
+    ...(isAdminComputed.value ? allEntertainmentRecords.value : entertainmentRecords.value)
   ].map(record => ({
     ...record,
-    _type: record.projectName ? 'project' : record.reimburseType ? 'reimbursement' : record.leaveType ? 'leave' : record.destination ? 'businessTrip' : 'meeting'
+    _type: record.projectName ? 'project' : record.reimburseType ? 'reimbursement' : record.leaveType ? 'leave' : record.destination ? 'businessTrip' : record.guestName ? 'entertainment' : 'meeting'
   }))
 
   let filteredRecords: any[] = []
@@ -688,7 +706,8 @@ const submitApproval = async () => {
     let response: any
     const data: any = { comment: approvalForm.value.comment, result: approvalForm.value.result }
     if (approvalForm.value.forwardToGM) {
-      data.forwardTo = '总经理'
+      const gm = allEmployees.value.find((emp: any) => (emp.position || '').includes('总经理'))
+      data.forwardTo = gm?.name || '总经理'
     }
     switch (approvalForm.value.type) {
       case 'leave':
@@ -705,6 +724,9 @@ const submitApproval = async () => {
         break
       case 'businessTrip':
         response = await updateBusinessTrip(approvalForm.value.id, data)
+        break
+      case 'entertainment':
+        response = await updateEntertainmentExpense(approvalForm.value.id, data)
         break
     }
     if (response?.success) {
@@ -751,8 +773,24 @@ const handleDistribute = async () => {
   }
   try {
     const uniqueTargets = [...new Set(distributeTarget.value)]
+
+    // 过滤掉已下发过的对象
+    const alreadyDistributed = allDistributedRecords.value
+      .filter(r => r.applicationId === currentDistributeItem.value.id)
+      .map(r => r.targetUser)
+    const validTargets = uniqueTargets.filter(t => !alreadyDistributed.includes(t))
+
+    if (validTargets.length === 0) {
+      ElMessage.warning('所选对象均已收到过该下发，不能重复下发')
+      return
+    }
+    if (validTargets.length < uniqueTargets.length) {
+      const skipped = uniqueTargets.filter(t => !validTargets.includes(t))
+      ElMessage.warning(`${skipped.join('、')} 已收到过该下发，已自动跳过`)
+    }
+
     const results = []
-    for (const target of uniqueTargets) {
+    for (const target of validTargets) {
       const distributeData = {
         applicationId: currentDistributeItem.value.id,
         applicationType: currentDistributeType.value,
@@ -767,7 +805,7 @@ const handleDistribute = async () => {
     }
     const allSuccess = results.every(r => r.success)
     if (allSuccess) {
-      ElMessage.success(`已成功下发给 ${uniqueTargets.join('、')}`)
+      ElMessage.success(`已成功下发给 ${validTargets.join('、')}`)
       distributeDialogVisible.value = false
       if (isAdminComputed.value) {
         await loadAllDistributedRecords()
@@ -793,20 +831,14 @@ const handleDistributedItem = (row: any) => {
 }
 
 const submitProcess = async () => {
-  if (!processContent.value.trim()) {
-    ElMessage.warning('请输入处理过程')
-    return
-  }
   try {
     const response = await updateDistributedRecord(currentProcessItem.value.id, {
-      status: '已处理',
-      processComment: processContent.value.trim()
+      status: '已处理'
     })
     if (response.success) {
       const index = distributedRecords.value.findIndex(r => r.id === currentProcessItem.value.id)
       if (index !== -1) {
         distributedRecords.value[index].status = '已处理'
-        distributedRecords.value[index].processComment = processContent.value.trim()
       }
       ElMessage.success('处理成功')
       processDialogVisible.value = false
@@ -870,6 +902,9 @@ const terminateProcess = async (row: any, type: string) => {
       case 'businessTrip':
         response = await updateBusinessTrip(row.id, data)
         break
+      case 'entertainment':
+        response = await updateEntertainmentExpense(row.id, data)
+        break
     }
     if (response?.success) {
       ElMessage.success('流程已强制终止')
@@ -901,8 +936,7 @@ const filterUserRecords = (records: any[]) => {
   const currentName = extractRealName(currentUsername.value)
   return records.filter((item: any) =>
     extractRealName(item.applicant || item.organizer || item.applicant_name) === currentName ||
-    extractRealName(item.approver) === currentName ||
-    (item.result && item.result.startsWith(currentName + ':'))
+    extractRealName(item.approver) === currentName
   )
 }
 
@@ -1059,6 +1093,33 @@ const loadAllBusinessTripRecords = async () => {
   }
 }
 
+const loadEntertainmentRecords = async () => {
+  try {
+    const response = await getEntertainmentExpenses()
+    if (response.success) {
+      entertainmentRecords.value = filterUserRecords(response.data)
+        .map((item: any) => ({ ...item, submitDate: item.createdAt?.substring(0, 10) || '' }))
+    }
+  } catch (error) {
+    console.error('获取招待费记录失败:', error)
+  }
+}
+
+const loadAllEntertainmentRecords = async () => {
+  try {
+    const response = await getEntertainmentExpenses()
+    if (response.success) {
+      allEntertainmentRecords.value = response.data.map((item: any) => ({
+        ...item,
+        submitDate: item.createdAt?.substring(0, 10) || '',
+        distributedUsers: []
+      }))
+    }
+  } catch (error) {
+    console.error('获取所有招待费记录失败:', error)
+  }
+}
+
 const loadAllDistributedRecords = async () => {
   try {
     const response = await getAllDistributedRecords()
@@ -1078,7 +1139,7 @@ const loadDistributedRecords = async () => {
     if (response.success) {
       distributedRecords.value = response.data.map((record: any) => ({
         ...record,
-        distributeDate: record.createdAt
+        distributeDate: record.createdAt ? formatDate(record.createdAt, true) : ''
       }))
     } else {
       distributedRecords.value = []
@@ -1097,7 +1158,8 @@ const loadNonAdminData = async () => {
     loadReimbursementRecords(),
     loadMeetingRecords(),
     loadProjectRecords(),
-    loadBusinessTripRecords()
+    loadBusinessTripRecords(),
+    loadEntertainmentRecords()
   ])
 }
 
@@ -1108,7 +1170,8 @@ const loadAdminData = async () => {
     loadAllReimbursementRecords(),
     loadAllMeetingRecords(),
     loadAllProjectRecords(),
-    loadAllBusinessTripRecords()
+    loadAllBusinessTripRecords(),
+    loadAllEntertainmentRecords()
   ])
 }
 
@@ -1124,7 +1187,8 @@ const refreshAllData = async () => {
     reimbursementPanelRef.value?.fetchData(),
     meetingPanelRef.value?.fetchData(),
     projectPanelRef.value?.fetchData(),
-    businessTripPanelRef.value?.fetchData()
+    businessTripPanelRef.value?.fetchData(),
+    entertainmentPanelRef.value?.fetchData()
   ])
 }
 
@@ -1133,7 +1197,7 @@ const handleBack = () => { router.back() }
 
 watch(() => route.query, (query) => {
   if (query.tab) {
-    const validTabs = ['leave', 'reimbursement', 'meeting', 'project', 'businessTrip', 'distributed']
+    const validTabs = ['leave', 'reimbursement', 'meeting', 'project', 'businessTrip', 'entertainment', 'distributed']
     if (validTabs.includes(query.tab as string)) {
       activeTab.value = query.tab as string
     }

@@ -18,10 +18,10 @@
             <el-option label="国内出差" value="国内出差" />
             <el-option label="国外出差" value="国外出差" />
           </el-select>
-          <el-button type="danger" @click="exportBusinessTripData" class="export-btn-small">
-            导出
-          </el-button>
         </template>
+        <el-button type="danger" @click="exportBusinessTripData" class="export-btn-small">
+          导出
+        </el-button>
         <el-button v-if="!isAdmin" type="primary" @click="goToBusinessTripApply" class="action-btn">
           <span class="btn-icon">+</span>
           发起出差申请
@@ -147,6 +147,13 @@
               >
                 详情
               </el-button>
+              <el-button
+                size="small"
+                @click="exportBusinessTripRow(row)"
+                class="export-row-btn"
+              >
+                导出
+              </el-button>
             </div>
           </template>
         </el-table-column>
@@ -237,7 +244,8 @@ import {
   getStatusClass,
   getStatusText,
   getTripTypeClass,
-  exportToCSV
+  exportToCSV,
+  exportSingleRow
 } from '../utils/oaWorkflowUtils'
 
 const router = useRouter()
@@ -311,7 +319,7 @@ const loadBusinessTripRecords = async () => {
     const response = await getBusinessTrips()
     if (response.success && response.data && response.data.list) {
       const filteredData = response.data.list.filter((item: any) => {
-        return props.isAdmin || extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.startsWith(extractRealName(currentUsername.value) + ':'))
+        return props.isAdmin || extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value)
       })
       businessTripRecords.value = filteredData.map((item: any) => {
         let destination = item.destination ? String(item.destination) : ''
@@ -447,6 +455,13 @@ const exportBusinessTripData = () => {
   exportToCSV(
     data,
     fileName,
+    ['申请编号', '申请人', '目的地', '出差类型', '出差天数', '预估费用', '审批状态', '提交时间'],
+    ['id', 'applicant', 'destination', 'tripType', 'days', 'estimatedCost', 'status', 'submitDate']
+  )
+}
+
+const exportBusinessTripRow = (row: any) => {
+  exportSingleRow(row, '出差申请_' + row.id,
     ['申请编号', '申请人', '目的地', '出差类型', '出差天数', '预估费用', '审批状态', '提交时间'],
     ['id', 'applicant', 'destination', 'tripType', 'days', 'estimatedCost', 'status', 'submitDate']
   )

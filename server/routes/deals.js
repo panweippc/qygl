@@ -15,7 +15,7 @@ router.get('/closing-projects', async (req, res) => {
 router.post('/closing-projects', async (req, res) => {
   try {
     const { pool } = req.app.locals;
-    const { name, description, status, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId } = req.body;
+    const { name, description, status, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId, applicant } = req.body;
 
     console.log('接收到的请求数据:', req.body);
 
@@ -32,14 +32,8 @@ router.post('/closing-projects', async (req, res) => {
     const formattedServiceEndTime = formatDate(serviceEndTime);
     const formattedStartDate = formattedDealTime;
 
-    console.log('格式化后的日期:', {
-      startDate: formattedStartDate,
-      dealTime: formattedDealTime,
-      serviceEndTime: formattedServiceEndTime
-    });
-
-    const query = `INSERT INTO closing_projects (name, description, status, startDate, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-    const values = [name, description, status, formattedStartDate, formattedDealTime, price, formattedServiceEndTime, nextYearFeeStatus, contractFeeStatus || '未结', remainingAmount || 0, provinceId, cityId, countyId, new Date().toISOString().replace('T', ' ').replace('Z', '')];
+    const query = `INSERT INTO closing_projects (name, description, status, startDate, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId, applicant, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    const values = [name, description, status, formattedStartDate, formattedDealTime, price, formattedServiceEndTime, nextYearFeeStatus, contractFeeStatus || '未结', remainingAmount || 0, provinceId, cityId, countyId, applicant || '', new Date().toISOString().replace('T', ' ').replace('Z', '')];
 
     console.log('SQL查询:', query);
     console.log('SQL参数:', values);
@@ -54,7 +48,7 @@ router.post('/closing-projects', async (req, res) => {
 
 router.put('/closing-projects/:id', async (req, res) => {
   const { id } = req.params;
-  const { name, description, status, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId } = req.body;
+  const { name, description, status, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId, applicant } = req.body;
   try {
     const { pool } = req.app.locals;
     const formatDate = (dateString) => {
@@ -62,11 +56,9 @@ router.put('/closing-projects/:id', async (req, res) => {
       return new Date(dateString).toISOString().split('T')[0];
     };
 
-    const formattedStartDate = formatDate(dealTime);
-
     await pool.execute(
-      'UPDATE closing_projects SET name = ?, description = ?, status = ?, startDate = ?, dealTime = ?, price = ?, serviceEndTime = ?, nextYearFeeStatus = ?, contractFeeStatus = ?, remainingAmount = ?, provinceId = ?, cityId = ?, countyId = ? WHERE id = ?',
-      [name, description, status, formattedStartDate, formatDate(dealTime), price, formatDate(serviceEndTime), nextYearFeeStatus, contractFeeStatus || '未结', remainingAmount || 0, provinceId, cityId, countyId, id]
+      'UPDATE closing_projects SET name = ?, description = ?, status = ?, startDate = ?, dealTime = ?, price = ?, serviceEndTime = ?, nextYearFeeStatus = ?, contractFeeStatus = ?, remainingAmount = ?, provinceId = ?, cityId = ?, countyId = ?, applicant = ? WHERE id = ?',
+      [name, description, status, formatDate(dealTime), formatDate(dealTime), price, formatDate(serviceEndTime), nextYearFeeStatus, contractFeeStatus || '未结', remainingAmount || 0, provinceId, cityId, countyId, applicant || '', id]
     );
     res.json({ success: true, message: '成交项目更新成功' });
   } catch (error) {
