@@ -587,10 +587,18 @@ const entertainmentRecords = ref<any[]>([])
 const allEntertainmentRecords = ref<any[]>([])
 const distributedRecords = ref<any[]>([])
 
-const pendingLeaveCount = computed(() => leaveRecords.value.length)
-const pendingReimbursementCount = computed(() => reimbursementRecords.value.length)
-const pendingBusinessTripCount = computed(() => businessTripRecords.value.length)
-const pendingEntertainmentCount = computed(() => entertainmentRecords.value.length)
+const pendingLeaveCount = computed(() =>
+  isAdminComputed.value ? allLeaveRecords.value.length : leaveRecords.value.length
+)
+const pendingReimbursementCount = computed(() =>
+  isAdminComputed.value ? allReimbursementRecords.value.length : reimbursementRecords.value.length
+)
+const pendingBusinessTripCount = computed(() =>
+  isAdminComputed.value ? allBusinessTripRecords.value.length : businessTripRecords.value.length
+)
+const pendingEntertainmentCount = computed(() =>
+  isAdminComputed.value ? allEntertainmentRecords.value.length : entertainmentRecords.value.length
+)
 const pendingDistributedCount = computed(() => distributedRecords.value.length)
 
 const tabs = computed(() => {
@@ -932,7 +940,6 @@ const loadEmployees = async () => {
 }
 
 const filterUserRecords = (records: any[]) => {
-  if (isAdminComputed.value) return records
   const currentName = extractRealName(currentUsername.value)
   return records.filter((item: any) =>
     extractRealName(item.applicant || item.organizer || item.applicant_name) === currentName ||
