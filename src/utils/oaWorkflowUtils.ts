@@ -182,6 +182,7 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
       '报销日期': item.reimburseDate,
       '报销事由': item.reason,
       '审批人': item.approver || '待分配',
+      '附件': item.attachments || '',
       '提交时间': item.submitDate
     },
     meeting: {

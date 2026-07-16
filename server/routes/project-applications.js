@@ -10,7 +10,7 @@ router.post('/projects', async (req, res) => {
     console.log('前端提交的参数:', req.body);
     const {
       projectName, projectType, priority, budget, startDate, endDate,
-      description, objectives, teamMembers, resources, applicantId
+      description, objectives, teamMembers, resources, applicantId, approverId
     } = req.body;
 
     if (!projectName || !projectType || !priority || budget === undefined || !startDate || !endDate || !description || !objectives || !resources || !applicantId) {
@@ -40,6 +40,12 @@ router.post('/projects', async (req, res) => {
 
     const applicant = employees[0];
 
+    let approverName = null;
+    if (approverId) {
+      const [approvers] = await pool.execute('SELECT * FROM employees WHERE id = ?', [approverId]);
+      if (approvers.length > 0) approverName = approvers[0].name;
+    }
+
     const date = new Date();
     const year = date.getFullYear();
     let projectCode;
@@ -61,12 +67,12 @@ router.post('/projects', async (req, res) => {
       `INSERT INTO project_applications 
        (project_code, project_name, applicant_id, applicant_name, department, 
         project_type, priority, budget, start_date, end_date, description, objectives,
-        team_members, resources, status, current_step, created_at, updated_at) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, NOW(), NOW())`,
+        team_members, resources, status, current_step, approver, created_at, updated_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, NOW(), NOW())`,
       [
         projectCode, projectName, applicantId, applicant.name, applicant.department,
         projectType, priority, budget, startDate, endDate, description, objectives,
-        JSON.stringify(teamMembers || []), resources
+        JSON.stringify(teamMembers || []), resources, approverName
       ]
     );
 
@@ -122,7 +128,7 @@ router.post('/projects/:id/approve', async (req, res) => {
   const { pool } = req.app.locals;
   try {
     const { id } = req.params;
-    const { action, comment, approverId } = req.body;
+    const { action, comment, approverId, forwardTo } = req.body;
 
     const [projects] = await pool.execute(
       'SELECT * FROM project_applications WHERE id = ?',
@@ -134,6 +140,28 @@ router.post('/projects/:id/approve', async (req, res) => {
     }
 
     const project = projects[0];
+
+    if (forwardTo) {
+      const currentApprover = project.approver || '';
+      const resultText = action === 'agree' ? '批准' : action === 'reject' ? '拒绝' : '';
+      const intermediateResult = resultText ? `${currentApprover}:${resultText}` : null;
+      const newComment = project.comment
+        ? `${project.comment}\n---\n${currentApprover}: ${comment || ''}`
+        : comment || null;
+      await pool.execute(
+        'UPDATE project_applications SET comment = ?, result = ?, approver = ?, updated_at = NOW() WHERE id = ?',
+        [newComment, intermediateResult, forwardTo, id]
+      );
+      await createNotification(pool, {
+        userId: project.applicant_name,
+        title: '项目申请已转发',
+        content: `您的${project.project_name}项目申请(${project.project_code})已转发至总经理审批`,
+        type: 'approval',
+        relatedId: parseInt(id),
+        relatedType: 'project'
+      });
+      return res.json({ success: true, message: '已转发至总经理' });
+    }
 
     const [approvers] = await pool.execute(
       'SELECT * FROM employees WHERE id = ?',
@@ -169,11 +197,14 @@ router.post('/projects/:id/approve', async (req, res) => {
       newStatus = 'approved';
     }
 
+    const accumComment = project.comment
+      ? `${project.comment}\n---\n${approver.name}: ${comment || ''}`
+      : `${approver.name}: ${comment || ''}`;
     await pool.execute(
       `UPDATE project_applications 
        SET status = ?, current_step = ?, approval_history = ?, comment = ?, updated_at = NOW() 
        WHERE id = ?`,
-      [newStatus, newStep, JSON.stringify(currentHistory), comment, id]
+      [newStatus, newStep, JSON.stringify(currentHistory), accumComment, id]
     );
 
     const actionLabel = action === 'agree' ? '已通过' : '已驳回';

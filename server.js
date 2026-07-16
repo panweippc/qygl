@@ -41,6 +41,7 @@ import projectApplicationsRouter from './server/routes/project-applications.js';
 import businessTripsRouter from './server/routes/business-trips.js';
 import notificationsRouter from './server/routes/notifications.js';
 import operationLogsRouter from './server/routes/operation-logs.js';
+import uploadRouter from './server/routes/upload.js';
 
 // 启用CORS
 
@@ -103,6 +104,8 @@ app.use('/api', projectApplicationsRouter);
 app.use('/api', businessTripsRouter);
 app.use('/api', notificationsRouter);
 app.use('/api', operationLogsRouter);
+app.use('/api', uploadRouter);
+app.use('/uploads', express.static('uploads'));
 
 // 创建数据库连接池
 const pool = mysql.createPool({
@@ -930,9 +933,13 @@ const initDatabase = async () => {
         approver VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
         comment TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
         result VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        attachments TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
         createdAt DATETIME NOT NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    try {
+      await connection.execute(`ALTER TABLE reimbursements ADD COLUMN attachments TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    } catch (_e) {}
     
     // 创建meetings表（会议管理）
     await connection.execute(`

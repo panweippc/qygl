@@ -74,7 +74,13 @@
             <span :class="['status-tag', getStatusClass(row.status)]">
               <span class="status-dot"></span>
               {{ getStatusText(row.status) }}
+              <span v-if="row.result && row.result.includes(':') && row.status === '审批中'" class="intermediate-result">({{ row.result }})</span>
             </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="审批人" width="100">
+          <template #default="{ row }">
+            {{ row.approver || '-' }}
           </template>
         </el-table-column>
         <el-table-column label="提交时间" width="100">
@@ -100,7 +106,7 @@
           <template #default="{ row }">
             <div class="action-group">
               <el-button
-                v-if="(row.status === '审批中' || row.status === 'pending') && isAdmin"
+                v-if="(row.status === '审批中' || row.status === 'pending') && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
                 size="small"
                 type="primary"
                 @click="handleApprove(row)"
@@ -109,7 +115,7 @@
                 审批
               </el-button>
               <el-button
-                v-if="(row.status === '审批中' || row.status === 'pending') && isAdmin"
+                v-if="(row.status === '审批中' || row.status === 'pending') && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
                 size="small"
                 type="danger"
                 @click="$emit('terminate', row, 'businessTrip')"
@@ -151,7 +157,7 @@
       <div class="record-card" v-for="row in filteredBusinessTripRecords" :key="row.id">
         <div class="card-header">
           <span class="card-id">#{{ row.id }}</span>
-          <span :class="['card-status', getStatusClass(row.status)]">{{ getStatusText(row.status) }}</span>
+          <span :class="['card-status', getStatusClass(row.status)]">{{ getStatusText(row.status) }}<span v-if="row.result && row.result.includes(':') && row.status === '审批中'" class="intermediate-result">({{ row.result }})</span></span>
         </div>
         <div class="card-body">
           <div class="card-row">
@@ -179,7 +185,7 @@
           <span class="card-date">{{ row.submitDate }}</span>
           <div class="card-actions">
             <el-button
-              v-if="(row.status === '审批中' || row.status === 'pending') && isAdmin"
+              v-if="(row.status === '审批中' || row.status === 'pending') && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
               size="small"
               type="primary"
               @click="handleApprove(row)"
@@ -187,7 +193,7 @@
               审批
             </el-button>
             <el-button
-              v-if="(row.status === '审批中' || row.status === 'pending') && isAdmin"
+              v-if="(row.status === '审批中' || row.status === 'pending') && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
               size="small"
               type="danger"
               @click="$emit('terminate', row, 'businessTrip')"
@@ -305,7 +311,7 @@ const loadBusinessTripRecords = async () => {
     const response = await getBusinessTrips()
     if (response.success && response.data && response.data.list) {
       const filteredData = response.data.list.filter((item: any) => {
-        return props.isAdmin || extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value)
+        return props.isAdmin || extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.startsWith(extractRealName(currentUsername.value) + ':'))
       })
       businessTripRecords.value = filteredData.map((item: any) => {
         let destination = item.destination ? String(item.destination) : ''

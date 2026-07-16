@@ -36,20 +36,45 @@ router.post('/meetings', async (req, res) => {
 
 router.put('/meetings/:id', async (req, res) => {
   const { id } = req.params;
-  const { comment, result } = req.body;
+  const { comment, result, forwardTo } = req.body;
   try {
     const { pool } = req.app.locals;
-    const status = result === '批准' ? '已批准' : result === '拒绝' ? '已拒绝' : '待审批';
-    await pool.execute(
-      'UPDATE meetings SET comment = ?, result = ?, status = ? WHERE id = ?',
-      [comment || null, result || null, status, id]
-    );
-
-    const [[app]] = await pool.query('SELECT title, organizer FROM meetings WHERE id = ?', [id]);
-    if (app) {
-      const actionLabel = result === '批准' ? '已通过' : result === '拒绝' ? '被拒绝' : '已更新';
-      await createNotification(pool, { userId: app.organizer, title: `会议审批${actionLabel}`, content: `您发起的会议"${app.title}"${actionLabel}`, type: 'approval' });
-      await createOperationLog(pool, { username: req.body.operator || '系统', action: result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update', module: 'meeting', targetName: `会议"${app.title}"`, detail: comment || '' });
+    if (forwardTo) {
+      const [[current]] = await pool.query('SELECT approver, comment as oldComment FROM meetings WHERE id = ?', [id]);
+      const currentApprover = current?.approver || '';
+      const intermediateResult = result ? `${currentApprover}:${result}` : null;
+      const newComment = current?.oldComment
+        ? `${current.oldComment}\n---\n${currentApprover}: ${comment || ''}`
+        : comment || null;
+      await pool.execute(
+        'UPDATE meetings SET comment = ?, result = ?, approver = ? WHERE id = ?',
+        [newComment, intermediateResult, forwardTo, id]
+      );
+      const [[app]] = await pool.query('SELECT title, organizer FROM meetings WHERE id = ?', [id]);
+      if (app) {
+        await createNotification(pool, { userId: app.organizer, title: '会议已转发', content: `您发起的会议"${app.title}"已转发至总经理审批`, type: 'approval' });
+        await createOperationLog(pool, { username: req.body.operator || '系统', action: 'forward', module: 'meeting', targetName: `会议"${app.title}"`, detail: comment || '' });
+      }
+    } else {
+      const status = result === '批准' ? '已批准' : result === '拒绝' ? '已拒绝' : '待审批';
+      const [[current]] = await pool.query('SELECT approver, comment as oldComment, result as oldResult FROM meetings WHERE id = ?', [id]);
+      const currentApprover = current?.approver || '';
+      const accumulatedResult = current?.oldResult && current.oldResult.includes(':')
+        ? `${current.oldResult};${currentApprover}:${result}`
+        : `${currentApprover}:${result}`;
+      const newComment = current?.oldComment
+        ? `${current.oldComment}\n---\n${currentApprover}: ${comment || ''}`
+        : `${currentApprover}: ${comment || ''}`;
+      await pool.execute(
+        'UPDATE meetings SET comment = ?, result = ?, status = ? WHERE id = ?',
+        [newComment, accumulatedResult, status, id]
+      );
+      const [[app]] = await pool.query('SELECT title, organizer FROM meetings WHERE id = ?', [id]);
+      if (app) {
+        const actionLabel = result === '批准' ? '已通过' : result === '拒绝' ? '被拒绝' : '已更新';
+        await createNotification(pool, { userId: app.organizer, title: `会议审批${actionLabel}`, content: `您发起的会议"${app.title}"${actionLabel}`, type: 'approval' });
+        await createOperationLog(pool, { username: req.body.operator || '系统', action: result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update', module: 'meeting', targetName: `会议"${app.title}"`, detail: comment || '' });
+      }
     }
 
     res.json({ success: true, message: '会议审批更新成功' });

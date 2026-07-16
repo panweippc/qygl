@@ -50,7 +50,7 @@ router.post('/leave-applications', async (req, res) => {
 // 更新请假申请
 router.put('/leave-applications/:id', async (req, res) => {
   const { id } = req.params;
-  const { comment, result, nextApprover } = req.body;
+  const { comment, result, nextApprover, forwardTo } = req.body;
   try {
     const { pool } = req.app.locals;
     let status;
@@ -63,27 +63,63 @@ router.put('/leave-applications/:id', async (req, res) => {
     } else {
       status = '审批中';
     }
-    await pool.execute(
-      'UPDATE leave_applications SET comment = ?, result = ?, status = ?, nextApprover = ? WHERE id = ?',
-      [comment || null, result || null, status, nextApprover || null, id]
-    );
-
-    const [[app]] = await pool.query('SELECT applicant, leaveType, days FROM leave_applications WHERE id = ?', [id]);
-    if (app) {
-      const actionLabel = result === '批准' ? '已通过' : result === '拒绝' ? '被拒绝' : '已更新';
-      await createNotification(pool, {
-        userId: app.applicant,
-        title: `请假${actionLabel}`,
-        content: `您的${app.leaveType}申请(${app.days}天)${actionLabel}`,
-        type: 'approval',
-      });
-      await createOperationLog(pool, {
-        username: req.body.operator || '系统',
-        action: result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update',
-        module: 'attendance',
-        targetName: `${app.applicant}的${app.leaveType}请假`,
-        detail: comment || ''
-      });
+    if (forwardTo) {
+      const [[current]] = await pool.query('SELECT approver, comment as oldComment FROM leave_applications WHERE id = ?', [id]);
+      const currentApprover = current?.approver || '';
+      const intermediateResult = result ? `${currentApprover}:${result}` : null;
+      const newComment = current?.oldComment
+        ? `${current.oldComment}\n---\n${currentApprover}: ${comment || ''}`
+        : comment || null;
+      await pool.execute(
+        'UPDATE leave_applications SET comment = ?, result = ?, approver = ? WHERE id = ?',
+        [newComment, intermediateResult, forwardTo, id]
+      );
+      const [[app]] = await pool.query('SELECT applicant, leaveType, days FROM leave_applications WHERE id = ?', [id]);
+      if (app) {
+        await createNotification(pool, {
+          userId: app.applicant,
+          title: '请假已转发',
+          content: `您的${app.leaveType}申请(${app.days}天)已转发至总经理审批`,
+          type: 'approval',
+        });
+        await createOperationLog(pool, {
+          username: req.body.operator || '系统',
+          action: 'forward',
+          module: 'attendance',
+          targetName: `${app.applicant}的${app.leaveType}请假`,
+          detail: comment || ''
+        });
+      }
+    } else {
+      const [[current]] = await pool.query('SELECT approver, comment as oldComment, result as oldResult FROM leave_applications WHERE id = ?', [id]);
+      const currentApprover = current?.approver || '';
+      const accumulatedResult = current?.oldResult && current.oldResult.includes(':')
+        ? `${current.oldResult};${currentApprover}:${result}`
+        : `${currentApprover}:${result}`;
+      const newComment = current?.oldComment
+        ? `${current.oldComment}\n---\n${currentApprover}: ${comment || ''}`
+        : `${currentApprover}: ${comment || ''}`;
+      await pool.execute(
+        'UPDATE leave_applications SET comment = ?, result = ?, status = ?, nextApprover = ? WHERE id = ?',
+        [newComment, accumulatedResult, status, nextApprover || null, id]
+      );
+      const [[app]] = await pool.query('SELECT applicant, leaveType, days FROM leave_applications WHERE id = ?', [id]);
+      if (app) {
+        const actionLabel = result === '批准' ? '已通过' : result === '拒绝' ? '被拒绝' : '已更新';
+        await createNotification(pool, {
+          userId: app.applicant,
+          title: `请假${actionLabel}`,
+          content: `您的${app.leaveType}申请(${app.days}天)${actionLabel}`,
+          type: 'approval',
+        });
+        await createOperationLog(pool, {
+          username: req.body.operator || '系统',
+          action: result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update',
+          module: 'attendance',
+          targetName: `${app.applicant}的${app.leaveType}请假`,
+          detail: comment || ''
+        });
+      }
     }
 
     res.json({ success: true, message: '请假申请更新成功' });

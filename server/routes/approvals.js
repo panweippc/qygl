@@ -3,6 +3,93 @@ const router = express.Router();
 
 import { createNotification, createOperationLog } from '../utils/audit.js';
 
+const generateApprovalPath = async (connection, flowCode, applicantDept, applicantPosition) => {
+  const approvalPath = [];
+  let order = 1;
+
+  // 报销流程：固定财务总监→总经理
+  if (flowCode === 'reimburse') {
+    const [financeDirector] = await connection.execute(
+      'SELECT e.* FROM employees e JOIN oa_approver_configs c ON e.department = c.department AND e.position = c.position WHERE c.isFinanceDirector = ?',
+      [1]
+    );
+    if (financeDirector.length > 0) {
+      approvalPath.push({
+        order: order++, type: 'finance_director', position: financeDirector[0].position,
+        name: financeDirector[0].name, userId: financeDirector[0].id
+      });
+    }
+    const [topManager] = await connection.execute(
+      'SELECT e.* FROM employees e JOIN oa_approver_configs c ON e.department = c.department AND e.position = c.position WHERE c.isTopManager = ?',
+      [1]
+    );
+    if (topManager.length > 0) {
+      approvalPath.push({
+        order: order++, type: 'top_manager', position: topManager[0].position,
+        name: topManager[0].name, userId: topManager[0].id
+      });
+    }
+    return approvalPath;
+  }
+
+  // 标准流程：直属上级→部门经理→总经理→财务总监
+  const [approverConfigs] = await connection.execute(
+    'SELECT * FROM oa_approver_configs WHERE department = ? AND position = ?',
+    [applicantDept, applicantPosition]
+  );
+  if (approverConfigs.length === 0) return approvalPath;
+
+  const config = approverConfigs[0];
+
+  if (config.superiorPosition) {
+    const [superior] = await connection.execute(
+      'SELECT e.* FROM employees e JOIN oa_approver_configs c ON e.department = c.department AND e.position = c.position WHERE c.department = ? AND c.position = ?',
+      [applicantDept, config.superiorPosition]
+    );
+    if (superior.length > 0) {
+      approvalPath.push({ order: order++, type: 'direct_superior', position: config.superiorPosition, name: superior[0].name, userId: superior[0].id });
+    }
+  }
+
+  if (!config.isDeptManager) {
+    const [deptManager] = await connection.execute(
+      'SELECT e.* FROM employees e JOIN oa_approver_configs c ON e.department = c.department AND e.position = c.position WHERE c.department = ? AND c.isDeptManager = ?',
+      [applicantDept, 1]
+    );
+    if (deptManager.length > 0 && !approvalPath.find(p => p.userId === deptManager[0].id)) {
+      approvalPath.push({ order: order++, type: 'dept_manager', position: deptManager[0].position, name: deptManager[0].name, userId: deptManager[0].id });
+    }
+  }
+
+  if (approvalPath.length === 0) {
+    const [topManager] = await connection.execute(
+      'SELECT e.* FROM employees e JOIN oa_approver_configs c ON e.department = c.department AND e.position = c.position WHERE c.isTopManager = ?',
+      [1]
+    );
+    if (topManager.length > 0) {
+      approvalPath.push({ order: order++, type: 'top_manager', position: topManager[0].position, name: topManager[0].name, userId: topManager[0].id, note: '直接上级缺失，直达最高管理者' });
+    }
+  } else {
+    const [topManager] = await connection.execute(
+      'SELECT e.* FROM employees e JOIN oa_approver_configs c ON e.department = c.department AND e.position = c.position WHERE c.isTopManager = ?',
+      [1]
+    );
+    if (topManager.length > 0 && !approvalPath.find(p => p.userId === topManager[0].id)) {
+      approvalPath.push({ order: order++, type: 'top_manager', position: topManager[0].position, name: topManager[0].name, userId: topManager[0].id });
+    }
+  }
+
+  const [financeDirector] = await connection.execute(
+    'SELECT e.* FROM employees e JOIN oa_approver_configs c ON e.department = c.department AND e.position = c.position WHERE c.isFinanceDirector = ?',
+    [1]
+  );
+  if (financeDirector.length > 0 && !approvalPath.find(p => p.userId === financeDirector[0].id)) {
+    approvalPath.push({ order: order++, type: 'finance_director', position: financeDirector[0].position, name: financeDirector[0].name, userId: financeDirector[0].id });
+  }
+
+  return approvalPath;
+};
+
 // 获取审批流程列表
 router.get('/oa/flows', async (req, res) => {
   const { pool } = req.app.locals;
@@ -19,106 +106,11 @@ router.get('/oa/flows', async (req, res) => {
 router.post('/oa/generate-approval-path', async (req, res) => {
   const { pool } = req.app.locals;
   try {
-    const { applicantId, applicantName, applicantDept, applicantPosition } = req.body;
-
-    const [approverConfigs] = await pool.execute(
-      'SELECT * FROM oa_approver_configs WHERE department = ? AND position = ?',
-      [applicantDept, applicantPosition]
-    );
-
-    if (approverConfigs.length === 0) {
+    const { flowCode, applicantDept, applicantPosition } = req.body;
+    const approvalPath = await generateApprovalPath(pool, flowCode || '', applicantDept, applicantPosition);
+    if (approvalPath.length === 0) {
       return res.status(400).json({ success: false, message: '未找到申请人的职位配置' });
     }
-
-    const config = approverConfigs[0];
-    const approvalPath = [];
-    let order = 1;
-
-    if (config.superiorPosition) {
-      const [superior] = await pool.execute(
-        'SELECT e.* FROM employees e JOIN oa_approver_configs c ON e.department = c.department AND e.position = c.position WHERE c.department = ? AND c.position = ?',
-        [applicantDept, config.superiorPosition]
-      );
-
-      if (superior.length > 0) {
-        approvalPath.push({
-          order: order++,
-          type: 'direct_superior',
-          position: config.superiorPosition,
-          name: superior[0].name,
-          userId: superior[0].id
-        });
-      }
-    }
-
-    if (!config.isDeptManager) {
-      const [deptManager] = await pool.execute(
-        'SELECT e.* FROM employees e JOIN oa_approver_configs c ON e.department = c.department AND e.position = c.position WHERE c.department = ? AND c.isDeptManager = ?',
-        [applicantDept, true]
-      );
-
-      if (deptManager.length > 0) {
-        const existingIndex = approvalPath.findIndex(p => p.userId === deptManager[0].id);
-        if (existingIndex === -1) {
-          approvalPath.push({
-            order: order++,
-            type: 'dept_manager',
-            position: deptManager[0].position,
-            name: deptManager[0].name,
-            userId: deptManager[0].id
-          });
-        }
-      }
-    }
-
-    if (approvalPath.length === 0) {
-      const [topManager] = await pool.execute(
-        'SELECT e.* FROM employees e JOIN oa_approver_configs c ON e.department = c.department AND e.position = c.position WHERE c.isTopManager = ?',
-        [true]
-      );
-
-      if (topManager.length > 0) {
-        approvalPath.push({
-          order: order++,
-          type: 'top_manager',
-          position: topManager[0].position,
-          name: topManager[0].name,
-          userId: topManager[0].id,
-          note: '直接上级缺失，直达最高管理者'
-        });
-      }
-    } else {
-      const [topManager] = await pool.execute(
-        'SELECT e.* FROM employees e JOIN oa_approver_configs c ON e.department = c.department AND e.position = c.position WHERE c.isTopManager = ?',
-        [true]
-      );
-
-      if (topManager.length > 0) {
-        approvalPath.push({
-          order: order++,
-          type: 'top_manager',
-          position: topManager[0].position,
-          name: topManager[0].name,
-          userId: topManager[0].id
-        });
-      }
-    }
-
-    const [financeDirector] = await pool.execute(
-      'SELECT e.* FROM employees e JOIN oa_approver_configs c ON e.department = c.department AND e.position = c.position WHERE c.isFinanceDirector = ?',
-      [true]
-    );
-
-    if (financeDirector.length > 0) {
-      approvalPath.push({
-        order: order++,
-        type: 'finance_director',
-        position: financeDirector[0].position,
-        name: financeDirector[0].name,
-        userId: financeDirector[0].id
-      });
-    }
-
     res.json({ success: true, data: approvalPath });
   } catch (error) {
     console.error('生成审批路径失败:', error);

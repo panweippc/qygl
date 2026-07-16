@@ -65,7 +65,7 @@ router.post('/business-trips', async (req, res) => {
     const {
       destination, tripType, startDate, endDate, purpose, itinerary,
       estimatedCost, costBreakdown, accommodation, transport,
-      accompanyPersons, isUrgent, applicantId
+      accompanyPersons, isUrgent, applicantId, approverId
     } = req.body;
 
     const [employees] = await pool.execute(
@@ -78,6 +78,12 @@ router.post('/business-trips', async (req, res) => {
     }
 
     const applicant = employees[0];
+
+    let approverName = null;
+    if (approverId) {
+      const [approvers] = await pool.execute('SELECT * FROM employees WHERE id = ?', [approverId]);
+      if (approvers.length > 0) approverName = approvers[0].name;
+    }
 
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -96,13 +102,13 @@ router.post('/business-trips', async (req, res) => {
       `INSERT INTO business_trip_applications 
        (trip_code, applicant_id, applicant_name, department, destination, trip_type,
         start_date, end_date, days, purpose, itinerary, estimated_cost, cost_breakdown,
-        accommodation, transport, accompany_persons, is_urgent, status, current_step, created_at, updated_at) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, NOW(), NOW())`,
+        accommodation, transport, accompany_persons, is_urgent, status, current_step, approver, created_at, updated_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, NOW(), NOW())`,
       [
         tripCode, applicantId, applicant.name, applicant.department, destination, tripType,
         startDate, endDate, days, purpose, JSON.stringify(itinerary || []), estimatedCost,
         JSON.stringify(costBreakdown || {}), accommodation, transport,
-        JSON.stringify(accompanyPersons || []), isUrgent ? 1 : 0
+        JSON.stringify(accompanyPersons || []), isUrgent ? 1 : 0, approverName
       ]
     );
 
@@ -170,7 +176,7 @@ router.post('/business-trips/:id/approve', async (req, res) => {
   const { pool } = req.app.locals;
   try {
     const { id } = req.params;
-    const { action, comment, approverId } = req.body;
+    const { action, comment, approverId, forwardTo } = req.body;
 
     const [trips] = await pool.execute(
       'SELECT * FROM business_trip_applications WHERE id = ?',
@@ -182,6 +188,28 @@ router.post('/business-trips/:id/approve', async (req, res) => {
     }
 
     const trip = trips[0];
+
+    if (forwardTo) {
+      const currentApprover = trip.approver || '';
+      const resultText = action === 'agree' ? '批准' : action === 'reject' ? '拒绝' : '';
+      const intermediateResult = resultText ? `${currentApprover}:${resultText}` : null;
+      const newComment = trip.comment
+        ? `${trip.comment}\n---\n${currentApprover}: ${comment || ''}`
+        : comment || null;
+      await pool.execute(
+        'UPDATE business_trip_applications SET comment = ?, result = ?, approver = ?, updated_at = NOW() WHERE id = ?',
+        [newComment, intermediateResult, forwardTo, id]
+      );
+      await createNotification(pool, {
+        userId: trip.applicant_name,
+        title: '出差申请已转发',
+        content: `您的${trip.destination}出差申请(${trip.trip_code})已转发至总经理审批`,
+        type: 'approval',
+        relatedId: parseInt(id),
+        relatedType: 'business_trip'
+      });
+      return res.json({ success: true, message: '已转发至总经理' });
+    }
 
     const [approvers] = await pool.execute(
       'SELECT * FROM employees WHERE id = ?',
@@ -217,11 +245,14 @@ router.post('/business-trips/:id/approve', async (req, res) => {
       newStatus = 'approved';
     }
 
+    const accumComment = trip.comment
+      ? `${trip.comment}\n---\n${approver.name}: ${comment || ''}`
+      : `${approver.name}: ${comment || ''}`;
     await pool.execute(
       `UPDATE business_trip_applications 
        SET status = ?, current_step = ?, approval_history = ?, comment = ?, updated_at = NOW() 
        WHERE id = ?`,
-      [newStatus, newStep, JSON.stringify(currentHistory), comment, id]
+      [newStatus, newStep, JSON.stringify(currentHistory), accumComment, id]
     );
 
     const actionLabel = action === 'agree' ? '已通过' : '已驳回';

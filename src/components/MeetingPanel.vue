@@ -100,7 +100,13 @@
             <span :class="['status-tag', getStatusClass(row.status)]">
               <span class="status-dot"></span>
               {{ getStatusText(row.status) }}
+              <span v-if="row.result && row.result.includes(':') && row.status === '审批中'" class="intermediate-result">({{ row.result }})</span>
             </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="审批人" width="100">
+          <template #default="{ row }">
+            {{ row.approver || '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="submitDate" label="创建时间" width="150"></el-table-column>
@@ -108,7 +114,7 @@
           <template #default="{ row }">
             <div class="action-group">
               <el-button
-                v-if="(row.status === '审批中' || row.status === '待审批' || row.status === '待审核' || row.status === 'pending') && isAdmin"
+                v-if="(row.status === '审批中' || row.status === '待审批' || row.status === '待审核' || row.status === 'pending') && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
                 size="small"
                 type="primary"
                 @click="handleApprove(row)"
@@ -117,7 +123,7 @@
                 审批
               </el-button>
               <el-button
-                v-if="(row.status === '审批中' || row.status === '待审批' || row.status === '待审核' || row.status === 'pending') && isAdmin"
+                v-if="(row.status === '审批中' || row.status === '待审批' || row.status === '待审核' || row.status === 'pending') && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
                 size="small"
                 type="danger"
                 @click="$emit('terminate', row, 'meeting')"
@@ -159,7 +165,7 @@
       <div class="record-card" v-for="row in filteredMeetingRecords" :key="row.id">
         <div class="card-header">
           <span class="card-id">#{{ row.id }}</span>
-          <span :class="['card-status', getStatusClass(row.status)]">{{ getStatusText(row.status) }}</span>
+          <span :class="['card-status', getStatusClass(row.status)]">{{ getStatusText(row.status) }}<span v-if="row.result && row.result.includes(':') && row.status === '审批中'" class="intermediate-result">({{ row.result }})</span></span>
         </div>
         <div class="card-body">
           <div class="card-row">
@@ -183,7 +189,7 @@
           <span class="card-date">{{ row.submitDate }}</span>
           <div class="card-actions">
             <el-button
-              v-if="(row.status === '审批中' || row.status === '待审批' || row.status === '待审核' || row.status === 'pending') && isAdmin"
+              v-if="(row.status === '审批中' || row.status === '待审批' || row.status === '待审核' || row.status === 'pending') && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
               size="small"
               type="primary"
               @click="handleApprove(row)"
@@ -191,7 +197,7 @@
               审批
             </el-button>
             <el-button
-              v-if="(row.status === '审批中' || row.status === '待审批' || row.status === '待审核' || row.status === 'pending') && isAdmin"
+              v-if="(row.status === '审批中' || row.status === '待审批' || row.status === '待审核' || row.status === 'pending') && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
               size="small"
               type="danger"
               @click="$emit('terminate', row, 'meeting')"
@@ -348,7 +354,7 @@ const meetingOrganizers = computed(() => {
 })
 
 const filteredMeetingRecords = computed(() => {
-  let records = meetingRecords.value
+  let records = props.isAdmin ? allMeetingRecords.value : meetingRecords.value
 
   if (props.searchKeyword) {
     const keyword = props.searchKeyword.toLowerCase()
@@ -415,7 +421,7 @@ const loadMeetingRecords = async () => {
     const response = await getMeetings()
     if (response.success) {
       meetingRecords.value = response.data
-        .filter((item: any) => props.isAdmin || extractRealName(item.organizer) === extractRealName(currentUsername.value))
+        .filter((item: any) => props.isAdmin || extractRealName(item.organizer) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.startsWith(extractRealName(currentUsername.value) + ':')))
         .map((item: any) => ({
           ...item,
           submitDate: item.createdAt?.substring(0, 10) || ''

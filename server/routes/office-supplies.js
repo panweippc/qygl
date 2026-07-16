@@ -40,9 +40,17 @@ router.put('/office-supplies/:id', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const status = result === '批准' ? '已批准' : result === '拒绝' ? '已拒绝' : '审批中';
+    const [[current]] = await pool.query('SELECT approver, comment as oldComment, result as oldResult FROM office_supplies_applications WHERE id = ?', [id]);
+    const currentApprover = current?.approver || '';
+    const accumulatedResult = current?.oldResult && current.oldResult.includes(':')
+      ? `${current.oldResult};${currentApprover}:${result}`
+      : `${currentApprover}:${result}`;
+    const newComment = current?.oldComment
+      ? `${current.oldComment}\n---\n${currentApprover}: ${comment || ''}`
+      : `${currentApprover}: ${comment || ''}`;
     await pool.execute(
       'UPDATE office_supplies_applications SET comment = ?, result = ?, status = ? WHERE id = ?',
-      [comment || null, result || null, status, id]
+      [newComment, accumulatedResult, status, id]
     );
 
     const [[app]] = await pool.query('SELECT applicant, itemName, quantity FROM office_supplies_applications WHERE id = ?', [id]);

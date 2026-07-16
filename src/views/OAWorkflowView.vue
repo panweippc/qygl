@@ -331,6 +331,9 @@
               <span class="radio-icon">✗</span> 拒绝
             </el-radio-button>
           </el-radio-group>
+          <el-checkbox v-if="!isAdminComputed" v-model="approvalForm.forwardToGM" style="margin-top: 10px;">
+            ↗ 转发至总经理
+          </el-checkbox>
         </el-form-item>
         <el-form-item label="审批意见">
           <el-input v-model="approvalForm.comment" type="textarea" :rows="3" placeholder="请输入审批意见（可选）"></el-input>
@@ -358,10 +361,16 @@
             </div>
           </div>
         </div>
-        <div class="detail-footer" v-if="currentDetailItem.comment">
-          <div class="comment-box">
+        <div class="detail-footer">
+          <div class="detail-section" v-if="currentDetailItem.result">
+            <div class="detail-row">
+              <span class="detail-label">审批流程</span>
+              <span class="detail-value result-chain">{{ currentDetailItem.result }}</span>
+            </div>
+          </div>
+          <div class="comment-box" v-if="currentDetailItem.comment">
             <span class="comment-label">审批意见：</span>
-            <span class="comment-content">{{ currentDetailItem.comment }}</span>
+            <span class="comment-content" style="white-space: pre-line;">{{ currentDetailItem.comment }}</span>
           </div>
         </div>
       </div>
@@ -539,7 +548,7 @@ const currentUsername = computed(() => {
 const isAdminComputed = computed(() => {
   const role = localStorage.getItem('role')
   const username = localStorage.getItem('username')
-  const adminRoles = ['admin', 'gm', 'ceo', 'general_manager', 'manager']
+  const adminRoles = ['admin', 'gm', 'ceo', 'general_manager', 'manager', '总经理']
   const isAdminRole = adminRoles.includes(role?.toLowerCase() || '')
   const isAdminName = username === '总经理' || username?.includes('admin')
   return isAdminRole || isAdminName
@@ -564,29 +573,27 @@ const allProjectRecords = ref<any[]>([])
 const allBusinessTripRecords = ref<any[]>([])
 const distributedRecords = ref<any[]>([])
 
-const pendingLeaveCount = computed(() => leaveRecords.value.filter(r => r.status === '审批中').length)
-const pendingReimbursementCount = computed(() => reimbursementRecords.value.filter(r => r.status === '审批中').length)
-const pendingBusinessTripCount = computed(() => businessTripRecords.value.filter(r => r.status === 'pending').length)
-const pendingDistributedCount = computed(() => distributedRecords.value.filter(r => r.status === '待处理').length)
+const pendingLeaveCount = computed(() => leaveRecords.value.length)
+const pendingReimbursementCount = computed(() => reimbursementRecords.value.length)
+const pendingBusinessTripCount = computed(() => businessTripRecords.value.length)
+const pendingDistributedCount = computed(() => distributedRecords.value.length)
 
 const tabs = computed(() => {
   const allMeetings = [...meetingRecords.value, ...allMeetingRecords.value]
   const uniqueMeetings = allMeetings.filter((item, index, self) =>
     index === self.findIndex(t => t.id === item.id)
   )
-  const meetingCount = uniqueMeetings.filter(r => r.status === '审批中' || r.status === '待审核' || r.status === '待审批' || r.status === 'pending').length
 
   const allProjects = [...projectRecords.value, ...allProjectRecords.value]
   const uniqueProjects = allProjects.filter((item, index, self) =>
     index === self.findIndex(t => t.id === item.id)
   )
-  const projectCount = uniqueProjects.filter(r => r.status === '审批中' || r.status === '待审核' || r.status === '待审批' || r.status === 'pending').length
 
   const baseTabs = [
     { name: 'leave', label: '请假申请', icon: '📝', badge: pendingLeaveCount.value },
     { name: 'reimbursement', label: '报销管理', icon: '💰', badge: pendingReimbursementCount.value },
-    { name: 'meeting', label: '会议管理', icon: '📅', badge: meetingCount },
-    { name: 'project', label: '项目申请', icon: '📊', badge: projectCount },
+    { name: 'meeting', label: '会议管理', icon: '📅', badge: uniqueMeetings.length },
+    { name: 'project', label: '项目申请', icon: '📊', badge: uniqueProjects.length },
     { name: 'businessTrip', label: '出差申请', icon: '✈️', badge: pendingBusinessTripCount.value }
   ]
 
@@ -599,11 +606,11 @@ const tabs = computed(() => {
 
 const updateStats = () => {
   const allRecords = [
-    ...(isAdminComputed.value ? allLeaveRecords.value : leaveRecords.value),
-    ...(isAdminComputed.value ? allReimbursementRecords.value : reimbursementRecords.value),
+    ...leaveRecords.value,
+    ...reimbursementRecords.value,
     ...meetingRecords.value,
-    ...(isAdminComputed.value ? allProjectRecords.value : projectRecords.value),
-    ...(isAdminComputed.value ? allBusinessTripRecords.value : businessTripRecords.value)
+    ...projectRecords.value,
+    ...businessTripRecords.value
   ]
 
   const pendingStat = approvalStats.value.find(s => s.key === 'pending')
@@ -663,12 +670,12 @@ const openStatDetail = (statKey: string) => {
 
 const approvalDialogVisible = ref(false)
 const currentApprovalItem = ref<any>(null)
-const approvalForm = ref({ id: '', type: '', comment: '', result: '' })
+const approvalForm = ref({ id: '', type: '', comment: '', result: '', forwardToGM: false })
 const approvalFormRef = ref()
 
 const openApprovalDialog = (row: any, type: string) => {
   currentApprovalItem.value = { ...row, type }
-  approvalForm.value = { id: row.id, type, comment: '', result: '' }
+  approvalForm.value = { id: row.id, type, comment: '', result: '', forwardToGM: false }
   approvalDialogVisible.value = true
 }
 
@@ -679,7 +686,10 @@ const submitApproval = async () => {
   }
   try {
     let response: any
-    const data = { comment: approvalForm.value.comment, result: approvalForm.value.result }
+    const data: any = { comment: approvalForm.value.comment, result: approvalForm.value.result }
+    if (approvalForm.value.forwardToGM) {
+      data.forwardTo = '总经理'
+    }
     switch (approvalForm.value.type) {
       case 'leave':
         response = await updateLeaveApplication(approvalForm.value.id, data)
@@ -698,7 +708,7 @@ const submitApproval = async () => {
         break
     }
     if (response?.success) {
-      ElMessage.success('审批已完成')
+      ElMessage.success(approvalForm.value.forwardToGM ? '审批完成，已转发至总经理' : '审批已完成')
       approvalDialogVisible.value = false
       await refreshAllData()
     } else {
@@ -886,12 +896,21 @@ const loadEmployees = async () => {
   }
 }
 
+const filterUserRecords = (records: any[]) => {
+  if (isAdminComputed.value) return records
+  const currentName = extractRealName(currentUsername.value)
+  return records.filter((item: any) =>
+    extractRealName(item.applicant || item.organizer || item.applicant_name) === currentName ||
+    extractRealName(item.approver) === currentName ||
+    (item.result && item.result.startsWith(currentName + ':'))
+  )
+}
+
 const loadLeaveRecords = async () => {
   try {
     const response = await getLeaveApplications()
     if (response.success) {
-      leaveRecords.value = response.data
-        .filter((item: any) => isAdminComputed.value || extractRealName(item.applicant) === extractRealName(currentUsername.value))
+      leaveRecords.value = filterUserRecords(response.data)
         .map((item: any) => ({ ...item, submitDate: item.createdAt?.substring(0, 10) || '' }))
     }
   } catch (error) {
@@ -903,8 +922,7 @@ const loadReimbursementRecords = async () => {
   try {
     const response = await getReimbursements()
     if (response.success) {
-      reimbursementRecords.value = response.data
-        .filter((item: any) => isAdminComputed.value || extractRealName(item.applicant) === extractRealName(currentUsername.value))
+      reimbursementRecords.value = filterUserRecords(response.data)
         .map((item: any) => ({ ...item, submitDate: item.createdAt?.substring(0, 10) || '' }))
     }
   } catch (error) {
@@ -916,8 +934,7 @@ const loadMeetingRecords = async () => {
   try {
     const response = await getMeetings()
     if (response.success) {
-      meetingRecords.value = response.data
-        .filter((item: any) => isAdminComputed.value || extractRealName(item.organizer) === extractRealName(currentUsername.value))
+      meetingRecords.value = filterUserRecords(response.data)
         .map((item: any) => ({ ...item, submitDate: item.createdAt?.substring(0, 10) || '' }))
     }
   } catch (error) {
@@ -929,16 +946,13 @@ const loadProjectRecords = async () => {
   try {
     const response = await getProjects()
     if (response.success && response.data && response.data.list) {
-      const filteredData = response.data.list.filter((item: any) =>
-        isAdminComputed.value || extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value)
-      )
-      projectRecords.value = filteredData.map((item: any) => ({
+      projectRecords.value = filterUserRecords(response.data.list.map((item: any) => ({
         ...item,
         applicant: item.applicant_name,
         projectName: item.project_name || '',
         projectType: item.project_type || '',
         submitDate: item.created_at?.substring(0, 10) || ''
-      }))
+      })))
     }
   } catch (error) {
     console.error('获取项目记录失败:', error)
@@ -949,17 +963,14 @@ const loadBusinessTripRecords = async () => {
   try {
     const response = await getBusinessTrips()
     if (response.success && response.data && response.data.list) {
-      const filteredData = response.data.list.filter((item: any) =>
-        isAdminComputed.value || extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value)
-      )
-      businessTripRecords.value = filteredData.map((item: any) => ({
+      businessTripRecords.value = filterUserRecords(response.data.list.map((item: any) => ({
         ...item,
         applicant: item.applicant_name,
         destination: item.destination || '',
         tripType: item.trip_type || '',
         submitDate: item.created_at?.substring(0, 10) || '',
         estimatedCost: item.estimated_cost || item.estimatedCost || 0
-      }))
+      })))
     }
   } catch (error) {
     console.error('获取出差记录失败:', error)
@@ -1108,6 +1119,13 @@ const refreshAllData = async () => {
   }
   updateStats()
   await loadDistributedRecords()
+  await Promise.all([
+    leavePanelRef.value?.fetchData(),
+    reimbursementPanelRef.value?.fetchData(),
+    meetingPanelRef.value?.fetchData(),
+    projectPanelRef.value?.fetchData(),
+    businessTripPanelRef.value?.fetchData()
+  ])
 }
 
 const handleSearch = () => {}

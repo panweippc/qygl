@@ -182,7 +182,9 @@ const statistics = ref([
 
 // 计算用户角色
 const isAdmin = computed(() => {
-  return localStorage.getItem('role') === 'admin'
+  const role = localStorage.getItem('role')
+  const adminRoles = ['admin', 'gm', 'ceo', 'general_manager', 'manager', '总经理']
+  return adminRoles.includes(role?.toLowerCase() || '')
 })
 
 // 加载统计数据

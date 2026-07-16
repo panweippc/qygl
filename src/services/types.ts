@@ -265,3 +265,50 @@ export interface ApprovalStats {
   rejected: number
   total: number
 }
+
+export interface OaApprovalPathNode {
+  order: number
+  type: string
+  position: string
+  name: string
+  userId: number
+}
+
+export interface OaApprovalInstance {
+  id: number
+  flowCode: string
+  applicantId: number
+  applicantName: string
+  applicantDept: string
+  applicantPosition: string
+  businessType: string
+  businessData: any
+  currentApproverType: string | null
+  currentApproverId: number | null
+  currentApproverName: string | null
+  approvalPath: OaApprovalPathNode[] | string
+  status: string
+  createdAt: string
+  completedAt: string | null
+}
+
+export interface OaApprovalHistory {
+  id: number
+  instanceId: number
+  nodeOrder: number
+  approverType: string
+  approverId: number
+  approverName: string
+  approverPosition: string
+  action: string
+  comment: string | null
+  createdAt: string
+}
+
+export interface OaFlow {
+  id: number
+  flowCode: string
+  flowName: string
+  description: string | null
+  status: string
+}

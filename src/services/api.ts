@@ -132,7 +132,8 @@ export const updateProject = async (id: number, data: any): Promise<ApiResponse>
   const response = await api.post(`/projects/${id}/approve`, {
     action: data.result === '批准' ? 'agree' : 'reject',
     comment: data.comment,
-    approverId
+    approverId,
+    forwardTo: data.forwardTo || null
   });
   return response.data;
 };
@@ -154,7 +155,8 @@ export const updateBusinessTrip = async (id: number, data: any): Promise<ApiResp
   const response = await api.post(`/business-trips/${id}/approve`, {
     action: data.result === '批准' ? 'agree' : 'reject',
     comment: data.comment,
-    approverId
+    approverId,
+    forwardTo: data.forwardTo || null
   });
   return response.data;
 };
@@ -389,6 +391,68 @@ export const addDistributedRecord = async (data: DistributedRecord): Promise<Api
 
 export const updateDistributedRecord = async (id: number, data: Partial<DistributedRecord>): Promise<ApiResponse> => {
   const response = await api.put(`/distributed-records/${id}`, data);
+  return response.data;
+};
+
+// ==================== 多级 OA 审批工作流 ====================
+
+export const getOaFlows = async (): Promise<ApiResponse<import('./types').OaFlow[]>> => {
+  const response = await api.get('/oa/flows');
+  return response.data;
+};
+
+export const getOaTodoList = async (userId: number): Promise<ApiResponse<import('./types').OaApprovalInstance[]>> => {
+  const response = await api.get(`/oa/todo/${userId}`);
+  return response.data;
+};
+
+export const getOaDoneList = async (userId: number): Promise<ApiResponse<any[]>> => {
+  const response = await api.get(`/oa/done/${userId}`);
+  return response.data;
+};
+
+export const getOaMyApplications = async (userId: number): Promise<ApiResponse<import('./types').OaApprovalInstance[]>> => {
+  const response = await api.get(`/oa/my-applications/${userId}`);
+  return response.data;
+};
+
+export const getOaDetail = async (instanceId: number): Promise<ApiResponse<{ instance: import('./types').OaApprovalInstance; history: import('./types').OaApprovalHistory[] }>> => {
+  const response = await api.get(`/oa/detail/${instanceId}`);
+  return response.data;
+};
+
+export const submitOaApplication = async (data: {
+  flowCode: string
+  applicantId: number
+  applicantName: string
+  applicantDept: string
+  applicantPosition: string
+  businessType: string
+  businessData: any
+}): Promise<ApiResponse<{ instanceId: number; approvalPath: any[]; currentApprover: any }>> => {
+  const response = await api.post('/oa/submit', data);
+  return response.data;
+};
+
+export const processOaApproval = async (data: {
+  instanceId: number
+  approverId: number
+  approverName: string
+  approverPosition: string
+  action: string
+  comment: string
+}): Promise<ApiResponse> => {
+  const response = await api.post('/oa/process', data);
+  return response.data;
+};
+
+export const withdrawOaApplication = async (instanceId: number, applicantId: number): Promise<ApiResponse> => {
+  const response = await api.post('/oa/withdraw', { instanceId, applicantId });
+  return response.data;
+};
+
+export const getOaApproverConfigs = async (): Promise<ApiResponse<import('./types').Employee[]>> => {
+  const response = await api.get('/oa/approver-configs');
   return response.data;
 };
 
