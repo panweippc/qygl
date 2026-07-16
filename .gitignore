@@ -41,3 +41,7 @@ __tests__/
 *.tmp
 *.temp
 .cache/
+
+# Uploaded files (keep dir with .gitkeep)
+uploads/*
+!uploads/.gitkeep
