@@ -35,7 +35,7 @@
           <div class="search-filter">
             <el-input
               v-model="searchQuery"
-              placeholder="搜索工具名称或编号"
+              placeholder="搜索工具名称"
               prefix-icon="Search"
               class="search-input"
             />
@@ -51,7 +51,9 @@
           <!-- 工具列表 -->
           <div class="tool-list">
             <el-table :data="filteredTools" style="width: 100%" class="tool-table">
-              <el-table-column prop="id" label="工具编号" width="120" />
+              <el-table-column label="序号" width="80">
+                <template #default="{ $index }">{{ (currentPage - 1) * pageSize + $index + 1 }}</template>
+              </el-table-column>
               <el-table-column prop="name" label="工具名称" />
               <el-table-column prop="category" label="分类" width="120" />
               <el-table-column prop="quantity" label="库存数量" width="120" />
@@ -104,9 +106,6 @@
       class="dialog"
     >
       <el-form :model="toolForm" label-position="top">
-        <el-form-item label="工具编号">
-          <el-input v-model="toolForm.id" placeholder="请输入工具编号" />
-        </el-form-item>
         <el-form-item label="工具名称">
           <el-input v-model="toolForm.name" placeholder="请输入工具名称" />
         </el-form-item>
@@ -163,9 +162,6 @@
       class="dialog"
     >
       <el-form :model="toolForm" label-position="top">
-        <el-form-item label="工具编号">
-          <el-input v-model="toolForm.id" placeholder="请输入工具编号" />
-        </el-form-item>
         <el-form-item label="工具名称">
           <el-input v-model="toolForm.name" placeholder="请输入工具名称" />
         </el-form-item>
@@ -294,8 +290,7 @@ const filteredTools = computed(() => {
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     result = result.filter(tool => 
-      tool.name.toLowerCase().includes(query) || 
-      tool.id.toString().includes(query)
+      tool.name.toLowerCase().includes(query)
     )
   }
   
