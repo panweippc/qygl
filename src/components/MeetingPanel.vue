@@ -429,7 +429,7 @@ const loadMeetingRecords = async () => {
     const response = await getMeetings()
     if (response.success) {
       meetingRecords.value = response.data
-        .filter((item: any) => props.isAdmin || extractRealName(item.organizer) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value))
+        .filter((item: any) => extractRealName(item.organizer) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value))
         .map((item: any) => ({
           ...item,
           submitDate: item.createdAt?.substring(0, 10) || ''

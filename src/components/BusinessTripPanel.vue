@@ -319,7 +319,7 @@ const loadBusinessTripRecords = async () => {
     const response = await getBusinessTrips()
     if (response.success && response.data && response.data.list) {
       const filteredData = response.data.list.filter((item: any) => {
-        return props.isAdmin || extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value)
+        return extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value)
       })
       businessTripRecords.value = filteredData.map((item: any) => {
         let destination = item.destination ? String(item.destination) : ''

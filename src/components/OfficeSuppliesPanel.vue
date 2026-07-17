@@ -335,7 +335,7 @@ const loadProjectRecords = async () => {
     const response = await getProjects()
     if (response.success && response.data && response.data.list) {
       const filteredData = response.data.list.filter((item: any) => {
-        return props.isAdmin || extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value)
+        return extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value)
       })
       projectRecords.value = filteredData.map((item: any) => {
         let projectName = item.project_name ? String(item.project_name) : ''

@@ -450,7 +450,7 @@ const loadReimbursementRecords = async () => {
     const response = await getReimbursements()
     if (response.success) {
       reimbursementRecords.value = response.data
-        .filter((item: any) => props.isAdmin || extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value))
+        .filter((item: any) => extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value))
         .map((item: any) => ({
           ...item,
           submitDate: item.createdAt?.substring(0, 10) || ''
