@@ -55,7 +55,7 @@ const currentPage = ref(1)
 const pageSize = 20
 const activeTab = ref('all')
 
-const userId = computed(() => localStorage.getItem('userId') || '')
+const userId = computed(() => localStorage.getItem('username') || '')
 
 const filteredList = computed(() => {
   if (activeTab.value === 'unread') return notifications.value.filter(n => !n.isRead)

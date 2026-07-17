@@ -101,10 +101,18 @@
     >
       <el-form :model="categoryForm" label-position="top">
         <el-form-item label="分类名称">
-          <el-input v-model="categoryForm.name" placeholder="请输入分类名称" />
+          <el-select v-model="categoryForm.name" placeholder="请选择分类名称" style="width:100%">
+            <el-option label="研发项目" value="研发项目" />
+            <el-option label="市场项目" value="市场项目" />
+            <el-option label="运营项目" value="运营项目" />
+            <el-option label="基建项目" value="基建项目" />
+            <el-option label="其他项目" value="其他项目" />
+          </el-select>
         </el-form-item>
-        <el-form-item label="负责人">
-          <el-input v-model="categoryForm.manager" placeholder="请输入负责人姓名" />
+        <el-form-item label="申请人">
+          <el-select v-model="categoryForm.applicantId" placeholder="请选择申请人" style="width:100%">
+            <el-option v-for="emp in allEmployees" :key="emp.id" :label="emp.name" :value="emp.id" />
+          </el-select>
         </el-form-item>
         <el-form-item label="项目数">
           <el-input v-model.number="categoryForm.projectCount" type="number" placeholder="请输入项目数" />
@@ -127,10 +135,18 @@
     >
       <el-form :model="editForm" label-position="top">
         <el-form-item label="分类名称">
-          <el-input v-model="editForm.name" placeholder="请输入分类名称" />
+          <el-select v-model="editForm.name" placeholder="请选择分类名称" style="width:100%">
+            <el-option label="研发项目" value="研发项目" />
+            <el-option label="市场项目" value="市场项目" />
+            <el-option label="运营项目" value="运营项目" />
+            <el-option label="基建项目" value="基建项目" />
+            <el-option label="其他项目" value="其他项目" />
+          </el-select>
         </el-form-item>
         <el-form-item label="负责人">
-          <el-input v-model="editForm.manager" placeholder="请输入负责人姓名" />
+          <el-select v-model="editForm.manager" placeholder="请选择负责人" style="width:100%">
+            <el-option v-for="emp in allEmployees" :key="emp.id" :label="emp.name" :value="emp.name" />
+          </el-select>
         </el-form-item>
         <el-form-item label="项目数">
           <el-input v-model.number="editForm.projectCount" type="number" placeholder="请输入项目数" />
@@ -177,7 +193,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Edit, Delete, Link } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getProjects, addProjectApplication, deleteProjectCategory, updateProjectCategory, updateProject as updateProjectApi } from '../services/api'
+import { getProjects, addProjectApplication, deleteProjectCategory, updateProjectCategory, updateProject as updateProjectApi, getEmployees } from '../services/api'
 
 const router = useRouter()
 
@@ -208,11 +224,12 @@ const addDialogVisible = ref(false)
 const editDialogVisible = ref(false)
 const categories = ref<Category[]>([])
 const loading = ref(false)
+const allEmployees = ref<any[]>([])
 
 const categoryForm = ref({
   name: '',
-  manager: '',
-  projectCount: 0
+  applicantId: 0,
+  projectCount: 1
 })
 
 const editForm = ref({
@@ -277,24 +294,39 @@ const loadCategories = async () => {
   }
 }
 
-// 组件挂载时加载数�?
+const loadEmployees = async () => {
+  try {
+    const res = await getEmployees()
+    if (res.success) allEmployees.value = res.data
+  } catch { /* ignore */ }
+}
+
+// 组件挂载时加载数据
 onMounted(async () => {
-  await loadCategories()
+  await Promise.all([loadCategories(), loadEmployees()])
 })
 
 const openAddCategoryDialog = () => {
+  const currentUserId = parseInt(localStorage.getItem('userId') || '0')
   categoryForm.value = {
     name: '',
-    manager: '',
+    applicantId: currentUserId,
     projectCount: 1
   }
   addDialogVisible.value = true
 }
 
 const addCategory = async () => {
+  if (!categoryForm.value.name) {
+    ElMessage.warning('请选择分类名称')
+    return
+  }
+  if (!categoryForm.value.applicantId) {
+    ElMessage.warning('请选择申请人')
+    return
+  }
   loading.value = true
   try {
-    // 根据项目数添加相应数量的项目
     const projectCount = categoryForm.value.projectCount || 0;
     
     for (let i = 0; i < projectCount; i++) {
@@ -309,7 +341,7 @@ const addCategory = async () => {
         objectives: `项目${i + 1}的目标`,
         teamMembers: [30, 31],
         resources: '资源描述',
-        applicantId: '37'
+        applicantId: String(categoryForm.value.applicantId)
       });
       
       if (!response.success) {
@@ -318,7 +350,6 @@ const addCategory = async () => {
       }
     }
     
-    // 重新加载数据
     await loadCategories()
     addDialogVisible.value = false
     ElMessage.success('项目分类添加成功')

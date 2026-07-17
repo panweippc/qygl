@@ -226,56 +226,43 @@ const openAddModal = () => {
 // 提交表单
 const submitForm = async () => {
   try {
-      console.log('开始提交表单', formData.value)
+    if (!formData.value.name.trim()) {
+      ElMessage.warning('请输入旗县名称')
+      return
+    }
     
     // 获取城市ID
     const cityResponse = await fetch('http://localhost:3005/api/city-sales')
-    console.log('获取城市数据响应:', cityResponse)
-    
     const cityData = await cityResponse.json()
-    console.log('城市数据:', cityData)
-    console.log('当前城市名称:', cityName.value)
     
-    if (cityData.success) {
-      // 根据城市名称查找对应的城市
-      const city = cityData.data.find((item: any) => item.name === cityName.value)
-      
-      if (!city) {
-        console.error('未找到城市:', cityName.value)
-        return
-      }
-      
-      console.log('使用城市:', city)
-      
-      if (city) {
-        // 添加旗县数据
-        const addResponse = await fetch('http://localhost:3005/api/county-sales', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            cityId: city.id,
-            name: formData.value.name
-          })
-        })
-        console.log('添加旗县响应:', addResponse)
-        
-        const addData = await addResponse.json()
-        console.log('添加旗县结果:', addData)
-        
-        // 重新加载数据
-        await loadCityData()
-        showModal.value = false
-        console.log('表单提交成功')
-      } else {
-        console.error('未找到城�?', cityName.value)
-      }
+    if (!cityData.success) {
+      ElMessage.error('获取城市数据失败')
+      return
+    }
+    
+    const city = cityData.data.find((item: any) => item.name === cityName.value)
+    if (!city) {
+      ElMessage.error('未找到城市: ' + cityName.value)
+      return
+    }
+    
+    const addResponse = await fetch('http://localhost:3005/api/county-sales', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cityId: city.id, name: formData.value.name })
+    })
+    const addData = await addResponse.json()
+    
+    if (addData.success) {
+      await loadCityData()
+      showModal.value = false
+      ElMessage.success('旗县添加成功')
     } else {
-      console.error('获取城市数据失败:', cityData.message)
+      ElMessage.error(addData.message || '添加旗县失败')
     }
   } catch (error) {
     console.error('提交表单失败:', error)
+    ElMessage.error('添加旗县失败: 网络错误')
   }
 }
 
