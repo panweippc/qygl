@@ -42,6 +42,7 @@
               <div class="county-header">
                 <h4 class="county-name" @click="navigateToCountyDetail(county.name)">{{ county.name }}</h4>
                 <div class="county-actions">
+                  <button class="action-btn edit-btn" @click="editCounty(county)">编辑</button>
                   <button class="action-btn delete-btn" @click="deleteCounty(county.id)">删除</button>
                 </div>
               </div>
@@ -63,8 +64,8 @@
     <div v-if="showModal" class="modal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>添加旗县</h3>
-          <button class="close-btn" @click="showModal = false">&times;</button>
+          <h3>{{ isEditing ? '编辑旗县' : '添加旗县' }}</h3>
+          <button class="close-btn" @click="closeModal">&times;</button>
         </div>
         <div class="modal-body">
           <form @submit.prevent="submitForm">
@@ -73,9 +74,19 @@
               <input type="text" id="name" v-model="formData.name" required>
             </div>
 
+            <div class="form-group">
+              <label for="sales">销售额（元）</label>
+              <input type="number" id="sales" v-model="formData.sales" min="0">
+            </div>
+
+            <div class="form-group">
+              <label for="customers">客户数</label>
+              <input type="number" id="customers" v-model="formData.customers" min="0">
+            </div>
+
             <div class="form-actions">
-              <button type="button" class="cancel-btn" @click="showModal = false">取消</button>
-              <button type="submit" class="submit-btn">添加</button>
+              <button type="button" class="cancel-btn" @click="closeModal">取消</button>
+              <button type="submit" class="submit-btn">{{ isEditing ? '保存' : '添加' }}</button>
             </div>
           </form>
         </div>
@@ -94,7 +105,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const router = useRouter()
 const route = useRoute()
@@ -120,11 +131,14 @@ const maxSales = computed(() => {
 
 // 模态框状态
 const showModal = ref(false)
+const isEditing = ref(false)
 
 // 表单数据
 const formData = ref({
   id: '',
-  name: ''
+  name: '',
+  sales: 100000,
+  customers: 5
 })
 
 // 加载城市数据
@@ -182,11 +196,31 @@ const loadCityData = async () => {
 
 // 打开添加模态框
 const openAddModal = () => {
+  isEditing.value = false
   formData.value = {
     id: '',
-    name: ''
+    name: '',
+    sales: 100000,
+    customers: 5
   }
   showModal.value = true
+}
+
+// 打开编辑模态框
+const editCounty = (county: any) => {
+  isEditing.value = true
+  formData.value = {
+    id: county.id,
+    name: county.name,
+    sales: county.sales,
+    customers: county.customers
+  }
+  showModal.value = true
+}
+
+const closeModal = () => {
+  showModal.value = false
+  isEditing.value = false
 }
 
 
@@ -219,7 +253,28 @@ const submitForm = async () => {
       ElMessage.warning('请输入旗县名称')
       return
     }
-    
+
+    if (isEditing.value) {
+      const updateResponse = await fetch(`http://localhost:3005/api/county-sales/${formData.value.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.value.name,
+          sales: Number(formData.value.sales) || 0,
+          customers: Number(formData.value.customers) || 0
+        })
+      })
+      const updateData = await updateResponse.json()
+      if (updateData.success) {
+        await loadCityData()
+        closeModal()
+        ElMessage.success('旗县编辑成功')
+      } else {
+        ElMessage.error(updateData.message || '编辑旗县失败')
+      }
+      return
+    }
+
     const city = await getOrCreateCity()
     if (!city) {
       ElMessage.error('未找到城市: ' + cityName.value)
@@ -229,34 +284,50 @@ const submitForm = async () => {
     const addResponse = await fetch('http://localhost:3005/api/county-sales', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cityId: city.id, name: formData.value.name })
+      body: JSON.stringify({
+        cityId: city.id,
+        name: formData.value.name,
+        sales: Number(formData.value.sales) || 100000,
+        customers: Number(formData.value.customers) || 5
+      })
     })
     const addData = await addResponse.json()
     
     if (addData.success) {
       await loadCityData()
-      showModal.value = false
+      closeModal()
       ElMessage.success('旗县添加成功')
     } else {
       ElMessage.error(addData.message || '添加旗县失败')
     }
   } catch (error) {
     console.error('提交表单失败:', error)
-    ElMessage.error('添加旗县失败: 网络错误')
+    ElMessage.error(isEditing.value ? '编辑旗县失败: 网络错误' : '添加旗县失败: 网络错误')
   }
 }
 
 // 删除旗县
 const deleteCounty = async (countyId: string) => {
-    if (confirm('确定要删除这个旗县吗？')) {
-    try {
-      await fetch(`http://localhost:3005/api/county-sales/${countyId}`, {
-        method: 'DELETE'
-      })
-      // 重新加载数据
+  try {
+    await ElMessageBox.confirm('确定要删除这个旗县吗？', '确认删除', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    const response = await fetch(`http://localhost:3005/api/county-sales/${countyId}`, {
+      method: 'DELETE'
+    })
+    const data = await response.json()
+    if (data.success) {
       await loadCityData()
-    } catch (error) {
+      ElMessage.success('旗县删除成功')
+    } else {
+      ElMessage.error(data.message || '删除旗县失败')
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') {
       console.error('删除旗县失败:', error)
+      ElMessage.error('删除旗县失败: 网络错误')
     }
   }
 }
