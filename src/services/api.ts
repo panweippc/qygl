@@ -138,6 +138,11 @@ export const updateProject = async (id: number, data: any): Promise<ApiResponse>
   return response.data;
 };
 
+export const updateProjectDetail = async (id: number, data: { project_name: string; description: string; project_link: string }): Promise<ApiResponse> => {
+  const response = await api.put(`/projects/${id}`, data);
+  return response.data;
+};
+
 export const deleteProject = async (id: number): Promise<ApiResponse> => {
   const response = await api.delete(`/projects/${id}`);
   return response.data;

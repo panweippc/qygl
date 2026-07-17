@@ -129,84 +129,51 @@ const formData = ref({
 
 // 加载城市数据
 const loadCityData = async () => {
-  console.log('开始加载城市数据')
   try {
-    // 根据路由参数获取城市名称
-    console.log('当前城市名称:', cityName.value)
-    
-    // 先获取所有城市数据，找到对应的城市ID
     const cityResponse = await fetch('http://localhost:3005/api/city-sales')
     const cityData = await cityResponse.json()
+    if (!cityData.success) return
     
-    if (!cityData.success) {
-      console.error('获取城市数据失败')
-      return
-    }
-    
-    // 查找当前城市的数据
-    const city = cityData.data.find((item: any) => item.name === cityName.value)
-    
+    let city = cityData.data.find((item: any) => item.name === cityName.value)
     if (!city) {
-      console.error('未找到城市:', cityName.value)
-      return
+      const createRes = await fetch('http://localhost:3005/api/city-sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: cityName.value, sales: 0, customers: 0, growthRate: 0 })
+      })
+      const createData = await createRes.json()
+      if (!createData.success) return
+      const refetch = await fetch('http://localhost:3005/api/city-sales')
+      const refetchData = await refetch.json()
+      city = refetchData.data.find((item: any) => item.name === cityName.value)
+      if (!city) return
     }
     
-    console.log('找到城市:', city)
-    
-    // 先设置默认值
     citySalesData.value = {
       totalSales: parseFloat(city.sales) || 0,
       customers: parseInt(city.customers) || 0,
       growthRate: parseFloat(city.growthRate) || 0
     }
     
-    // 获取旗县销售数据
-    console.log('开始获取旗县数据，城市ID:', city.id)
     const countyResponse = await fetch(`http://localhost:3005/api/county-sales/${city.id}`)
-    console.log('获取旗县数据响应:', countyResponse)
-    
-    if (!countyResponse.ok) {
-      throw new Error(`HTTP error! status: ${countyResponse.status}`)
-    }
-    
+    if (!countyResponse.ok) return
     const countyData = await countyResponse.json()
-    console.log('旗县数据:', countyData)
     
     if (countyData.success) {
-      console.log('旗县数据长度:', countyData.data.length)
-      // 为每个旗县计算实际的客户数（乡镇数量）
       const updatedCountyData = await Promise.all(
         countyData.data.map(async (county: any) => {
           try {
-            // 获取旗县的乡镇数据
             const townResponse = await fetch(`http://localhost:3005/api/town-sales/${county.id}`)
             const townData = await townResponse.json()
-            
-            if (townData.success) {
-              // 根据乡镇数量设置客户数
-              county.customers = townData.data.length
-            }
-          } catch (error) {
-            console.error(`获取旗县 ${county.name} 的乡镇数据失败`, error)
-          }
+            if (townData.success) county.customers = townData.data.length
+          } catch { /* ignore */ }
           return county
         })
       )
-      
-      console.log('更新后的旗县数据:', updatedCountyData)
       countySalesData.value = updatedCountyData
-      console.log('countySalesData.value:', countySalesData.value)
-      
-      // 根据旗县数据计算盟市销售概况
       const totalSales = updatedCountyData.reduce((sum: number, county: any) => sum + parseFloat(county.sales), 0)
       const totalCustomers = updatedCountyData.reduce((sum: number, county: any) => sum + parseInt(county.customers), 0)
-      
-      // 更新盟市销售数据
-      citySalesData.value = {
-        totalSales: totalSales,
-        customers: totalCustomers,
-        growthRate: 0
-      }
+      citySalesData.value = { totalSales, customers: totalCustomers, growthRate: 0 }
     }
   } catch (error) {
     console.error('获取城市销售数据失败', error)
@@ -225,6 +192,27 @@ const openAddModal = () => {
 
 
 // 提交表单
+const getOrCreateCity = async () => {
+  const cityResponse = await fetch('http://localhost:3005/api/city-sales')
+  const cityData = await cityResponse.json()
+  if (!cityData.success) return null
+
+  let city = cityData.data.find((item: any) => item.name === cityName.value)
+  if (city) return city
+
+  const createRes = await fetch('http://localhost:3005/api/city-sales', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: cityName.value, sales: 0, customers: 0, growthRate: 0 })
+  })
+  const createData = await createRes.json()
+  if (!createData.success) return null
+
+  const refetch = await fetch('http://localhost:3005/api/city-sales')
+  const refetchData = await refetch.json()
+  return refetchData.data.find((item: any) => item.name === cityName.value) || null
+}
+
 const submitForm = async () => {
   try {
     if (!formData.value.name.trim()) {
@@ -232,16 +220,7 @@ const submitForm = async () => {
       return
     }
     
-    // 获取城市ID
-    const cityResponse = await fetch('http://localhost:3005/api/city-sales')
-    const cityData = await cityResponse.json()
-    
-    if (!cityData.success) {
-      ElMessage.error('获取城市数据失败')
-      return
-    }
-    
-    const city = cityData.data.find((item: any) => item.name === cityName.value)
+    const city = await getOrCreateCity()
     if (!city) {
       ElMessage.error('未找到城市: ' + cityName.value)
       return

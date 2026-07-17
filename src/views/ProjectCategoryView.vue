@@ -193,7 +193,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Edit, Delete, Link } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getProjects, addProjectApplication, deleteProjectCategory, updateProjectCategory, updateProject as updateProjectApi, getEmployees } from '../services/api'
+import { getProjects, addProjectApplication, deleteProjectCategory, updateProjectCategory, updateProjectDetail, getEmployees } from '../services/api'
 
 const router = useRouter()
 
@@ -458,7 +458,7 @@ const updateProject = async () => {
   try {
     console.log('编辑项目表单数据:', editProjectForm.value);
     // 使用API更新项目
-    const response = await updateProjectApi(editProjectForm.value.id, {
+    const response = await updateProjectDetail(editProjectForm.value.id, {
       project_name: editProjectForm.value.name,
       description: editProjectForm.value.description,
       project_link: editProjectForm.value.link
