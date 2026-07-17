@@ -47,7 +47,8 @@
                 </div>
               </div>
               <div class="county-stats">
-                <span class="county-customers">客户: {{ county.customers }}</span>
+                <span class="county-sales">销售额: {{ county.sales.toLocaleString() }}元</span>
+                <span class="county-customers">客户数: {{ county.customers }}</span>
               </div>
               <div class="county-bar-container">
                 <div class="county-bar" :style="{ width: (county.sales / maxSales * 100) + '%' }"></div>
@@ -174,19 +175,13 @@ const loadCityData = async () => {
     const countyData = await countyResponse.json()
     
     if (countyData.success) {
-      const updatedCountyData = await Promise.all(
-        countyData.data.map(async (county: any) => {
-          try {
-            const townResponse = await fetch(`http://localhost:3005/api/town-sales/${county.id}`)
-            const townData = await townResponse.json()
-            if (townData.success) county.customers = townData.data.length
-          } catch { /* ignore */ }
-          return county
-        })
-      )
-      countySalesData.value = updatedCountyData
-      const totalSales = updatedCountyData.reduce((sum: number, county: any) => sum + parseFloat(county.sales), 0)
-      const totalCustomers = updatedCountyData.reduce((sum: number, county: any) => sum + parseInt(county.customers), 0)
+      countyData.data.forEach((county: any) => {
+        county.customers = parseInt(county.customers) || 0
+        county.sales = parseFloat(county.sales) || 0
+      })
+      countySalesData.value = countyData.data
+      const totalSales = countyData.data.reduce((sum: number, county: any) => sum + county.sales, 0)
+      const totalCustomers = countyData.data.reduce((sum: number, county: any) => sum + county.customers, 0)
       citySalesData.value = { totalSales, customers: totalCustomers, growthRate: 0 }
     }
   } catch (error) {
@@ -796,9 +791,16 @@ onMounted(async () => {
 }
 
 .county-stats {
+  display: flex;
+  gap: 1rem;
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
   color: rgba(51, 51, 51, 0.7);
+}
+
+.county-sales {
+  color: #10b981;
+  font-weight: 600;
 }
 
 .county-bar-container {
