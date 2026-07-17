@@ -1,4 +1,5 @@
 import express from 'express';
+import { createOperationLog } from '../utils/audit.js';
 const router = express.Router();
 
 router.get('/chats', async (req, res) => {
@@ -47,6 +48,7 @@ router.get('/chats/:chatId/messages', async (req, res) => {
 router.post('/messages', async (req, res) => {
   const { pool } = req.app.locals;
   const { chatId, senderId, text, time, tempId } = req.body;
+  const username = req.body.operator || req.body.username || '系统';
 
   if (!chatId || !senderId || !text) {
     return res.status(400).json({ success: false, message: '缺少必要参数' });
@@ -84,6 +86,17 @@ router.post('/messages', async (req, res) => {
 
     req.app.get('io').to('chat_' + chatId).emit('newMessage', message);
 
+    await createOperationLog(pool, {
+      userId: senderId,
+      username,
+      action: 'create',
+      module: 'chat',
+      targetId: result.insertId,
+      targetName: text ? text.substring(0, 50) : '',
+      detail: `发送消息: ${text ? text.substring(0, 100) : ''}`,
+      ipAddress: req.ip
+    });
+
     res.json({
       success: true,
       message: '消息发送成功',
@@ -98,6 +111,7 @@ router.post('/messages', async (req, res) => {
 router.post('/chats', async (req, res) => {
   const { pool } = req.app.locals;
   const { name, lastMessage = '', time = '' } = req.body;
+  const username = req.body.operator || req.body.username || '系统';
 
   if (!name) {
     return res.status(400).json({ success: false, message: '聊天室名称不能为空' });
@@ -108,6 +122,16 @@ router.post('/chats', async (req, res) => {
       'INSERT INTO chats (name, lastMessage, time, createdAt, updatedAt) VALUES (?, ?, ?, NOW(), NOW())',
       [name, lastMessage, time]
     );
+
+    await createOperationLog(pool, {
+      username,
+      action: 'create',
+      module: 'chat',
+      targetId: result.insertId,
+      targetName: name,
+      detail: `创建聊天室: ${name}`,
+      ipAddress: req.ip
+    });
 
     res.json({
       success: true,
@@ -123,11 +147,22 @@ router.post('/chats', async (req, res) => {
 router.delete('/chats/:id', async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
+  const username = req.body.operator || req.body.username || '系统';
 
   try {
     await pool.execute('DELETE FROM messages WHERE chatId = ?', [id]);
 
     await pool.execute('DELETE FROM chats WHERE id = ?', [id]);
+
+    await createOperationLog(pool, {
+      username,
+      action: 'delete',
+      module: 'chat',
+      targetId: id,
+      targetName: `聊天室ID: ${id}`,
+      detail: `删除聊天室 ID: ${id}`,
+      ipAddress: req.ip
+    });
 
     res.json({ success: true, message: '聊天室删除成功' });
   } catch (error) {

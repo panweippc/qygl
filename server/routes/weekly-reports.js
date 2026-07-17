@@ -1,4 +1,5 @@
 import express from 'express';
+import { createOperationLog } from '../utils/audit.js';
 const router = express.Router();
 
 router.get('/weekly-reports', async (req, res) => {
@@ -25,6 +26,13 @@ router.post('/weekly-reports', async (req, res) => {
       'INSERT INTO weeklyReports (title, content, plan, files, userId, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [title, content, plan || '', filesJson, userId, date || null, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
+    await createOperationLog(pool, {
+      username: req.body.operator || req.body.applicant || '系统',
+      action: 'create',
+      module: 'weekly_report',
+      targetName: `周报: ${title}`,
+      detail: `新增周报: ${title}`
+    });
     res.json({ success: true, message: '月报上传成功' });
   } catch (error) {
     console.error('上传月报失败:', error);
@@ -42,6 +50,13 @@ router.put('/weekly-reports/:id', async (req, res) => {
       'UPDATE weeklyReports SET title = ?, content = ?, plan = ?, files = ?, date = ? WHERE id = ? AND userId = ?',
       [title, content, plan || '', filesJson, date || null, id, userId]
     );
+    await createOperationLog(pool, {
+      username: req.body.operator || req.body.applicant || '系统',
+      action: 'update',
+      module: 'weekly_report',
+      targetName: `周报: ${title}`,
+      detail: `更新周报: ${title} (ID: ${id})`
+    });
     res.json({ success: true, message: '月报更新成功' });
   } catch (error) {
     console.error('更新月报失败:', error);

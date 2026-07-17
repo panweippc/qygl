@@ -1,4 +1,5 @@
 import express from 'express';
+import { createOperationLog } from '../utils/audit.js';
 import xlsx from 'xlsx';
 const router = express.Router();
 
@@ -78,6 +79,8 @@ router.post('/employees', async (req, res) => {
       }
     }
 
+    const operator = req.body.operator || req.body.username || '系统';
+    createOperationLog(pool, { userId: null, username: operator, action: 'create', module: 'employee', targetId: newEmployee[0]?.id, targetName: name, detail: `添加员工: ${name}`, ipAddress: req.ip });
     connection.release();
     res.json({ success: true, message: '员工添加成功', data: newEmployee[0] });
   } catch (error) {
@@ -91,6 +94,8 @@ router.delete('/employees/:name', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     await pool.execute('DELETE FROM employees WHERE name = ?', [name]);
+    const operator = '系统';
+    createOperationLog(pool, { userId: null, username: operator, action: 'delete', module: 'employee', targetId: null, targetName: name, detail: `删除员工: ${name}`, ipAddress: req.ip });
     res.json({ success: true, message: '员工删除成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '删除员工失败' });
@@ -136,6 +141,8 @@ router.put('/employees/:name', async (req, res) => {
       }
     }
 
+    const operator = req.body.operator || req.body.username || '系统';
+    createOperationLog(pool, { userId: null, username: operator, action: 'update', module: 'employee', targetId: id || null, targetName: name, detail: `更新员工: ${name}`, ipAddress: req.ip });
     connection.release();
     res.json({ success: true, message: '员工更新成功' });
   } catch (error) {

@@ -1,4 +1,5 @@
 import express from 'express';
+import { createOperationLog } from '../utils/audit.js';
 const router = express.Router();
 
 router.get('/project-categories', async (req, res) => {
@@ -19,6 +20,13 @@ router.post('/project-categories', async (req, res) => {
       'INSERT INTO projects (name, category, description, manager, link, createdAt) VALUES (?, ?, ?, ?, ?, ?)',
       [name, category, description, manager || '', link || '', new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
+    await createOperationLog(pool, {
+      username: req.body.operator || '系统',
+      action: 'create',
+      module: 'project',
+      targetName: name,
+      detail: `添加项目: ${name}`
+    });
     res.json({ success: true, message: '项目分类添加成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '添加项目分类失败' });
@@ -30,6 +38,13 @@ router.delete('/project-categories/:category', async (req, res) => {
   const { category } = req.params;
   try {
     await pool.execute('DELETE FROM project_applications WHERE project_type = ?', [category]);
+    await createOperationLog(pool, {
+      username: req.body.operator || '系统',
+      action: 'delete',
+      module: 'project',
+      targetName: category,
+      detail: `删除项目分类: ${category}`
+    });
     res.json({ success: true, message: '项目分类删除成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '删除项目分类失败' });
@@ -44,6 +59,13 @@ router.put('/project-categories/update-type', async (req, res) => {
       'UPDATE project_applications SET project_type = ? WHERE project_type = ?',
       [newType, oldType]
     );
+    await createOperationLog(pool, {
+      username: req.body.operator || '系统',
+      action: 'update',
+      module: 'project',
+      targetName: newType,
+      detail: `项目类型更新: ${oldType} -> ${newType}`
+    });
     res.json({ success: true, message: '项目类型更新成功' });
   } catch (error) {
     console.error('更新项目类型失败:', error);
@@ -62,6 +84,13 @@ router.put('/project-categories/:id', async (req, res) => {
       [name, description, link, id]
     );
     console.log('项目更新成功:', id);
+    await createOperationLog(pool, {
+      username: req.body.operator || '系统',
+      action: 'update',
+      module: 'project',
+      targetName: name,
+      detail: `更新项目: ${name}`
+    });
     res.json({ success: true, message: '项目更新成功' });
   } catch (error) {
     console.error('更新项目失败:', error);

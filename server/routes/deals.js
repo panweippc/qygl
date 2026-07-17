@@ -1,4 +1,5 @@
 import express from 'express';
+import { createOperationLog } from '../utils/audit.js';
 const router = express.Router();
 
 router.get('/closing-projects', async (req, res) => {
@@ -39,6 +40,12 @@ router.post('/closing-projects', async (req, res) => {
     console.log('SQL参数:', values);
 
     await pool.execute(query, values);
+    await createOperationLog(pool, {
+      username: req.body.operator || req.body.applicant || '系统',
+      action: 'create',
+      module: 'deal',
+      targetName: `成交项目"${name}"`,
+    });
     res.json({ success: true, message: '成交项目添加成功' });
   } catch (error) {
     console.error('添加成交项目失败:', error);
@@ -51,6 +58,8 @@ router.put('/closing-projects/:id', async (req, res) => {
   const { name, description, status, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId, applicant } = req.body;
   try {
     const { pool } = req.app.locals;
+    const [old] = await pool.execute('SELECT name FROM closing_projects WHERE id = ?', [id]);
+    const projectName = name || (old.length > 0 ? old[0].name : id);
     const formatDate = (dateString) => {
       if (!dateString) return null;
       return new Date(dateString).toISOString().split('T')[0];
@@ -60,6 +69,13 @@ router.put('/closing-projects/:id', async (req, res) => {
       'UPDATE closing_projects SET name = ?, description = ?, status = ?, startDate = ?, dealTime = ?, price = ?, serviceEndTime = ?, nextYearFeeStatus = ?, contractFeeStatus = ?, remainingAmount = ?, provinceId = ?, cityId = ?, countyId = ?, applicant = ? WHERE id = ?',
       [name, description, status, formatDate(dealTime), formatDate(dealTime), price, formatDate(serviceEndTime), nextYearFeeStatus, contractFeeStatus || '未结', remainingAmount || 0, provinceId, cityId, countyId, applicant || '', id]
     );
+    await createOperationLog(pool, {
+      username: req.body.operator || req.body.applicant || '系统',
+      action: 'update',
+      module: 'deal',
+      targetName: `成交项目"${projectName}"`,
+      targetId: parseInt(id),
+    });
     res.json({ success: true, message: '成交项目更新成功' });
   } catch (error) {
     console.error('更新成交项目失败:', error);
@@ -71,7 +87,16 @@ router.delete('/closing-projects/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const { pool } = req.app.locals;
+    const [rows] = await pool.execute('SELECT name FROM closing_projects WHERE id = ?', [id]);
+    const projectName = rows.length > 0 ? rows[0].name : id;
     await pool.execute('DELETE FROM closing_projects WHERE id = ?', [id]);
+    await createOperationLog(pool, {
+      username: req.query.operator || '系统',
+      action: 'delete',
+      module: 'deal',
+      targetName: `成交项目"${projectName}"`,
+      targetId: parseInt(id),
+    });
     res.json({ success: true, message: '成交项目删除成功' });
   } catch (error) {
     console.error('删除成交项目失败:', error);

@@ -1,4 +1,5 @@
 import express from 'express';
+import { createOperationLog } from '../utils/audit.js';
 const router = express.Router();
 
 // 获取所有下发记录列表（管理员用）
@@ -46,6 +47,7 @@ router.get('/distributed-records/user/:targetUser', async (req, res) => {
 // 添加下发记录
 router.post('/distributed-records', async (req, res) => {
   const { pool } = req.app.locals;
+  const username = req.body.operator || req.body.username || '系统';
   try {
     const { applicationId, applicationType, applicant, distributedBy, targetUser, comment, status } = req.body;
 
@@ -80,6 +82,17 @@ router.post('/distributed-records', async (req, res) => {
     );
 
     console.log('下发记录添加成功, ID:', result.insertId);
+
+    await createOperationLog(pool, {
+      username,
+      action: 'create',
+      module: 'distribute',
+      targetId: result.insertId,
+      targetName: `${applicationType}-${applicationId}`,
+      detail: `创建下发记录: ${applicationType}(${applicationId}) -> ${targetUser}`,
+      ipAddress: req.ip
+    });
+
     res.json({ success: true, message: '下发记录添加成功', data: { id: result.insertId } });
   } catch (error) {
     console.error('添加下发记录失败:', error);
@@ -90,6 +103,7 @@ router.post('/distributed-records', async (req, res) => {
 // 更新下发记录
 router.put('/distributed-records/:id', async (req, res) => {
   const { pool } = req.app.locals;
+  const username = req.body.operator || req.body.username || '系统';
   try {
     const { id } = req.params;
     const { status, comment, processComment } = req.body;
@@ -118,6 +132,16 @@ router.put('/distributed-records/:id', async (req, res) => {
 
     const sql = `UPDATE distributed_records SET ${updates.join(', ')} WHERE id = ?`;
     await pool.execute(sql, params);
+
+    await createOperationLog(pool, {
+      username,
+      action: 'update',
+      module: 'distribute',
+      targetId: id,
+      targetName: `下发记录ID: ${id}`,
+      detail: `更新下发记录 ID: ${id}, 状态: ${status || '无变化'}`,
+      ipAddress: req.ip
+    });
 
     res.json({ success: true, message: '下发记录更新成功' });
   } catch (error) {

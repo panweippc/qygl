@@ -1,4 +1,5 @@
 import express from 'express';
+import { createOperationLog } from '../utils/audit.js';
 const router = express.Router();
 
 // 获取销售漏斗阶段
@@ -71,6 +72,12 @@ router.post('/city-sales', async (req, res) => {
       'INSERT INTO city_sales (name, sales, customers, growthRate, createdAt) VALUES (?, ?, ?, ?, ?)',
       [name, sales, customers, growthRate, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
+    await createOperationLog(pool, {
+      username: req.body.operator || '系统',
+      action: 'create',
+      module: 'sales',
+      targetName: `盟市销售数据"${name}"`,
+    });
     res.json({ success: true, message: '盟市销售数据添加成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '添加盟市销售数据失败' });
@@ -83,10 +90,19 @@ router.put('/city-sales/:id', async (req, res) => {
   const { name, sales, customers, growthRate } = req.body;
   try {
     const { pool } = req.app.locals;
+    const [old] = await pool.execute('SELECT name FROM city_sales WHERE id = ?', [id]);
+    const cityName = name || (old.length > 0 ? old[0].name : id);
     await pool.execute(
       'UPDATE city_sales SET name = ?, sales = ?, customers = ?, growthRate = ? WHERE id = ?',
       [name, sales, customers, growthRate, id]
     );
+    await createOperationLog(pool, {
+      username: req.body.operator || '系统',
+      action: 'update',
+      module: 'sales',
+      targetName: `盟市销售数据"${cityName}"`,
+      targetId: parseInt(id),
+    });
     res.json({ success: true, message: '盟市销售数据更新成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '更新盟市销售数据失败' });
@@ -98,7 +114,16 @@ router.delete('/city-sales/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const { pool } = req.app.locals;
+    const [rows] = await pool.execute('SELECT name FROM city_sales WHERE id = ?', [id]);
+    const cityName = rows.length > 0 ? rows[0].name : id;
     await pool.execute('DELETE FROM city_sales WHERE id = ?', [id]);
+    await createOperationLog(pool, {
+      username: req.query.operator || '系统',
+      action: 'delete',
+      module: 'sales',
+      targetName: `盟市销售数据"${cityName}"`,
+      targetId: parseInt(id),
+    });
     res.json({ success: true, message: '盟市销售数据删除成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '删除盟市销售数据失败' });
@@ -126,6 +151,12 @@ router.post('/county-sales', async (req, res) => {
       'INSERT INTO county_sales (cityId, name, sales, customers, createdAt) VALUES (?, ?, ?, ?, ?)',
       [cityId, name, sales, customers, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
+    await createOperationLog(pool, {
+      username: req.body.operator || '系统',
+      action: 'create',
+      module: 'sales',
+      targetName: `旗县销售数据"${name}"`,
+    });
     res.json({ success: true, message: '旗县销售数据添加成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '添加旗县销售数据失败' });
@@ -138,6 +169,8 @@ router.put('/county-sales/:id', async (req, res) => {
   const { name, sales, customers } = req.body;
   try {
     const { pool } = req.app.locals;
+    const [old] = await pool.execute('SELECT name FROM county_sales WHERE id = ?', [id]);
+    const countyName = name || (old.length > 0 ? old[0].name : id);
     const updates = [];
     const values = [];
 
@@ -165,6 +198,13 @@ router.put('/county-sales/:id', async (req, res) => {
       `UPDATE county_sales SET ${updates.join(', ')} WHERE id = ?`,
       values
     );
+    await createOperationLog(pool, {
+      username: req.body.operator || '系统',
+      action: 'update',
+      module: 'sales',
+      targetName: `旗县销售数据"${countyName}"`,
+      targetId: parseInt(id),
+    });
     res.json({ success: true, message: '旗县销售数据更新成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '更新旗县销售数据失败' });
@@ -176,7 +216,16 @@ router.delete('/county-sales/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const { pool } = req.app.locals;
+    const [rows] = await pool.execute('SELECT name FROM county_sales WHERE id = ?', [id]);
+    const countyName = rows.length > 0 ? rows[0].name : id;
     await pool.execute('DELETE FROM county_sales WHERE id = ?', [id]);
+    await createOperationLog(pool, {
+      username: req.query.operator || '系统',
+      action: 'delete',
+      module: 'sales',
+      targetName: `旗县销售数据"${countyName}"`,
+      targetId: parseInt(id),
+    });
     res.json({ success: true, message: '旗县销售数据删除成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '删除旗县销售数据失败' });

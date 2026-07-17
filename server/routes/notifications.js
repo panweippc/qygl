@@ -1,4 +1,5 @@
 import express from 'express';
+import { createOperationLog } from '../utils/audit.js';
 const router = express.Router();
 
 function escapeId(val) {
@@ -49,8 +50,18 @@ router.get('/notifications/unread-count', async (req, res) => {
 router.put('/notifications/:id/read', async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
+  const username = req.body.operator || req.body.username || '系统';
   try {
     await pool.execute('UPDATE notifications SET isRead = 1 WHERE id = ?', [id]);
+    await createOperationLog(pool, {
+      username,
+      action: 'update',
+      module: 'notification',
+      targetId: id,
+      targetName: `通知ID: ${id}`,
+      detail: `标记通知已读 ID: ${id}`,
+      ipAddress: req.ip
+    });
     res.success(null, '已标记为已读');
   } catch (error) {
     console.error('标记已读失败:', error);
@@ -62,9 +73,20 @@ router.put('/notifications/:id/read', async (req, res) => {
 router.put('/notifications/read-all', async (req, res) => {
   const { pool } = req.app.locals;
   const { userId } = req.body;
+  const username = req.body.operator || req.body.username || '系统';
   if (!userId) return res.fail('缺少用户ID');
   try {
     await pool.execute('UPDATE notifications SET isRead = 1 WHERE userId = ?', [userId]);
+    await createOperationLog(pool, {
+      userId,
+      username,
+      action: 'update',
+      module: 'notification',
+      targetId: userId,
+      targetName: `用户ID: ${userId}`,
+      detail: '全部标记为已读',
+      ipAddress: req.ip
+    });
     res.success(null, '全部标记为已读');
   } catch (error) {
     console.error('标记全部已读失败:', error);
@@ -76,8 +98,18 @@ router.put('/notifications/read-all', async (req, res) => {
 router.delete('/notifications/:id', async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
+  const username = req.body.operator || req.body.username || '系统';
   try {
     await pool.execute('DELETE FROM notifications WHERE id = ?', [id]);
+    await createOperationLog(pool, {
+      username,
+      action: 'delete',
+      module: 'notification',
+      targetId: id,
+      targetName: `通知ID: ${id}`,
+      detail: `删除通知 ID: ${id}`,
+      ipAddress: req.ip
+    });
     res.success(null, '通知已删除');
   } catch (error) {
     console.error('删除通知失败:', error);

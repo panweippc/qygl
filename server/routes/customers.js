@@ -1,4 +1,5 @@
 import express from 'express';
+import { createOperationLog } from '../utils/audit.js';
 const router = express.Router();
 
 router.get('/customers', async (req, res) => {
@@ -19,6 +20,13 @@ router.post('/customers', async (req, res) => {
       'INSERT INTO customers (name, contact, phone, email, address, tags, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [name, contact, phone, email, address, tags, status, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
+    await createOperationLog(pool, {
+      username: req.body.operator || req.body.applicant || '系统',
+      action: 'create',
+      module: 'customer',
+      targetName: `客户: ${name}`,
+      detail: `新增客户: ${name}`
+    });
     res.json({ success: true, message: '客户添加成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '添加客户失败' });
@@ -34,6 +42,13 @@ router.put('/customers/:id', async (req, res) => {
       'UPDATE customers SET name = ?, contact = ?, phone = ?, email = ?, address = ?, tags = ?, status = ? WHERE id = ?',
       [name, contact, phone, email, address, tags, status, id]
     );
+    await createOperationLog(pool, {
+      username: req.body.operator || req.body.applicant || '系统',
+      action: 'update',
+      module: 'customer',
+      targetName: `客户: ${name}`,
+      detail: `更新客户: ${name} (ID: ${id})`
+    });
     res.json({ success: true, message: '客户更新成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '更新客户失败' });
@@ -44,7 +59,16 @@ router.delete('/customers/:id', async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   try {
+    const [rows] = await pool.execute('SELECT name FROM customers WHERE id = ?', [id]);
+    const customerName = rows.length > 0 ? rows[0].name : `ID: ${id}`;
     await pool.execute('DELETE FROM customers WHERE id = ?', [id]);
+    await createOperationLog(pool, {
+      username: req.body.operator || req.body.applicant || '系统',
+      action: 'delete',
+      module: 'customer',
+      targetName: `客户: ${customerName}`,
+      detail: `删除客户: ${customerName} (ID: ${id})`
+    });
     res.json({ success: true, message: '客户删除成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '删除客户失败' });

@@ -1,4 +1,5 @@
 import express from 'express';
+import { createOperationLog } from '../utils/audit.js';
 const router = express.Router();
 
 // 获取乡镇的拜访记录
@@ -22,6 +23,12 @@ router.post('/visit-records', async (req, res) => {
       'INSERT INTO visit_records (townId, customerName, address, visitDate, visitPerson, visitContent, nextPlan, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [townId, customerName, address, visitDate, visitPerson, visitContent, nextPlan || null, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
+    await createOperationLog(pool, {
+      username: req.body.operator || req.body.visitPerson || '系统',
+      action: 'create',
+      module: 'visit',
+      targetName: `拜访记录"${customerName}"`,
+    });
     res.json({ success: true, message: '拜访记录添加成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '添加拜访记录失败' });
@@ -34,10 +41,19 @@ router.put('/visit-records/:id', async (req, res) => {
   const { customerName, address, visitDate, visitPerson, visitContent, nextPlan } = req.body;
   try {
     const { pool } = req.app.locals;
+    const [old] = await pool.execute('SELECT customerName FROM visit_records WHERE id = ?', [id]);
+    const name = customerName || (old.length > 0 ? old[0].customerName : id);
     await pool.execute(
       'UPDATE visit_records SET customerName = ?, address = ?, visitDate = ?, visitPerson = ?, visitContent = ?, nextPlan = ? WHERE id = ?',
       [customerName, address, visitDate, visitPerson, visitContent, nextPlan || null, id]
     );
+    await createOperationLog(pool, {
+      username: req.body.operator || req.body.visitPerson || '系统',
+      action: 'update',
+      module: 'visit',
+      targetName: `拜访记录"${name}"`,
+      targetId: parseInt(id),
+    });
     res.json({ success: true, message: '拜访记录更新成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '更新拜访记录失败' });
@@ -49,7 +65,16 @@ router.delete('/visit-records/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const { pool } = req.app.locals;
+    const [rows] = await pool.execute('SELECT customerName FROM visit_records WHERE id = ?', [id]);
+    const name = rows.length > 0 ? rows[0].customerName : id;
     await pool.execute('DELETE FROM visit_records WHERE id = ?', [id]);
+    await createOperationLog(pool, {
+      username: req.query.operator || '系统',
+      action: 'delete',
+      module: 'visit',
+      targetName: `拜访记录"${name}"`,
+      targetId: parseInt(id),
+    });
     res.json({ success: true, message: '拜访记录删除成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '删除拜访记录失败' });
