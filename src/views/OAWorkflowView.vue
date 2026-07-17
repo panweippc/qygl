@@ -716,7 +716,7 @@ const submitApproval = async () => {
   }
   try {
     let response: any
-    const data: any = { comment: approvalForm.value.comment, result: approvalForm.value.result }
+    const data: any = { comment: approvalForm.value.comment, result: approvalForm.value.result, operator: currentUsername.value }
     if (approvalForm.value.forwardToGM) {
       const gm = allEmployees.value.find((emp: any) => (emp.position || '').includes('总经理'))
       data.forwardTo = gm?.name || '总经理'
@@ -896,7 +896,8 @@ const terminateProcess = async (row: any, type: string) => {
     let response: any
     const data = {
       result: '已终止',
-      comment: `管理员[${currentUsername.value}]强制终止流程`
+      comment: `管理员[${currentUsername.value}]强制终止流程`,
+      operator: currentUsername.value
     }
     switch (type) {
       case 'leave':
