@@ -177,9 +177,6 @@
           <el-form-item label="电话" class="form-item">
             <el-input v-model="employeeForm.phone" placeholder="请输入电话" />
           </el-form-item>
-          <el-form-item label="登录密码" class="form-item">
-            <el-input v-model="employeeForm.password" type="password" placeholder="请输入登录密码" show-password />
-          </el-form-item>
         </div>
         <div class="form-row">
           <el-form-item label="入职日期" class="form-item">
@@ -302,9 +299,6 @@
         <div class="form-row">
           <el-form-item label="电话" class="form-item">
             <el-input v-model="editForm.phone" placeholder="请输入电话" />
-          </el-form-item>
-          <el-form-item label="登录密码" class="form-item">
-            <el-input v-model="editForm.password" type="password" placeholder="不修改则保留原密码" show-password />
           </el-form-item>
         </div>
         <div class="form-row">

@@ -33,14 +33,32 @@
             {{ row.createdAt ? new Date(row.createdAt).toLocaleString() : '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="editUser(row)" class="edit-btn">编辑</el-button>
+            <el-button size="small" @click="resetPassword(row)" class="reset-pwd-btn">重置密码</el-button>
             <el-button size="small" type="danger" @click="deleteUser(row)" class="delete-btn">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
     </div>
+
+    <el-dialog v-model="pwdDialogVisible" title="重置密码" width="420px" class="dialog">
+      <el-form :model="pwdForm" label-position="top">
+        <el-form-item label="用户名">
+          <el-input :model-value="pwdForm.username" disabled />
+        </el-form-item>
+        <el-form-item label="新密码" prop="password">
+          <el-input v-model="pwdForm.password" type="password" placeholder="请输入新密码" show-password />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="pwdDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="savePassword" :loading="pwdSaving">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
 
     <el-dialog
       v-model="userDialogVisible"
@@ -105,6 +123,9 @@ const saving = ref(false)
 const userDialogVisible = ref(false)
 const isEditingUser = ref(false)
 const userFormRef = ref()
+const pwdDialogVisible = ref(false)
+const pwdSaving = ref(false)
+const pwdForm = ref({ username: '', password: '' })
 const userForm = ref({
   id: null as number | null,
   name: '',
@@ -222,6 +243,31 @@ const deleteUser = async (row: any) => {
   }
 }
 
+const resetPassword = (row: any) => {
+  pwdForm.value = { username: row.name, password: '' }
+  pwdDialogVisible.value = true
+}
+
+const savePassword = async () => {
+  if (!pwdForm.value.password) {
+    ElMessage.warning('请输入新密码')
+    return
+  }
+  try {
+    pwdSaving.value = true
+    await fetchApi(`${API_BASE}/employees/${pwdForm.value.username}`, {
+      method: 'PUT',
+      body: JSON.stringify({ password: pwdForm.value.password })
+    })
+    ElMessage.success('密码重置成功')
+    pwdDialogVisible.value = false
+  } catch (error) {
+    ElMessage.error('密码重置失败')
+  } finally {
+    pwdSaving.value = false
+  }
+}
+
 onMounted(() => {
   loadRoles()
   loadUsers()
@@ -313,6 +359,19 @@ onMounted(() => {
   border: 1px solid rgba(244, 67, 54, 0.4) !important;
   border-radius: 6px !important;
   transition: all 0.3s ease !important;
+}
+
+.reset-pwd-btn {
+  background: rgba(255, 152, 0, 0.2) !important;
+  color: #ff9800 !important;
+  border: 1px solid rgba(255, 152, 0, 0.4) !important;
+  border-radius: 6px !important;
+  transition: all 0.3s ease !important;
+}
+
+.reset-pwd-btn:hover {
+  background: rgba(255, 152, 0, 0.3) !important;
+  box-shadow: 0 0 10px rgba(255, 152, 0, 0.4) !important;
 }
 
 .delete-btn:hover {
