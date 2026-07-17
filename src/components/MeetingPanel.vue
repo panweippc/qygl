@@ -91,7 +91,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="title" label="会议主题" min-width="150"></el-table-column>
-        <el-table-column prop="organizer" label="组织者" v-if="isAdmin"></el-table-column>
+        <el-table-column prop="organizer" label="组织者"></el-table-column>
         <el-table-column prop="meetingDate" label="会议日期" width="120"></el-table-column>
         <el-table-column prop="meetingTime" label="会议时间" width="100"></el-table-column>
         <el-table-column prop="location" label="会议地点"></el-table-column>

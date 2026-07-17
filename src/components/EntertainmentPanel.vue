@@ -49,7 +49,7 @@
         <el-table-column prop="id" label="编号" width="80">
           <template #default="{ row }"><span class="id-badge">#{{ row.id }}</span></template>
         </el-table-column>
-        <el-table-column label="申请人" v-if="isAdmin">
+        <el-table-column label="申请人">
           <template #default="{ row }">{{ extractRealName(row.applicant) }}</template>
         </el-table-column>
         <el-table-column prop="guestName" label="招待对象" width="140" />

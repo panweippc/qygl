@@ -45,7 +45,7 @@
             <span class="id-badge">#{{ row.id }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="申请人" v-if="isAdmin">
+        <el-table-column label="申请人">
           <template #default="{ row }">
             {{ extractRealName(row.applicant) }}
           </template>
