@@ -36,7 +36,7 @@ const currentUser = ref('用户')
 const unreadCount = ref(0)
 
 const fetchUnreadCount = async () => {
-  const userId = localStorage.getItem('userId')
+  const userId = localStorage.getItem('username')
   if (!userId) return
   try {
     const res = await fetch(`/api/notifications/unread-count?userId=${userId}`)

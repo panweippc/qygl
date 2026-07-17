@@ -74,11 +74,12 @@
           <span>销售漏斗</span>
           <div class="sidebar-item-indicator"></div>
         </router-link>
-        <router-link to="/message-center" class="sidebar-item">
+        <router-link to="/message-center" class="sidebar-item notification-item">
           <div class="sidebar-icon">
             <svg viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-11v6h2v-6h-2zm0-4v2h2V7h-2z"/>
             </svg>
+            <span v-if="unreadCount > 0" class="sidebar-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
           </div>
           <span>消息中心</span>
           <div class="sidebar-item-indicator"></div>
@@ -110,6 +111,17 @@
 import { ref, computed, onMounted } from 'vue'
 
 const permissions = ref<any[]>([])
+const unreadCount = ref(0)
+
+const fetchUnreadCount = async () => {
+  const username = localStorage.getItem('username')
+  if (!username) return
+  try {
+    const res = await fetch(`/api/notifications/unread-count?userId=${username}`)
+    const json = await res.json()
+    if (json.success) unreadCount.value = json.data.count
+  } catch { /* ignore */ }
+}
 
 const isAdmin = computed(() => {
   const role = localStorage.getItem('role')
@@ -152,6 +164,8 @@ const fetchLatestPermissions = async () => {
 
 onMounted(() => {
   fetchLatestPermissions()
+  fetchUnreadCount()
+  setInterval(fetchUnreadCount, 30000)
 })
 </script>
 
@@ -297,9 +311,29 @@ onMounted(() => {
 }
 
 .sidebar-icon svg {
-  width: 16px;
+  width: 22px;
+  height: 22px;
+}
+
+.sidebar-icon { position: relative; }
+
+.sidebar-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  background: #f44336;
+  color: #fff;
+  font-size: 10px;
+  min-width: 16px;
   height: 16px;
-  transition: all 0.3s ease;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(244,67,54,0.4);
+  line-height: 1;
 }
 
 .sidebar-item:hover .sidebar-icon svg,
