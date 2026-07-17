@@ -20,12 +20,7 @@
       <div class="filter-group">
         <label>操作</label>
         <el-select v-model="filters.action" placeholder="全部操作" clearable size="small" style="width:120px">
-          <el-option label="创建" value="create" />
-          <el-option label="更新" value="update" />
-          <el-option label="删除" value="delete" />
-          <el-option label="登录" value="login" />
-          <el-option label="审批" value="approve" />
-          <el-option label="驳回" value="reject" />
+          <el-option v-for="a in actions" :key="a.action" :label="a.label" :value="a.action" />
         </el-select>
       </div>
       <div class="filter-group">
@@ -69,18 +64,19 @@ const loading = ref(false)
 const logs = ref<any[]>([])
 const total = ref(0)
 const modules = ref<string[]>([])
+const actions = ref<{ action: string; label: string }[]>([])
 const currentPage = ref(1)
 const pageSize = 30
 
 const filters = ref({ module: '', action: '', startDate: '', endDate: '' })
 
 function actionLabel(action: string) {
-  const map: Record<string, string> = { create: '创建', update: '更新', delete: '删除', login: '登录', approve: '审批通过', reject: '驳回', submit: '提交', withdraw: '撤回' }
+  const map: Record<string, string> = { create: '创建', update: '更新', delete: '删除', login: '登录', approve: '审批通过', reject: '驳回', submit: '提交', forward: '转发', withdraw: '撤回' }
   return map[action] || action
 }
 
 function actionType(action: string) {
-  const map: Record<string, string> = { create: 'success', update: 'primary', delete: 'danger', login: 'info', approve: 'success', reject: 'danger', submit: 'warning', withdraw: 'info' }
+  const map: Record<string, string> = { create: 'success', update: 'primary', delete: 'danger', login: 'info', approve: 'success', reject: 'danger', submit: 'warning', forward: 'warning', withdraw: 'info' }
   return map[action] || 'info'
 }
 
@@ -89,6 +85,14 @@ async function fetchModules() {
     const res = await fetch('/api/operation-logs/modules')
     const json = await res.json()
     if (json.success) modules.value = json.data
+  } catch { /* ignore */ }
+}
+
+async function fetchActions() {
+  try {
+    const res = await fetch('/api/operation-logs/actions')
+    const json = await res.json()
+    if (json.success) actions.value = json.data
   } catch { /* ignore */ }
 }
 
@@ -124,6 +128,7 @@ function resetFilters() {
 
 onMounted(() => {
   fetchModules()
+  fetchActions()
   fetchLogs()
 })
 </script>

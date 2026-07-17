@@ -48,4 +48,16 @@ router.get('/operation-logs/modules', async (req, res) => {
   }
 });
 
+// 获取操作日志操作类型列表（用于筛选下拉）
+router.get('/operation-logs/actions', async (req, res) => {
+  const { pool } = req.app.locals;
+  try {
+    const [rows] = await pool.query("SELECT DISTINCT action, CASE action WHEN 'create' THEN '创建' WHEN 'update' THEN '更新' WHEN 'delete' THEN '删除' WHEN 'login' THEN '登录' WHEN 'submit' THEN '提交' WHEN 'approve' THEN '审批通过' WHEN 'reject' THEN '驳回' WHEN 'forward' THEN '转发' WHEN 'withdraw' THEN '撤回' ELSE action END AS label FROM operation_logs ORDER BY action");
+    res.success(rows);
+  } catch (error) {
+    console.error('获取操作类型列表失败:', error);
+    res.fail('获取操作类型列表失败');
+  }
+});
+
 export default router;
