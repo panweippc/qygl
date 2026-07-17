@@ -92,6 +92,7 @@
               <LeavePanel
                 ref="leavePanelRef"
                 :isAdmin="isAdminComputed"
+                :canDistribute="canDistribute"
                 :currentUser="currentUsername"
                 :searchKeyword="searchKeyword"
                 :viewMode="viewMode"
@@ -110,6 +111,7 @@
               <ReimbursementPanel
                 ref="reimbursementPanelRef"
                 :isAdmin="isAdminComputed"
+                :canDistribute="canDistribute"
                 :currentUser="currentUsername"
                 :searchKeyword="searchKeyword"
                 :viewMode="viewMode"
@@ -128,6 +130,7 @@
               <MeetingPanel
                 ref="meetingPanelRef"
                 :isAdmin="isAdminComputed"
+                :canDistribute="canDistribute"
                 :currentUser="currentUsername"
                 :searchKeyword="searchKeyword"
                 :viewMode="viewMode"
@@ -146,6 +149,7 @@
               <OfficeSuppliesPanel
                 ref="projectPanelRef"
                 :isAdmin="isAdminComputed"
+                :canDistribute="canDistribute"
                 :currentUser="currentUsername"
                 :searchKeyword="searchKeyword"
                 :viewMode="viewMode"
@@ -164,6 +168,7 @@
               <BusinessTripPanel
                 ref="businessTripPanelRef"
                 :isAdmin="isAdminComputed"
+                :canDistribute="canDistribute"
                 :currentUser="currentUsername"
                 :searchKeyword="searchKeyword"
                 :viewMode="viewMode"
@@ -348,7 +353,7 @@
               <span class="radio-icon">✗</span> 拒绝
             </el-radio-button>
           </el-radio-group>
-          <el-checkbox v-if="!isAdminComputed" v-model="approvalForm.forwardToGM" style="margin-top: 10px;">
+          <el-checkbox v-if="!isAdminComputed && !isCurrentUserGM" v-model="approvalForm.forwardToGM" style="margin-top: 10px;">
             ↗ 转发至总经理
           </el-checkbox>
         </el-form-item>
@@ -560,11 +565,18 @@ const currentUsername = computed(() => {
 const isAdminComputed = computed(() => {
   const role = localStorage.getItem('role')
   const username = localStorage.getItem('username')
-  const adminRoles = ['admin', 'gm', 'ceo', 'general_manager', 'manager', '总经理']
+  const adminRoles = ['admin', 'gm', 'ceo', 'general_manager', '系统管理员']
   const isAdminRole = adminRoles.includes(role?.toLowerCase() || '')
   const isAdminName = username === '总经理' || username?.includes('admin')
   return isAdminRole || isAdminName
 })
+
+const isCurrentUserGM = computed(() => {
+  const gm = allEmployees.value.find((emp: any) => (emp.position || '').includes('总经理'))
+  return gm && extractRealName(currentUsername.value) === extractRealName(gm.name)
+})
+
+const canDistribute = computed(() => isAdminComputed.value || isCurrentUserGM.value)
 
 const approvalStats = ref([
   { key: 'pending', label: '待审批', value: 0, gradient: 'linear-gradient(135deg, #FF9800, #FFC107)', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z' },
@@ -935,7 +947,8 @@ const filterUserRecords = (records: any[]) => {
   const currentName = extractRealName(currentUsername.value)
   return records.filter((item: any) =>
     extractRealName(item.applicant || item.organizer || item.applicant_name) === currentName ||
-    extractRealName(item.approver) === currentName
+    extractRealName(item.approver) === currentName ||
+    (item.result && item.result.includes(currentName + ':'))
   )
 }
 
@@ -1216,6 +1229,12 @@ watch(() => route.query, (query) => {
 onMounted(async () => {
   await loadEmployees()
   await refreshAllData()
+  if (!route.query.tab) {
+    const tabWithData = tabs.value.find(t => t.badge > 0)
+    if (tabWithData) {
+      activeTab.value = tabWithData.name
+    }
+  }
 })
 </script>
 

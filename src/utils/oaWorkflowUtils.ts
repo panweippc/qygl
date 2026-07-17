@@ -296,3 +296,8 @@ export const getStatDetailTypeLabel = (type: string) => {
 export const getStatDetailName = (record: any) => {
   return record.projectName || record.title || record.reimburseType || record.leaveType || record.destination || record.guestName || '未知'
 }
+
+export const stripApproverName = (text: string) => {
+  if (!text) return ''
+  return text.replace(/^[^:：]+[:：]\s*/gm, '').trim()
+}

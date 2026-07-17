@@ -50,7 +50,7 @@ router.put('/reimbursements/:id', async (req, res) => {
       const intermediateResult = result ? `${currentApprover}:${result}` : null;
       const newComment = current?.oldComment
         ? `${current.oldComment}\n---\n${currentApprover}: ${comment || ''}`
-        : comment || null;
+        : `${currentApprover}: ${comment || ''}`;
       await pool.execute(
         'UPDATE reimbursements SET comment = ?, result = ?, approver = ? WHERE id = ?',
         [newComment, intermediateResult, forwardTo, id]

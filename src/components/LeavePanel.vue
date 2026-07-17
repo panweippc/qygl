@@ -172,7 +172,7 @@
                 终止
               </el-button>
               <el-button
-                v-if="row.status === '已批准' && isAdmin"
+                v-if="row.status === '已批准' && canDistribute"
                 size="small"
                 type="success"
                 @click="$emit('distribute', row, 'leave')"
@@ -349,6 +349,7 @@ import {
 
 const props = defineProps<{
   isAdmin: boolean
+  canDistribute: boolean
   currentUser: string
   searchKeyword: string
   viewMode: string
@@ -485,7 +486,7 @@ const loadLeaveRecords = async () => {
     const response = await getLeaveApplications()
     if (response.success) {
       leaveRecords.value = response.data
-        .filter((item: any) => extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value))
+        .filter((item: any) => extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')))
         .map((item: any) => ({
           ...item,
           submitDate: item.createdAt?.substring(0, 10) || ''

@@ -147,7 +147,7 @@ router.post('/projects/:id/approve', async (req, res) => {
       const intermediateResult = resultText ? `${currentApprover}:${resultText}` : null;
       const newComment = project.comment
         ? `${project.comment}\n---\n${currentApprover}: ${comment || ''}`
-        : comment || null;
+        : `${currentApprover}: ${comment || ''}`;
       await pool.execute(
         'UPDATE project_applications SET comment = ?, result = ?, approver = ?, updated_at = NOW() WHERE id = ?',
         [newComment, intermediateResult, forwardTo, id]

@@ -132,7 +132,7 @@
                 终止
               </el-button>
               <el-button
-                v-if="(row.status === '已批准' || row.status === 'approved') && isAdmin"
+                v-if="(row.status === '已批准' || row.status === 'approved') && canDistribute"
                 size="small"
                 type="success"
                 @click="$emit('distribute', row, 'meeting')"
@@ -212,7 +212,7 @@
               终止
             </el-button>
             <el-button
-              v-if="(row.status === '已批准' || row.status === 'approved') && isAdmin"
+              v-if="(row.status === '已批准' || row.status === 'approved') && canDistribute"
               size="small"
               type="success"
               @click="$emit('distribute', row, 'meeting')"
@@ -298,6 +298,7 @@ import {
 
 const props = defineProps<{
   isAdmin: boolean
+  canDistribute: boolean
   currentUser: string
   searchKeyword: string
   viewMode: string
@@ -429,7 +430,7 @@ const loadMeetingRecords = async () => {
     const response = await getMeetings()
     if (response.success) {
       meetingRecords.value = response.data
-        .filter((item: any) => extractRealName(item.organizer) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value))
+        .filter((item: any) => extractRealName(item.organizer) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')))
         .map((item: any) => ({
           ...item,
           submitDate: item.createdAt?.substring(0, 10) || ''

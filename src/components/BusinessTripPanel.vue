@@ -124,7 +124,7 @@
                 终止
               </el-button>
               <el-button
-                v-if="(row.status === '已批准' || row.status === 'approved') && isAdmin"
+                v-if="(row.status === '已批准' || row.status === 'approved') && canDistribute"
                 size="small"
                 type="success"
                 @click="$emit('distribute', row, 'businessTrip')"
@@ -208,7 +208,7 @@
               终止
             </el-button>
             <el-button
-              v-if="(row.status === '已批准' || row.status === 'approved') && isAdmin"
+              v-if="(row.status === '已批准' || row.status === 'approved') && canDistribute"
               size="small"
               type="success"
               @click="$emit('distribute', row, 'businessTrip')"
@@ -252,6 +252,7 @@ const router = useRouter()
 
 const props = defineProps<{
   isAdmin: boolean
+  canDistribute: boolean
   currentUser: string
   searchKeyword: string
   viewMode: string
@@ -319,7 +320,7 @@ const loadBusinessTripRecords = async () => {
     const response = await getBusinessTrips()
     if (response.success && response.data && response.data.list) {
       const filteredData = response.data.list.filter((item: any) => {
-        return extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value)
+        return extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':'))
       })
       businessTripRecords.value = filteredData.map((item: any) => {
         let destination = item.destination ? String(item.destination) : ''
