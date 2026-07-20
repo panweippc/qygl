@@ -149,7 +149,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="项目数">
-          <el-input v-model.number="editForm.projectCount" type="number" placeholder="请输入项目数" />
+          <el-input :model-value="editForm.projectCount" disabled />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -193,7 +193,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Edit, Delete, Link } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getProjects, addProjectApplication, deleteProjectCategory, updateProjectCategory, updateProjectDetail, getEmployees } from '../services/api'
+import { getProjects, addProjectApplication, deleteProjectCategory, updateProjectCategory, updateProjectDetail, updateProjectManager, getEmployees } from '../services/api'
 
 const router = useRouter()
 
@@ -380,19 +380,26 @@ const updateCategory = async () => {
   try {
     // 如果分类名称发生了变化，更新所有该分类下项目的类型
     if (editForm.value.originalName !== editForm.value.name) {
-      // 调用API更新项目类型
       const updateResponse = await updateProjectCategory({
         oldType: editForm.value.originalName,
         newType: editForm.value.name
       });
-      
       if (!updateResponse.success) {
         ElMessage.error('编辑项目分类失败')
         return;
       }
     }
     
-    // 重新加载数据
+    const projectType = editForm.value.originalName !== editForm.value.name ? editForm.value.name : editForm.value.originalName
+    const managerResponse = await updateProjectManager({
+      projectType,
+      manager: editForm.value.manager
+    })
+    if (!managerResponse.success) {
+      ElMessage.error('更新负责人失败')
+      return;
+    }
+    
     await loadCategories()
     editDialogVisible.value = false
     ElMessage.success('项目分类编辑成功')

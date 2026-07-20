@@ -4,7 +4,7 @@
       <h3 class="subsection-title">权限分配</h3>
       <div class="role-selector">
         <span class="selector-label">选择角色</span>
-        <el-select v-model="selectedRoleId" placeholder="请选择角色" @change="loadRolePermissions">
+        <el-select v-model="localRoleId" placeholder="请选择角色" @change="loadRolePermissions">
           <el-option v-for="role in roles" :key="role.id" :label="role.name" :value="role.id" />
         </el-select>
       </div>
@@ -28,13 +28,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, watch, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 
+const props = defineProps<{ selectedRoleId: number | null }>()
 const roles = ref<any[]>([])
 const menus = ref<any[]>([])
 const menuTree = ref<any[]>([])
-const selectedRoleId = ref<number | null>(null)
+const localRoleId = ref<number | null>(null)
 const permissionTree = ref<any>(null)
 const permissionLoading = ref(false)
 const saving = ref(false)
@@ -63,10 +64,10 @@ async function fetchMenus() {
 }
 
 async function loadRolePermissions() {
-  if (!selectedRoleId.value) return
+  if (!localRoleId.value) return
   permissionLoading.value = true
   try {
-    const res = await fetch(`/api/roles/${selectedRoleId.value}/permissions`)
+    const res = await fetch(`/api/roles/${localRoleId.value}/permissions`)
     const json = await res.json()
     if (json.success) {
       await nextTick()
@@ -91,13 +92,13 @@ function clearAll() { permissionTree.value?.setCheckedKeys([]) }
 function handlePermissionChange() {}
 
 async function savePermissions() {
-  if (!selectedRoleId.value) { ElMessage.warning('请先选择角色'); return }
+  if (!localRoleId.value) { ElMessage.warning('请先选择角色'); return }
   saving.value = true
   try {
     const checkedKeys = permissionTree.value?.getCheckedKeys() || []
     const halfCheckedKeys = permissionTree.value?.getHalfCheckedKeys() || []
     const allKeys = [...new Set([...checkedKeys, ...halfCheckedKeys])]
-    await fetch(`/api/roles/${selectedRoleId.value}/permissions`, {
+    await fetch(`/api/roles/${localRoleId.value}/permissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ menuIds: allKeys })
@@ -110,7 +111,22 @@ async function savePermissions() {
   }
 }
 
-onMounted(() => { fetchRoles(); fetchMenus() })
+watch(() => props.selectedRoleId, (val) => {
+  if (val && val !== localRoleId.value) {
+    localRoleId.value = val
+    loadRolePermissions()
+  }
+})
+
+onMounted(async () => {
+  await fetchRoles()
+  await fetchMenus()
+  if (props.selectedRoleId) {
+    localRoleId.value = props.selectedRoleId
+    await nextTick()
+    loadRolePermissions()
+  }
+})
 </script>
 
 <style scoped>

@@ -143,6 +143,11 @@ export const updateProjectDetail = async (id: number, data: { project_name: stri
   return response.data;
 };
 
+export const updateProjectManager = async (data: { projectType: string; manager: string }): Promise<ApiResponse> => {
+  const response = await api.put('/projects/update-manager', data);
+  return response.data;
+};
+
 export const deleteProject = async (id: number): Promise<ApiResponse> => {
   const response = await api.delete(`/projects/${id}`);
   return response.data;

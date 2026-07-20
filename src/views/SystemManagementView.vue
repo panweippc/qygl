@@ -42,10 +42,10 @@
           </div>
 
           <div class="tab-content">
-            <RoleManagementTab v-show="activeTab === 'roles'" />
+            <RoleManagementTab v-show="activeTab === 'roles'" @assign-permissions="handleAssignPermissions" />
             <UserManagementTab v-show="activeTab === 'users'" />
             <MenuManagementTab v-show="activeTab === 'menus'" />
-            <PermissionManagementTab v-show="activeTab === 'permissions'" />
+            <PermissionManagementTab v-show="activeTab === 'permissions'" :selected-role-id="selectedRoleId" />
           </div>
         </div>
       </div>
@@ -69,9 +69,15 @@ import PermissionManagementTab from '../components/PermissionManagementTab.vue'
 
 const router = useRouter()
 const activeTab = ref('roles')
+const selectedRoleId = ref<number | null>(null)
 
 function handleBack() {
   router.push('/')
+}
+
+function handleAssignPermissions(role: any) {
+  selectedRoleId.value = role.id
+  activeTab.value = 'permissions'
 }
 </script>
 
