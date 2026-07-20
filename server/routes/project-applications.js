@@ -256,6 +256,31 @@ router.delete('/projects/:id', async (req, res) => {
   }
 });
 
+// 批量更新项目负责人（按项目类型）-- 必须在 /:id 路由之前
+router.put('/projects/update-manager', async (req, res) => {
+  const { pool } = req.app.locals;
+  try {
+    const { projectType, manager } = req.body;
+    if (!projectType || !manager) {
+      return res.status(400).json({ success: false, message: '缺少参数' });
+    }
+    await pool.execute(
+      "UPDATE project_applications SET applicant_name = ?, updated_at = NOW() WHERE project_type = ?",
+      [manager, projectType]
+    );
+    await createOperationLog(pool, {
+      username: req.body.operator || '系统',
+      action: 'update',
+      module: 'project',
+      targetName: `项目分类"${projectType}"负责人变更为${manager}`,
+    });
+    res.json({ success: true, message: '项目负责人更新成功' });
+  } catch (error) {
+    console.error('更新项目负责人失败:', error);
+    res.status(500).json({ success: false, message: '更新项目负责人失败' });
+  }
+});
+
 // 更新项目申请
 router.put('/projects/:id', async (req, res) => {
   const { pool } = req.app.locals;
@@ -280,31 +305,6 @@ router.put('/projects/:id', async (req, res) => {
     res.json({ success: true, message: '项目更新成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// 批量更新项目负责人（按项目类型）
-router.put('/projects/update-manager', async (req, res) => {
-  const { pool } = req.app.locals;
-  try {
-    const { projectType, manager } = req.body;
-    if (!projectType || !manager) {
-      return res.status(400).json({ success: false, message: '缺少参数' });
-    }
-    await pool.execute(
-      "UPDATE project_applications SET applicant_name = ?, updated_at = NOW() WHERE project_type = ?",
-      [manager, projectType]
-    );
-    await createOperationLog(pool, {
-      username: req.body.operator || '系统',
-      action: 'update',
-      module: 'project',
-      targetName: `项目分类"${projectType}"负责人变更为${manager}`,
-    });
-    res.json({ success: true, message: '项目负责人更新成功' });
-  } catch (error) {
-    console.error('更新项目负责人失败:', error);
-    res.status(500).json({ success: false, message: '更新项目负责人失败' });
   }
 });
 

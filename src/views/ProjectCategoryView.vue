@@ -74,6 +74,9 @@
                       <el-button size="small" @click="editProject(project)" class="action-btn">
                         <el-icon><Edit /></el-icon>
                       </el-button>
+                      <el-button size="small" @click="deleteProject(project)" class="action-btn delete">
+                        <el-icon><Delete /></el-icon>
+                      </el-button>
                     </div>
                   </li>
                   </ul>
@@ -193,7 +196,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Edit, Delete, Link } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getProjects, addProjectApplication, deleteProjectCategory, updateProjectCategory, updateProjectDetail, updateProjectManager, getEmployees } from '../services/api'
+import { getProjects, addProjectApplication, deleteProject, deleteProjectCategory, updateProjectCategory, updateProjectDetail, updateProjectManager, getEmployees } from '../services/api'
 
 const router = useRouter()
 
@@ -483,6 +486,27 @@ const updateProject = async () => {
   } catch (error) {
     console.error('编辑项目失败:', error)
     ElMessage.error('编辑项目失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const deleteProject = async (project: Project) => {
+  try {
+    await ElMessageBox.confirm(`确定要删除项目"${project.project_name}"吗？`, '确认删除', { type: 'warning' })
+    loading.value = true
+    const response = await deleteProject(project.id)
+    if (response.success) {
+      await loadCategories()
+      ElMessage.success('项目删除成功')
+    } else {
+      ElMessage.error('删除项目失败')
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      console.error('删除项目失败:', error)
+      ElMessage.error('删除项目失败')
+    }
   } finally {
     loading.value = false
   }
