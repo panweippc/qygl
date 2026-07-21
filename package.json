@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "nodemon server.js",
+    "dev:all": "start cmd /c \"vite\" && start cmd /c \"nodemon server.js\""
   },
   "dependencies": {
     "axios": "0.27.2",
@@ -15,6 +17,7 @@
     "element-plus": "2.2.15",
     "express": "^4.18.2",
     "lowdb": "^2.1.0",
+    "mammoth": "^1.12.0",
     "multer": "^2.2.0",
     "mysql2": "^2.3.3",
     "pinia": "2.0.14",
@@ -26,6 +29,8 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "2.3.1",
+    "concurrently": "^9.2.4",
+    "nodemon": "^3.1.14",
     "typescript": "4.5.4",
     "vite": "2.6.14"
   }

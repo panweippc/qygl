@@ -14,7 +14,7 @@ const router = express.Router();
 router.get('/projects', async (req, res) => {
   try {
     const { pool } = req.app.locals;
-    const { applicant, status, page = 1, pageSize = 10 } = req.query;
+    const { applicant, status } = req.query;
 
     let sql = 'SELECT * FROM project_applications WHERE 1=1';
     const params = [];
@@ -29,10 +29,16 @@ router.get('/projects', async (req, res) => {
       params.push(status);
     }
 
-    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    const pageSizeInt = parseInt(pageSize, 10);
-    const offset = (parseInt(page, 10) - 1) * pageSizeInt;
-    params.push(pageSizeInt, offset);
+    sql += ' ORDER BY created_at DESC';
+
+    // 仅当明确提供了 pageSize 参数时才分页
+    const hasPagination = req.query.pageSize !== undefined;
+    if (hasPagination) {
+      const page = parseInt(req.query.page, 10) || 1;
+      const pageSize = parseInt(req.query.pageSize, 10) || 10;
+      sql += ' LIMIT ? OFFSET ?';
+      params.push(pageSize, (page - 1) * pageSize);
+    }
 
     const [projects] = await pool.query(sql, params);
 
@@ -61,32 +67,31 @@ router.get('/projects', async (req, res) => {
       updated_at: project.updated_at || new Date()
     }));
 
-    let countSql = 'SELECT COUNT(*) as total FROM project_applications WHERE 1=1';
-    const countParams = [];
+    const responseData = { list: formattedProjects };
 
-    if (applicant) {
-      countSql += ' AND applicant_name = ?';
-      countParams.push(applicant);
-    }
+    if (hasPagination) {
+      let countSql = 'SELECT COUNT(*) as total FROM project_applications WHERE 1=1';
+      const countParams = [];
 
-    if (status) {
-      countSql += ' AND status = ?';
-      countParams.push(status);
-    }
-
-    const [countResult] = await pool.query(countSql, countParams);
-
-    res.json({
-      success: true,
-      data: {
-        list: formattedProjects,
-        pagination: {
-          page: parseInt(page),
-          pageSize: parseInt(pageSize),
-          total: countResult[0].total
-        }
+      if (applicant) {
+        countSql += ' AND applicant_name = ?';
+        countParams.push(applicant);
       }
-    });
+
+      if (status) {
+        countSql += ' AND status = ?';
+        countParams.push(status);
+      }
+
+      const [countResult] = await pool.query(countSql, countParams);
+      responseData.pagination = {
+        page: parseInt(req.query.page, 10) || 1,
+        pageSize: parseInt(req.query.pageSize, 10) || 10,
+        total: countResult[0].total
+      };
+    }
+
+    res.json({ success: true, data: responseData });
   } catch (error) {
     console.error('获取项目申请列表失败:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -239,6 +244,32 @@ router.delete('/projects/:id', async (req, res) => {
     res.json({ success: true, message: '项目删除成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 批量更新项目负责人（按项目类型）-- 必须在 /:id 路由之前
+router.put('/projects/update-manager', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const { projectType, manager } = req.body;
+    if (!projectType || !manager) {
+      return res.status(400).json({ success: false, message: '缺少参数' });
+    }
+    await pool.query(
+      "UPDATE project_applications SET applicant_name = ?, updated_at = NOW() WHERE project_type = ?",
+      [manager, projectType]
+    );
+    const { createOperationLog } = await import('../utils/audit.js');
+    await createOperationLog(pool, {
+      username: req.body.operator || '系统',
+      action: 'update',
+      module: 'project',
+      targetName: `项目分类"${projectType}"负责人变更为${manager}`,
+    });
+    res.json({ success: true, message: '项目负责人更新成功' });
+  } catch (error) {
+    console.error('更新项目负责人失败:', error);
+    res.status(500).json({ success: false, message: '更新项目负责人失败' });
   }
 });
 

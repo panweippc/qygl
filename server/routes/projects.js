@@ -73,6 +73,27 @@ router.put('/project-categories/update-type', async (req, res) => {
   }
 });
 
+router.delete('/:id', async (req, res) => {
+  const { id } = req.params;
+  const { pool } = req.app.locals;
+  try {
+    const [rows] = await pool.execute('SELECT name FROM projects WHERE id = ?', [id]);
+    const projectName = rows.length > 0 ? rows[0].name : id;
+    await pool.execute('DELETE FROM projects WHERE id = ?', [id]);
+    await createOperationLog(pool, {
+      username: req.body.operator || '系统',
+      action: 'delete',
+      module: 'project',
+      targetName: projectName,
+      detail: `删除项目: ${projectName}`
+    });
+    res.json({ success: true, message: '项目删除成功' });
+  } catch (error) {
+    console.error('删除项目失败:', error);
+    res.status(500).json({ success: false, message: '删除项目失败' });
+  }
+});
+
 router.put('/project-categories/:id', async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;

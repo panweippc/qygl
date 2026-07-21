@@ -74,7 +74,7 @@
                       <el-button size="small" @click="editProject(project)" class="action-btn">
                         <el-icon><Edit /></el-icon>
                       </el-button>
-                      <el-button size="small" @click="deleteProject(project)" class="action-btn delete">
+                      <el-button size="small" @click="handleDeleteProject(project)" class="action-btn delete">
                         <el-icon><Delete /></el-icon>
                       </el-button>
                     </div>
@@ -491,7 +491,7 @@ const updateProject = async () => {
   }
 }
 
-const deleteProject = async (project: Project) => {
+const handleDeleteProject = async (project: Project) => {
   try {
     await ElMessageBox.confirm(`确定要删除项目"${project.project_name}"吗？`, '确认删除', { type: 'warning' })
     loading.value = true

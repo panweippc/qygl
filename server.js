@@ -11,7 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const port = 3005;
+const port = process.env.PORT || 3005;
 
 // 跟踪用户登录状态，用于单设备登录限制
 const userSessions = new Map(); // 键: 用户名, 值: socket.id
@@ -43,6 +43,7 @@ import notificationsRouter from './server/routes/notifications.js';
 import operationLogsRouter from './server/routes/operation-logs.js';
 import uploadRouter from './server/routes/upload.js';
 import entertainmentRouter from './server/routes/entertainment.js';
+import salesImportRouter from './server/routes/sales-import.js';
 
 // 启用CORS
 
@@ -107,6 +108,7 @@ app.use('/api', notificationsRouter);
 app.use('/api', operationLogsRouter);
 app.use('/api', uploadRouter);
 app.use('/api', entertainmentRouter);
+app.use('/api', salesImportRouter);
 app.use('/uploads', express.static('uploads'));
 
 // 创建数据库连接池

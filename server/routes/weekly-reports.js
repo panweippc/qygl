@@ -2,6 +2,12 @@ import express from 'express';
 import { createOperationLog } from '../utils/audit.js';
 const router = express.Router();
 
+const localNow = () => {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
+
 router.get('/weekly-reports', async (req, res) => {
   try {
     const { pool } = req.app.locals;
@@ -24,7 +30,7 @@ router.post('/weekly-reports', async (req, res) => {
     const filesJson = files ? JSON.stringify(files) : null;
     await pool.execute(
       'INSERT INTO weeklyReports (title, content, plan, files, userId, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [title, content, plan || '', filesJson, userId, date || null, new Date().toISOString().replace('T', ' ').replace('Z', '')]
+      [title, content, plan || '', filesJson, userId, date || null, localNow()]
     );
     await createOperationLog(pool, {
       username: req.body.operator || req.body.applicant || '系统',

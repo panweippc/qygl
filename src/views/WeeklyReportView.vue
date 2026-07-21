@@ -58,6 +58,7 @@
                     <td class="table-label">上传附件</td>
                     <td>
                       <el-upload
+                        ref="uploadRef"
                         class="upload-demo"
                         action="#"
                         :on-change="handleFileChange"
@@ -68,12 +69,17 @@
                         <el-icon><Plus /></el-icon>
                         <template #file="{ file }">
                           <div class="file-item">
-                            <img :src="file.url" alt="" class="file-preview" />
-                            <div class="file-info">
-                              <span class="file-name">{{ file.name }}</span>
+                            <div class="file-actions-bar">
                               <el-icon class="file-delete" @click="handleFileRemove(file)">
                                 <Delete />
                               </el-icon>
+                            </div>
+                            <div class="file-preview-wrap">
+                              <img v-if="file.type && file.type.startsWith('image/')" :src="file.url" alt="" class="file-preview" />
+                              <div v-else class="file-icon-placeholder">
+                                <el-icon class="file-type-icon"><Document /></el-icon>
+                                <span class="file-type-name">{{ file.name }}</span>
+                              </div>
                             </div>
                           </div>
                         </template>
@@ -123,11 +129,13 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { Plus, Delete, Document, Picture } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getWeeklyReports, addWeeklyReport, getEmployees } from '../services/api'
 
 const router = useRouter()
+
+const uploadRef = ref<any>(null)
 
 const handleBack = () => {
   // 返回上一�?
@@ -204,7 +212,7 @@ const availableMonths = computed(() => {
   
   // 生成�?月到12月的选项
   for (let month = 1; month <= 12; month++) {
-    const monthLabel = `${year}�?{month}月`
+    const monthLabel = `${year}年${month}月`
     months.push({
       label: monthLabel,
       value: monthLabel
@@ -283,7 +291,7 @@ const loadReports = async () => {
           const reportDate = new Date(report.createdAt)
           const year = reportDate.getFullYear()
           const month = reportDate.getMonth() + 1
-          date = `${year}�?{month}月`
+          date = `${year}年${month}月`
         }
         return {
           ...report,
@@ -303,21 +311,9 @@ const loadReports = async () => {
   }
 }
 
-// 监听月份选择变化，自动更新标�?
 watch(selectedMonth, (newMonth) => {
   if (newMonth) {
-    // 提取月份信息，如 "2026�?�?
-    const monthInfo = newMonth
-    // 检查标题是否已经包含月份信�?
-    if (!currentReport.value.title.startsWith(monthInfo)) {
-      // 如果标题为空，直接设置为月份信息
-      if (!currentReport.value.title) {
-        currentReport.value.title = monthInfo
-      } else {
-        // 如果标题不为空，在前面添加月份信�?
-        currentReport.value.title = monthInfo + ' ' + currentReport.value.title
-      }
-    }
+    currentReport.value.title = newMonth
   }
 })
 
@@ -332,9 +328,18 @@ const handleFileChange = (file: any) => {
 }
 
 const handleFileRemove = (file: any) => {
-  const index = currentReport.value.files.findIndex(item => item.uid === file.uid)
-  if (index !== -1) {
-    currentReport.value.files.splice(index, 1)
+  try {
+    uploadRef.value?.handleRemove(file)
+  } catch {
+    const index = currentReport.value.files.findIndex(item => item.uid === file.uid)
+    if (index !== -1) {
+      currentReport.value.files.splice(index, 1)
+    } else {
+      const nameIndex = currentReport.value.files.findIndex(item => item.name === file.name)
+      if (nameIndex !== -1) {
+        currentReport.value.files.splice(nameIndex, 1)
+      }
+    }
   }
 }
 
@@ -345,30 +350,42 @@ const getCurrentUserId = (): number => {
   return userIdStr ? parseInt(userIdStr) : 0
 }
 
+const uploadFile = async (file: any): Promise<{name: string, url: string, type: string, size: number}> => {
+  if (file.raw) {
+    const formData = new FormData()
+    formData.append('file', file.raw, encodeURIComponent(file.name))
+    const response = await fetch('/api/upload', { method: 'POST', body: formData })
+    const data = await response.json()
+    if (data.success && data.data.length > 0) {
+      return {
+        name: data.data[0].name,
+        url: data.data[0].url,
+        type: file.type || '',
+        size: file.size || 0
+      }
+    }
+  }
+  return { name: file.name || '', url: file.url || '', type: file.type || '', size: file.size || 0 }
+}
+
 const submitReports = async () => {
   loading.value = true
   try {
     const currentUserId = getCurrentUserId()
     
-    // 只提交有内容的周�?
     if (currentReport.value.title || currentReport.value.files.length > 0) {
       try {
-        // 处理文件数据，只发送必要的属�?
-        const processedFiles = currentReport.value.files.map(file => ({
-          name: file.name,
-          url: file.url,
-          type: file.type,
-          size: file.size
-        }));
+        // 先上传所有文件到服务器，获取永久 URL
+        const uploadPromises = currentReport.value.files.map(file => uploadFile(file))
+        const processedFiles = await Promise.all(uploadPromises)
         
-        console.log('提交周报数据:', {
+        console.log('提交月报数据:', {
           title: currentReport.value.title,
           files: processedFiles,
           userId: currentUserId,
           date: selectedMonth.value
         });
         
-        // 调用API提交周报，使用当前登录用户的ID
         const response = await addWeeklyReport({
           title: currentReport.value.title,
           content: '',
@@ -381,17 +398,9 @@ const submitReports = async () => {
         console.log('上传响应:', response);
         
         if (response.success) {
-          // 重新加载数据
           await loadReports()
-          
-          // 重置表单
-          currentReport.value = {
-            title: '',
-            content: '',
-            plan: '',
-            files: []
-          };
-          
+          currentReport.value = { title: '', content: '', plan: '', files: [] };
+          selectedMonth.value = ''
           ElMessage.success('成功上传月报')
         } else {
           ElMessage.error('上传月报失败')
@@ -688,13 +697,46 @@ const navigateToHistory = () => {
 
 .file-item {
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 100%;
+  height: 180px;
   border-radius: 8px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(100, 149, 237, 0.3);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.file-actions-bar {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+}
+
+.file-delete {
+  color: #d32f2f;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s;
+}
+
+.file-delete:hover {
+  background: #d32f2f;
+  color: #fff;
+}
+
+.file-preview-wrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .file-preview {
@@ -703,32 +745,30 @@ const navigateToHistory = () => {
   object-fit: cover;
 }
 
-.file-info {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 4px;
+.file-icon-placeholder {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  border-top: 1px solid rgba(100, 149, 237, 0.2);
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  text-align: center;
 }
 
-.file-name {
-  color: #333;
+.file-type-icon {
+  font-size: 48px;
+  color: #6495ED;
+}
+
+.file-type-name {
   font-size: 12px;
-  white-space: nowrap;
+  color: #666;
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-}
-
-.file-delete {
-  color: #d32f2f;
-  cursor: pointer;
-  font-size: 14px;
+  max-width: 100%;
 }
 
 .submit-btn {

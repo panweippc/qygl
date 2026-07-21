@@ -54,63 +54,78 @@
         <div class="history-section">
           <h3 class="section-subtitle">{{ isAdmin || isGeneralManager ? '所有用户月报' : '我的历史月报' }}</h3>
           <div class="history-list">
-            <div v-for="report in filteredReports" :key="report.id" class="report-item">
-              <div class="report-header">
-                <h4 class="report-title">{{ report.title }}</h4>
-                <div class="report-meta">
-                  <span class="report-date">{{ report.date }}</span>
-                  <span v-if="isAdmin || isGeneralManager" class="report-employee">{{ getEmployeeName(report.userId) }}</span>
-                </div>
-              </div>
-              <!-- 显示附件 -->
-              <div v-if="report.files && report.files.length > 0" class="report-files">
-                <h5 class="files-title">附件:</h5>
-                <div class="files-list">
-                  <div v-for="(file, index) in report.files" :key="index" class="file-item">
-                    <el-image
-                      v-if="file.url && (file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/gif')"
-                      :src="file.url"
-                      class="file-preview"
-                      fit="cover"
-                      @click="previewFile(file)"
-                      style="cursor: pointer"
-                    />
-                    <div v-else class="file-placeholder" @click="previewFile(file)">
-                      <el-icon><Document /></el-icon>
-                    </div>
-                    <div class="file-actions">
-                      <span class="file-name">{{ file.name }}</span>
-                      <div class="file-buttons">
-                        <el-button 
-                          size="small" 
-                          @click="previewFile(file)" 
-                          class="view-btn"
-                          :icon="View"
-                        >
-                          预览
-                        </el-button>
-                        <el-button 
-                          size="small" 
-                          @click="downloadFile(file)" 
-                          class="download-btn"
-                          :icon="Download"
-                        >
-                          下载
-                        </el-button>
+            <template v-if="Object.keys(groupedReports).length > 0">
+              <div v-for="(reports, title) in groupedReports" :key="title" class="month-group">
+                <div class="month-group-title">{{ title }}</div>
+                <div v-for="report in reports" :key="report.id" class="report-item">
+                  <div class="report-meta-group">
+                    <span class="report-date-label">{{ report.date || '' }}</span>
+                    <span v-if="isAdmin || isGeneralManager" class="report-employee">{{ getEmployeeName(report.userId) }}</span>
+                    <span class="report-time">{{ report.createdAt || '' }}</span>
+                  </div>
+                  <div v-if="report.content" class="report-content">{{ report.content }}</div>
+                  <div v-if="report.plan" class="report-plan">计划: {{ report.plan }}</div>
+                  <!-- 显示附件 -->
+                  <div v-if="report.files && report.files.length > 0" class="report-files">
+                    <h5 class="files-title">附件:</h5>
+                    <div class="files-list">
+                      <div v-for="(file, index) in report.files" :key="index" class="file-item">
+                        <el-image
+                          v-if="file.url && (file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/gif')"
+                          :src="file.url"
+                          class="file-preview"
+                          fit="cover"
+                          @click="previewFile(file)"
+                          style="cursor: pointer"
+                        />
+                        <div v-else class="file-placeholder" @click="previewFile(file)">
+                          <el-icon><Document /></el-icon>
+                        </div>
+                        <div class="file-actions">
+                          <span class="file-name">{{ file.name }}</span>
+                          <div class="file-buttons">
+                            <el-button 
+                              v-if="canPreview(file)"
+                              size="small" 
+                              @click="previewFile(file)" 
+                              class="view-btn"
+                              :icon="View"
+                            >
+                              预览
+                            </el-button>
+                            <el-button 
+                              size="small" 
+                              @click="downloadFile(file)" 
+                              class="download-btn"
+                              :icon="Download"
+                            >
+                              下载
+                            </el-button>
+                            <el-button
+                              v-if="isCurrentUserReport(report) || isAdmin || isGeneralManager"
+                              size="small"
+                              @click="removeFileFromReport(report, file)"
+                              class="remove-btn"
+                              :icon="Delete"
+                            >
+                              撤回
+                            </el-button>
+                          </div>
+                        </div>
                       </div>
+                    </div>
+                  </div>
+                  <div class="report-footer">
+                    <div v-if="isCurrentUserReport(report)" class="report-actions">
+                      <el-button size="small" @click="editReport(report)" class="edit-btn">
+                        编辑
+                      </el-button>
                     </div>
                   </div>
                 </div>
               </div>
-              <div class="report-footer">
-                <div v-if="isCurrentUserReport(report)" class="report-actions">
-                  <el-button size="small" @click="editReport(report)" class="edit-btn">
-                    编辑
-                  </el-button>
-                </div>
-              </div>
-            </div>
-            <div v-if="filteredReports.length === 0" class="empty-state">
+            </template>
+            <div v-else class="empty-state">
               暂无月报数据
             </div>
           </div>
@@ -127,8 +142,15 @@
             <el-form-item label="月报标题">
               <el-input v-model="editForm.title" placeholder="请输入标题" />
             </el-form-item>
+            <el-form-item label="本月内容">
+              <el-input v-model="editForm.content" type="textarea" :rows="3" placeholder="请输入本月工作内容" />
+            </el-form-item>
+            <el-form-item label="下月计划">
+              <el-input v-model="editForm.plan" type="textarea" :rows="3" placeholder="请输入下月工作计划" />
+            </el-form-item>
             <el-form-item label="上传附件">
               <el-upload
+                ref="editUploadRef"
                 class="upload-demo"
                 action="#"
                 :on-change="handleFileChange"
@@ -140,15 +162,17 @@
                 <el-icon><Plus /></el-icon>
                 <template #file="{ file }">
                   <div class="file-item">
-                    <img v-if="file.url" :src="file.url" alt="" class="file-preview" />
-                    <div v-else class="file-placeholder">
-                      <el-icon><Document /></el-icon>
-                    </div>
-                    <div class="file-info">
-                      <span class="file-name">{{ file.name }}</span>
+                    <div class="file-actions-bar">
                       <el-icon class="file-delete" @click.stop="handleFileRemove(file)">
                         <Delete />
                       </el-icon>
+                    </div>
+                    <div class="file-preview-wrap">
+                      <img v-if="file.url && file.type && file.type.startsWith('image/')" :src="file.url" alt="" class="file-preview" />
+                      <div v-else class="file-icon-placeholder">
+                        <el-icon class="file-type-icon"><Document /></el-icon>
+                        <span class="file-type-name">{{ file.name }}</span>
+                      </div>
                     </div>
                   </div>
                 </template>
@@ -187,12 +211,20 @@
             <div v-else-if="previewFileData.type === 'application/pdf'" class="pdf-preview">
               <iframe :src="previewFileData.url" frameborder="0" width="100%" height="500px"></iframe>
             </div>
+            <!-- Word文档预览（doc/docx） -->
+            <div v-else-if="previewDocContent !== ''" class="doc-preview">
+              <div class="doc-toolbar">
+                <span class="doc-name">{{ previewFileData.name }}</span>
+                <el-button size="small" @click="downloadFile(previewFileData)" :icon="Download">下载</el-button>
+              </div>
+              <div class="doc-content" v-html="previewDocContent"></div>
+            </div>
             <!-- 其他文件类型 -->
             <div v-else class="other-preview">
               <div class="file-icon">
                 <el-icon><Document /></el-icon>
               </div>
-              <p>该文件类型无法直接预览</p>
+              <p>该文件类型无法直接预览，请下载后查看</p>
               <el-button type="primary" @click="downloadFile(previewFileData)">
                 下载文件
               </el-button>
@@ -217,13 +249,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElImage } from 'element-plus'
+import { ElMessage, ElMessageBox, ElImage } from 'element-plus'
 import { Plus, Delete, Document, Download, View } from '@element-plus/icons-vue'
 import { getWeeklyReports, getEmployees, updateWeeklyReport } from '../services/api'
+import * as mammoth from 'mammoth'
 
 const router = useRouter()
+const editUploadRef = ref<any>(null)
 
 const handleBack = () => {
   // 返回上一�?
@@ -310,13 +344,9 @@ const editForm = ref<{
 
 // 预览相关状�?
 const previewVisible = ref(false)
-const previewFileData = ref({
-  name: '',
-  url: '',
-  type: '',
-  size: 0
-})
+const previewFileData = ref<any>({ name: '', url: '', type: '', size: 0 })
 const previewFileContent = ref('')
+const previewDocContent = ref('')
 
 // 处理文件添加
 const handleFileChange = (file: any) => {
@@ -325,9 +355,18 @@ const handleFileChange = (file: any) => {
 
 // 处理文件删除
 const handleFileRemove = (file: any) => {
-  const index = editForm.value.files.findIndex(item => item.uid === file.uid)
-  if (index !== -1) {
-    editForm.value.files.splice(index, 1)
+  try {
+    editUploadRef.value?.handleRemove(file)
+  } catch {
+    const index = editForm.value.files.findIndex(item => item.uid === file.uid)
+    if (index !== -1) {
+      editForm.value.files.splice(index, 1)
+    } else {
+      const nameIndex = editForm.value.files.findIndex(item => item.name === file.name)
+      if (nameIndex !== -1) {
+        editForm.value.files.splice(nameIndex, 1)
+      }
+    }
   }
 }
 
@@ -341,6 +380,36 @@ const getCurrentUserId = (): number => {
 // 判断是否是当前用户的月报
 const isCurrentUserReport = (report: Report): boolean => {
   return report.userId === getCurrentUserId()
+}
+
+// 从月报中撤回附件
+const removeFileFromReport = async (report: Report, file: any) => {
+  ElMessageBox.confirm(`确定要撤回附件"${file.name}"吗？`, '确认撤回', {
+    type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消'
+  }).then(async () => {
+    const newFiles = (report.files || []).filter((f: any) => f.name !== file.name)
+    if (newFiles.length === report.files.length) return
+    try {
+      const response = await updateWeeklyReport({
+        id: report.id,
+        title: report.title,
+        content: report.content || '',
+        plan: report.plan || '',
+        files: newFiles,
+        userId: report.userId,
+        date: report.date
+      })
+      if (response.success) {
+        ElMessage.success('附件已撤回')
+        await loadReports()
+      } else {
+        ElMessage.error('撤回失败')
+      }
+    } catch (error) {
+      console.error('撤回附件失败:', error)
+      ElMessage.error('撤回失败')
+    }
+  }).catch(() => {})
 }
 
 // 根据用户ID获取用户姓名
@@ -443,6 +512,19 @@ const filteredReports = computed(() => {
   console.log('Final filtered reports:', result.length)
   return result
 })
+
+// 按标题分组月报
+const groupedReports = ref<{ [title: string]: any[] }>({})
+
+watch(filteredReports, (list) => {
+  const groups: { [title: string]: any[] } = {}
+  list.forEach(report => {
+    const t = report.title || '未命名'
+    if (!groups[t]) groups[t] = []
+    groups[t].push(report)
+  })
+  groupedReports.value = groups
+}, { immediate: true, deep: true })
 
 // 从API加载员工列表
 const loadEmployees = async () => {
@@ -614,64 +696,104 @@ const downloadFile = (file: any) => {
   }
 }
 
+// 判断文件类型是否可预览
+const canPreview = (file: any): boolean => {
+  const type = file.type || '';
+  const name = file.name || '';
+  return type.startsWith('image/') || type.startsWith('text/') ||
+    type === 'application/pdf' || type === 'application/json' || type === 'application/xml' ||
+    type === 'application/msword' ||
+    type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    name.endsWith('.doc') || name.endsWith('.docx');
+}
+
 // 预览附件
-const previewFile = (file: any) => {
-  if (file.url) {
-    // 设置预览文件数据
-    previewFileData.value = {
-      name: file.name || '未知文件',
-      url: file.url,
-      type: file.type || '',
-      size: file.size || 0
-    };
-    
-    // 对于文本类型文件，尝试读取内�?
-    if (file.type && (file.type.startsWith('text/') || file.type === 'application/json' || file.type === 'application/xml')) {
-      if (file.url.startsWith('data:')) {
-        // 对于数据URL，解码并显示内容
-        try {
-          const [header, data] = file.url.split(',');
-          const decodedData = atob(data);
-          previewFileContent.value = decodedData;
-        } catch (error) {
-          console.error('读取文件内容失败:', error);
-          previewFileContent.value = '无法读取文件内容';
-        }
-      } else {
-        // 对于普通URL，尝试通过fetch获取内容
-        fetch(file.url)
-          .then(response => response.text())
-          .then(content => {
-            previewFileContent.value = content;
-          })
-          .catch(error => {
-            console.error('读取文件内容失败:', error);
-            previewFileContent.value = '无法读取文件内容';
-          });
+const previewFile = async (file: any) => {
+  if (!file.url) {
+    ElMessage.error('文件链接不存在');
+    return;
+  }
+  if (!canPreview(file)) {
+    downloadFile(file);
+    return;
+  }
+  // 设置预览文件数据
+  previewFileData.value = {
+    name: file.name || '未知文件',
+    url: file.url,
+    type: file.type || '',
+    size: file.size || 0
+  };
+  previewDocContent.value = '';
+
+  const name = file.name || '';
+  const isDoc = name.endsWith('.doc') || name.endsWith('.docx') ||
+    file.type === 'application/msword' ||
+    file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+  if (isDoc) {
+    try {
+      const response = await fetch(file.url);
+      const arrayBuffer = await response.arrayBuffer();
+      const result = await mammoth.convertToHtml({ arrayBuffer });
+      previewDocContent.value = result.value;
+    } catch (error) {
+      console.error('文档预览失败:', error);
+      previewDocContent.value = '<p style="color:#999">文档预览失败，请下载后查看</p>';
+    }
+  } else if (file.type && (file.type.startsWith('text/') || file.type === 'application/json' || file.type === 'application/xml')) {
+    if (file.url.startsWith('data:')) {
+      try {
+        const [header, data] = file.url.split(',');
+        const decodedData = atob(data);
+        previewFileContent.value = decodedData;
+      } catch (error) {
+        console.error('读取文件内容失败:', error);
+        previewFileContent.value = '无法读取文件内容';
       }
     } else {
-      // 非文本文件，清空内容
-      previewFileContent.value = '';
+      fetch(file.url)
+        .then(response => response.text())
+        .then(content => {
+          previewFileContent.value = content;
+        })
+        .catch(error => {
+          console.error('读取文件内容失败:', error);
+          previewFileContent.value = '无法读取文件内容';
+        });
     }
-    
-    // 显示预览对话�?
-    previewVisible.value = true;
   } else {
-    ElMessage.error('文件链接不存在');
+    previewFileContent.value = '';
   }
+
+  previewVisible.value = true;
 }
 
 // 保存编辑
 const saveEdit = async () => {
   loading.value = true
   try {
-    // 构造更新数�?
+    // 将新增的文件（有raw属性的）上传到服务器
+    const uploadPromises = editForm.value.files.map(async (file: any) => {
+      if (file.raw) {
+        const formData = new FormData()
+        formData.append('file', file.raw, encodeURIComponent(file.name))
+        const response = await fetch('/api/upload', { method: 'POST', body: formData })
+        const data = await response.json()
+        if (data.success && data.data.length > 0) {
+          return { ...file, name: data.data[0].name, url: data.data[0].url }
+        }
+      }
+      return file
+    })
+    const uploadedFiles = await Promise.all(uploadPromises)
+
     const updateData = {
       id: editForm.value.id,
       title: editForm.value.title,
       content: editForm.value.content,
       plan: editForm.value.plan,
-      files: editForm.value.files,
+      files: uploadedFiles,
       userId: editForm.value.userId,
       date: editForm.value.date
     }
@@ -679,7 +801,6 @@ const saveEdit = async () => {
     if (response.success) {
       ElMessage.success('月报编辑成功')
       dialogVisible.value = false
-      // 重新加载数据
       await loadReports()
     } else {
       ElMessage.error('月报编辑失败')
@@ -983,6 +1104,28 @@ onMounted(async () => {
   border-radius: 12px;
 }
 
+.report-meta-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  color: #999;
+}
+
+.report-time {
+  color: #bbb;
+  font-size: 0.75rem;
+}
+
+.report-date-label {
+  color: #6495ED;
+  font-size: 0.75rem;
+  background: rgba(100, 149, 237, 0.1);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+
 .report-content {
   color: rgba(51, 51, 51, 0.7);
   line-height: 1.5;
@@ -994,6 +1137,20 @@ onMounted(async () => {
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid rgba(100, 149, 237, 0.2);
+}
+
+/* 月份分组样式 */
+.month-group {
+  margin-bottom: 0.5rem;
+}
+
+.month-group-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #6495ED;
+  padding: 0.5rem 0;
+  margin-bottom: 0.5rem;
+  border-bottom: 2px solid rgba(100, 149, 237, 0.3);
 }
 
 /* 附件样式 */
@@ -1023,12 +1180,13 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  max-width: 120px;
+  width: 140px;
+  flex-shrink: 0;
 }
 
 .files-list .file-preview {
-  width: 80px;
-  height: 80px;
+  width: 140px;
+  height: 100px;
   object-fit: cover;
   border-radius: 6px;
   border: 1px solid rgba(100, 149, 237, 0.3);
@@ -1042,26 +1200,54 @@ onMounted(async () => {
   box-shadow: 0 4px 15px rgba(100, 149, 237, 0.3);
 }
 
+.files-list .file-placeholder {
+  width: 140px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(100, 149, 237, 0.1);
+  color: #6495ED;
+  font-size: 32px;
+  border-radius: 6px;
+  border: 1px solid rgba(100, 149, 237, 0.3);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.files-list .file-placeholder:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.3);
+}
+
 .files-list .file-actions {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.25rem;
   width: 100%;
 }
 
 .files-list .file-name {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: rgba(51, 51, 51, 0.7);
   text-align: center;
   word-break: break-all;
-  max-width: 100px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 140px;
+  line-height: 1.2;
 }
 
 .files-list .file-buttons {
   display: flex;
-  gap: 0.25rem;
+  flex-wrap: wrap;
+  gap: 0.2rem;
   justify-content: center;
+  max-width: 140px;
 }
 
 .files-list .view-btn {
@@ -1069,8 +1255,8 @@ onMounted(async () => {
   color: #059669 !important;
   border: 1px solid rgba(16, 185, 129, 0.3) !important;
   border-radius: 4px !important;
-  font-size: 0.7rem !important;
-  padding: 0.25rem 0.5rem !important;
+  font-size: 0.65rem !important;
+  padding: 0.2rem 0.35rem !important;
   transition: all 0.3s ease !important;
 }
 
@@ -1085,8 +1271,8 @@ onMounted(async () => {
   color: #6495ED !important;
   border: 1px solid rgba(100, 149, 237, 0.3) !important;
   border-radius: 4px !important;
-  font-size: 0.7rem !important;
-  padding: 0.25rem 0.5rem !important;
+  font-size: 0.65rem !important;
+  padding: 0.2rem 0.35rem !important;
   transition: all 0.3s ease !important;
 }
 
@@ -1096,35 +1282,23 @@ onMounted(async () => {
   transform: translateY(-1px) !important;
 }
 
-.files-list .file-placeholder {
-  width: 80px;
-  height: 80px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(100, 149, 237, 0.1);
-  color: #6495ED;
-  font-size: 24px;
-  border-radius: 6px;
-  border: 1px solid rgba(100, 149, 237, 0.3);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+.files-list .remove-btn {
+  background: rgba(211, 47, 47, 0.1) !important;
+  color: #d32f2f !important;
+  border: 1px solid rgba(211, 47, 47, 0.3) !important;
+  border-radius: 4px !important;
+  font-size: 0.65rem !important;
+  padding: 0.2rem 0.35rem !important;
+  transition: all 0.3s ease !important;
 }
 
-.files-list .file-preview {
-  width: 80px;
-  height: 80px;
-  border-radius: 6px;
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  cursor: pointer;
-  transition: all 0.3s ease;
+.files-list .remove-btn:hover {
+  background: rgba(211, 47, 47, 0.2) !important;
+  box-shadow: 0 0 10px rgba(211, 47, 47, 0.3) !important;
+  transform: translateY(-1px) !important;
 }
 
-.files-list .file-preview:hover {
-  transform: scale(1.05);
-  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
-}
-
-/* 编辑对话框中的文件上传样�?*/
+/* 编辑对话框中的文件上传样式 */
 .edit-dialog .upload-demo {
   margin-top: 0.5rem;
   width: 100%;
@@ -1132,13 +1306,44 @@ onMounted(async () => {
 
 .edit-dialog .file-item {
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 120px;
+  height: 120px;
   border-radius: 8px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(100, 149, 237, 0.3);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.edit-dialog .file-actions-bar {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 10;
+}
+
+.edit-dialog .file-delete {
+  color: #d32f2f;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s;
+}
+
+.edit-dialog .file-delete:hover {
+  background: #d32f2f;
+  color: #fff;
+}
+
+.edit-dialog .file-preview-wrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .edit-dialog .file-preview {
@@ -1147,32 +1352,30 @@ onMounted(async () => {
   object-fit: cover;
 }
 
-.edit-dialog .file-info {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 4px;
+.edit-dialog .file-icon-placeholder {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  border-top: 1px solid rgba(100, 149, 237, 0.2);
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  text-align: center;
 }
 
-.edit-dialog .file-name {
-  color: #333;
-  font-size: 12px;
-  white-space: nowrap;
+.edit-dialog .file-type-icon {
+  font-size: 36px;
+  color: #6495ED;
+}
+
+.edit-dialog .file-type-name {
+  font-size: 11px;
+  color: #666;
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-}
-
-.edit-dialog .file-delete {
-  color: #d32f2f;
-  cursor: pointer;
-  font-size: 14px;
+  max-width: 100%;
 }
 
 .edit-dialog .file-placeholder {
@@ -1456,6 +1659,64 @@ onMounted(async () => {
 .other-preview p {
   color: rgba(51, 51, 51, 0.7);
   margin: 0;
+}
+
+.preview-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.preview-fallback p {
+  color: rgba(51, 51, 51, 0.6);
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.doc-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.doc-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.doc-name {
+  font-weight: 600;
+  color: #333;
+  font-size: 0.9rem;
+}
+
+.doc-content {
+  padding: 1rem;
+  max-height: 500px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  line-height: 1.8;
+}
+
+.doc-content img {
+  max-width: 100%;
+}
+
+.doc-content table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.doc-content table, .doc-content th, .doc-content td {
+  border: 1px solid #ccc;
+  padding: 6px;
 }
 
 /* 预览对话框滚动条样式 */

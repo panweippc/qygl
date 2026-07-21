@@ -35,8 +35,29 @@
           <div class="map-header">
             <h3 class="map-title">内蒙古地区销售分布</h3>
             <el-button type="primary" size="small" @click="showAddCityDialog = true">+ 添加盟市</el-button>
+            <el-button type="success" size="small" @click="showImportDialog = true">
+              导入销售记录
+            </el-button>
           </div>
           <div ref="mapRef" class="map-container"></div>
+        </div>
+
+        <!-- 盟市数据列表 -->
+        <div class="data-section">
+          <div class="data-header">
+            <h3 class="data-title">盟市数据列表</h3>
+            <span class="data-count">共 {{ cityList.length }} 个盟市</span>
+          </div>
+          <el-table :data="cityList" stripe style="width: 100%" @row-click="handleCityClick">
+            <el-table-column prop="name" label="盟市名称" min-width="160" />
+            <el-table-column prop="sales" label="销售额" min-width="120">
+              <template #default="{ row }">
+                {{ row.sales ? Number(row.sales).toLocaleString() : '0' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="customers" label="客户数" min-width="100" />
+            <el-table-column prop="counties" label="旗县数" min-width="100" />
+          </el-table>
         </div>
       </div>
     </main>
@@ -53,6 +74,39 @@
       <template #footer>
         <el-button @click="showAddCityDialog = false">取消</el-button>
         <el-button type="primary" @click="submitAddCity" :loading="submittingCity">确定添加</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 导入销售记录对话框 -->
+    <el-dialog v-model="showImportDialog" title="导入销售记录" width="600px">
+      <div class="import-tips">
+        <p>请上传 Excel 文件（.xlsx 或 .xls），表头需包含以下字段：</p>
+        <ul>
+          <li><strong>盟市名称</strong>（必填）</li>
+          <li><strong>旗县名称</strong>（必填）</li>
+          <li>联系人 / 联系电话 / 负责人</li>
+          <li>意向度（1-潜在 2-意向 3-提案 4-谈判 5-成交）</li>
+          <li>需求 / 销售额 / 客户数 / 是否成交</li>
+        </ul>
+        <p class="import-note">导入后系统将自动创建缺失的盟市和旗县，并更新销售漏斗数据。</p>
+      </div>
+      <el-upload
+        ref="uploadRef"
+        action="#"
+        :auto-upload="false"
+        :on-change="handleImportFileChange"
+        :file-list="importFileList"
+        accept=".xlsx,.xls"
+        :limit="1"
+      >
+        <el-button type="primary">选择 Excel 文件</el-button>
+        <template #tip>
+          <div class="el-upload__tip">只能上传 .xlsx / .xls 文件</div>
+        </template>
+      </el-upload>
+      <template #footer>
+        <el-button @click="showImportDialog = false">取消</el-button>
+        <el-button type="primary" @click="submitImport" :loading="importing">开始导入</el-button>
       </template>
     </el-dialog>
 
@@ -117,6 +171,58 @@ const handleBack = () => {
   router.back()
 }
 
+// 导入销售记录
+const showImportDialog = ref(false)
+const importing = ref(false)
+const importFileList = ref<any[]>([])
+const importFile = ref<File | null>(null)
+
+const handleImportFileChange = (file: any) => {
+  importFile.value = file.raw
+  importFileList.value = [file]
+}
+
+const submitImport = async () => {
+  if (!importFile.value) {
+    ElMessage.warning('请选择 Excel 文件')
+    return
+  }
+  importing.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', importFile.value)
+    const response = await fetch('/api/sales-import', { method: 'POST', body: formData })
+    const result = await response.json()
+    if (result.success) {
+      ElMessage.success(result.message)
+      showImportDialog.value = false
+      importFileList.value = []
+      importFile.value = null
+      initMap()
+      fetchCityList()
+    } else {
+      let msg = result.message || '导入失败'
+      if (result.data) {
+        const cols = result.data.detectedColumns || []
+        const hex = result.data.detectedColumnsHex || []
+        if (cols.length) msg += '。检测到列名: ' + cols.join(' | ')
+        if (hex.length) msg += ' (Hex: ' + hex.join(',') + ')'
+        if (result.data.sheets) {
+          for (const s of result.data.sheets) {
+            msg += ` | Sheet「${s.name}」${s.rows}行,列:[${s.cols.join(',')}]`
+          }
+        }
+      }
+      ElMessage.error(msg)
+    }
+  } catch (error) {
+    console.error('导入销售数据失败:', error)
+    ElMessage.error('导入失败')
+  } finally {
+    importing.value = false
+  }
+}
+
 // 获取盟市销售数据
 const fetchCitySalesData = async () => {
   try {
@@ -133,6 +239,38 @@ const fetchCitySalesData = async () => {
     console.error('获取盟市销售数据失败', error)
     return []
   }
+}
+
+const cityList = ref<any[]>([])
+
+const fetchCityList = async () => {
+  try {
+    const response = await fetch('http://localhost:3005/api/city-sales')
+    const data = await response.json()
+    if (data.success) {
+      const list = []
+      for (const city of data.data) {
+        const [countyRes] = await Promise.all([
+          fetch(`http://localhost:3005/api/county-sales/${city.id}`)
+        ])
+        const countyData = await countyRes.json()
+        list.push({
+          id: city.id,
+          name: city.name,
+          sales: city.sales,
+          customers: city.customers,
+          counties: countyData.success ? countyData.data.length : 0
+        })
+      }
+      cityList.value = list
+    }
+  } catch (error) {
+    console.error('获取盟市列表失败', error)
+  }
+}
+
+const handleCityClick = (row: any) => {
+  router.push(`/city-sales/${encodeURIComponent(row.name)}`)
 }
 
 const initMap = async () => {
@@ -256,6 +394,7 @@ const initMap = async () => {
 
 onMounted(async () => {
   await initMap()
+  fetchCityList()
 })
 </script>
 
@@ -621,8 +760,31 @@ onMounted(async () => {
 }
 
 .main-content::-webkit-scrollbar-thumb {
-  background: rgba(100, 149, 237, 0.5);
+  background: linear-gradient(135deg, #6495ED, #4169E1);
   border-radius: 4px;
+}
+
+.import-tips {
+  background: #f0f7ff;
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.import-tips ul {
+  padding-left: 1.5rem;
+  line-height: 1.8;
+}
+
+.import-tips p {
+  margin: 0.5rem 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.import-note {
+  color: #6495ED !important;
+  font-weight: 500;
 }
 
 .main-content::-webkit-scrollbar-thumb:hover {
