@@ -2,11 +2,24 @@ import express from 'express';
 import { createOperationLog } from '../utils/audit.js';
 const router = express.Router();
 
+function calcServiceFeeStatus(serviceEndTime) {
+  if (!serviceEndTime) return '待确认';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const end = new Date(serviceEndTime);
+  end.setHours(0, 0, 0, 0);
+  return end < today ? '未支付' : '已支付';
+}
+
 router.get('/closing-projects', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const [projects] = await pool.execute('SELECT * FROM closing_projects');
-    res.json({ success: true, data: projects });
+    const enriched = projects.map(p => ({
+      ...p,
+      nextYearFeeStatus: calcServiceFeeStatus(p.serviceEndTime)
+    }));
+    res.json({ success: true, data: enriched });
   } catch (error) {
     console.error('获取成交项目数据失败:', error);
     res.status(500).json({ success: false, message: '获取成交项目数据失败' });
@@ -33,8 +46,9 @@ router.post('/closing-projects', async (req, res) => {
     const formattedServiceEndTime = formatDate(serviceEndTime);
     const formattedStartDate = formattedDealTime;
 
+    const computedFeeStatus = calcServiceFeeStatus(formattedServiceEndTime);
     const query = `INSERT INTO closing_projects (name, description, status, startDate, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId, applicant, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-    const values = [name, description, status, formattedStartDate, formattedDealTime, price, formattedServiceEndTime, nextYearFeeStatus, contractFeeStatus || '未结', remainingAmount || 0, provinceId, cityId, countyId, applicant || '', new Date().toISOString().replace('T', ' ').replace('Z', '')];
+    const values = [name, description, status, formattedStartDate, formattedDealTime, price, formattedServiceEndTime, computedFeeStatus, contractFeeStatus || '未结', remainingAmount || 0, provinceId, cityId, countyId, applicant || '', new Date().toISOString().replace('T', ' ').replace('Z', '')];
 
     console.log('SQL查询:', query);
     console.log('SQL参数:', values);
@@ -65,9 +79,10 @@ router.put('/closing-projects/:id', async (req, res) => {
       return new Date(dateString).toISOString().split('T')[0];
     };
 
+    const computedFeeStatus = calcServiceFeeStatus(formatDate(serviceEndTime));
     await pool.execute(
       'UPDATE closing_projects SET name = ?, description = ?, status = ?, startDate = ?, dealTime = ?, price = ?, serviceEndTime = ?, nextYearFeeStatus = ?, contractFeeStatus = ?, remainingAmount = ?, provinceId = ?, cityId = ?, countyId = ?, applicant = ? WHERE id = ?',
-      [name, description, status, formatDate(dealTime), formatDate(dealTime), price, formatDate(serviceEndTime), nextYearFeeStatus, contractFeeStatus || '未结', remainingAmount || 0, provinceId, cityId, countyId, applicant || '', id]
+      [name, description, status, formatDate(dealTime), formatDate(dealTime), price, formatDate(serviceEndTime), computedFeeStatus, contractFeeStatus || '未结', remainingAmount || 0, provinceId, cityId, countyId, applicant || '', id]
     );
     await createOperationLog(pool, {
       username: req.body.operator || req.body.applicant || '系统',
@@ -110,7 +125,9 @@ router.get('/closing-projects/:id', async (req, res) => {
     const { pool } = req.app.locals;
     const [projects] = await pool.execute('SELECT * FROM closing_projects WHERE id = ?', [id]);
     if (projects.length > 0) {
-      res.json({ success: true, data: projects[0] });
+      const p = projects[0];
+      p.nextYearFeeStatus = calcServiceFeeStatus(p.serviceEndTime);
+      res.json({ success: true, data: p });
     } else {
       res.json({ success: false, message: '项目不存在' });
     }

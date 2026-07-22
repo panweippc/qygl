@@ -14,16 +14,8 @@
 
     <main class="main-content">
       <div class="content-wrapper">
-        <div class="breadcrumb">
-          <span class="breadcrumb-item" @click="goToLevel(0)">全国</span>
-          <span v-if="currentLevel >= 1" class="breadcrumb-separator">></span>
-          <span v-if="currentLevel >= 1" class="breadcrumb-item" @click="goToLevel(1)">{{ currentProvinceName }}</span>
-          <span v-if="currentLevel >= 2" class="breadcrumb-separator">></span>
-          <span v-if="currentLevel >= 2" class="breadcrumb-item" @click="goToLevel(2)">{{ currentCityName }}</span>
-        </div>
-
-        <div class="title-row">
-          <div class="title-with-count">
+        <div class="title-row" :class="{ 'title-row-simple': currentLevel === 0 }">
+          <div class="title-with-count" v-if="currentLevel !== 0">
             <h2 class="section-title">
               <span class="title-icon">
                 <svg viewBox="0 0 24 24" fill="currentColor">
@@ -89,6 +81,10 @@
             :name="county.name"
             :project-count="county.projectCount"
             :description="`点击查看${county.name}的项目列表`"
+            :hovered="hoveredCountyId === county.id"
+            :actions-visible="hoveredCountyId === county.id"
+            @mouseenter="hoveredCountyId = county.id"
+            @mouseleave="hoveredCountyId = null"
             @click="selectCounty(county)"
             @edit="openEditCountyDialog(county)"
             @delete="deleteCounty(county)"
@@ -158,7 +154,7 @@ const loading = ref(false)
 
 const pageTitle = computed(() => {
   switch (currentLevel.value) {
-    case 0: return '全国成交项目区划'
+    case 0: return '成交项目区划'
     case 1: return `${currentProvinceName.value} - 市级分类`
     case 2: return `${currentCityName.value} - 旗县分类`
     case 3: return `${currentCountyName.value} - 项目列表`
@@ -182,6 +178,7 @@ const counties = ref<Array<{id: number, name: string, code: string, projectCount
 const countyProjects = ref<Array<any>>([])
 
 const hoveredCityId = ref<number | null>(null)
+const hoveredCountyId = ref<number | null>(null)
 
 const addProvinceDialogVisible = ref(false)
 const addCityDialogVisible = ref(false)
@@ -714,43 +711,6 @@ onMounted(() => {
   gap: 1.5rem;
 }
 
-.breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1rem 1.25rem;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.9));
-  border-radius: 12px;
-  border: 1px solid rgba(100, 149, 237, 0.3);
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
-  margin-bottom: 2rem;
-  animation: fadeInUp 0.6s ease-out;
-}
-
-.breadcrumb-item {
-  color: #4169E1;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-weight: 500;
-  font-size: 0.95rem;
-  position: relative;
-  padding: 0.3rem 0.75rem;
-  border-radius: 6px;
-}
-
-.breadcrumb-item:hover {
-  color: #1976D2;
-  background: rgba(100, 149, 237, 0.15);
-  transform: translateY(-2px);
-  box-shadow: 0 3px 10px rgba(100, 149, 237, 0.25);
-}
-
-.breadcrumb-separator {
-  color: rgba(44, 62, 80, 0.5);
-  font-weight: 500;
-  font-size: 1.1rem;
-}
-
 .title-row {
   display: flex;
   justify-content: space-between;
@@ -868,6 +828,12 @@ onMounted(() => {
 .btn-icon {
   font-size: 1.3rem;
   font-weight: bold;
+}
+
+.title-row-simple {
+  border-bottom: none !important;
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
 }
 
 .loading-container {

@@ -83,6 +83,7 @@ router.post('/login', async (req, res) => {
       let permissions = [];
       let department = '';
       let position = '';
+      let roleName = '';
       try {
         let employeeName = user.username;
         if (user.username.startsWith('emp_')) {
@@ -91,12 +92,16 @@ router.post('/login', async (req, res) => {
             employeeName = parts[1];
           }
         }
-        const [employees] = await pool.execute('SELECT * FROM employees WHERE name = ?', [employeeName]);
+        const [employees] = await pool.execute(
+          'SELECT e.*, r.name AS roleName FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
+          [employeeName]
+        );
 
         if (employees.length > 0) {
           const employee = employees[0];
           department = employee.department;
           position = employee.position;
+          roleName = employee.roleName || '';
 
           if (employee.roleId) {
             const [rolePerms] = await pool.execute(
@@ -156,7 +161,8 @@ router.post('/login', async (req, res) => {
         ipAddress: ip
       });
 
-      res.json({ success: true, user: { ...user, permissions, department, position } });
+      const extraUserFields = { ...user, permissions, department, position, roleName };
+      res.json({ success: true, user: extraUserFields });
     } else {
       res.json({ success: false, message: '用户名或密码错误' });
     }
@@ -191,6 +197,22 @@ router.get('/user/permissions', async (req, res) => {
   } catch (error) {
     console.error('获取权限失败:', error);
     res.status(500).json({ success: false, message: '获取权限失败' });
+  }
+});
+
+router.get('/user/role', async (req, res) => {
+  const { pool } = req.app.locals;
+  const username = req.query.username;
+  if (!username) return res.json({ success: true, data: { roleName: '' } });
+  try {
+    const [employees] = await pool.execute(
+      'SELECT e.name, r.name AS roleName FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
+      [username]
+    );
+    const roleName = employees.length > 0 ? (employees[0].roleName || '') : '';
+    res.json({ success: true, data: { roleName } });
+  } catch (error) {
+    res.json({ success: true, data: { roleName: '' } });
   }
 });
 

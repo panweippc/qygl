@@ -1370,6 +1370,26 @@ const initDatabase = async () => {
       console.log('检查/添加 files 字段:', error.message);
     }
 
+    // 检查并添加阅读权限字段到知识库文章表
+    try {
+      const [permTypeCol] = await connection.execute('SHOW COLUMNS FROM knowledge_articles WHERE Field = ?', ['permission_type']);
+      if (permTypeCol.length === 0) {
+        await connection.execute("ALTER TABLE knowledge_articles ADD COLUMN permission_type VARCHAR(20) DEFAULT 'public' AFTER files");
+        console.log('knowledge_articles.permission_type 字段添加成功');
+      }
+    } catch (error) {
+      console.log('检查/添加 permission_type 字段:', error.message);
+    }
+    try {
+      const [permTargetsCol] = await connection.execute('SHOW COLUMNS FROM knowledge_articles WHERE Field = ?', ['permission_targets']);
+      if (permTargetsCol.length === 0) {
+        await connection.execute('ALTER TABLE knowledge_articles ADD COLUMN permission_targets TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER permission_type');
+        console.log('knowledge_articles.permission_targets 字段添加成功');
+      }
+    } catch (error) {
+      console.log('检查/添加 permission_targets 字段:', error.message);
+    }
+
     // 初始化知识库示例分类
     const [existingKbCategories] = await connection.execute('SELECT * FROM knowledge_categories');
     if (existingKbCategories.length === 0) {

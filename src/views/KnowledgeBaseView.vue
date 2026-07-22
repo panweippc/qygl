@@ -47,9 +47,12 @@
             <p>暂无文章，点击右上角"写文章"开始创建</p>
           </div>
           <div v-for="article in articles" :key="article.id" class="article-card" @click="openArticle(article)">
-            <div class="article-header">
-              <div class="article-title">{{ article.title }}</div>
-              <div class="article-actions" @click.stop>
+              <div class="article-header">
+                <div class="article-title">
+                  <span v-if="article.permission_type && article.permission_type !== 'public'" class="perm-lock" title="权限受限">🔒</span>
+                  {{ article.title }}
+                </div>
+                <div class="article-actions" @click.stop>
                 <el-tag size="small" class="cat-tag">{{ article.categoryName || '未分类' }}</el-tag>
                 <el-button v-if="isManager" text size="small" @click.stop="editArticle(article)">✏️</el-button>
                 <el-popconfirm v-if="isManager" title="确定删除此文章？" confirm-button-text="删除" @confirm="deleteArticle(article.id)">
@@ -104,7 +107,26 @@
           <el-input v-model="articleForm.summary" type="textarea" :rows="2" placeholder="文章摘要" />
         </el-form-item>
         <el-form-item label="内容">
-          <el-input v-model="articleForm.content" type="textarea" :rows="10" placeholder="支持 HTML 格式内容（非必填）" />
+          <div class="editor-container">
+            <QuillEditor v-model:content="articleForm.content" content-type="html" toolbar="full" :style="{ height: '350px' }" />
+          </div>
+        </el-form-item>
+        <el-form-item label="阅读权限">
+          <el-radio-group v-model="articleForm.permission_type">
+            <el-radio value="public">公开（所有人可见）</el-radio>
+            <el-radio value="role">指定角色</el-radio>
+            <el-radio value="user">指定用户</el-radio>
+          </el-radio-group>
+          <div v-if="articleForm.permission_type === 'role'" class="perm-checkboxes">
+            <el-checkbox-group v-model="articleForm.permission_targets">
+              <el-checkbox v-for="r in roleList" :key="r.name" :label="r.name">{{ r.name }}</el-checkbox>
+            </el-checkbox-group>
+          </div>
+          <div v-if="articleForm.permission_type === 'user'" class="perm-checkboxes">
+            <el-checkbox-group v-model="articleForm.permission_targets">
+              <el-checkbox v-for="u in userList" :key="u.name" :label="u.name">{{ u.name }}</el-checkbox>
+            </el-checkbox-group>
+          </div>
         </el-form-item>
         <el-form-item label="附件">
           <el-upload ref="uploadRef" action="#" :auto-upload="false" :file-list="articleForm.files" :on-change="handleFileChange" list-type="picture-card">
@@ -214,16 +236,31 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Delete, Document, Download } from '@element-plus/icons-vue'
 import * as mammoth from 'mammoth'
+import { QuillEditor } from '@vueup/vue-quill'
+import '@vueup/vue-quill/dist/vue-quill.snow.css'
 
 const loading = ref(false)
 const saving = ref(false)
 
+const currentRole = ref(localStorage.getItem('role') || '')
 const isManager = computed(() => {
-  const role = localStorage.getItem('role')
+  const role = currentRole.value
   const username = localStorage.getItem('username')
   return role === 'admin' || username === '总经理' || username === '管理员' || 
     ['系统管理员', '总经理', '技术部经理', '销售部经理', '财务总监'].includes(role || '')
 })
+
+const fetchCurrentRole = async () => {
+  const username = localStorage.getItem('username')
+  if (!username) return
+  try {
+    const res = await fetch('/api/user/role?username=' + username).then(r => r.json())
+    if (res.success && res.data && res.data.roleName) {
+      currentRole.value = res.data.roleName
+      localStorage.setItem('role', res.data.roleName)
+    }
+  } catch {}
+}
 const uploadRef = ref<any>(null)
 const formRef = ref<any>(null)
 const categories = ref<any[]>([])
@@ -234,6 +271,7 @@ const pageSize = 15
 const keyword = ref('')
 const filterCategory = ref<number | null>(null)
 const userList = ref<{ id: number; name: string }[]>([])
+const roleList = ref<{ id: number; name: string }[]>([])
 const tagOptions = ref<string[]>([])
 
 const showArticleDialog = ref(false)
@@ -248,7 +286,7 @@ const previewDocContent = ref('')
 const editingArticle = ref<any>(null)
 const defaultEmptyContent = '<p style="color:#ccc">暂无内容</p>'
 const detailArticle = ref<any>({})
-const articleForm = ref({ title: '', categoryId: null, author: '', tags: [] as string[], summary: '', content: '', files: [] as any[] })
+const articleForm = ref({ title: '', categoryId: null, author: '', tags: [] as string[], summary: '', content: '', files: [] as any[], permission_type: 'public', permission_targets: [] as string[] })
 const newCategoryName = ref('')
 
 const detailFiles = computed(() => {
@@ -289,12 +327,19 @@ const fetchUsers = async () => {
   } catch { /* ignore */ }
 }
 
+const fetchRoles = async () => {
+  try {
+    const res = await fetch('/api/roles').then(r => r.json())
+    if (res.success) roleList.value = res.data.map((r: any) => ({ id: r.id, name: r.name }))
+  } catch { /* ignore */ }
+}
+
 const PRESET_TAGS = ['销售', '客户', '项目', '月报', '审批', '财务', '人事', '行政', '技术', '市场']
 
 const fetchTags = async () => {
   try {
     const tags = new Set(PRESET_TAGS)
-    const res = await fetch('/api/knowledge/articles?pageSize=200').then(r => r.json())
+    const res = await fetch('/api/knowledge/articles?pageSize=200&username=' + getUsername()).then(r => r.json())
     if (res.success && res.data && res.data.list) {
       for (const a of res.data.list) {
         if (a.tags) a.tags.split(',').forEach((t: string) => { if (t.trim()) tags.add(t.trim()) })
@@ -314,7 +359,7 @@ const fetchCategories = async () => {
 const fetchArticles = async () => {
   loading.value = true
   try {
-    const params = new URLSearchParams({ page: String(currentPage.value), pageSize: String(pageSize) })
+    const params = new URLSearchParams({ page: String(currentPage.value), pageSize: String(pageSize), username: getUsername() })
     if (filterCategory.value) params.set('categoryId', String(filterCategory.value))
     if (keyword.value.trim()) params.set('keyword', keyword.value.trim())
     const res = await fetch('/api/knowledge/articles?' + params.toString()).then(r => r.json())
@@ -330,14 +375,14 @@ const search = () => { currentPage.value = 1; fetchArticles() }
 
 const openNewArticle = () => {
   editingArticle.value = null
-  articleForm.value = { title: '', categoryId: null, author: '', tags: [], summary: '', content: '', files: [] }
+  articleForm.value = { title: '', categoryId: null, author: '', tags: [], summary: '', content: '', files: [], permission_type: 'public', permission_targets: [] }
   showArticleDialog.value = true
   formRef.value?.clearValidate()
 }
 
 const openArticle = async (article: any) => {
   try {
-    const res = await fetch('/api/knowledge/articles/' + article.id).then(r => r.json())
+    const res = await fetch('/api/knowledge/articles/' + article.id + '?username=' + getUsername()).then(r => r.json())
     if (res.success) {
       detailArticle.value = res.data
       showDetailDialog.value = true
@@ -350,6 +395,8 @@ const editArticle = (article: any) => {
   editingArticle.value = article
   let files = []
   try { files = article.files ? (typeof article.files === 'string' ? JSON.parse(article.files) : article.files) : [] } catch { files = [] }
+  let permTargets = []
+  try { permTargets = article.permission_targets ? JSON.parse(article.permission_targets) : [] } catch { permTargets = [] }
   articleForm.value = {
     title: article.title,
     categoryId: article.categoryId,
@@ -357,7 +404,9 @@ const editArticle = (article: any) => {
     tags: article.tags ? article.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
     summary: article.summary || '',
     content: article.content || '',
-    files: files
+    files: files,
+    permission_type: article.permission_type || 'public',
+    permission_targets: Array.isArray(permTargets) ? permTargets : []
   }
   showArticleDialog.value = true
   formRef.value?.clearValidate()
@@ -417,6 +466,8 @@ const saveArticle = async () => {
       tags: tagsStr,
       files: allFiles,
       sort: 0,
+      permission_type: articleForm.value.permission_type,
+      permission_targets: articleForm.value.permission_targets.length > 0 ? JSON.stringify(articleForm.value.permission_targets) : null,
       username: getUsername()
     }
     const url = editingArticle.value ? '/api/knowledge/articles/' + editingArticle.value.id : '/api/knowledge/articles'
@@ -582,9 +633,11 @@ const previewImage = (file: any) => {
 }
 
 onMounted(() => {
+  fetchCurrentRole()
   fetchCategories()
   fetchArticles()
   fetchUsers()
+  fetchRoles()
   fetchTags()
 })
 </script>
@@ -613,6 +666,7 @@ onMounted(() => {
 .article-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.4rem; }
 .article-title { font-size: 1.05rem; font-weight: 600; color: #333; }
 .article-actions { display: flex; align-items: center; gap: 0.25rem; flex-shrink: 0; }
+.perm-lock { font-size: 0.85rem; margin-right: 4px; }
 .cat-tag { margin-right: 0.5rem; }
 .article-summary { color: #888; font-size: 0.85rem; margin-bottom: 0.5rem; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .article-meta { display: flex; align-items: center; gap: 1rem; font-size: 0.8rem; color: #aaa; flex-wrap: wrap; }
@@ -640,6 +694,8 @@ onMounted(() => {
 .detail-content :deep(p) { margin-bottom: 0.75rem; }
 .detail-content :deep(img) { max-width: 100%; border-radius: 8px; margin: 1rem 0; }
 .detail-content :deep(pre) { background: #f5f5f5; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+.editor-container { min-height: 400px; }
+.perm-checkboxes { margin-top: 8px; max-height: 160px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 4px 0; }
 .detail-content :deep(code) { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
 .detail-content :deep(table) { width: 100%; border-collapse: collapse; margin: 1rem 0; }
 .detail-content :deep(th), .detail-content :deep(td) { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }

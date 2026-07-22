@@ -145,7 +145,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElOption, ElDatePicker, ElMessageBox } from 'element-plus'
 import { Edit, Delete } from '@element-plus/icons-vue'
@@ -190,11 +190,22 @@ const editForm = ref({
   name: '',
   description: '',
   status: '进行中',
-  startDate: '',
-  dealTime: '',
+  startDate: null,
+  dealTime: null,
   price: 0,
-  serviceEndTime: '',
+  serviceEndTime: null,
   nextYearFeeStatus: '未交'
+})
+
+function autoCalcFeeStatus(serviceEndTime) {
+  if (!serviceEndTime) return '未交';
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const end = new Date(serviceEndTime); end.setHours(0, 0, 0, 0);
+  return end < today ? '未交' : '已交';
+}
+
+watch(() => editForm.value.serviceEndTime, (newVal) => {
+  editForm.value.nextYearFeeStatus = autoCalcFeeStatus(newVal);
 })
 
 // 模拟项目数据

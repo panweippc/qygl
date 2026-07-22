@@ -80,43 +80,43 @@
     width="500px"
     :close-on-click-modal="false"
   >
-    <el-form :model="projectForm" label-width="100px">
-      <el-form-item label="项目名称" required>
+    <el-form :model="projectForm" label-width="100px" ref="projectFormRef">
+      <el-form-item label="项目名称" prop="name" :rules="[{ required: true, message: '请输入项目名称', trigger: 'blur' }]">
         <el-input v-model="projectForm.name" placeholder="请输入项目名称" />
       </el-form-item>
-      <el-form-item label="项目描述" required>
+      <el-form-item label="项目描述" prop="description" :rules="[{ required: true, message: '请输入项目描述', trigger: 'blur' }]">
         <el-input type="textarea" v-model="projectForm.description" placeholder="请输入项目描述" :rows="3" />
       </el-form-item>
-      <el-form-item label="项目状态" required>
+      <el-form-item label="项目状态" prop="status" :rules="[{ required: true, message: '请选择项目状态', trigger: 'change' }]">
         <el-select v-model="projectForm.status" placeholder="请选择项目状态">
           <el-option label="进行中" value="进行中" />
           <el-option label="已完成" value="已完成" />
           <el-option label="已取消" value="已取消" />
         </el-select>
       </el-form-item>
-      <el-form-item label="项目价格" required>
+      <el-form-item label="项目价格" prop="price" :rules="[{ required: true, message: '请输入项目价格', trigger: 'blur' }]">
         <el-input v-model.number="projectForm.price" type="number" placeholder="请输入项目价格" />
       </el-form-item>
-      <el-form-item label="成交时间" required>
+      <el-form-item label="成交时间" prop="dealTime" :rules="[{ required: true, message: '请选择成交时间', trigger: 'change' }]">
         <el-date-picker v-model="projectForm.dealTime" type="date" placeholder="请选择成交时间" style="width: 100%" />
       </el-form-item>
-      <el-form-item label="服务结束时间" required>
+      <el-form-item label="服务结束时间" prop="serviceEndTime" :rules="[{ required: true, message: '请选择服务结束时间', trigger: 'change' }]">
         <el-date-picker v-model="projectForm.serviceEndTime" type="date" placeholder="请选择服务结束时间" style="width: 100%" />
       </el-form-item>
-      <el-form-item label="次年费用状态" required>
-        <el-select v-model="projectForm.nextYearFeeStatus" placeholder="请选择次年费用状态">
+      <el-form-item label="次年费用状态" prop="nextYearFeeStatus">
+        <el-select v-model="projectForm.nextYearFeeStatus" placeholder="请选择次年费用状态" :disabled="true">
           <el-option label="已支付" value="已支付" />
           <el-option label="未支付" value="未支付" />
         </el-select>
       </el-form-item>
-      <el-form-item label="合同费用状态" required>
+      <el-form-item label="合同费用状态" prop="contractFeeStatus" :rules="[{ required: true, message: '请选择合同费用状态', trigger: 'change' }]">
         <el-select v-model="projectForm.contractFeeStatus" placeholder="请选择合同费用状态">
           <el-option label="未结" value="未结" />
           <el-option label="结清" value="结清" />
           <el-option label="未结算" value="未结算" />
         </el-select>
       </el-form-item>
-      <el-form-item label="剩余金额" required v-if="projectForm.contractFeeStatus === '未结算'">
+      <el-form-item label="剩余金额" prop="remainingAmount" v-if="projectForm.contractFeeStatus === '未结算'">
         <el-input v-model.number="projectForm.remainingAmount" type="number" placeholder="请输入剩余金额" />
       </el-form-item>
       <el-form-item label="申请人">
@@ -135,7 +135,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 
 const props = defineProps<{
@@ -312,14 +312,26 @@ const projectForm = ref({
   description: '',
   status: '进行中',
   price: 0,
-  dealTime: '',
-  serviceEndTime: '',
+  dealTime: null,
+  serviceEndTime: null,
   nextYearFeeStatus: '待确认',
   contractFeeStatus: '未结',
   remainingAmount: 0,
   applicant: getCurrentUser()
 })
+const projectFormRef = ref()
 const isEditingProject = computed(() => !!projectForm.value.id)
+
+function autoCalcFeeStatus(serviceEndTime) {
+  if (!serviceEndTime) return '待确认';
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const end = new Date(serviceEndTime); end.setHours(0, 0, 0, 0);
+  return end < today ? '未支付' : '已支付';
+}
+
+watch(() => projectForm.value.serviceEndTime, (newVal) => {
+  projectForm.value.nextYearFeeStatus = autoCalcFeeStatus(newVal);
+})
 
 watch(() => props.projectDialogVisible, (visible) => {
   if (visible) {
@@ -344,30 +356,35 @@ watch(() => props.projectDialogVisible, (visible) => {
         description: '',
         status: '进行中',
         price: 0,
-        dealTime: '',
-        serviceEndTime: '',
+        dealTime: null,
+        serviceEndTime: null,
         nextYearFeeStatus: '待确认',
         contractFeeStatus: '未结',
         remainingAmount: 0,
         applicant: getCurrentUser()
       }
     }
+    nextTick(() => projectFormRef.value?.clearValidate())
   }
 })
 
-const submitProject = () => {
-  if (!projectForm.value.name.trim()) {
-    ElMessage.warning('请输入项目名称')
-    return
-  }
-  if (!projectForm.value.description.trim()) {
-    ElMessage.warning('请输入项目描述')
-    return
-  }
+const submitProject = async () => {
   if (!props.currentCountyId) {
     ElMessage.error('当前旗县ID无效')
     return
   }
+  if (!projectFormRef.value) {
+    emit('save-project', {
+      ...projectForm.value,
+      provinceId: props.currentProvinceId,
+      cityId: props.currentCityId,
+      countyId: props.currentCountyId,
+      isEditing: isEditingProject.value
+    })
+    return
+  }
+  const valid = await projectFormRef.value.validate().catch(() => false)
+  if (!valid) return
   emit('save-project', {
     ...projectForm.value,
     provinceId: props.currentProvinceId,

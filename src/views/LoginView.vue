@@ -320,11 +320,13 @@ const handleLogin = async () => {
       
       // 存储用户角色信息
       let role = 'employee'
-      if (user.username === 'admin' || user.username === '管理员') {
-          role = 'admin'
-        } else if (user.username === '总经理' || user.position === '总经理') {
-          role = '总经理'
-        }
+      if (user.roleName) {
+        role = user.roleName
+      } else if (user.username === 'admin' || user.username === '管理员') {
+        role = 'admin'
+      } else if (user.username === '总经理' || user.position === '总经理') {
+        role = '总经理'
+      }
       localStorage.setItem('role', role)
       
       // 存储完整的用户信息（用于项目申请等模块）

@@ -11,6 +11,7 @@
     "dev:all": "start cmd /c \"vite\" && start cmd /c \"nodemon server.js\""
   },
   "dependencies": {
+    "@vueup/vue-quill": "^1.5.5",
     "axios": "0.27.2",
     "cors": "^2.8.5",
     "echarts": "^6.0.0",

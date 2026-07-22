@@ -57,6 +57,13 @@ router.get('/cities/:cityId/counties', async (req, res) => {
   }
 });
 
+function calcFeeStatus(serviceEndTime) {
+  if (!serviceEndTime) return '待确认';
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const end = new Date(serviceEndTime); end.setHours(0, 0, 0, 0);
+  return end < today ? '未支付' : '已支付';
+}
+
 router.get('/counties/:countyId/projects', async (req, res) => {
   const { countyId } = req.params;
   try {
@@ -70,7 +77,8 @@ router.get('/counties/:countyId/projects', async (req, res) => {
       WHERE cp.countyId = ?
       ORDER BY cp.createdAt DESC
     `, [countyId]);
-    res.json({ success: true, data: projects });
+    const enriched = projects.map(p => ({ ...p, nextYearFeeStatus: calcFeeStatus(p.serviceEndTime) }));
+    res.json({ success: true, data: enriched });
   } catch (error) {
     console.error('获取项目列表失败:', error);
     res.status(500).json({ success: false, message: '获取项目列表失败' });
@@ -341,6 +349,62 @@ router.post('/counties', async (req, res) => {
     } else {
       res.status(500).json({ success: false, message: '创建旗县失败' });
     }
+  }
+});
+
+router.put('/counties/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, code, cityId } = req.body;
+  try {
+    const { pool } = req.app.locals;
+    const [existingCounties] = await pool.execute('SELECT id FROM counties WHERE id = ?', [id]);
+    if (existingCounties.length === 0) {
+      return res.json({ success: false, message: '旗县不存在' });
+    }
+
+    const [existingNames] = await pool.execute('SELECT id FROM counties WHERE name = ? AND id != ?', [name, id]);
+    if (existingNames.length > 0) {
+      return res.json({ success: false, message: '旗县名称已存在' });
+    }
+
+    const [existingCodes] = await pool.execute('SELECT id FROM counties WHERE code = ? AND id != ?', [code, id]);
+    if (existingCodes.length > 0) {
+      return res.json({ success: false, message: '旗县代码已存在' });
+    }
+
+    const updateParams = [name, code];
+    let updateQuery = 'UPDATE counties SET name = ?, code = ?';
+
+    if (cityId !== undefined) {
+      updateQuery += ', cityId = ?';
+      updateParams.push(cityId);
+    }
+
+    updateQuery += ' WHERE id = ?';
+    updateParams.push(id);
+
+    await pool.execute(updateQuery, updateParams);
+    res.json({ success: true, message: '旗县编辑成功' });
+  } catch (error) {
+    console.error('编辑旗县失败:', error);
+    res.status(500).json({ success: false, message: '编辑旗县失败' });
+  }
+});
+
+router.delete('/counties/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { pool } = req.app.locals;
+    const [existing] = await pool.execute('SELECT id FROM counties WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      return res.json({ success: false, message: '旗县不存在' });
+    }
+    await pool.execute('DELETE FROM closing_projects WHERE countyId = ?', [id]);
+    await pool.execute('DELETE FROM counties WHERE id = ?', [id]);
+    res.json({ success: true, message: '旗县删除成功' });
+  } catch (error) {
+    console.error('删除旗县失败:', error);
+    res.status(500).json({ success: false, message: '删除旗县失败' });
   }
 });
 

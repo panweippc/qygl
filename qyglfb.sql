@@ -11,7 +11,7 @@
  Target Server Version : 80045 (8.0.45)
  File Encoding         : 65001
 
- Date: 17/07/2026 17:46:14
+ Date: 22/07/2026 09:34:03
 */
 
 SET NAMES utf8mb4;
@@ -206,7 +206,7 @@ CREATE TABLE `city_sales`  (
   `growthRate` decimal(5, 2) NOT NULL,
   `createdAt` datetime NOT NULL,
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 17 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 140 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of city_sales
@@ -215,6 +215,22 @@ INSERT INTO `city_sales` VALUES (13, '天津市', 0.00, 0, 0.00, '2026-07-17 02:
 INSERT INTO `city_sales` VALUES (14, '乌兰察布市', 0.00, 0, 0.00, '2026-07-17 03:04:10');
 INSERT INTO `city_sales` VALUES (15, '呼和浩特市', 0.00, 0, 0.00, '2026-07-17 06:39:02');
 INSERT INTO `city_sales` VALUES (16, '包头市', 0.00, 0, 0.00, '2026-07-17 08:16:33');
+INSERT INTO `city_sales` VALUES (124, '凉城县', 0.00, 73, 0.00, '2026-07-20 09:50:30');
+INSERT INTO `city_sales` VALUES (125, '卓资县', 0.00, 52, 0.00, '2026-07-20 09:50:35');
+INSERT INTO `city_sales` VALUES (126, '兴和县', 0.00, 25, 0.00, '2026-07-20 09:50:36');
+INSERT INTO `city_sales` VALUES (127, '商都县', 0.00, 57, 0.00, '2026-07-20 09:50:38');
+INSERT INTO `city_sales` VALUES (128, '化德县', 0.00, 43, 0.00, '2026-07-20 09:50:38');
+INSERT INTO `city_sales` VALUES (129, '察哈尔右翼前旗', 0.00, 22, 0.00, '2026-07-20 09:50:40');
+INSERT INTO `city_sales` VALUES (130, '察哈尔右翼中旗', 0.00, 81, 0.00, '2026-07-20 09:50:40');
+INSERT INTO `city_sales` VALUES (131, '察哈尔右翼后旗', 0.00, 25, 0.00, '2026-07-20 09:50:43');
+INSERT INTO `city_sales` VALUES (132, '丰镇市隆盛庄镇', 0.00, 1, 0.00, '2026-07-20 09:50:45');
+INSERT INTO `city_sales` VALUES (133, '丰镇市红砂坝镇', 0.00, 9, 0.00, '2026-07-20 09:50:45');
+INSERT INTO `city_sales` VALUES (134, '‌丰镇市巨宝庄镇', 0.00, 13, 0.00, '2026-07-20 09:50:46');
+INSERT INTO `city_sales` VALUES (135, '‌丰镇市黑土台镇', 0.00, 10, 0.00, '2026-07-20 09:50:46');
+INSERT INTO `city_sales` VALUES (136, '土默特左旗', 0.00, 105, 0.00, '2026-07-20 09:50:46');
+INSERT INTO `city_sales` VALUES (137, '武川县', 0.00, 42, 0.00, '2026-07-20 09:50:47');
+INSERT INTO `city_sales` VALUES (138, '四子王旗', 0.00, 36, 0.00, '2026-07-20 09:50:48');
+INSERT INTO `city_sales` VALUES (139, '鄂尔多斯市', 0.00, 0, 0.00, '2026-07-20 09:51:34');
 
 -- ----------------------------
 -- Table structure for closing_projects
@@ -263,7 +279,7 @@ CREATE TABLE `counties`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `county_unique`(`cityId` ASC, `name` ASC) USING BTREE,
   CONSTRAINT `counties_ibfk_1` FOREIGN KEY (`cityId`) REFERENCES `cities` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 62 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 63 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of counties
@@ -329,6 +345,7 @@ INSERT INTO `counties` VALUES (58, '江岸区', '420102', 45, '2026-04-13 08:57:
 INSERT INTO `counties` VALUES (59, '江汉区', '420103', 45, '2026-04-13 08:57:03');
 INSERT INTO `counties` VALUES (60, '硚口区', '420104', 45, '2026-04-13 08:57:03');
 INSERT INTO `counties` VALUES (61, '汉阳区', '420105', 45, '2026-04-13 08:57:03');
+INSERT INTO `counties` VALUES (62, '��������', '999999', 1, '2026-07-21 09:57:00');
 
 -- ----------------------------
 -- Table structure for county_sales
@@ -344,14 +361,27 @@ CREATE TABLE `county_sales`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `cityId`(`cityId` ASC) USING BTREE,
   CONSTRAINT `county_sales_ibfk_1` FOREIGN KEY (`cityId`) REFERENCES `city_sales` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 48 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 168 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of county_sales
 -- ----------------------------
-INSERT INTO `county_sales` VALUES (43, 14, '凉城县', 100006.00, 3, '2026-07-17 03:14:07');
-INSERT INTO `county_sales` VALUES (46, 14, '集宁', 100000.00, 3, '2026-07-17 08:15:33');
-INSERT INTO `county_sales` VALUES (47, 16, '土默特右旗', 100000.00, 3, '2026-07-17 08:16:42');
+INSERT INTO `county_sales` VALUES (152, 124, '凉城县', 0.00, 73, '2026-07-20 09:50:31');
+INSERT INTO `county_sales` VALUES (153, 125, '卓资县', 0.00, 52, '2026-07-20 09:50:35');
+INSERT INTO `county_sales` VALUES (154, 126, '兴和县', 0.00, 25, '2026-07-20 09:50:37');
+INSERT INTO `county_sales` VALUES (155, 127, '商都县', 0.00, 57, '2026-07-20 09:50:38');
+INSERT INTO `county_sales` VALUES (156, 128, '化德县', 0.00, 43, '2026-07-20 09:50:38');
+INSERT INTO `county_sales` VALUES (157, 129, '察哈尔右翼前旗', 0.00, 22, '2026-07-20 09:50:40');
+INSERT INTO `county_sales` VALUES (158, 130, '察哈尔右翼中旗', 0.00, 81, '2026-07-20 09:50:40');
+INSERT INTO `county_sales` VALUES (159, 131, '察哈尔右翼后旗', 0.00, 25, '2026-07-20 09:50:43');
+INSERT INTO `county_sales` VALUES (160, 132, '丰镇市隆盛庄镇', 0.00, 1, '2026-07-20 09:50:45');
+INSERT INTO `county_sales` VALUES (161, 133, '丰镇市红砂坝镇', 0.00, 9, '2026-07-20 09:50:46');
+INSERT INTO `county_sales` VALUES (162, 134, '‌丰镇市巨宝庄镇', 0.00, 13, '2026-07-20 09:50:46');
+INSERT INTO `county_sales` VALUES (163, 135, '‌丰镇市黑土台镇', 0.00, 10, '2026-07-20 09:50:46');
+INSERT INTO `county_sales` VALUES (164, 136, '土默特左旗', 0.00, 105, '2026-07-20 09:50:46');
+INSERT INTO `county_sales` VALUES (165, 137, '武川县', 0.00, 42, '2026-07-20 09:50:47');
+INSERT INTO `county_sales` VALUES (166, 138, '四子王旗', 0.00, 36, '2026-07-20 09:50:48');
+INSERT INTO `county_sales` VALUES (167, 14, '凉城县', 100000.00, 5, '2026-07-20 09:51:48');
 
 -- ----------------------------
 -- Table structure for customer_activities
@@ -590,6 +620,56 @@ INSERT INTO `files` VALUES (14, '乡村振兴案例分析.pdf', 1126400, 'applic
 INSERT INTO `files` VALUES (15, '技术方案讨论稿.docx', 614400, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'https://example.com/files/15.docx', 1, 5, '2026-04-13 08:57:17');
 
 -- ----------------------------
+-- Table structure for knowledge_articles
+-- ----------------------------
+DROP TABLE IF EXISTS `knowledge_articles`;
+CREATE TABLE `knowledge_articles`  (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `categoryId` int NULL DEFAULT NULL,
+  `title` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `content` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+  `files` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+  `summary` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+  `author` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
+  `tags` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
+  `sort` int NULL DEFAULT 0,
+  `status` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT 'published',
+  `views` int NULL DEFAULT 0,
+  `createdAt` datetime NOT NULL,
+  `updatedAt` datetime NOT NULL,
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `categoryId`(`categoryId` ASC) USING BTREE,
+  CONSTRAINT `knowledge_articles_ibfk_1` FOREIGN KEY (`categoryId`) REFERENCES `knowledge_categories` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 17 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of knowledge_articles
+-- ----------------------------
+INSERT INTO `knowledge_articles` VALUES (16, 1, '测试', '', '[{\"name\":\"工作报告6.5-6.9.docx\",\"url\":\"/uploads/1784615664156-814158456.docx\",\"type\":\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\",\"size\":15860}]', '', '潘伟', '人事', 0, 'published', 3, '2026-07-21 06:34:24', '2026-07-21 06:34:24');
+
+-- ----------------------------
+-- Table structure for knowledge_categories
+-- ----------------------------
+DROP TABLE IF EXISTS `knowledge_categories`;
+CREATE TABLE `knowledge_categories`  (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+  `sort` int NULL DEFAULT 0,
+  `createdAt` datetime NOT NULL,
+  `updatedAt` datetime NOT NULL,
+  PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 6 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of knowledge_categories
+-- ----------------------------
+INSERT INTO `knowledge_categories` VALUES (1, '公司制度', '公司各项规章制度', 1, '2026-07-21 01:36:44', '2026-07-21 01:36:44');
+INSERT INTO `knowledge_categories` VALUES (2, '技术文档', '技术方案和开发文档', 2, '2026-07-21 01:36:44', '2026-07-21 01:36:44');
+INSERT INTO `knowledge_categories` VALUES (3, '销售资料', '销售相关资料和案例', 3, '2026-07-21 01:36:44', '2026-07-21 01:36:44');
+INSERT INTO `knowledge_categories` VALUES (4, '操作手册', '系统操作指南', 4, '2026-07-21 01:36:44', '2026-07-21 01:36:44');
+
+-- ----------------------------
 -- Table structure for leave_applications
 -- ----------------------------
 DROP TABLE IF EXISTS `leave_applications`;
@@ -658,7 +738,7 @@ CREATE TABLE `menus`  (
   `createdAt` datetime NOT NULL,
   `updatedAt` datetime NOT NULL,
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 16 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 21 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of menus
@@ -674,6 +754,10 @@ INSERT INTO `menus` VALUES (12, 0, '销售漏斗', '/sales-funnel', 'SalesFunnel
 INSERT INTO `menus` VALUES (13, 0, 'OA办公', '/oa-office', 'OAWorkflowView', '📝', 3, '启用', '2026-07-14 02:36:37', '2026-07-14 02:36:37');
 INSERT INTO `menus` VALUES (14, 0, '消息中心', '/message-center', 'MessageCenterView', '🔔', 12, '启用', '2026-07-17 08:41:40', '2026-07-17 09:00:28');
 INSERT INTO `menus` VALUES (15, 0, '操作日志', '/operation-log', 'OperationLogView', '📋', 11, '启用', '2026-07-17 08:41:41', '2026-07-17 09:00:31');
+INSERT INTO `menus` VALUES (16, 0, '知识库', '/knowledge-base', 'KnowledgeBaseView', '📚', 13, '启用', '2026-07-21 09:24:45', '2026-07-21 09:24:45');
+INSERT INTO `menus` VALUES (18, 0, '销售目标', '/sales-target', 'SalesTargetView', '🎯', 14, '启用', '2026-07-22 09:22:10', '2026-07-22 09:22:10');
+INSERT INTO `menus` VALUES (19, 0, '客户管理', '/customer-management', NULL, '👥', 15, '启用', '2026-07-22 09:22:10', '2026-07-22 09:22:10');
+INSERT INTO `menus` VALUES (20, 0, '机会跟进', '/sales-opportunity', NULL, '💼', 16, '启用', '2026-07-22 09:22:10', '2026-07-22 09:22:10');
 
 -- ----------------------------
 -- Table structure for messages
@@ -886,7 +970,7 @@ CREATE TABLE `operation_logs`  (
   INDEX `idx_operation_logs_module`(`module` ASC) USING BTREE,
   INDEX `idx_operation_logs_action`(`action` ASC) USING BTREE,
   INDEX `idx_operation_logs_createdAt`(`createdAt` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 86 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 127 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of operation_logs
@@ -976,6 +1060,47 @@ INSERT INTO `operation_logs` VALUES (82, '', '系统', 'update', 'system', '1', 
 INSERT INTO `operation_logs` VALUES (83, '91', '陈东', 'login', 'auth', NULL, NULL, '用户登录系统', '127.0.0.1', '2026-07-17 17:06:00');
 INSERT INTO `operation_logs` VALUES (84, '6', '潘伟', 'login', 'auth', NULL, NULL, '用户登录系统', '127.0.0.1', '2026-07-17 17:14:59');
 INSERT INTO `operation_logs` VALUES (85, '', '系统', 'update', 'sales', '46', '旗县销售数据\"集宁\"', NULL, '', '2026-07-17 17:20:56');
+INSERT INTO `operation_logs` VALUES (86, '', '系统', 'delete', 'project', NULL, '运营项目', '删除项目分类: 运营项目', '', '2026-07-17 17:52:14');
+INSERT INTO `operation_logs` VALUES (87, '', '系统', 'update', 'project', NULL, '市场项目', '项目类型更新: 研发项目 -> 市场项目', '', '2026-07-17 17:53:03');
+INSERT INTO `operation_logs` VALUES (88, '', '系统', 'delete', 'project', NULL, '基建项目', '删除项目分类: 基建项目', '', '2026-07-17 17:54:05');
+INSERT INTO `operation_logs` VALUES (89, '', '系统', 'delete', 'project', NULL, '市场项目', '删除项目分类: 市场项目', '', '2026-07-17 17:54:08');
+INSERT INTO `operation_logs` VALUES (90, '', '系统', 'create', 'sales', NULL, '旗县销售数据\"兴和县\"', NULL, '', '2026-07-17 17:54:39');
+INSERT INTO `operation_logs` VALUES (91, '', '系统', 'update', 'project', NULL, '项目分类\"研发项目\"负责人变更为潘伟', NULL, '', '2026-07-20 10:24:08');
+INSERT INTO `operation_logs` VALUES (92, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026�?{month}月', '新增周报: 2026�?{month}月', '', '2026-07-20 10:31:40');
+INSERT INTO `operation_logs` VALUES (93, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年2月', '新增周报: 2026年2月', '', '2026-07-20 11:44:18');
+INSERT INTO `operation_logs` VALUES (94, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年4月', '新增周报: 2026年4月', '', '2026-07-20 11:52:55');
+INSERT INTO `operation_logs` VALUES (95, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年8月', '新增周报: 2026年8月', '', '2026-07-20 11:53:49');
+INSERT INTO `operation_logs` VALUES (96, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年5月', '新增周报: 2026年5月', '', '2026-07-20 11:59:46');
+INSERT INTO `operation_logs` VALUES (97, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年6月 ', '新增周报: 2026年6月 ', '', '2026-07-20 14:47:27');
+INSERT INTO `operation_logs` VALUES (98, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年8月', '新增周报: 2026年8月', '', '2026-07-20 14:51:03');
+INSERT INTO `operation_logs` VALUES (99, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年5月', '新增周报: 2026年5月', '', '2026-07-20 15:02:58');
+INSERT INTO `operation_logs` VALUES (100, '', '系统', 'update', 'weekly_report', NULL, '周报: 2026年5月', '更新周报: 2026年5月 (ID: 8)', '', '2026-07-20 15:28:30');
+INSERT INTO `operation_logs` VALUES (101, '6', '潘伟', 'login', 'auth', NULL, NULL, '用户登录系统', '127.0.0.1', '2026-07-20 15:29:40');
+INSERT INTO `operation_logs` VALUES (102, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年8月', '新增周报: 2026年8月', '', '2026-07-20 15:31:16');
+INSERT INTO `operation_logs` VALUES (103, '', '系统', 'update', 'weekly_report', NULL, '周报: 2026�?{month}月', '更新周报: 2026�?{month}月 (ID: 1)', '', '2026-07-20 15:32:04');
+INSERT INTO `operation_logs` VALUES (104, '', '系统', 'update', 'weekly_report', NULL, '周报: 2026年2月', '更新周报: 2026年2月 (ID: 2)', '', '2026-07-20 15:32:10');
+INSERT INTO `operation_logs` VALUES (105, '', '系统', 'update', 'weekly_report', NULL, '周报: 2026年4月', '更新周报: 2026年4月 (ID: 3)', '', '2026-07-20 15:32:17');
+INSERT INTO `operation_logs` VALUES (106, '', '系统', 'update', 'weekly_report', NULL, '周报: 2026年5月', '更新周报: 2026年5月 (ID: 5)', '', '2026-07-20 15:32:23');
+INSERT INTO `operation_logs` VALUES (107, '', '系统', 'update', 'weekly_report', NULL, '周报: 2026年6月 ', '更新周报: 2026年6月  (ID: 6)', '', '2026-07-20 15:32:27');
+INSERT INTO `operation_logs` VALUES (108, '', '系统', 'update', 'weekly_report', NULL, '周报: 2026年5月', '更新周报: 2026年5月 (ID: 8)', '', '2026-07-20 15:32:31');
+INSERT INTO `operation_logs` VALUES (109, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年1月', '新增周报: 2026年1月', '', '2026-07-20 15:46:06');
+INSERT INTO `operation_logs` VALUES (110, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年1月', '新增周报: 2026年1月', '', '2026-07-20 15:47:04');
+INSERT INTO `operation_logs` VALUES (111, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年1月', '新增周报: 2026年1月', '', '2026-07-20 15:51:59');
+INSERT INTO `operation_logs` VALUES (112, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年1月', '新增周报: 2026年1月', '', '2026-07-20 15:52:12');
+INSERT INTO `operation_logs` VALUES (113, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年1月', '新增周报: 2026年1月', '', '2026-07-20 16:15:04');
+INSERT INTO `operation_logs` VALUES (114, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年1月', '新增周报: 2026年1月', '', '2026-07-20 16:15:35');
+INSERT INTO `operation_logs` VALUES (115, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年1月', '新增周报: 2026年1月', '', '2026-07-20 16:24:46');
+INSERT INTO `operation_logs` VALUES (116, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年1月', '新增周报: 2026年1月', '', '2026-07-20 16:24:46');
+INSERT INTO `operation_logs` VALUES (117, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年1月', '新增周报: 2026年1月', '', '2026-07-20 16:40:22');
+INSERT INTO `operation_logs` VALUES (118, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年1月', '新增周报: 2026年1月', '', '2026-07-20 16:40:56');
+INSERT INTO `operation_logs` VALUES (119, '', '系统', 'create', 'weekly_report', NULL, '周报: 2026年2月', '新增周报: 2026年2月', '', '2026-07-20 16:41:21');
+INSERT INTO `operation_logs` VALUES (120, '', '系统', 'create', 'sales', NULL, '盟市销售数据\"锡林郭勒盟\"', NULL, '', '2026-07-20 17:41:23');
+INSERT INTO `operation_logs` VALUES (121, '', '系统', 'create', 'sales', NULL, '盟市销售数据\"赤峰市\"', NULL, '', '2026-07-20 17:41:32');
+INSERT INTO `operation_logs` VALUES (122, '', '系统', 'create', 'sales', NULL, '盟市销售数据\"兴安盟\"', NULL, '', '2026-07-20 17:41:34');
+INSERT INTO `operation_logs` VALUES (123, '', '系统', 'create', 'sales', NULL, '盟市销售数据\"巴彦淖尔市\"', NULL, '', '2026-07-20 17:42:24');
+INSERT INTO `operation_logs` VALUES (124, '', '系统', 'create', 'sales', NULL, '盟市销售数据\"鄂尔多斯市\"', NULL, '', '2026-07-20 17:51:34');
+INSERT INTO `operation_logs` VALUES (125, '', '系统', 'create', 'sales', NULL, '旗县销售数据\"凉城县\"', NULL, '', '2026-07-20 17:51:48');
+INSERT INTO `operation_logs` VALUES (126, '', '系统', 'delete', 'system', '17', '菜单ID: 17', '删除菜单 ID: 17', '127.0.0.1', '2026-07-21 15:20:01');
 
 -- ----------------------------
 -- Table structure for process_definitions
@@ -1099,11 +1224,14 @@ CREATE TABLE `project_applications`  (
   INDEX `idx_applicant`(`applicant_id` ASC) USING BTREE,
   INDEX `idx_status`(`status` ASC) USING BTREE,
   INDEX `idx_department`(`department` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 68 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of project_applications
 -- ----------------------------
+INSERT INTO `project_applications` VALUES (64, 'PRJ959684', '项目1', '6', '潘伟', '', '研发项目', '高', 1000.00, '2026-07-20', '2026-08-19', '这是项目1', '项目1的目标', '[30,31]', '资源描述', NULL, 'pending', NULL, 1, NULL, NULL, NULL, '2026-07-20 09:29:20', '2026-07-20 10:24:08', '');
+INSERT INTO `project_applications` VALUES (65, 'PRJ959786', '项目2', '6', '潘伟', '', '研发项目', '高', 1000.00, '2026-07-20', '2026-08-19', '项目2的详细描述', '项目2的目标', '[30,31]', '资源描述', NULL, 'pending', NULL, 1, NULL, NULL, NULL, '2026-07-20 09:29:20', '2026-07-20 10:24:08', '');
+INSERT INTO `project_applications` VALUES (67, 'PRJ960114', '项目4', '6', '潘伟', '', '研发项目', '高', 1000.00, '2026-07-20', '2026-08-19', '项目4的详细描述', '项目4的目标', '[30,31]', '资源描述', NULL, 'pending', NULL, 1, NULL, NULL, NULL, '2026-07-20 09:29:20', '2026-07-20 10:24:08', '');
 
 -- ----------------------------
 -- Table structure for projects
@@ -1189,7 +1317,7 @@ CREATE TABLE `role_permissions`  (
   UNIQUE INDEX `role_menu_unique`(`roleId` ASC, `menuId` ASC) USING BTREE,
   INDEX `menuId`(`menuId` ASC) USING BTREE,
   CONSTRAINT `role_permissions_ibfk_1` FOREIGN KEY (`roleId`) REFERENCES `roles` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 238 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 253 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of role_permissions
@@ -1252,6 +1380,15 @@ INSERT INTO `role_permissions` VALUES (234, 1, 11, '2026-07-17 09:05:40');
 INSERT INTO `role_permissions` VALUES (235, 1, 12, '2026-07-17 09:05:40');
 INSERT INTO `role_permissions` VALUES (236, 1, 15, '2026-07-17 09:05:40');
 INSERT INTO `role_permissions` VALUES (237, 1, 14, '2026-07-17 09:05:40');
+INSERT INTO `role_permissions` VALUES (238, 1, 16, '2026-07-21 09:25:00');
+INSERT INTO `role_permissions` VALUES (240, 2, 16, '2026-07-21 09:25:00');
+INSERT INTO `role_permissions` VALUES (242, 3, 16, '2026-07-21 09:25:00');
+INSERT INTO `role_permissions` VALUES (244, 4, 16, '2026-07-21 09:25:00');
+INSERT INTO `role_permissions` VALUES (246, 5, 16, '2026-07-21 09:25:00');
+INSERT INTO `role_permissions` VALUES (248, 6, 16, '2026-07-21 09:25:00');
+INSERT INTO `role_permissions` VALUES (250, 1, 18, '2026-07-22 09:22:10');
+INSERT INTO `role_permissions` VALUES (251, 1, 19, '2026-07-22 09:22:10');
+INSERT INTO `role_permissions` VALUES (252, 1, 20, '2026-07-22 09:22:10');
 
 -- ----------------------------
 -- Table structure for roles
@@ -1293,16 +1430,16 @@ CREATE TABLE `sales_funnel_data`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `stageId`(`stageId` ASC) USING BTREE,
   CONSTRAINT `sales_funnel_data_ibfk_1` FOREIGN KEY (`stageId`) REFERENCES `sales_funnel_stages` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 726 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 1783 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of sales_funnel_data
 -- ----------------------------
-INSERT INTO `sales_funnel_data` VALUES (721, 1, 0, 0.00, '2026-07-17', '2026-07-17 07:18:13');
-INSERT INTO `sales_funnel_data` VALUES (722, 2, 0, 0.00, '2026-07-17', '2026-07-17 07:18:13');
-INSERT INTO `sales_funnel_data` VALUES (723, 3, 0, 0.00, '2026-07-17', '2026-07-17 07:18:13');
-INSERT INTO `sales_funnel_data` VALUES (724, 4, 0, 0.00, '2026-07-17', '2026-07-17 07:18:13');
-INSERT INTO `sales_funnel_data` VALUES (725, 5, 0, 0.00, '2026-07-17', '2026-07-17 07:18:13');
+INSERT INTO `sales_funnel_data` VALUES (1778, 1, 48, 0.00, '2026-07-22', '2026-07-22 00:52:02');
+INSERT INTO `sales_funnel_data` VALUES (1779, 2, 0, 0.00, '2026-07-22', '2026-07-22 00:52:02');
+INSERT INTO `sales_funnel_data` VALUES (1780, 3, 0, 0.00, '2026-07-22', '2026-07-22 00:52:02');
+INSERT INTO `sales_funnel_data` VALUES (1781, 4, 0, 0.00, '2026-07-22', '2026-07-22 00:52:02');
+INSERT INTO `sales_funnel_data` VALUES (1782, 5, 0, 0.00, '2026-07-22', '2026-07-22 00:52:02');
 
 -- ----------------------------
 -- Table structure for sales_funnel_stages
@@ -1324,6 +1461,47 @@ INSERT INTO `sales_funnel_stages` VALUES (2, '意向客户', 2, '2026-04-13 08:5
 INSERT INTO `sales_funnel_stages` VALUES (3, '提案阶段', 3, '2026-04-13 08:57:16');
 INSERT INTO `sales_funnel_stages` VALUES (4, '谈判阶段', 4, '2026-04-13 08:57:16');
 INSERT INTO `sales_funnel_stages` VALUES (5, '成交客户', 5, '2026-04-13 08:57:16');
+
+-- ----------------------------
+-- Table structure for sales_targets
+-- ----------------------------
+DROP TABLE IF EXISTS `sales_targets`;
+CREATE TABLE `sales_targets`  (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `managerId` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `managerName` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '',
+  `year` int NOT NULL,
+  `month` int NOT NULL,
+  `targetAmount` decimal(15, 2) NULL DEFAULT 0.00,
+  `createdAt` datetime NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_manager_month`(`managerId` ASC, `year` ASC, `month` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 21 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of sales_targets
+-- ----------------------------
+INSERT INTO `sales_targets` VALUES (1, '1', '���Ը�����', 2026, 7, 100000.00, '2026-07-21 16:49:46', '2026-07-21 16:52:51');
+INSERT INTO `sales_targets` VALUES (2, '10', '', 2026, 7, 0.00, '2026-07-21 16:52:51', '2026-07-21 16:52:51');
+INSERT INTO `sales_targets` VALUES (3, '11', '', 2026, 7, 0.00, '2026-07-21 16:52:51', '2026-07-21 16:52:51');
+INSERT INTO `sales_targets` VALUES (4, '12', '', 2026, 7, 0.00, '2026-07-21 16:52:51', '2026-07-21 16:52:51');
+INSERT INTO `sales_targets` VALUES (5, '13', '', 2026, 7, 0.00, '2026-07-21 16:52:51', '2026-07-21 16:52:51');
+INSERT INTO `sales_targets` VALUES (6, '14', '', 2026, 7, 0.00, '2026-07-21 16:52:51', '2026-07-21 16:52:51');
+INSERT INTO `sales_targets` VALUES (7, '15', '', 2026, 7, 0.00, '2026-07-21 16:52:51', '2026-07-21 16:52:51');
+INSERT INTO `sales_targets` VALUES (8, '16', '', 2026, 7, 0.00, '2026-07-21 16:52:52', '2026-07-21 16:52:52');
+INSERT INTO `sales_targets` VALUES (9, '17', '', 2026, 7, 0.00, '2026-07-21 16:52:52', '2026-07-21 16:52:52');
+INSERT INTO `sales_targets` VALUES (10, '18', '', 2026, 7, 0.00, '2026-07-21 16:52:52', '2026-07-21 16:52:52');
+INSERT INTO `sales_targets` VALUES (11, '19', '', 2026, 7, 0.00, '2026-07-21 16:52:52', '2026-07-21 16:52:52');
+INSERT INTO `sales_targets` VALUES (12, '2', '', 2026, 7, 0.00, '2026-07-21 16:52:52', '2026-07-21 16:52:52');
+INSERT INTO `sales_targets` VALUES (13, '20', '', 2026, 7, 0.00, '2026-07-21 16:52:52', '2026-07-21 16:52:52');
+INSERT INTO `sales_targets` VALUES (14, '3', '', 2026, 7, 0.00, '2026-07-21 16:52:52', '2026-07-21 16:52:52');
+INSERT INTO `sales_targets` VALUES (15, '4', '', 2026, 7, 0.00, '2026-07-21 16:52:52', '2026-07-21 16:52:52');
+INSERT INTO `sales_targets` VALUES (16, '5', '', 2026, 7, 0.00, '2026-07-21 16:52:52', '2026-07-21 16:52:52');
+INSERT INTO `sales_targets` VALUES (17, '6', '', 2026, 7, 0.00, '2026-07-21 16:52:52', '2026-07-21 16:52:52');
+INSERT INTO `sales_targets` VALUES (18, '7', '', 2026, 7, 0.00, '2026-07-21 16:52:52', '2026-07-21 16:52:52');
+INSERT INTO `sales_targets` VALUES (19, '8', '', 2026, 7, 0.00, '2026-07-21 16:52:52', '2026-07-21 16:52:52');
+INSERT INTO `sales_targets` VALUES (20, '9', '', 2026, 7, 0.00, '2026-07-21 16:52:52', '2026-07-21 16:52:52');
 
 -- ----------------------------
 -- Table structure for tools
@@ -1356,21 +1534,71 @@ CREATE TABLE `town_sales`  (
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `contactPerson` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `contactPhone` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `contactType` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
   `manager` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
   `customer_manager` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '',
   `our_manager` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '',
   `intention` int NOT NULL,
   `requirement` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `isDealed` tinyint(1) NULL DEFAULT 0,
+  `sales` decimal(10, 2) NULL DEFAULT 0.00,
   `createdAt` datetime NOT NULL,
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `countyId`(`countyId` ASC) USING BTREE,
   CONSTRAINT `town_sales_ibfk_1` FOREIGN KEY (`countyId`) REFERENCES `county_sales` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 152 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of town_sales
 -- ----------------------------
+INSERT INTO `town_sales` VALUES (104, 152, '凉城县永兴镇', '镇府，经管所/农经站', '', NULL, '1', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:32');
+INSERT INTO `town_sales` VALUES (105, 152, '凉城县岱海镇', '镇府，经管所/农经站', '13789545077/0474-4486627', NULL, '2', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:33');
+INSERT INTO `town_sales` VALUES (106, 152, '凉城县麦胡图镇', '镇府，经管所/农经站', '15547413550', NULL, '3', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:34');
+INSERT INTO `town_sales` VALUES (107, 152, '凉城县六苏木镇', '镇府，经管所/农经站', '18004869843', NULL, '4', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:34');
+INSERT INTO `town_sales` VALUES (108, 152, '凉城县天成乡', '镇府，经管所/农经站', '', NULL, '5', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:34');
+INSERT INTO `town_sales` VALUES (109, 152, '凉城县鸿茅镇', '镇府，经管所/农经站', '', NULL, '6', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:35');
+INSERT INTO `town_sales` VALUES (110, 152, '凉城县蛮汉镇', '镇府，经管所/农经站', '15624648706', NULL, '7', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:35');
+INSERT INTO `town_sales` VALUES (111, 153, '卓资县旗下营镇', '镇府，经管所/农经站', '未给电话', NULL, '8', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:35');
+INSERT INTO `town_sales` VALUES (112, 153, '卓资县梨花镇', '镇府，经管所/农经站', '', NULL, '9', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:36');
+INSERT INTO `town_sales` VALUES (113, 153, '卓资县卓资山镇', '镇府，经管所/农经站', '', NULL, '10', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:36');
+INSERT INTO `town_sales` VALUES (114, 153, '卓资县巴音锡勒镇', '镇府，经管所/农经站', '未给', NULL, '11', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:36');
+INSERT INTO `town_sales` VALUES (115, 154, '兴和县五股泉乡', '镇府，经管所/农经站', '', NULL, '12', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:37');
+INSERT INTO `town_sales` VALUES (116, 154, '兴和县鄂尔栋镇', '镇府，经管所/农经站', '', NULL, '13', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:37');
+INSERT INTO `town_sales` VALUES (117, 154, '兴和县张皋镇', '镇府，经管所/农经站', '13947662350', NULL, '14', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:38');
+INSERT INTO `town_sales` VALUES (118, 155, '商都县小海子镇', '镇府，经管所/农经站', '无', NULL, '15', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:38');
+INSERT INTO `town_sales` VALUES (119, 156, '化德县朝阳镇', '镇府，经管所/农经站', '无', NULL, '16', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:38');
+INSERT INTO `town_sales` VALUES (120, 156, '化德县公腊胡洞乡', '镇府，经管所/农经站', '无', NULL, '17', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:39');
+INSERT INTO `town_sales` VALUES (121, 156, '化德县德包图乡', '镇府，经管所/农经站', '无', NULL, '18', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:39');
+INSERT INTO `town_sales` VALUES (122, 155, '商都县玻璃忽镜乡', '镇府，经管所/农经站', '未给', NULL, '19', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:39');
+INSERT INTO `town_sales` VALUES (123, 155, '商都县七台镇', '镇府，经管所/农经站', '无', NULL, '20', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:39');
+INSERT INTO `town_sales` VALUES (124, 157, '察哈尔右翼前旗平地泉镇', '镇府，经管所/农经站', '15848069955', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:40');
+INSERT INTO `town_sales` VALUES (125, 157, '察哈尔右翼前旗黄旗海镇', '镇府，经管所/农经站', '15144895267', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:40');
+INSERT INTO `town_sales` VALUES (126, 157, '察哈尔右翼前旗巴音塔拉镇', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:40');
+INSERT INTO `town_sales` VALUES (127, 158, '察哈尔右翼中旗科布尔镇', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:40');
+INSERT INTO `town_sales` VALUES (128, 158, '察哈尔右翼中旗铁沙盖镇165', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:41');
+INSERT INTO `town_sales` VALUES (129, 158, '察哈尔右翼中旗黄羊城镇', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:41');
+INSERT INTO `town_sales` VALUES (130, 158, '察哈尔右翼中旗广益隆镇169', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:42');
+INSERT INTO `town_sales` VALUES (131, 158, '察哈尔右翼中旗土城子乡167', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:42');
+INSERT INTO `town_sales` VALUES (132, 159, '察哈尔右翼后旗白音察干镇', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:44');
+INSERT INTO `town_sales` VALUES (133, 159, '察哈尔右翼后旗土牧尔台镇', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:45');
+INSERT INTO `town_sales` VALUES (134, 159, '察哈尔右翼后旗红格尔图镇', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:45');
+INSERT INTO `town_sales` VALUES (135, 159, '察哈尔右翼后旗贲红镇', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:45');
+INSERT INTO `town_sales` VALUES (136, 160, '丰镇市隆盛庄镇', '镇府，经管所/农经站', '13947453213', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:45');
+INSERT INTO `town_sales` VALUES (137, 161, '丰镇市红砂坝镇', '镇府，经管所/农经站', '13847432196', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:46');
+INSERT INTO `town_sales` VALUES (138, 162, '‌丰镇市巨宝庄镇', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:46');
+INSERT INTO `town_sales` VALUES (139, 163, '‌丰镇市黑土台镇', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:46');
+INSERT INTO `town_sales` VALUES (140, 164, '土默特左旗北什轴乡', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:46');
+INSERT INTO `town_sales` VALUES (141, 164, '土默特左旗毕克齐镇', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:47');
+INSERT INTO `town_sales` VALUES (142, 164, '土默特左旗白庙子镇', '镇府，经管所/农经站', '15024931363', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:47');
+INSERT INTO `town_sales` VALUES (143, 164, '土默特左旗台阁牧镇', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:47');
+INSERT INTO `town_sales` VALUES (144, 165, '武川县哈乐镇', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:47');
+INSERT INTO `town_sales` VALUES (145, 165, '武川县西乌兰不浪镇', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:48');
+INSERT INTO `town_sales` VALUES (146, 165, '武川县大青山乡', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:48');
+INSERT INTO `town_sales` VALUES (147, 165, '武川县上秃亥乡', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:48');
+INSERT INTO `town_sales` VALUES (148, 166, '四子王旗库伦图镇', '镇府，经管所/农经站', '15024925025', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:48');
+INSERT INTO `town_sales` VALUES (149, 166, '四子王旗东八号乡', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:49');
+INSERT INTO `town_sales` VALUES (150, 166, '四子王旗忽鸡图乡', '镇府，经管所/农经站', '15949475877', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:49');
+INSERT INTO `town_sales` VALUES (151, 166, '四子王旗大黑河乡', '镇府，经管所/农经站', '', NULL, '', '', '', 1, '', 0, 0.00, '2026-07-20 09:50:49');
 
 -- ----------------------------
 -- Table structure for users
@@ -1437,27 +1665,13 @@ CREATE TABLE `weeklyreports`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `userId`(`userId` ASC) USING BTREE,
   CONSTRAINT `weeklyreports_ibfk_1` FOREIGN KEY (`userId`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 26 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of weeklyreports
 -- ----------------------------
-
--- ----------------------------
--- Table structure for sales_targets
--- ----------------------------
-DROP TABLE IF EXISTS `sales_targets`;
-CREATE TABLE `sales_targets`  (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `managerId` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `managerName` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '',
-  `year` int NOT NULL,
-  `month` int NOT NULL,
-  `targetAmount` decimal(15, 2) NULL DEFAULT 0.00,
-  `createdAt` datetime NULL DEFAULT CURRENT_TIMESTAMP,
-  `updatedAt` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_manager_period`(`managerId` ASC, `year` ASC, `month` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
+INSERT INTO `weeklyreports` VALUES (23, '2026年1月', '', '', '[{\"name\":\"综合平台操作手册 .docx\",\"url\":\"/uploads/1784536819723-599305640.docx\",\"type\":\"\",\"size\":5367250}]', 6, '2026-07-20 16:40:21', '2026年1月');
+INSERT INTO `weeklyreports` VALUES (24, '2026年1月', '', '', '[{\"name\":\"工作报告6.5-6.9.docx\",\"url\":\"/uploads/1784536856285-151646377.docx\",\"type\":\"\",\"size\":15860}]', 6, '2026-07-20 16:40:56', '2026年1月');
+INSERT INTO `weeklyreports` VALUES (25, '2026年2月', '', '', '[{\"name\":\"综合平台操作手册 .docx\",\"url\":\"/uploads/1784536880276-875615758.docx\",\"type\":\"\",\"size\":5367250}]', 6, '2026-07-20 16:41:21', '2026年2月');
 
 SET FOREIGN_KEY_CHECKS = 1;
