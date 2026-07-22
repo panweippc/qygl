@@ -14,6 +14,18 @@ router.get('/visit-records/:townId', async (req, res) => {
   }
 });
 
+// 按乡镇ID获取拜访记录（别名路由，避免与 :townId 参数冲突）
+router.get('/visit-records/town/:townId', async (req, res) => {
+  const { townId } = req.params;
+  try {
+    const { pool } = req.app.locals;
+    const [data] = await pool.execute('SELECT * FROM visit_records WHERE townId = ? ORDER BY visitDate DESC', [townId]);
+    res.json({ success: true, data: data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: '获取拜访记录失败' });
+  }
+});
+
 // 添加拜访记录
 router.post('/visit-records', async (req, res) => {
   const { townId, customerName, address, visitDate, visitPerson, visitContent, nextPlan } = req.body;

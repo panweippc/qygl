@@ -18,7 +18,7 @@ const router = createRouter({
     {
       path: '/monthly-report',
       name: 'monthly-report',
-      component: () => import('../views/WeeklyReportView.vue')
+      component: () => import('../views/MonthlyReportView.vue')
     },
     {
       path: '/employee-management',
@@ -43,7 +43,7 @@ const router = createRouter({
     {
       path: '/monthly-report-history',
       name: 'monthly-report-history',
-      component: () => import('../views/WeeklyReportHistoryView.vue')
+      component: () => import('../views/MonthlyReportHistoryView.vue')
     },
     {
       path: '/closing-project',
@@ -54,6 +54,26 @@ const router = createRouter({
       path: '/sales-funnel',
       name: 'sales-funnel',
       component: () => import('../views/SalesFunnelView.vue')
+    },
+    {
+      path: '/customer-management',
+      name: 'customer-management',
+      component: () => import('../views/CustomerManagementView.vue')
+    },
+    {
+      path: '/sales-opportunity',
+      name: 'sales-opportunity',
+      component: () => import('../views/SalesOpportunityView.vue')
+    },
+    {
+      path: '/sales-target',
+      name: 'sales-target',
+      component: () => import('../views/SalesTargetView.vue')
+    },
+    {
+      path: '/knowledge-base',
+      name: 'knowledge-base',
+      component: () => import('../views/KnowledgeBaseView.vue')
     },
     {
       path: '/oa-office',

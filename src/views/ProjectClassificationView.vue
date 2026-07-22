@@ -208,7 +208,7 @@ const openEditProvinceDialog = (province: any) => {
 const handleSaveProvince = async (data: any) => {
   submitting.value = true
   try {
-    const url = data.isEditing ? `http://localhost:3005/api/provinces/${data.id}` : 'http://localhost:3005/api/provinces'
+    const url = data.isEditing ? `/api/provinces/${data.id}` : '/api/provinces'
     const response = await fetch(url, {
       method: data.isEditing ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -288,7 +288,7 @@ const openEditCountyDialog = (county: any) => {
 const handleSaveCounty = async (data: any) => {
   submitting.value = true
   try {
-    const url = data.isEditing ? `http://localhost:3005/api/counties/${data.id}` : 'http://localhost:3005/api/counties'
+    const url = data.isEditing ? `/api/counties/${data.id}` : '/api/counties'
     const response = await fetch(url, {
       method: data.isEditing ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -327,7 +327,7 @@ const openEditProjectDialog = (project: any) => {
 const handleSaveProject = async (data: any) => {
   submitting.value = true
   try {
-    const url = data.isEditing ? `http://localhost:3005/api/closing-projects/${data.id}` : 'http://localhost:3005/api/closing-projects'
+    const url = data.isEditing ? `/api/closing-projects/${data.id}` : '/api/closing-projects'
     const response = await fetch(url, {
       method: data.isEditing ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -367,7 +367,7 @@ const deleteCounty = async (county: {id: number, name: string}) => {
     await ElMessageBox.confirm(`确定要删除旗县"${county.name}" 吗？`, '确认删除', {
       confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
     })
-    const response = await fetch(`http://localhost:3005/api/counties/${county.id}`, { method: 'DELETE' })
+    const response = await fetch(`/api/counties/${county.id}`, { method: 'DELETE' })
     const data = await response.json()
     if (data.success) {
       ElMessage.success('旗县删除成功')
@@ -388,7 +388,7 @@ const deleteProject = async (project: {id: number, name: string}) => {
     await ElMessageBox.confirm(`确定要删除项目"${project.name}" 吗？`, '确认删除', {
       confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
     })
-    const response = await fetch(`http://localhost:3005/api/closing-projects/${project.id}`, { method: 'DELETE' })
+    const response = await fetch(`/api/closing-projects/${project.id}`, { method: 'DELETE' })
     const data = await response.json()
     if (data.success) {
       ElMessage.success('项目删除成功')
@@ -409,7 +409,7 @@ const deleteCity = async (city: {id: number, name: string}) => {
     await ElMessageBox.confirm(`确定要删除城市"${city.name}" 吗？`, '确认删除', {
       confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
     })
-    const response = await fetch(`http://localhost:3005/api/cities/${city.id}`, { method: 'DELETE' })
+    const response = await fetch(`/api/cities/${city.id}`, { method: 'DELETE' })
     const data = await response.json()
     if (data.success) {
       ElMessage.success('城市删除成功')
@@ -430,7 +430,7 @@ const deleteProvince = async (province: {id: number, name: string}) => {
     await ElMessageBox.confirm(`确定要删除省份"${province.name}" 吗？`, '确认删除', {
       confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
     })
-    const response = await fetch(`http://localhost:3005/api/provinces/${province.id}`, { method: 'DELETE' })
+    const response = await fetch(`/api/provinces/${province.id}`, { method: 'DELETE' })
     const data = await response.json()
     if (data.success) {
       ElMessage.success('省份删除成功')
@@ -449,7 +449,7 @@ const deleteProvince = async (province: {id: number, name: string}) => {
 const loadProvinces = async () => {
   loading.value = true
   try {
-    const response = await fetch('http://localhost:3005/api/provinces')
+    const response = await fetch('/api/provinces')
     const data = await response.json()
     if (data.success) provinces.value = data.data
     else ElMessage.error('获取省份数据失败')
@@ -464,7 +464,7 @@ const loadProvinces = async () => {
 const loadCities = async (provinceId: number) => {
   loading.value = true
   try {
-    const response = await fetch(`http://localhost:3005/api/provinces/${provinceId}/cities`)
+    const response = await fetch(`/api/provinces/${provinceId}/cities`)
     const data = await response.json()
     if (data.success) cities.value = data.data
     else ElMessage.error('获取城市数据失败')
@@ -479,7 +479,7 @@ const loadCities = async (provinceId: number) => {
 const loadCounties = async (cityId: number) => {
   loading.value = true
   try {
-    const response = await fetch(`http://localhost:3005/api/cities/${cityId}/counties`)
+    const response = await fetch(`/api/cities/${cityId}/counties`)
     const data = await response.json()
     if (data.success) counties.value = data.data
     else ElMessage.error('获取旗县数据失败')
@@ -494,7 +494,7 @@ const loadCounties = async (cityId: number) => {
 const loadCountyProjects = async (countyId: number) => {
   loading.value = true
   try {
-    const response = await fetch(`http://localhost:3005/api/counties/${countyId}/projects`)
+    const response = await fetch(`/api/counties/${countyId}/projects`)
     const data = await response.json()
     if (data.success) countyProjects.value = data.data
     else ElMessage.error('获取项目列表失败')

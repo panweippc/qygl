@@ -11,6 +11,40 @@ const upload = multer({ dest: path.join(__dirname, '../../uploads/temp') });
 
 const router = express.Router();
 
+// 下载导入模板
+router.get('/sales-import/template', (req, res) => {
+  const wb = xlsx.utils.book_new();
+  const data = [
+    {
+      '盟市名称': '乌兰察布市',
+      '合作伙伴名称': '凉城县永兴镇',
+      '联系人': '张三',
+      '联系电话': '13800000001',
+      '负责人': '1',
+      '客户方负责人': '王经理',
+      '我方负责人': '',
+      '销售状态': '潜在客户',
+      '客户类型': '乡镇',
+      '公司级支持需求': '需要技术支持',
+      '本月回款金额': 50000,
+      '站点数': 3,
+      '成功/放弃': ''
+    }
+  ];
+  const ws = xlsx.utils.json_to_sheet(data);
+  ws['!cols'] = [
+    { wch: 14 }, { wch: 20 }, { wch: 10 }, { wch: 14 },
+    { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 12 },
+    { wch: 10 }, { wch: 18 }, { wch: 14 }, { wch: 10 },
+    { wch: 12 }
+  ];
+  xlsx.utils.book_append_sheet(wb, ws, '销售数据');
+  const buf = xlsx.write(wb, { bookType: 'xlsx', type: 'buffer' });
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename=sales_import_template.xlsx');
+  res.send(buf);
+});
+
 const STAGE_MAP = {
   '潜在客户': 1, '潜在': 1, '潜在用户': 1, '1': 1,
   '意向客户': 2, '意向': 2, '有意向': 2, '2': 2,
@@ -129,7 +163,10 @@ router.post('/sales-import', upload.single('file'), async (req, res) => {
       contact: matchCol(['联系人', '姓名', '客户名单']),
       phone: matchCol(['电话', '联系电话', '手机', '手机号']),
       manager: matchCol(['负责人', '经理', 'owner']),
+      customerManager: matchCol(['客户方负责人', '客户负责人']),
+      ourManager: matchCol(['我方负责人', '我方销售负责人', '内部负责人']),
       intention: matchCol(['销售状态', '意向度', '意向', '阶段', '状态']),
+      contactType: matchCol(['客户类型', '类型', '客户类别', 'category']),
       requirement: matchCol(['公司级支持需求', '需求', '需求描述', '备注', '说明']),
       sales: matchCol(['本月回款金额', '预计总回款额', '销售额', '销售金额', '金额', '成交额']),
       customers: matchCol(['站点数', '客户数', '客户数量', '人数']),
@@ -164,7 +201,10 @@ router.post('/sales-import', upload.single('file'), async (req, res) => {
       const townName = rawCountyName;
       const contactPerson = matchedCols.contact ? String(row[matchedCols.contact]).trim() : '';
       const contactPhone = matchedCols.phone ? String(row[matchedCols.phone]).trim() : '';
+      const contactType = matchedCols.contactType ? String(row[matchedCols.contactType]).trim() : '';
       const manager = matchedCols.manager ? String(row[matchedCols.manager]).trim() : '';
+      const customerManager = matchedCols.customerManager ? String(row[matchedCols.customerManager]).trim() : (manager || '');
+      const ourManager = matchedCols.ourManager ? String(row[matchedCols.ourManager]).trim() : '';
       const intention = matchedCols.intention ? (row[matchedCols.intention] ?? 1) : 1;
       const requirement = matchedCols.requirement ? String(row[matchedCols.requirement]).trim() : '';
       const sales = matchedCols.sales ? parseNum(row[matchedCols.sales]) : 0;
@@ -236,29 +276,39 @@ router.post('/sales-import', upload.single('file'), async (req, res) => {
       const stageId = dealStatus ? 5 : parseStage(intention);
 
       await pool.execute(
-        `INSERT INTO town_sales (countyId, name, contactPerson, contactPhone, manager, intention, requirement, isDealed, sales, createdAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [countyId, townName, contactPerson, contactPhone, manager, stageId, requirement, dealStatus, sales,
+        `INSERT INTO town_sales (countyId, name, contactPerson, contactPhone, contactType, manager, customer_manager, our_manager, intention, requirement, isDealed, sales, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [countyId, townName, contactPerson, contactPhone, contactType, manager, customerManager, ourManager, stageId, requirement, dealStatus, sales,
          new Date().toISOString().replace('T', ' ').replace('Z', '')]
       );
 
       importedRows++;
     }
 
-    // 重新计算销售漏斗汇总数据
-    await pool.execute('DELETE FROM sales_funnel_data');
+    // 重新计算销售漏斗汇总数据（事务内执行，避免并发读窗口）
+    const funnelConn = await pool.getConnection();
+    try {
+      await funnelConn.beginTransaction();
+      await funnelConn.execute('DELETE FROM sales_funnel_data');
 
-    for (let stageId = 1; stageId <= 5; stageId++) {
-      const [stageRows] = await pool.execute(
-        'SELECT COUNT(*) as cnt, COALESCE(SUM(sales), 0) as amt FROM town_sales WHERE intention = ?',
-        [stageId]
-      );
-      const today = new Date().toISOString().slice(0, 10);
-      const now = new Date().toISOString().replace('T', ' ').replace('Z', '');
-      await pool.execute(
-        'INSERT INTO sales_funnel_data (stageId, count, amount, date, createdAt) VALUES (?, ?, ?, ?, ?)',
-        [stageId, stageRows[0].cnt, stageRows[0].amt, today, now]
-      );
+      for (let stageId = 1; stageId <= 5; stageId++) {
+        const [stageRows] = await funnelConn.execute(
+          'SELECT COUNT(*) as cnt, COALESCE(SUM(sales), 0) as amt FROM town_sales WHERE intention = ?',
+          [stageId]
+        );
+        const today = new Date().toISOString().slice(0, 10);
+        const now = new Date().toISOString().replace('T', ' ').replace('Z', '');
+        await funnelConn.execute(
+          'INSERT INTO sales_funnel_data (stageId, count, amount, date, createdAt) VALUES (?, ?, ?, ?, ?)',
+          [stageId, stageRows[0].cnt, stageRows[0].amt, today, now]
+        );
+      }
+      await funnelConn.commit();
+    } catch (funnelErr) {
+      await funnelConn.rollback();
+      throw funnelErr;
+    } finally {
+      funnelConn.release();
     }
 
     res.json({

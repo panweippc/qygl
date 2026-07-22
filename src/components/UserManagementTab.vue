@@ -113,7 +113,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-const API_BASE = 'http://localhost:3005/api'
+const API_BASE = '/api'
 
 const users = ref<any[]>([])
 const roles = ref<any[]>([])

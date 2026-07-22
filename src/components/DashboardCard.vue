@@ -1,5 +1,5 @@
 <template>
-  <div class="dashboard-card">
+  <div class="dashboard-card" :class="{ clickable: !!to }" @click="navigate">
     <div class="card-header">
       <h3>{{ title }}</h3>
       <div class="card-icon">
@@ -18,10 +18,18 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { useRouter } from 'vue-router'
+
+const props = defineProps<{
   title: string
   stats: { value: number; label: string }[]
+  to?: string
 }>()
+
+const router = useRouter()
+const navigate = () => {
+  if (props.to) router.push(props.to)
+}
 </script>
 
 <style scoped>
@@ -64,6 +72,8 @@ defineProps<{
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }
+
+.dashboard-card.clickable { cursor: pointer; }
 
 .dashboard-card:hover::before {
   opacity: 1;

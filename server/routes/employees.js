@@ -51,31 +51,9 @@ router.post('/employees', async (req, res) => {
     const [newEmployee] = await connection.execute('SELECT * FROM employees WHERE name = ?', [name]);
 
     if (password) {
-      const username = `emp_${name}_${Date.now()}`;
-      await connection.execute('INSERT INTO users (username, password, createdAt) VALUES (?, ?, ?)', [username, password, formattedDate]);
-
-      const [existingUsers] = await connection.execute('SELECT * FROM users WHERE username = ?', [name]);
-      let userId = null;
-      if (existingUsers.length === 0) {
-        const [result] = await connection.execute('INSERT INTO users (username, password, createdAt) VALUES (?, ?, ?)', [name, password, formattedDate]);
-        userId = result.insertId;
-      } else {
-        userId = existingUsers[0].id;
-      }
-
-      if (role && userId) {
-        try {
-          const [roles] = await connection.execute('SELECT id FROM roles WHERE name = ?', [role]);
-          if (roles.length > 0) {
-            const roleId = roles[0].id;
-            const [rolePermissions] = await connection.execute('SELECT menuId FROM role_permissions WHERE roleId = ?', [roleId]);
-            for (const perm of rolePermissions) {
-              await connection.execute('INSERT INTO role_permissions (roleId, menuId, createdAt) VALUES (?, ?, ?)', [userId, perm.menuId, formattedDate]);
-            }
-          }
-        } catch (permError) {
-          console.error('分配权限失败:', permError.message);
-        }
+      const [existingUser] = await connection.execute('SELECT id FROM users WHERE username = ?', [name]);
+      if (existingUser.length === 0) {
+        await connection.execute('INSERT INTO users (username, password, createdAt) VALUES (?, ?, ?)', [name, password, formattedDate]);
       }
     }
 
@@ -114,6 +92,9 @@ router.put('/employees/:name', async (req, res) => {
     const formattedEntryDate = entryDate ? new Date(entryDate).toISOString().slice(0, 19).replace('T', ' ') : new Date().toISOString().slice(0, 19).replace('T', ' ');
     const formattedBirthDate = birthDate ? new Date(birthDate).toISOString().slice(0, 19).replace('T', ' ') : null;
 
+    const oldName = req.params.name;
+    const newName = req.body.name;
+
     let roleId = directRoleId || null;
     if (!roleId && role) {
       const [roles] = await connection.execute('SELECT id FROM roles WHERE name = ?', [role]);
@@ -125,24 +106,46 @@ router.put('/employees/:name', async (req, res) => {
     if (id) {
       await connection.execute(
         'UPDATE employees SET name = ?, department = ?, position = ?, email = ?, phone = ?, entryDate = ?, roleId = ?, status = ?, employeeType = ?, education = ?, birthDate = ?, idCard = ?, address = ?, emergencyContact = ?, emergencyPhone = ? WHERE id = ?',
-        [name, department, position, email, phone, formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', id]
+        [newName, department, position, email, phone, formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', id]
       );
     } else {
       await connection.execute(
         'UPDATE employees SET department = ?, position = ?, email = ?, phone = ?, entryDate = ?, roleId = ?, status = ?, employeeType = ?, education = ?, birthDate = ?, idCard = ?, address = ?, emergencyContact = ?, emergencyPhone = ? WHERE name = ?',
-        [department, position, email, phone, formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', name]
+        [department, position, email, phone, formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', oldName]
       );
     }
 
+    // 如果姓名变更，级联更新所有 OA 表中的审批人/申请人字段
+    if (oldName !== newName) {
+      const tableUpdates = [
+        { sql: "UPDATE leave_applications SET applicant = REPLACE(applicant, ?, ?), approver = REPLACE(approver, ?, ?) WHERE applicant = ? OR approver = ?", params: [oldName, newName, oldName, newName, oldName, newName] },
+        { sql: "UPDATE reimbursements SET applicant = REPLACE(applicant, ?, ?), approver = REPLACE(approver, ?, ?) WHERE applicant = ? OR approver = ?", params: [oldName, newName, oldName, newName, oldName, newName] },
+        { sql: "UPDATE office_supplies_applications SET applicant = REPLACE(applicant, ?, ?), approver = REPLACE(approver, ?, ?) WHERE applicant = ? OR approver = ?", params: [oldName, newName, oldName, newName, oldName, newName] },
+        { sql: "UPDATE entertainment_expenses SET applicant = REPLACE(applicant, ?, ?), approver = REPLACE(approver, ?, ?) WHERE applicant = ? OR approver = ?", params: [oldName, newName, oldName, newName, oldName, newName] },
+        { sql: "UPDATE business_trip_applications SET approver = REPLACE(approver, ?, ?), current_approvers = REPLACE(current_approvers, ?, ?), approval_history = REPLACE(approval_history, ?, ?) WHERE approver LIKE ? OR current_approvers LIKE ? OR approval_history LIKE ?", params: [oldName, newName, oldName, newName, oldName, newName, oldName, newName, oldName] },
+        { sql: "UPDATE project_applications SET approver = REPLACE(approver, ?, ?), current_approvers = REPLACE(current_approvers, ?, ?), approval_history = REPLACE(approval_history, ?, ?) WHERE approver LIKE ? OR current_approvers LIKE ? OR approval_history LIKE ?", params: [oldName, newName, oldName, newName, oldName, newName, oldName, newName, oldName] },
+        { sql: "UPDATE meetings SET approver = REPLACE(approver, ?, ?) WHERE approver = ?", params: [oldName, newName, oldName] },
+        { sql: "UPDATE closing_projects SET applicant = REPLACE(applicant, ?, ?) WHERE applicant = ?", params: [oldName, newName, oldName] },
+        { sql: "UPDATE notifications SET userId = ? WHERE userId = ?", params: [newName, oldName] }
+      ];
+      for (const { sql, params } of tableUpdates) {
+        try {
+          await connection.execute(sql, params);
+        } catch (syncErr) {
+          console.error('级联更新失败:', syncErr.message);
+        }
+      }
+    }
+
     if (password) {
-      const [users] = await connection.execute('SELECT * FROM users WHERE username = ?', [name]);
+      const [users] = await connection.execute('SELECT * FROM users WHERE username = ?', [oldName]);
       if (users.length > 0) {
-        await connection.execute('UPDATE users SET password = ? WHERE username = ?', [password, name]);
+        await connection.execute('UPDATE users SET username = ?, password = ? WHERE username = ?', [newName, password, oldName]);
       }
     }
 
     const operator = req.body.operator || req.body.username || '系统';
-    createOperationLog(pool, { userId: null, username: operator, action: 'update', module: 'employee', targetId: id || null, targetName: name, detail: `更新员工: ${name}`, ipAddress: req.ip });
+    createOperationLog(pool, { userId: null, username: operator, action: 'update', module: 'employee', targetId: id || null, targetName: newName, detail: `更新员工: ${newName}`, ipAddress: req.ip });
     connection.release();
     res.json({ success: true, message: '员工更新成功' });
   } catch (error) {

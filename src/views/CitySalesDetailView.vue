@@ -145,20 +145,20 @@ const formData = ref({
 // 加载城市数据
 const loadCityData = async () => {
   try {
-    const cityResponse = await fetch('http://localhost:3005/api/city-sales')
+    const cityResponse = await fetch('/api/city-sales')
     const cityData = await cityResponse.json()
     if (!cityData.success) return
     
     let city = cityData.data.find((item: any) => item.name === cityName.value)
     if (!city) {
-      const createRes = await fetch('http://localhost:3005/api/city-sales', {
+      const createRes = await fetch('/api/city-sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: cityName.value, sales: 0, customers: 0, growthRate: 0 })
       })
       const createData = await createRes.json()
       if (!createData.success) return
-      const refetch = await fetch('http://localhost:3005/api/city-sales')
+      const refetch = await fetch('/api/city-sales')
       const refetchData = await refetch.json()
       city = refetchData.data.find((item: any) => item.name === cityName.value)
       if (!city) return
@@ -170,7 +170,7 @@ const loadCityData = async () => {
       growthRate: parseFloat(city.growthRate) || 0
     }
     
-    const countyResponse = await fetch(`http://localhost:3005/api/county-sales/${city.id}`)
+    const countyResponse = await fetch(`/api/county-sales/${city.id}`)
     if (!countyResponse.ok) return
     const countyData = await countyResponse.json()
     
@@ -222,14 +222,14 @@ const closeModal = () => {
 
 // 提交表单
 const getOrCreateCity = async () => {
-  const cityResponse = await fetch('http://localhost:3005/api/city-sales')
+  const cityResponse = await fetch('/api/city-sales')
   const cityData = await cityResponse.json()
   if (!cityData.success) return null
 
   let city = cityData.data.find((item: any) => item.name === cityName.value)
   if (city) return city
 
-  const createRes = await fetch('http://localhost:3005/api/city-sales', {
+  const createRes = await fetch('/api/city-sales', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: cityName.value, sales: 0, customers: 0, growthRate: 0 })
@@ -237,7 +237,7 @@ const getOrCreateCity = async () => {
   const createData = await createRes.json()
   if (!createData.success) return null
 
-  const refetch = await fetch('http://localhost:3005/api/city-sales')
+  const refetch = await fetch('/api/city-sales')
   const refetchData = await refetch.json()
   return refetchData.data.find((item: any) => item.name === cityName.value) || null
 }
@@ -250,7 +250,7 @@ const submitForm = async () => {
     }
 
     if (isEditing.value) {
-      const updateResponse = await fetch(`http://localhost:3005/api/county-sales/${formData.value.id}`, {
+      const updateResponse = await fetch(`/api/county-sales/${formData.value.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -276,7 +276,7 @@ const submitForm = async () => {
       return
     }
     
-    const addResponse = await fetch('http://localhost:3005/api/county-sales', {
+    const addResponse = await fetch('/api/county-sales', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -309,7 +309,7 @@ const deleteCounty = async (countyId: string) => {
       cancelButtonText: '取消',
       type: 'warning'
     })
-    const response = await fetch(`http://localhost:3005/api/county-sales/${countyId}`, {
+    const response = await fetch(`/api/county-sales/${countyId}`, {
       method: 'DELETE'
     })
     const data = await response.json()

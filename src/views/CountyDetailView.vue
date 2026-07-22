@@ -78,8 +78,20 @@
                   <span class="detail-value">{{ town.contactPhone }}</span>
                 </div>
                 <div class="detail-item">
+                  <span class="detail-label">客户类型:</span>
+                  <span class="detail-value">{{ town.contactType || '-' }}</span>
+                </div>
+                <div class="detail-item">
                   <span class="detail-label">负责人</span>
                   <span class="detail-value">{{ town.manager || '-' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">客户方负责人:</span>
+                  <span class="detail-value">{{ town.customer_manager || '-' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">我方负责人:</span>
+                  <span class="detail-value">{{ town.our_manager || '-' }}</span>
                 </div>
               </div>
             </div>
@@ -117,8 +129,26 @@
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label for="manager">负责人</label>
-                <input type="text" id="manager" v-model="formData.manager" required class="form-input">
+                <label for="contactType">客户类型</label>
+                <input type="text" id="contactType" v-model="formData.contactType" class="form-input" placeholder="如：合作社、家庭农场、企业等">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="manager">负责人编号</label>
+                <input type="text" id="manager" v-model="formData.manager" class="form-input" placeholder="客户负责人编号">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="customerManager">客户方负责人</label>
+                <input type="text" id="customerManager" v-model="formData.customerManager" class="form-input" placeholder="客户方负责人姓名">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="ourManager">我方负责人</label>
+                <input type="text" id="ourManager" v-model="formData.ourManager" class="form-input" placeholder="我方销售负责人">
               </div>
             </div>
             <div class="form-row">
@@ -197,7 +227,10 @@ const formData = ref({
   name: '',
   contactPerson: '',
   contactPhone: '',
+  contactType: '',
   manager: '',
+  customerManager: '',
+  ourManager: '',
   intention: 0,
   isDealed: false
 })
@@ -244,14 +277,14 @@ const getDealStatusClass = (isDealed: any) => {
 const loadCountyData = async () => {
   try {
     // 获取盟市销售数据
-    const cityResponse = await fetch('http://localhost:3005/api/city-sales')
+    const cityResponse = await fetch('/api/city-sales')
     const cityData = await cityResponse.json()
     
     if (cityData.success) {
       const city = cityData.data.find((item: any) => item.name === cityName.value)
       if (city) {
         // 获取旗县销售数据
-        const countyResponse = await fetch(`http://localhost:3005/api/county-sales/${city.id}`)
+        const countyResponse = await fetch(`/api/county-sales/${city.id}`)
         const countyDataList = await countyResponse.json()
         
         if (countyDataList.success) {
@@ -267,7 +300,7 @@ const loadCountyData = async () => {
               countyId.value = county.id
 
               // 获取乡镇销售数据
-              const townResponse = await fetch(`http://localhost:3005/api/town-sales/${county.id}`)
+              const townResponse = await fetch(`/api/town-sales/${county.id}`)
               const townDataList = await townResponse.json()
               
               if (townDataList.success) {
@@ -299,7 +332,10 @@ const openAddModal = () => {
     name: '',
     contactPerson: '',
     contactPhone: '',
+    contactType: '',
     manager: '',
+    customerManager: '',
+    ourManager: '',
     intention: 0,
     isDealed: false
   }
@@ -314,7 +350,10 @@ const openEditModal = (town: any) => {
     name: town.name,
     contactPerson: town.contactPerson,
     contactPhone: town.contactPhone,
+    contactType: town.contactType || '',
     manager: town.manager || '',
+    customerManager: town.customer_manager || '',
+    ourManager: town.our_manager || '',
     intention: town.intention,
     isDealed: Boolean(town.isDealed)
   }
@@ -327,7 +366,7 @@ const submitForm = async () => {
     let response
     if (isEditMode.value) {
       // 更新乡镇数据
-      response = await fetch(`http://localhost:3005/api/town-sales/${formData.value.id}`, {
+      response = await fetch(`/api/town-sales/${formData.value.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -336,14 +375,17 @@ const submitForm = async () => {
           name: formData.value.name,
           contactPerson: formData.value.contactPerson,
           contactPhone: formData.value.contactPhone,
+          contactType: formData.value.contactType,
           manager: formData.value.manager,
+          customer_manager: formData.value.customerManager,
+          our_manager: formData.value.ourManager,
           intention: formData.value.intention,
           isDealed: formData.value.isDealed
         })
       })
     } else {
       // 添加乡镇数据
-      response = await fetch('http://localhost:3005/api/town-sales', {
+      response = await fetch('/api/town-sales', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -353,7 +395,10 @@ const submitForm = async () => {
           name: formData.value.name,
           contactPerson: formData.value.contactPerson,
           contactPhone: formData.value.contactPhone,
+          contactType: formData.value.contactType,
           manager: formData.value.manager,
+          customer_manager: formData.value.customerManager,
+          our_manager: formData.value.ourManager,
           intention: formData.value.intention,
           isDealed: formData.value.isDealed
         })
@@ -382,7 +427,7 @@ const submitForm = async () => {
 const deleteTown = async (townId: string) => {
   if (confirm('确定要删除这个乡镇吗？')) {
     try {
-      await fetch(`http://localhost:3005/api/town-sales/${townId}`, {
+      await fetch(`/api/town-sales/${townId}`, {
         method: 'DELETE'
       })
       // 重新加载数据

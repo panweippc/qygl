@@ -809,7 +809,7 @@ const getEmployeeTypeType = (type: string) => {
 const exportEmployees = async () => {
   exportLoading.value = true
   try {
-    const response = await fetch('http://localhost:3005/api/employees/export')
+    const response = await fetch('/api/employees/export')
     if (response.ok) {
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)

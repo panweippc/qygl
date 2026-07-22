@@ -8,7 +8,7 @@ const localNow = () => {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 };
 
-router.get('/weekly-reports', async (req, res) => {
+router.get('/monthly-reports', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const [reports] = await pool.execute('SELECT * FROM weeklyReports');
@@ -18,12 +18,12 @@ router.get('/weekly-reports', async (req, res) => {
     }));
     res.json({ success: true, data: reportsWithFiles });
   } catch (error) {
-    console.error('获取周报数据失败:', error);
-    res.status(500).json({ success: false, message: '获取周报数据失败' });
+    console.error('获取月报数据失败:', error);
+    res.status(500).json({ success: false, message: '获取月报数据失败' });
   }
 });
 
-router.post('/weekly-reports', async (req, res) => {
+router.post('/monthly-reports', async (req, res) => {
   const { title, content, plan, userId, files, date } = req.body;
   try {
     const { pool } = req.app.locals;
@@ -35,9 +35,9 @@ router.post('/weekly-reports', async (req, res) => {
     await createOperationLog(pool, {
       username: req.body.operator || req.body.applicant || '系统',
       action: 'create',
-      module: 'weekly_report',
-      targetName: `周报: ${title}`,
-      detail: `新增周报: ${title}`
+      module: 'monthly_report',
+      targetName: `月报: ${title}`,
+      detail: `新增月报: ${title}`
     });
     res.json({ success: true, message: '月报上传成功' });
   } catch (error) {
@@ -46,7 +46,7 @@ router.post('/weekly-reports', async (req, res) => {
   }
 });
 
-router.put('/weekly-reports/:id', async (req, res) => {
+router.put('/monthly-reports/:id', async (req, res) => {
   const { id } = req.params;
   const { title, content, plan, userId, files, date } = req.body;
   try {
@@ -59,9 +59,9 @@ router.put('/weekly-reports/:id', async (req, res) => {
     await createOperationLog(pool, {
       username: req.body.operator || req.body.applicant || '系统',
       action: 'update',
-      module: 'weekly_report',
-      targetName: `周报: ${title}`,
-      detail: `更新周报: ${title} (ID: ${id})`
+      module: 'monthly_report',
+      targetName: `月报: ${title}`,
+      detail: `更新月报: ${title} (ID: ${id})`
     });
     res.json({ success: true, message: '月报更新成功' });
   } catch (error) {

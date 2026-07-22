@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type {
-  ApiResponse, Employee, WeeklyReport, FileItem, FileCategory,
+  ApiResponse, Employee, MonthlyReport, FileItem, FileCategory,
   Project, Tool, Customer, CustomerActivity, ClosingProject,
   LeaveApplication, Reimbursement, Meeting, OfficeSupply,
   Role, Menu, Department, DistributedRecord
@@ -46,19 +46,19 @@ export const updateEmployee = async (employee: Employee): Promise<ApiResponse> =
   return response.data;
 };
 
-// 周报管理
-export const getWeeklyReports = async (): Promise<ApiResponse<WeeklyReport[]>> => {
-  const response = await api.get('/weekly-reports');
+// 月报管理
+export const getMonthlyReports = async (): Promise<ApiResponse<MonthlyReport[]>> => {
+  const response = await api.get('/monthly-reports');
   return response.data;
 };
 
-export const addWeeklyReport = async (report: WeeklyReport): Promise<ApiResponse> => {
-  const response = await api.post('/weekly-reports', report);
+export const addMonthlyReport = async (report: MonthlyReport): Promise<ApiResponse> => {
+  const response = await api.post('/monthly-reports', report);
   return response.data;
 };
 
-export const updateWeeklyReport = async (report: WeeklyReport): Promise<ApiResponse> => {
-  const response = await api.put(`/weekly-reports/${report.id}`, report);
+export const updateMonthlyReport = async (report: MonthlyReport): Promise<ApiResponse> => {
+  const response = await api.put(`/monthly-reports/${report.id}`, report);
   return response.data;
 };
 
@@ -479,6 +479,17 @@ export const withdrawOaApplication = async (instanceId: number, applicantId: num
 
 export const getOaApproverConfigs = async (): Promise<ApiResponse<import('./types').Employee[]>> => {
   const response = await api.get('/oa/approver-configs');
+  return response.data;
+};
+
+// 销售目标管理
+export const getSalesTargets = async (year?: number, month?: number): Promise<ApiResponse<any[]>> => {
+  const response = await api.get('/sales-targets', { params: { year, month } });
+  return response.data;
+};
+
+export const updateSalesTargets = async (targets: any[]): Promise<ApiResponse> => {
+  const response = await api.put('/sales-targets', { targets });
   return response.data;
 };
 

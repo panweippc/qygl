@@ -131,7 +131,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Delete, Document, Picture } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getWeeklyReports, addWeeklyReport, getEmployees } from '../services/api'
+import { getMonthlyReports, addMonthlyReport, getEmployees } from '../services/api'
 
 const router = useRouter()
 
@@ -282,7 +282,7 @@ const loadReports = async () => {
   loading.value = true
   try {
     // 调用API获取周报数据
-    const response = await getWeeklyReports();
+    const response = await getMonthlyReports();
     if (response.success) {
       reports.value = (response.data as any[]).map(report => {
         // 优先使用 report.date（用户选择的月份），如果不存在则使�?createdAt 计算
@@ -386,7 +386,7 @@ const submitReports = async () => {
           date: selectedMonth.value
         });
         
-        const response = await addWeeklyReport({
+        const response = await addMonthlyReport({
           title: currentReport.value.title,
           content: '',
           plan: '',

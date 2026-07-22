@@ -5,9 +5,29 @@ const router = express.Router();
 router.get('/customers', async (req, res) => {
   const { pool } = req.app.locals;
   try {
-    const [customers] = await pool.execute('SELECT * FROM customers');
-    res.json({ success: true, data: customers });
+    const keyword = req.query.keyword || '';
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
+
+    let whereClauses = [];
+    let params = [];
+    if (keyword) {
+      whereClauses.push('(name LIKE ? OR contact LIKE ? OR phone LIKE ?)');
+      params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+    }
+    const whereStr = whereClauses.length > 0 ? ' WHERE ' + whereClauses.join(' AND ') : '';
+
+    const [countResult] = await pool.execute('SELECT COUNT(*) AS total FROM customers' + whereStr, params);
+    const total = countResult[0].total;
+    const offset = (page - 1) * pageSize;
+
+    const [customers] = await pool.execute(
+      'SELECT * FROM customers' + whereStr + ' ORDER BY createdAt DESC LIMIT ? OFFSET ?',
+      [...params, pageSize, offset]
+    );
+    res.json({ success: true, data: { list: customers, total, page, pageSize } });
   } catch (error) {
+    console.error('获取客户数据失败:', error);
     res.status(500).json({ success: false, message: '获取客户数据失败' });
   }
 });
@@ -83,6 +103,20 @@ router.get('/customer-activities/:customerId', async (req, res) => {
     res.json({ success: true, data: activities });
   } catch (error) {
     res.status(500).json({ success: false, message: '获取客户跟进记录失败' });
+  }
+});
+
+router.get('/customer-activities/by-town/:townId', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { townId } = req.params;
+  try {
+    const [activities] = await pool.execute(
+      'SELECT ca.* FROM customer_activities ca JOIN customers c ON ca.customerId = c.id WHERE c.id = ?',
+      [townId]
+    );
+    res.json({ success: true, data: activities });
+  } catch (error) {
+    res.status(500).json({ success: false, data: [] });
   }
 });
 

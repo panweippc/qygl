@@ -68,10 +68,13 @@
           <div class="upload-area">
             <el-upload
               class="upload-demo"
-              action="#"
-              :on-change="handleFileChange"
-              :auto-upload="false"
-              :file-list="fileList"
+              :action="'/api/upload'"
+              :auto-upload="true"
+              :data="{ categoryId: selectedCategory?.id, uploaderId: parseInt(localStorage.getItem('userId') || '1') }"
+              :on-success="handleUploadSuccess"
+              :on-error="handleUploadError"
+              name="file"
+              multiple
             >
               <div class="upload-trigger">
                 <el-icon class="upload-icon"><Plus /></el-icon>
@@ -201,7 +204,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Delete, Download, Folder, Document, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getFiles, addFile, deleteFile as apiDeleteFile, getFileCategories, addFileCategory, deleteFileCategory } from '../services/api'
+import { getFiles, deleteFile as apiDeleteFile, getFileCategories, addFileCategory, deleteFileCategory } from '../services/api'
 
 const router = useRouter()
 
@@ -368,45 +371,18 @@ const deleteCategory = async (id: number) => {
   }
 }
 
-// 处理文件上传
-const handleFileChange = async (file: any) => {
-    if (!selectedCategory.value) {
-      ElMessage.error('请先选择一个分类')
-      return
-    }
-  
-  fileList.value.push(file)
-  
-  loading.value = true
-  try {
-    const userId = parseInt(localStorage.getItem('userId') || '1')
-    
-    // 确保所有属性都有值，避免undefined
-    const fileData = {
-        name: file.name || '未命名文件',
-      size: file.size || 0,
-      type: file.type || 'application/octet-stream',
-      url: file.url || '',
-      uploaderId: userId,
-      categoryId: selectedCategory.value.id
-    };
-    
-    // 调用API上传文件
-    const response = await addFile(fileData);
-    
-    if (response.success) {
-      // 重新加载数据
-      await loadFiles()
-      ElMessage.success('文件上传成功')
-    } else {
-      ElMessage.error('上传文件失败')
-    }
-  } catch (error) {
-    console.error('上传文件失败:', error)
-    ElMessage.error('上传文件失败')
-  } finally {
-    loading.value = false
+// 处理文件上传完成
+const handleUploadSuccess = async (response: any) => {
+  if (response.success) {
+    ElMessage.success('文件上传成功')
+    await loadFiles()
+  } else {
+    ElMessage.error('上传文件失败: ' + (response.message || ''))
   }
+}
+
+const handleUploadError = () => {
+  ElMessage.error('上传文件失败')
 }
 
 const handleFileRemove = (file: any) => {

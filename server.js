@@ -20,7 +20,7 @@ const userSessions = new Map(); // 键: 用户名, 值: socket.id
 import workflowRouter, { initWorkflowEngine } from './server/routes/workflow.js';
 import authRouter from './server/routes/auth.js';
 import employeesRouter from './server/routes/employees.js';
-import weeklyReportsRouter from './server/routes/weekly-reports.js';
+import weeklyReportsRouter from './server/routes/monthly-reports.js';
 import toolsRouter from './server/routes/tools.js';
 import salesRouter from './server/routes/sales.js';
 import attendanceRouter from './server/routes/attendance.js';
@@ -44,6 +44,7 @@ import operationLogsRouter from './server/routes/operation-logs.js';
 import uploadRouter from './server/routes/upload.js';
 import entertainmentRouter from './server/routes/entertainment.js';
 import salesImportRouter from './server/routes/sales-import.js';
+import knowledgeRouter from './server/routes/knowledge.js';
 
 // 启用CORS
 
@@ -109,6 +110,7 @@ app.use('/api', operationLogsRouter);
 app.use('/api', uploadRouter);
 app.use('/api', entertainmentRouter);
 app.use('/api', salesImportRouter);
+app.use('/api', knowledgeRouter);
 app.use('/uploads', express.static('uploads'));
 
 // 创建数据库连接池
@@ -521,6 +523,8 @@ const initDatabase = async () => {
         contactPerson VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
         contactPhone VARCHAR(255) NOT NULL,
         manager VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        customer_manager VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+        our_manager VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
         intention INT NOT NULL,
         requirement TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
         isDealed TINYINT(1) DEFAULT 0,
@@ -566,7 +570,40 @@ const initDatabase = async () => {
     } catch (alterError) {
       console.log('manager字段检查/添加结果:', alterError.message);
     }
+
+    // 检查并添加customer_manager字段
+    try {
+      const [col] = await connection.execute('SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = \'town_sales\' AND COLUMN_NAME = \'customer_manager\'');
+      if (col.length === 0) {
+        await connection.execute('ALTER TABLE town_sales ADD COLUMN customer_manager VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT \'\' AFTER manager');
+        console.log('customer_manager字段添加成功');
+      }
+    } catch (e) { console.log('customer_manager字段检查结果:', e.message); }
+
+    // 检查并添加our_manager字段
+    try {
+      const [col] = await connection.execute('SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = \'town_sales\' AND COLUMN_NAME = \'our_manager\'');
+      if (col.length === 0) {
+        await connection.execute('ALTER TABLE town_sales ADD COLUMN our_manager VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT \'\' AFTER customer_manager');
+        console.log('our_manager字段添加成功');
+      }
+    } catch (e) { console.log('our_manager字段检查结果:', e.message); }
     
+    // 创建sales_targets表（销售目标）
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS sales_targets (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        managerId VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+        managerName VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+        year INT NOT NULL,
+        month INT NOT NULL,
+        targetAmount DECIMAL(15, 2) DEFAULT 0.00,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_manager_period (managerId, year, month)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
     // 创建closing_projects表（成交项目）
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS closing_projects (
@@ -1291,6 +1328,71 @@ const initDatabase = async () => {
       `);
     }
 
+    // 创建知识库分类表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS knowledge_categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+        description TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        sort INT DEFAULT 0,
+        createdAt DATETIME NOT NULL,
+        updatedAt DATETIME NOT NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // 创建知识库文章表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS knowledge_articles (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        categoryId INT,
+        title VARCHAR(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+        content LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        summary TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        author VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        tags VARCHAR(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        sort INT DEFAULT 0,
+        status VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'published',
+        views INT DEFAULT 0,
+        createdAt DATETIME NOT NULL,
+        updatedAt DATETIME NOT NULL,
+        FOREIGN KEY (categoryId) REFERENCES knowledge_categories(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // 检查并添加files字段到知识库文章表
+    try {
+      const [fileCol] = await connection.execute('SHOW COLUMNS FROM knowledge_articles WHERE Field = ?', ['files']);
+      if (fileCol.length === 0) {
+        await connection.execute('ALTER TABLE knowledge_articles ADD COLUMN files LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER content');
+        console.log('knowledge_articles.files 字段添加成功');
+      }
+    } catch (error) {
+      console.log('检查/添加 files 字段:', error.message);
+    }
+
+    // 初始化知识库示例分类
+    const [existingKbCategories] = await connection.execute('SELECT * FROM knowledge_categories');
+    if (existingKbCategories.length === 0) {
+      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      await connection.execute(
+        'INSERT INTO knowledge_categories (name, description, sort, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)',
+        ['公司制度', '公司各项规章制度', 1, now, now]
+      );
+      await connection.execute(
+        'INSERT INTO knowledge_categories (name, description, sort, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)',
+        ['技术文档', '技术方案和开发文档', 2, now, now]
+      );
+      await connection.execute(
+        'INSERT INTO knowledge_categories (name, description, sort, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)',
+        ['销售资料', '销售相关资料和案例', 3, now, now]
+      );
+      await connection.execute(
+        'INSERT INTO knowledge_categories (name, description, sort, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)',
+        ['操作手册', '系统操作指南', 4, now, now]
+      );
+      console.log('知识库默认分类初始化成功');
+    }
+
     // 创建menus表（菜单管理）
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS menus (
@@ -1555,34 +1657,21 @@ const initDatabase = async () => {
       console.log('默认销售漏斗阶段数据添加成功');
     }
     
-    // 清除现有的销售漏斗数据
+    // 从town_sales实时统计并重建销售漏斗数据
     await connection.execute('DELETE FROM sales_funnel_data');
-    console.log('销售漏斗数据已清除');
-    
-    // 只在销售漏斗数据不存在时添加（现在总是添加新数据）
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const today = new Date().toISOString().slice(0, 10);
-    await connection.execute(
-      'INSERT INTO sales_funnel_data (stageId, count, amount, date, createdAt) VALUES (?, ?, ?, ?, ?)',
-      [1, 0, 0.00, today, now]
-    );
-    await connection.execute(
-      'INSERT INTO sales_funnel_data (stageId, count, amount, date, createdAt) VALUES (?, ?, ?, ?, ?)',
-      [2, 0, 0.00, today, now]
-    );
-    await connection.execute(
-      'INSERT INTO sales_funnel_data (stageId, count, amount, date, createdAt) VALUES (?, ?, ?, ?, ?)',
-      [3, 0, 0.00, today, now]
-    );
-    await connection.execute(
-      'INSERT INTO sales_funnel_data (stageId, count, amount, date, createdAt) VALUES (?, ?, ?, ?, ?)',
-      [4, 0, 0.00, today, now]
-    );
-    await connection.execute(
-      'INSERT INTO sales_funnel_data (stageId, count, amount, date, createdAt) VALUES (?, ?, ?, ?, ?)',
-      [5, 0, 0.00, today, now]
-    );
-    console.log('销售漏斗数据已重置');
+    for (let stageId = 1; stageId <= 5; stageId++) {
+      const [stageRows] = await connection.execute(
+        'SELECT COUNT(*) as cnt, COALESCE(SUM(sales), 0) as amt FROM town_sales WHERE intention = ?',
+        [stageId]
+      );
+      await connection.execute(
+        'INSERT INTO sales_funnel_data (stageId, count, amount, date, createdAt) VALUES (?, ?, ?, ?, ?)',
+        [stageId, stageRows[0].cnt, stageRows[0].amt, today, now]
+      );
+    }
+    console.log('销售漏斗数据已从实际数据重建');
 
     
     // 只在文件分类数据不存在时添加

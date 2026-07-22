@@ -227,7 +227,7 @@ const mockProjects: Project[] = [
 const loadProjectDetail = async () => {
   const id = Number(route.params.id)
   try {
-    const response = await fetch(`http://localhost:3005/api/closing-projects/${id}`)
+    const response = await fetch(`/api/closing-projects/${id}`)
     const data = await response.json()
     if (data.success) {
       project.value = data.data
@@ -266,7 +266,7 @@ const updateProject = async () => {
   }
   
   try {
-    const response = await fetch(`http://localhost:3005/api/closing-projects/${editForm.value.id}`, {
+    const response = await fetch(`/api/closing-projects/${editForm.value.id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
@@ -295,7 +295,7 @@ const deleteProject = async () => {
     type: 'warning'
   }).then(async () => {
     try {
-      const response = await fetch(`http://localhost:3005/api/closing-projects/${project.value.id}`, {
+      const response = await fetch(`/api/closing-projects/${project.value.id}`, {
         method: 'DELETE'
       })
       const data = await response.json()

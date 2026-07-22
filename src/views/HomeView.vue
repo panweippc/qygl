@@ -8,7 +8,7 @@
       <main class="content">
         <div class="dashboard">
           <div class="dashboard-cards">
-            <DashboardCard title="文件存储" :stats="[{ value: fileStats.total, label: '总文件数' }, { value: fileStats.categories, label: '分类数' }]">
+            <DashboardCard title="文件存储" to="/file-storage" :stats="[{ value: fileStats.total, label: '总文件数' }, { value: fileStats.categories, label: '分类数' }]">
               <template #icon>
                 <svg viewBox="0 0 24 24" fill="currentColor">
                   <path d="M13 9H11V7H13V9ZM13 13H11V11H13V13ZM13 17H11V15H13V17ZM21 3H3C1.9 3 1 3.9 1 5V19C1 20.1 1.9 21 3 21H21C22.1 21 23 20.1 23 19V5C23 3.9 22.1 3 21 3ZM21 19H3V5H21V19Z"/>
@@ -16,7 +16,7 @@
               </template>
             </DashboardCard>
 
-            <DashboardCard title="项目分类" :stats="[{ value: projectStats.total, label: '总项目数' }, { value: projectStats.categories, label: '分类数' }]">
+            <DashboardCard title="项目分类" to="/project-category" :stats="[{ value: projectStats.total, label: '总项目数' }, { value: projectStats.categories, label: '分类数' }]">
               <template #icon>
                 <svg viewBox="0 0 24 24" fill="currentColor">
                   <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM9 17H7V10H9V17ZM13 17H11V7H13V17ZM17 17H15V13H17V17Z"/>
@@ -24,7 +24,7 @@
               </template>
             </DashboardCard>
 
-            <DashboardCard title="月报统计" :stats="[{ value: monthlyReportStats.total, label: '总月报数' }, { value: monthlyReportStats.pending, label: '待提交' }]">
+            <DashboardCard title="月报统计" to="/monthly-report" :stats="[{ value: monthlyReportStats.total, label: '总月报数' }, { value: monthlyReportStats.pending, label: '待提交' }]">
               <template #icon>
                 <svg viewBox="0 0 24 24" fill="currentColor">
                   <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19ZM16 11H13V8H11V11H8V13H11V16H13V13H16V11Z"/>
@@ -32,7 +32,7 @@
               </template>
             </DashboardCard>
 
-            <DashboardCard title="工具管理" :stats="[{ value: toolStats.total, label: '总工具数' }, { value: toolStats.categories, label: '分类数' }]">
+            <DashboardCard title="工具管理" to="/tool-inventory" :stats="[{ value: toolStats.total, label: '总工具数' }, { value: toolStats.categories, label: '分类数' }]">
               <template #icon>
                 <svg viewBox="0 0 24 24" fill="currentColor">
                   <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2ZM16 14H8V12H16V14ZM16 10H8V8H16V10Z"/>
@@ -70,7 +70,7 @@ import TrendChart from '../components/TrendChart.vue'
 import PieChart from '../components/PieChart.vue'
 import RankingChart from '../components/RankingChart.vue'
 import ComparisonChart from '../components/ComparisonChart.vue'
-import { getFiles, getProjects, getWeeklyReports, getTools } from '../services/api'
+import { getFiles, getProjects, getMonthlyReports, getTools } from '../services/api'
 
 echarts.registerTheme('default', {
   textStyle: {
@@ -115,7 +115,7 @@ const loadDashboardData = async () => {
       }
     }
 
-    const reportsResponse = await getWeeklyReports()
+    const reportsResponse = await getMonthlyReports()
     if (reportsResponse.success) {
       monthlyReportStats.value = {
         total: reportsResponse.data.length,

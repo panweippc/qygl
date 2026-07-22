@@ -40,6 +40,10 @@
               <span class="detail-value">{{ townData.contactPhone }}</span>
             </div>
             <div class="detail-item">
+              <span class="detail-label">客户类型:</span>
+              <span class="detail-value">{{ townData.contactType || '未设置' }}</span>
+            </div>
+            <div class="detail-item">
               <span class="detail-label">意向程度:</span>
               <span class="detail-value">{{ getIntentionText(townData.intention) }}</span>
             </div>
@@ -162,6 +166,7 @@ const townData = ref({
   name: '',
   contactPerson: '',
   contactPhone: '',
+  contactType: '',
   intention: 0
 })
 
@@ -205,21 +210,21 @@ const getVisitNumber = (index: number) => {
 const loadTownData = async () => {
   try {
     // 获取盟市销售数据
-    const cityResponse = await fetch('http://localhost:3005/api/city-sales')
+    const cityResponse = await fetch('/api/city-sales')
     const cityData = await cityResponse.json()
     
     if (cityData.success) {
           const city = cityData.data.find((item: any) => item.name === cityName.value)
           if (city) {
             // 获取旗县销售数据
-            const countyResponse = await fetch(`http://localhost:3005/api/county-sales/${city.id}`)
+            const countyResponse = await fetch(`/api/county-sales/${city.id}`)
             const countyDataList = await countyResponse.json()
         
         if (countyDataList.success) {
           const county = countyDataList.data.find((item: any) => item.name === countyName.value)
           if (county) {
             // 获取乡镇销售数据
-            const townResponse = await fetch(`http://localhost:3005/api/town-sales/${county.id}`)
+            const townResponse = await fetch(`/api/town-sales/${county.id}`)
             const townDataList = await townResponse.json()
             
             if (townDataList.success) {
@@ -242,7 +247,7 @@ const loadTownData = async () => {
 // 加载拜访记录
 const loadVisitRecords = async (townId: number) => {
   try {
-    const response = await fetch(`http://localhost:3005/api/visit-records/${townId}`)
+    const response = await fetch(`/api/visit-records/${townId}`)
     const data = await response.json()
     if (data.success) {
       visitData.value = data.data
@@ -292,7 +297,7 @@ const submitForm = async () => {
   try {
     if (isEditMode.value) {
       // 更新拜访数据
-      const response = await fetch(`http://localhost:3005/api/visit-records/${formData.value.id}`, {
+      const response = await fetch(`/api/visit-records/${formData.value.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -312,7 +317,7 @@ const submitForm = async () => {
       }
     } else {
       // 添加拜访数据
-      const response = await fetch('http://localhost:3005/api/visit-records', {
+      const response = await fetch('/api/visit-records', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -343,7 +348,7 @@ const submitForm = async () => {
 const deleteVisit = async (visitId: string) => {
   if (confirm('确定要删除这个拜访记录吗？')) {
     try {
-      const response = await fetch(`http://localhost:3005/api/visit-records/${visitId}`, {
+      const response = await fetch(`/api/visit-records/${visitId}`, {
         method: 'DELETE'
       })
       const data = await response.json()

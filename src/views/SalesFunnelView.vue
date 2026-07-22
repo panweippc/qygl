@@ -38,9 +38,13 @@
             <el-button type="success" size="small" @click="showImportDialog = true">
               导入销售记录
             </el-button>
+            <el-button size="small" @click="router.push('/customer-management')">客户管理</el-button>
+            <el-button size="small" @click="router.push('/sales-opportunity')">机会跟进</el-button>
           </div>
           <div ref="mapRef" class="map-container"></div>
         </div>
+
+        <FunnelChart />
 
         <!-- 盟市数据列表 -->
         <div class="data-section">
@@ -83,12 +87,15 @@
         <p>请上传 Excel 文件（.xlsx 或 .xls），表头需包含以下字段：</p>
         <ul>
           <li><strong>盟市名称</strong>（必填）</li>
-          <li><strong>旗县名称</strong>（必填）</li>
+          <li><strong>合作伙伴名称</strong>（必填）</li>
           <li>联系人 / 联系电话 / 负责人</li>
-          <li>意向度（1-潜在 2-意向 3-提案 4-谈判 5-成交）</li>
-          <li>需求 / 销售额 / 客户数 / 是否成交</li>
+          <li>销售状态（潜在客户 / 意向客户 / 提案阶段 / 谈判阶段 / 成交客户）</li>
+          <li>本月回款金额 / 站点数（客户数）</li>
         </ul>
         <p class="import-note">导入后系统将自动创建缺失的盟市和旗县，并更新销售漏斗数据。</p>
+        <el-button type="primary" link size="small" @click="downloadTemplate" class="template-btn">
+          📥 下载导入模板
+        </el-button>
       </div>
       <el-upload
         ref="uploadRef"
@@ -124,6 +131,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
+import FunnelChart from '../components/FunnelChart.vue'
 
 const router = useRouter()
 const mapRef = ref<HTMLElement | null>(null)
@@ -140,7 +148,7 @@ const submitAddCity = async () => {
   }
   submittingCity.value = true
   try {
-    const response = await fetch('http://localhost:3005/api/city-sales', {
+    const response = await fetch('/api/city-sales', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -169,6 +177,11 @@ const submitAddCity = async () => {
 
 const handleBack = () => {
   router.back()
+}
+
+// 下载导入模板
+const downloadTemplate = () => {
+  window.open('/api/sales-import/template', '_blank')
 }
 
 // 导入销售记录
@@ -226,7 +239,7 @@ const submitImport = async () => {
 // 获取盟市销售数据
 const fetchCitySalesData = async () => {
   try {
-    const response = await fetch('http://localhost:3005/api/city-sales')
+    const response = await fetch('/api/city-sales')
     const data = await response.json()
     if (data.success) {
       return data.data.map((city: any) => ({
@@ -245,13 +258,13 @@ const cityList = ref<any[]>([])
 
 const fetchCityList = async () => {
   try {
-    const response = await fetch('http://localhost:3005/api/city-sales')
+    const response = await fetch('/api/city-sales')
     const data = await response.json()
     if (data.success) {
       const list = []
       for (const city of data.data) {
         const [countyRes] = await Promise.all([
-          fetch(`http://localhost:3005/api/county-sales/${city.id}`)
+          fetch(`/api/county-sales/${city.id}`)
         ])
         const countyData = await countyRes.json()
         list.push({

@@ -165,7 +165,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElImage } from 'element-plus'
 import { Document, Download, View } from '@element-plus/icons-vue'
-import { getWeeklyReports, getEmployees } from '../services/api'
+import { getMonthlyReports, getEmployees } from '../services/api'
 
 const router = useRouter()
 
@@ -234,7 +234,7 @@ const loadReports = async () => {
   loading.value = true
   try {
     // 调用API获取月报数据
-    const response = await getWeeklyReports();
+    const response = await getMonthlyReports();
     if (response.success) {
       // 过滤出一年内的月�?      const oneYearAgo = new Date()
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)

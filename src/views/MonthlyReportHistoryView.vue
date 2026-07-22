@@ -253,7 +253,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElImage } from 'element-plus'
 import { Plus, Delete, Document, Download, View } from '@element-plus/icons-vue'
-import { getWeeklyReports, getEmployees, updateWeeklyReport } from '../services/api'
+import { getMonthlyReports, getEmployees, updateMonthlyReport } from '../services/api'
 import * as mammoth from 'mammoth'
 
 const router = useRouter()
@@ -390,7 +390,7 @@ const removeFileFromReport = async (report: Report, file: any) => {
     const newFiles = (report.files || []).filter((f: any) => f.name !== file.name)
     if (newFiles.length === report.files.length) return
     try {
-      const response = await updateWeeklyReport({
+      const response = await updateMonthlyReport({
         id: report.id,
         title: report.title,
         content: report.content || '',
@@ -567,7 +567,7 @@ const loadReports = async () => {
   loading.value = true
   try {
     // 调用API获取月报数据
-    const response = await getWeeklyReports();
+    const response = await getMonthlyReports();
     if (response.success) {
       // 过滤出一年内的月�?
       const oneYearAgo = new Date()
@@ -797,7 +797,7 @@ const saveEdit = async () => {
       userId: editForm.value.userId,
       date: editForm.value.date
     }
-    const response = await updateWeeklyReport(updateData)
+    const response = await updateMonthlyReport(updateData)
     if (response.success) {
       ElMessage.success('月报编辑成功')
       dialogVisible.value = false

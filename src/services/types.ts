@@ -22,7 +22,7 @@ export interface Department {
   description?: string
 }
 
-export interface WeeklyReport {
+export interface MonthlyReport {
   id?: number
   title: string
   content: string
