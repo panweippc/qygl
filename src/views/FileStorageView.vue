@@ -29,6 +29,7 @@
               v-for="category in categories"
               :key="category.id"
               class="category-card"
+              :class="{ 'category-selected': selectedCategory?.id === category.id }"
             >
               <div class="category-info">
                 <div class="category-name">{{ category.name }}</div>
@@ -70,7 +71,7 @@
               class="upload-demo"
               :action="'/api/upload'"
               :auto-upload="true"
-              :data="{ categoryId: selectedCategory?.id, uploaderId: parseInt(localStorage.getItem('userId') || '1') }"
+              :data="{ categoryId: selectedCategory?.id, uploaderId: getUserId() }"
               :on-success="handleUploadSuccess"
               :on-error="handleUploadError"
               name="file"
@@ -122,7 +123,7 @@
               class="file-card"
             >
               <div class="file-card-preview">
-                <img v-if="file.type.includes('image')" :src="file.url" alt="" />
+                <img v-if="['png','jpg','jpeg','gif','bmp','webp','svg'].includes(file.type)" :src="file.url" alt="" />
                 <div v-else class="file-card-icon">
                   <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM18 20H6V4H13V9H18V20Z"/>
@@ -300,6 +301,11 @@ const filteredFiles = computed(() => {
 const selectCategory = (category: Category) => {
   selectedCategory.value = category
   searchQuery.value = ''
+  ElMessage.success(`已选择分类: ${category.name}`)
+  setTimeout(() => {
+    const el = document.querySelector('.upload-section')
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, 100)
 }
 
 // 添加分类
@@ -393,29 +399,28 @@ const handleFileRemove = (file: any) => {
 }
 
 const downloadFile = (file: File) => {
-  // 下载文件逻辑
-  console.log('下载文件:', file)
+  const a = document.createElement('a')
+  a.href = file.url
+  a.download = file.name
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
 }
 
 const viewFile = (file: File) => {
-  // 查看文件逻辑
-  console.log('查看文件:', file)
-  
-  // 根据文件类型打开查看方式
-  if (file.type.includes('image')) {
-    // 图片文件，在新窗口打开
-    window.open(file.url, '_blank')
-  } else if (file.type.includes('pdf')) {
-    // PDF文件，在新窗口打开
-    window.open(file.url, '_blank')
-  } else if (file.type.includes('text') || file.type.includes('document')) {
-    // 文本或文档文件，在新窗口打开
+  if (!file.url) {
+    ElMessage.warning('文件地址无效')
+    return
+  }
+  const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg']
+  const viewerExts = ['pdf', 'txt', 'md']
+  const fileType = (file.type || '').toLowerCase()
+
+  if (imageExts.includes(fileType) || viewerExts.includes(fileType)) {
     window.open(file.url, '_blank')
   } else {
-      // 其他类型文件，提示用户下载
-      ElMessage.info('该文件类型不支持在线查看，请下载后查看')
-      downloadFile(file)
-    }
+    ElMessage.info('该文件类型不支持在线查看，请下载后查看')
+  }
 }
 
 const deleteFile = async (id: number) => {
@@ -449,6 +454,10 @@ const deleteFile = async (id: number) => {
     console.error('删除文件失败:', error)
     ElMessage.error('删除文件失败')
   }
+}
+
+const getUserId = (): number => {
+  try { return parseInt(localStorage.getItem('userId') || '1') } catch { return 1 }
 }
 
 const formatFileSize = (size: number): string => {
@@ -651,6 +660,12 @@ const formatFileSize = (size: number): string => {
   transform: translateY(-5px);
   box-shadow: 0 8px 20px rgba(100, 149, 237, 0.25);
   border-color: rgba(100, 149, 237, 0.6);
+}
+
+.category-selected {
+  border-color: #6495ED !important;
+  box-shadow: 0 0 0 2px rgba(100, 149, 237, 0.3), 0 8px 20px rgba(100, 149, 237, 0.25) !important;
+  background: rgba(100, 149, 237, 0.08) !important;
 }
 
 .category-info {
@@ -903,7 +918,6 @@ const formatFileSize = (size: number): string => {
   overflow: hidden;
   transition: all 0.3s ease;
   position: relative;
-  overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
