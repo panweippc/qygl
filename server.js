@@ -11,6 +11,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+import 'dotenv/config'
+
 const port = process.env.PORT || 3005;
 
 // 跟踪用户登录状态，用于单设备登录限制
@@ -115,10 +117,10 @@ app.use('/uploads', express.static('uploads'));
 
 // 创建数据库连接池
 const pool = mysql.createPool({
-  host: 'localhost',
-  user: 'root',
-  password: 'root123456',
-  database: 'qyglfb',
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'qyglfb',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -135,9 +137,9 @@ const createDatabase = async () => {
   try {
     // 创建一个不指定数据库的连接
     const tempPool = mysql.createPool({
-      host: 'localhost',
-      user: 'root',
-      password: 'root123456',
+      host: process.env.DB_HOST || 'localhost',
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,

@@ -20,6 +20,7 @@
     "@vueup/vue-quill": "^1.5.5",
     "axios": "0.27.2",
     "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
     "echarts": "^6.0.0",
     "element-plus": "2.2.15",
     "express": "^4.18.2",
