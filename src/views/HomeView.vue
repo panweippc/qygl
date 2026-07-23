@@ -70,7 +70,7 @@ import TrendChart from '../components/TrendChart.vue'
 import PieChart from '../components/PieChart.vue'
 import RankingChart from '../components/RankingChart.vue'
 import ComparisonChart from '../components/ComparisonChart.vue'
-import { getFiles, getProjects, getMonthlyReports, getTools } from '../services/api'
+import { getFiles, getFileCategories, getProjects, getMonthlyReports, getTools } from '../services/api'
 
 echarts.registerTheme('default', {
   textStyle: {
@@ -99,11 +99,14 @@ const toolStats = ref({ total: 0, categories: 0 })
 
 const loadDashboardData = async () => {
   try {
-    const filesResponse = await getFiles()
+    const [filesResponse, categoriesResponse] = await Promise.all([
+      getFiles(),
+      getFileCategories()
+    ])
     if (filesResponse.success) {
       fileStats.value = {
         total: filesResponse.data.length,
-        categories: new Set(filesResponse.data.map((file: any) => file.categoryId).filter(Boolean)).size
+        categories: categoriesResponse.success ? categoriesResponse.data.length : 0
       }
     }
 
