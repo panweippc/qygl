@@ -45,3 +45,6 @@ __tests__/
 # Uploaded files (keep dir with .gitkeep)
 uploads/*
 !uploads/.gitkeep
+
+# Misc documentation (accidentally committed)
+数据库表说明.md
