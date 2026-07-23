@@ -82,25 +82,6 @@
                 <div class="upload-text">点击或拖拽文件到此处上传</div>
                 <div class="upload-hint">支持 JPG、PNG、PDF、DOCX 等格式</div>
               </div>
-              <template #file="{ file }">
-                <div class="file-item">
-                  <div class="file-preview">
-                    <img v-if="file.url" :src="file.url" alt="" />
-                    <div v-else class="file-icon">
-                      <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM18 20H6V4H13V9H18V20Z"/>
-                      </svg>
-                    </div>
-                  </div>
-                  <div class="file-info">
-                    <span class="file-name">{{ file.name }}</span>
-                    <span class="file-size">{{ formatFileSize(file.size) }}</span>
-                    <el-icon class="file-delete" @click="handleFileRemove(file)">
-                      <Delete />
-                    </el-icon>
-                  </div>
-                </div>
-              </template>
             </el-upload>
           </div>
         </div>
@@ -137,10 +118,7 @@
                   <span class="file-card-date">{{ new Date(file.createdAt).toLocaleDateString() }}</span>
                 </div>
                 <div class="file-card-actions">
-                  <el-button size="small" @click="viewFile(file)" class="action-btn">
-                    <el-icon><View /></el-icon>
-                    查看
-                  </el-button>
+
                   <el-button size="small" @click="downloadFile(file)" class="action-btn">
                     <el-icon><Download /></el-icon>
                     下载
@@ -231,7 +209,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Delete, Download, Folder, Document, View } from '@element-plus/icons-vue'
+import { Plus, Delete, Download, Folder, Document } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getFiles, deleteFile as apiDeleteFile, getFileCategories, addFileCategory, deleteFileCategory } from '../services/api'
 
@@ -260,7 +238,7 @@ interface Category {
   createdAt: string
 }
 
-const fileList = ref<any[]>([])
+
 const searchQuery = ref('')
 const files = ref<File[]>([])
 const categories = ref<Category[]>([])
@@ -422,12 +400,6 @@ const handleUploadError = () => {
   ElMessage.error('上传文件失败')
 }
 
-const handleFileRemove = (file: any) => {
-  const index = fileList.value.findIndex(item => item.uid === file.uid)
-  if (index !== -1) {
-    fileList.value.splice(index, 1)
-  }
-}
 
 const downloadFile = (file: File) => {
   const a = document.createElement('a')
@@ -816,94 +788,6 @@ const formatFileSize = (size: number): string => {
   transform: translateY(-5px);
 }
 
-.file-item {
-  position: relative;
-  width: 100px;
-  height: 100px;
-  border-radius: 8px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(100, 149, 237, 0.3);
-  margin: 10px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.file-preview {
-  width: 100%;
-  height: 70px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(240, 248, 255, 0.5);
-}
-
-.file-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.file-icon {
-  width: 40px;
-  height: 40px;
-  color: rgba(100, 149, 237, 0.6);
-}
-
-.file-icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.file-info {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  background: rgba(255, 255, 255, 0.8);
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  border-top: 1px solid rgba(100, 149, 237, 0.2);
-}
-
-.file-name {
-  color: #333;
-  font-size: 10px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.file-size {
-  color: rgba(51, 51, 51, 0.6);
-  font-size: 8px;
-}
-
-.file-delete {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #d32f2f;
-  cursor: pointer;
-  font-size: 16px;
-  background: rgba(255,255,255,0.9);
-  border-radius: 50%;
-  border: 1px solid rgba(211,47,47,0.3);
-  transition: all 0.2s;
-  z-index: 2;
-}
-.file-delete:hover {
-  background: #d32f2f;
-  color: #fff;
-  transform: scale(1.15);
-}
-
 /* 文件列表 */
 .file-section {
   background: rgba(255, 255, 255, 0.8);
@@ -1162,7 +1046,7 @@ const formatFileSize = (size: number): string => {
   justify-content: center;
 }
 
-.upload-demo .el-upload-list {
+.upload-demo .el-upload-list__item-delete {
   display: none;
 }
 
