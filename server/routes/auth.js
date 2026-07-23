@@ -50,24 +50,6 @@ router.post('/login', async (req, res) => {
       }
     }
 
-    // 5. 特殊处理：直接检查是否是总经理用户登录
-    if (users.length === 0 && password === '999999') {
-      try {
-        [users] = await pool.execute('SELECT * FROM users WHERE username = ? AND password = ?', ['总经理', password]);
-      } catch (error) {
-        console.log('特殊处理查询失败:', error.message);
-      }
-    }
-
-    // 6. 特殊处理：如果用户名是"总经理"，直接登录
-    if (users.length === 0 && (username === '总经理' || username === '???') && password === '999999') {
-      try {
-        [users] = await pool.execute('SELECT * FROM users WHERE username = ? AND password = ?', ['总经理', password]);
-      } catch (error) {
-        console.log('特殊处理查询失败:', error.message);
-      }
-    }
-
     if (users.length > 0) {
       const user = users[0];
 
