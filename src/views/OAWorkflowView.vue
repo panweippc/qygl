@@ -491,7 +491,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -1230,6 +1230,7 @@ watch(() => route.query, (query) => {
 onMounted(async () => {
   await loadEmployees()
   await refreshAllData()
+  await nextTick()
   if (!route.query.tab) {
     const tabWithData = tabs.value.find(t => t.badge > 0)
     if (tabWithData) {
