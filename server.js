@@ -1714,35 +1714,7 @@ const initDatabase = async () => {
       console.log('默认文件分类数据添加成功');
     }
     
-    // 只在文件数据不存在时添加
-    const [existingFiles] = await connection.execute('SELECT * FROM files');
-    if (existingFiles.length === 0) {
-      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-      const filesData = [
-        { name: '综合平台方案.pdf', size: 1024000, type: 'application/pdf', url: 'https://example.com/files/1.pdf', uploaderId: 1, categoryId: 1 },
-        { name: '三位一体实施计划.docx', size: 512000, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', url: 'https://example.com/files/2.docx', uploaderId: 1, categoryId: 2 },
-        { name: '智慧农业技术手册.pdf', size: 1536000, type: 'application/pdf', url: 'https://example.com/files/3.pdf', uploaderId: 1, categoryId: 3 },
-        { name: '乡村振兴规划.pptx', size: 2048000, type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', url: 'https://example.com/files/4.pptx', uploaderId: 1, categoryId: 4 },
-        { name: '项目总结报告.pdf', size: 819200, type: 'application/pdf', url: 'https://example.com/files/5.pdf', uploaderId: 1, categoryId: 5 },
-        { name: '综合平台技术文档.docx', size: 614400, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', url: 'https://example.com/files/6.docx', uploaderId: 1, categoryId: 1 },
-        { name: '三位一体项目方案.pdf', size: 1228800, type: 'application/pdf', url: 'https://example.com/files/7.pdf', uploaderId: 1, categoryId: 2 },
-        { name: '智慧农业设备清单.xlsx', size: 409600, type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', url: 'https://example.com/files/8.xlsx', uploaderId: 1, categoryId: 3 },
-        { name: '乡村振兴资金申请报告.docx', size: 716800, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', url: 'https://example.com/files/9.docx', uploaderId: 1, categoryId: 4 },
-        { name: '会议记录.txt', size: 102400, type: 'text/plain', url: 'https://example.com/files/10.txt', uploaderId: 1, categoryId: 5 },
-        { name: '综合平台测试报告.pdf', size: 921600, type: 'application/pdf', url: 'https://example.com/files/11.pdf', uploaderId: 1, categoryId: 1 },
-        { name: '三位一体培训材料.pptx', size: 1843200, type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', url: 'https://example.com/files/12.pptx', uploaderId: 1, categoryId: 2 },
-        { name: '智慧农业数据统计.xlsx', size: 512000, type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', url: 'https://example.com/files/13.xlsx', uploaderId: 1, categoryId: 3 },
-        { name: '乡村振兴案例分析.pdf', size: 1126400, type: 'application/pdf', url: 'https://example.com/files/14.pdf', uploaderId: 1, categoryId: 4 },
-        { name: '技术方案讨论稿.docx', size: 614400, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', url: 'https://example.com/files/15.docx', uploaderId: 1, categoryId: 5 }
-      ];
-      for (const file of filesData) {
-        await connection.execute(
-          'INSERT INTO files (name, size, type, url, uploaderId, categoryId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [file.name, file.size, file.type, file.url, file.uploaderId, file.categoryId, now]
-        );
-      }
-      console.log('默认文件数据添加成功');
-    }
+    // 不自动添加示例文件数据，等待用户上传真实文件
     
     // 不自动添加模拟数据，等待用户手动录入真实数据
     

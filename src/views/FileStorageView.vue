@@ -191,6 +191,34 @@
       </template>
     </el-dialog>
 
+    <!-- 文件预览弹窗 -->
+    <el-dialog
+      v-model="previewVisible"
+      :title="previewFileData.name"
+      width="700px"
+      class="preview-dialog"
+      destroy-on-close
+    >
+      <div class="preview-content">
+        <img v-if="previewFileData.type && ['png','jpg','jpeg','gif','bmp','webp','svg'].includes(previewFileData.type)" :src="previewFileData.url" class="image-preview" />
+        <div v-else-if="previewFileData.type === 'pdf'" class="pdf-preview">
+          <iframe :src="previewFileData.url" frameborder="0" width="100%" height="500px"></iframe>
+        </div>
+        <div v-else-if="previewFileData.type === 'txt' || previewFileData.type === 'md'" class="text-preview">
+          <pre>{{ previewFileContent }}</pre>
+        </div>
+        <div v-else class="other-preview">
+          <div class="file-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM18 20H6V4H13V9H18V20Z"/>
+            </svg>
+          </div>
+          <p>该文件类型无法直接预览，请下载后查看</p>
+          <el-button type="primary" @click="downloadFile(previewFileData)">下载文件</el-button>
+        </div>
+      </div>
+    </el-dialog>
+
     <!-- 页脚 -->
     <footer class="footer">
       <div class="footer-content">
@@ -240,6 +268,9 @@ const selectedCategory = ref<Category | null>(null)
 const loading = ref(false)
 const showAddCategoryDialog = ref(false)
 const newCategory = ref({ name: '', description: '' })
+const previewVisible = ref(false)
+const previewFileData = ref<File>({ id: 0, name: '', size: 0, type: '', url: '', uploaderId: 0, categoryId: null, createdAt: '' })
+const previewFileContent = ref('')
 
 // 从API加载文件数据
 const loadFiles = async () => {
@@ -412,15 +443,12 @@ const viewFile = (file: File) => {
     ElMessage.warning('文件地址无效')
     return
   }
-  const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg']
-  const viewerExts = ['pdf', 'txt', 'md']
-  const fileType = (file.type || '').toLowerCase()
-
-  if (imageExts.includes(fileType) || viewerExts.includes(fileType)) {
-    window.open(file.url, '_blank')
-  } else {
-    ElMessage.info('该文件类型不支持在线查看，请下载后查看')
+  previewFileData.value = file
+  previewFileContent.value = ''
+  if (['txt', 'md'].includes(file.type)) {
+    fetch(file.url).then(r => r.text()).then(t => { previewFileContent.value = t }).catch(() => {})
   }
+  previewVisible.value = true
 }
 
 const deleteFile = async (id: number) => {
@@ -856,9 +884,24 @@ const formatFileSize = (size: number): string => {
   position: absolute;
   top: 4px;
   right: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #d32f2f;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 16px;
+  background: rgba(255,255,255,0.9);
+  border-radius: 50%;
+  border: 1px solid rgba(211,47,47,0.3);
+  transition: all 0.2s;
+  z-index: 2;
+}
+.file-delete:hover {
+  background: #d32f2f;
+  color: #fff;
+  transform: scale(1.15);
 }
 
 /* 文件列表 */
@@ -1146,6 +1189,64 @@ const formatFileSize = (size: number): string => {
   height: 100% !important;
   background: transparent !important;
   border: none !important;
+}
+
+/* 预览弹窗 */
+.preview-dialog .preview-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  min-height: 200px;
+}
+.preview-dialog .image-preview {
+  max-width: 100%;
+  max-height: 500px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.preview-dialog .pdf-preview {
+  width: 100%;
+}
+.preview-dialog .pdf-preview iframe {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+.preview-dialog .text-preview {
+  width: 100%;
+  max-height: 500px;
+  overflow: auto;
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 1rem;
+}
+.preview-dialog .text-preview pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #333;
+}
+.preview-dialog .other-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 3rem;
+  color: rgba(51,51,51,0.6);
+}
+.preview-dialog .other-preview .file-icon {
+  width: 64px;
+  height: 64px;
+  color: rgba(100,149,237,0.5);
+}
+.preview-dialog .other-preview .file-icon svg {
+  width: 100%;
+  height: 100%;
+}
+.preview-dialog .other-preview p {
+  font-size: 1rem;
 }
 
 /* 页脚 */

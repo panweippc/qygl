@@ -50,11 +50,12 @@ router.post('/upload', upload.array('file', 10), async (req, res) => {
     for (const f of files) {
       const url = '/uploads/' + f.filename;
       const ext = f.originalname?.includes('.') ? f.originalname.split('.').pop().toLowerCase() : '';
+      const originalName = Buffer.from(f.originalname || '', 'latin1').toString('utf8');
       await pool.execute(
         'INSERT INTO files (name, size, type, url, uploaderId, categoryId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [f.originalname || '', f.size, ext, url, uploaderId, categoryId, now]
+        [originalName, f.size, ext, url, uploaderId, categoryId, now]
       );
-      fileList.push({ name: f.originalname || '', url, size: f.size });
+      fileList.push({ name: originalName, url, size: f.size });
     }
     res.json({ success: true, data: fileList });
   } catch (error) {
