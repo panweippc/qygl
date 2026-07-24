@@ -239,15 +239,27 @@ const groupVisible = computed(() => {
   }
 })
 
+const defaultPermissions = [
+  { path: '/tool-inventory' }, { path: '/oa-office' },
+  { path: '/monthly-report' }, { path: '/employee-management' },
+  { path: '/file-storage' }, { path: '/project-category' },
+  { path: '/closing-project' }, { path: '/sales-funnel' },
+  { path: '/sales-target' }, { path: '/customer-management' },
+  { path: '/sales-opportunity' }, { path: '/knowledge-base' },
+  { path: '/system' }
+]
+
 const loadUserPermissions = () => {
   try {
     const storedPermissions = localStorage.getItem('permissions')
     if (storedPermissions) {
       permissions.value = JSON.parse(storedPermissions)
+      if (permissions.value.length > 0) return
     }
   } catch (error) {
     console.error('加载权限失败:', error)
   }
+  permissions.value = [...defaultPermissions]
 }
 
 loadUserPermissions()
@@ -260,8 +272,6 @@ const fetchLatestPermissions = async () => {
       if (response.success && response.data && response.data.length > 0) {
         permissions.value = response.data
         localStorage.setItem('permissions', JSON.stringify(response.data))
-      } else if (!permissions.value || permissions.value.length === 0) {
-        loadUserPermissions()
       }
     }
   } catch (error) {
