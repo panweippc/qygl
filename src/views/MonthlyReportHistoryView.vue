@@ -40,7 +40,7 @@
         <!-- 员工选择（仅管理员和总经理可见） -->
         <div class="employee-selector">
           <el-select v-if="isAdmin || isGeneralManager" v-model="selectedEmployee" placeholder="选择员工" class="employee-select">
-            <el-option label="全部" value="0" />
+            <el-option label="全部" :value="0" />
             <el-option
               v-for="employee in employees"
               :key="employee.id"
@@ -60,7 +60,7 @@
                 <div v-for="report in reports" :key="report.id" class="report-item">
                   <div class="report-meta-group">
                     <span class="report-date-label">{{ report.date || '' }}</span>
-                    <span v-if="isAdmin || isGeneralManager" class="report-employee">{{ getEmployeeName(report.userId) }}</span>
+                    <span v-if="isAdmin || isGeneralManager" class="report-employee">{{ report.username || getEmployeeName(report.userId) }}</span>
                     <span class="report-time">{{ report.createdAt || '' }}</span>
                   </div>
                   <div v-if="report.content" class="report-content">{{ report.content }}</div>
@@ -273,6 +273,7 @@ interface Report {
   files: any[]
   employeeName?: string
   userId: number
+  username?: string
 }
 
 interface Employee {
@@ -412,34 +413,8 @@ const removeFileFromReport = async (report: Report, file: any) => {
   }).catch(() => {})
 }
 
-// 根据用户ID获取用户姓名
-const getEmployeeName = (userId: number): string => {
-  // 首先尝试从员工表中查�?
-  const employee = employees.value.find(emp => emp.id === userId)
-  if (employee) {
-    return employee.name
-  }
-  
-  // 如果员工表中没有找到，尝试从用户表中查找
-  // 这里假设用户表中的用户ID与周报表中的userId对应
-  // 由于我们没有直接获取用户表数据，我们可以尝试从用户名中提取姓名
-  // 例如，对于用户名"emp_潘伟_1773649916318"，提取"潘伟"
-  const users = [
-    { id: 1, name: 'admin' },
-    { id: 6, name: '潘伟' },
-    { id: 10, name: '陈东' },
-    { id: 12, name: '李志' },
-    { id: 25, name: '总经理' },
-    { id: 32, name: '娜慕' },
-    { id: 41, name: '潘伟' },
-    { id: 49, name: '财务总监' }
-  ]
-  
-  const user = users.find(u => u.id === userId)
-  if (user) {
-    return user.name
-  }
-  
+// 根据用户ID获取用户姓名（降级方案）
+const getEmployeeName = (_userId: number): string => {
   return '未知用户'
 }
 
@@ -492,10 +467,9 @@ const filteredReports = computed(() => {
       const selectedEmp = employees.value.find(emp => emp.id === selectedEmployee.value)
       if (selectedEmp) {
         console.log('Selected employee name:', selectedEmp.name)
-        // 根据员工姓名过滤报告
         result = result.filter(report => {
-          const employeeName = getEmployeeName(report.userId)
-          return employeeName === selectedEmp.name
+          const reportName = report.username || getEmployeeName(report.userId)
+          return reportName === selectedEmp.name
         })
         console.log('Filtered reports by employee:', result.length)
       }

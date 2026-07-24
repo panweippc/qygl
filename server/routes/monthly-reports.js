@@ -11,7 +11,9 @@ const localNow = () => {
 router.get('/monthly-reports', async (req, res) => {
   try {
     const { pool } = req.app.locals;
-    const [reports] = await pool.execute('SELECT * FROM weeklyReports');
+    const [reports] = await pool.execute(
+      'SELECT w.*, u.username FROM weeklyReports w LEFT JOIN users u ON w.userId = u.id'
+    );
     const reportsWithFiles = reports.map((report) => ({
       ...report,
       files: report.files ? JSON.parse(report.files) : []
