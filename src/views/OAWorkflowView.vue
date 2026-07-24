@@ -650,12 +650,12 @@ const tabs = computed(() => {
 
 const updateStats = () => {
   const allRecords = [
-    ...leaveRecords.value,
-    ...reimbursementRecords.value,
+    ...(isAdminComputed.value ? allLeaveRecords.value : leaveRecords.value),
+    ...(isAdminComputed.value ? allReimbursementRecords.value : reimbursementRecords.value),
     ...meetingRecords.value,
-    ...projectRecords.value,
-    ...businessTripRecords.value,
-    ...entertainmentRecords.value
+    ...(isAdminComputed.value ? allProjectRecords.value : projectRecords.value),
+    ...(isAdminComputed.value ? allBusinessTripRecords.value : businessTripRecords.value),
+    ...(isAdminComputed.value ? allEntertainmentRecords.value : entertainmentRecords.value)
   ]
 
   const pendingStat = approvalStats.value.find(s => s.key === 'pending')
