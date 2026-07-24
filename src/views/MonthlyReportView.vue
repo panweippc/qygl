@@ -106,7 +106,7 @@
               </svg>
             </div>
             <h2 class="history-title">历史月报</h2>
-            <p class="history-desc">查看所有员工一年内的月报记录</p>
+            
             <div class="history-arrow">
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <path d="M8.59 16.59L13.17 12L8.59 7.41L10 6L16 12L10 18L8.59 16.59Z"/>

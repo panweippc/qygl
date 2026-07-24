@@ -7,7 +7,7 @@
         <div class="logo-glow"></div>
       </div>
       <nav class="nav">
-        <router-link to="/project-category" class="nav-item active">项目分类</router-link>
+        <router-link to="/project-category" class="nav-item active">产品分类</router-link>
         <button class="nav-item logout-btn" @click="handleBack">返回</button>
       </nav>
     </header>
@@ -15,7 +15,7 @@
     <!-- 主内容区 -->
     <main class="main-content">
       <div class="content-wrapper">
-        <!-- 项目分类管理 -->
+        <!-- 产品分类管理 -->
         <div class="category-section">
           <div class="section-header">
             <h2 class="section-title">
@@ -24,7 +24,7 @@
                   <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19ZM9 17H7V10H9V17ZM13 17H11V7H13V17ZM17 17H15V13H17V17Z"/>
                 </svg>
               </span>
-              项目分类
+              产品分类
             </h2>
             <el-button type="primary" @click="openAddCategoryDialog" class="add-btn">
               添加分类
@@ -257,7 +257,7 @@ const loadCategories = async () => {
   try {
     const response = await getProjects();
     if (!response.success || !response.data?.list) {
-      ElMessage.error('加载项目分类数据失败')
+      ElMessage.error('加载产品分类数据失败')
       return
     }
     
@@ -290,8 +290,8 @@ const loadCategories = async () => {
       return dateA - dateB
     })
   } catch (error) {
-    console.error('加载项目分类数据失败:', error)
-    ElMessage.error('加载项目分类数据失败')
+    console.error('加载产品分类数据失败:', error)
+    ElMessage.error('加载产品分类数据失败')
   } finally {
     loading.value = false
   }
@@ -348,17 +348,17 @@ const addCategory = async () => {
       });
       
       if (!response.success) {
-        ElMessage.error(`添加项目分类失败: ${response.message || '未知错误'}`)
+        ElMessage.error(`添加产品分类失败: ${response.message || '未知错误'}`)
         return;
       }
     }
     
     await loadCategories()
     addDialogVisible.value = false
-    ElMessage.success('项目分类添加成功')
+    ElMessage.success('产品分类添加成功')
   } catch (error: any) {
-    console.error('添加项目分类失败:', error)
-    ElMessage.error(`添加项目分类失败: ${error.message || '网络错误'}`)
+    console.error('添加产品分类失败:', error)
+    ElMessage.error(`添加产品分类失败: ${error.message || '网络错误'}`)
   } finally {
     loading.value = false
   }
@@ -388,7 +388,7 @@ const updateCategory = async () => {
         newType: editForm.value.name
       });
       if (!updateResponse.success) {
-        ElMessage.error('编辑项目分类失败')
+        ElMessage.error('编辑产品分类失败')
         return;
       }
     }
@@ -405,10 +405,10 @@ const updateCategory = async () => {
     
     await loadCategories()
     editDialogVisible.value = false
-    ElMessage.success('项目分类编辑成功')
+    ElMessage.success('产品分类编辑成功')
   } catch (error) {
-    console.error('编辑项目分类失败:', error)
-    ElMessage.error('编辑项目分类失败')
+    console.error('编辑产品分类失败:', error)
+    ElMessage.error('编辑产品分类失败')
   } finally {
     loading.value = false
   }
@@ -416,7 +416,7 @@ const updateCategory = async () => {
 
 const deleteCategory = async (id: number) => {
   try {
-    ElMessageBox.confirm('确定要删除该项目分类吗？', '警告', {
+    ElMessageBox.confirm('确定要删除该产品分类吗？', '警告', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
@@ -425,20 +425,20 @@ const deleteCategory = async (id: number) => {
       try {
         const category = categories.value.find(c => c.id === id)
         if (category) {
-          // 使用API删除项目分类
+          // 使用API删除产品分类
           const response = await deleteProjectCategory(category.name);
           
           if (response.success) {
             // 重新加载数据
             await loadCategories()
-            ElMessage.success('项目分类删除成功')
+            ElMessage.success('产品分类删除成功')
           } else {
-            ElMessage.error('删除项目分类失败')
+            ElMessage.error('删除产品分类失败')
           }
         }
       } catch (error) {
-        console.error('删除项目分类失败:', error)
-        ElMessage.error('删除项目分类失败')
+        console.error('删除产品分类失败:', error)
+        ElMessage.error('删除产品分类失败')
       } finally {
         loading.value = false
       }
@@ -446,8 +446,8 @@ const deleteCategory = async (id: number) => {
       // 取消删除
     })
   } catch (error) {
-    console.error('删除项目分类失败:', error)
-    ElMessage.error('删除项目分类失败')
+    console.error('删除产品分类失败:', error)
+    ElMessage.error('删除产品分类失败')
   }
 }
 
@@ -656,7 +656,7 @@ const handleDeleteProject = async (project: Project) => {
   margin: 0 auto;
 }
 
-/* 项目分类管理 */
+/* 产品分类管理 */
 .category-section {
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(100, 149, 237, 0.3);

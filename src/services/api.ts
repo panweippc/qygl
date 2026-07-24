@@ -94,7 +94,7 @@ export const deleteFile = async (id: number): Promise<ApiResponse> => {
   return response.data;
 };
 
-// 项目分类管理
+// 产品分类管理
 export const getProjectCategories = async (): Promise<ApiResponse<Project[]>> => {
   const response = await api.get('/project-categories');
   return response.data;

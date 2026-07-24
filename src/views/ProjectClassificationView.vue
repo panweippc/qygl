@@ -158,7 +158,7 @@ const pageTitle = computed(() => {
     case 1: return `${currentProvinceName.value} - 市级分类`
     case 2: return `${currentCityName.value} - 旗县分类`
     case 3: return `${currentCountyName.value} - 项目列表`
-    default: return '项目分类'
+    default: return '产品分类'
   }
 })
 

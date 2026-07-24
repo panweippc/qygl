@@ -65,7 +65,6 @@
                 <svg viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-11v6h2v-6h-2zm0-4v2h2V7h-2z"/>
                 </svg>
-                <span v-if="unreadCount > 0" class="sidebar-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
               </div>
               <span>消息中心</span>
               <div class="sidebar-item-indicator"></div>
@@ -91,16 +90,7 @@
                   <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM9 17H7V10H9V17ZM13 17H11V7H13V17ZM17 17H15V13H17V17Z"/>
                 </svg>
               </div>
-              <span>项目分类</span>
-              <div class="sidebar-item-indicator"></div>
-            </router-link>
-            <router-link v-if="hasPermission('/closing-project')" to="/closing-project" class="sidebar-item">
-              <div class="sidebar-icon sidebar-icon-sm">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                </svg>
-              </div>
-              <span>成交项目</span>
+              <span>产品分类</span>
               <div class="sidebar-item-indicator"></div>
             </router-link>
             <router-link v-if="hasPermission('/sales-funnel')" to="/sales-funnel" class="sidebar-item">
@@ -137,6 +127,15 @@
                 </svg>
               </div>
               <span>机会跟进</span>
+              <div class="sidebar-item-indicator"></div>
+            </router-link>
+            <router-link v-if="hasPermission('/closing-project')" to="/closing-project" class="sidebar-item">
+              <div class="sidebar-icon sidebar-icon-sm">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                </svg>
+              </div>
+              <span>成交项目</span>
               <div class="sidebar-item-indicator"></div>
             </router-link>
           </div>

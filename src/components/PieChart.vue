@@ -1,6 +1,6 @@
 <template>
   <div class="visualization-card">
-    <h3>项目分类</h3>
+    <h3>产品分类</h3>
     <div class="chart-container">
       <div ref="chartRef" class="echart-container"></div>
     </div>
@@ -79,7 +79,7 @@ const initChart = async () => {
         animationThreshold: 2,
         series: [
           {
-            name: '项目分类',
+            name: '产品分类',
             type: 'pie',
             radius: ['45%', '75%'],
             center: ['65%', '50%'],
@@ -139,7 +139,7 @@ const initChart = async () => {
       chartInstance.setOption(option, true)
     }
   } catch (error) {
-    console.error('加载项目分类数据失败:', error)
+    console.error('加载产品分类数据失败:', error)
     const defaultData = [
       { value: 15, name: '软件项目' },
       { value: 10, name: '硬件项目' },
@@ -194,7 +194,7 @@ const initChart = async () => {
       },
       series: [
         {
-          name: '项目分类',
+          name: '产品分类',
           type: 'pie',
           radius: ['45%', '75%'],
           center: ['65%', '50%'],
