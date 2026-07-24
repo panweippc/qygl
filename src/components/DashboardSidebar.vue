@@ -314,22 +314,24 @@ onMounted(() => {
 .group-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 0.8rem;
+  gap: 0.6rem;
+  padding: 0.85rem 0.8rem;
   cursor: pointer;
   border-radius: 8px;
   transition: background 0.2s;
   user-select: none;
+  border-bottom: 1px solid rgba(100, 149, 237, 0.12);
+  margin-bottom: 0.15rem;
 }
 
 .group-header:hover {
-  background: rgba(100, 149, 237, 0.1);
+  background: rgba(100, 149, 237, 0.08);
 }
 
 .group-arrow {
-  width: 16px;
-  height: 16px;
-  color: #999;
+  width: 18px;
+  height: 18px;
+  color: #aaa;
   transition: transform 0.25s ease;
   flex-shrink: 0;
 }
@@ -339,18 +341,17 @@ onMounted(() => {
 }
 
 .group-icon {
-  width: 18px;
-  height: 18px;
-  color: #6495ED;
+  width: 22px;
+  height: 22px;
+  color: #5b7fff;
   flex-shrink: 0;
 }
 
 .group-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #888;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  font-size: 14px;
+  font-weight: 700;
+  color: #555;
+  letter-spacing: 0.5px;
 }
 
 /* 分组内菜单 */
