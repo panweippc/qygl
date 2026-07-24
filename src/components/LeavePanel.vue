@@ -290,15 +290,22 @@
                 </el-form-item>
               </el-col>
             </el-row>
+            <el-form-item label="请假时长">
+              <el-radio-group v-model="leaveForm.durationType" @change="onLeaveDurationChange">
+                <el-radio label="halfDay">半天 (0.5天)</el-radio>
+                <el-radio label="fullDay">一天 (1天)</el-radio>
+                <el-radio label="custom">自定义</el-radio>
+              </el-radio-group>
+            </el-form-item>
             <el-row :gutter="24">
               <el-col :span="12">
                 <el-form-item label="开始日期" prop="startDate">
-                  <el-date-picker v-model="leaveForm.startDate" type="date" placeholder="选择开始日期" style="width: 100%"></el-date-picker>
+                  <el-date-picker v-model="leaveForm.startDate" type="date" placeholder="选择开始日期" style="width: 100%" @change="onLeaveDateChange"></el-date-picker>
                 </el-form-item>
               </el-col>
-              <el-col :span="12">
+              <el-col :span="12" v-if="leaveForm.durationType === 'custom'">
                 <el-form-item label="结束日期" prop="endDate">
-                  <el-date-picker v-model="leaveForm.endDate" type="date" placeholder="选择结束日期" style="width: 100%"></el-date-picker>
+                  <el-date-picker v-model="leaveForm.endDate" type="date" placeholder="选择结束日期" style="width: 100%" @change="onLeaveDateChange"></el-date-picker>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -380,6 +387,7 @@ const allLeaveRecords = ref<any[]>([])
 
 const leaveForm = ref({
   leaveType: '',
+  durationType: 'custom',
   startDate: '',
   endDate: '',
   days: '',
@@ -557,16 +565,33 @@ const submitLeaveApplication = async () => {
   })
 }
 
-watch([() => leaveForm.value.startDate, () => leaveForm.value.endDate], ([start, end]) => {
-  if (start && end) {
-    const startD = new Date(start)
-    const endD = new Date(end)
-    const days = Math.ceil((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)) + 1
-    leaveForm.value.days = days > 0 ? String(days) : ''
+const onLeaveDurationChange = () => {
+  if (leaveForm.value.durationType === 'halfDay') {
+    leaveForm.value.endDate = leaveForm.value.startDate
+    leaveForm.value.days = '0.5'
+  } else if (leaveForm.value.durationType === 'fullDay') {
+    leaveForm.value.endDate = leaveForm.value.startDate
+    calcLeaveDays()
   } else {
+    leaveForm.value.endDate = ''
     leaveForm.value.days = ''
   }
-})
+}
+
+const onLeaveDateChange = () => {
+  if (leaveForm.value.durationType === 'custom') {
+    calcLeaveDays()
+  }
+}
+
+const calcLeaveDays = () => {
+  if (leaveForm.value.startDate && leaveForm.value.endDate) {
+    const startD = new Date(leaveForm.value.startDate)
+    const endD = new Date(leaveForm.value.endDate)
+    const days = Math.ceil((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    leaveForm.value.days = days > 0 ? String(days) : ''
+  }
+}
 
 const handleApprove = (row: any) => {
   emit('approve', row, 'leave')

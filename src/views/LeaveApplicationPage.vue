@@ -39,7 +39,7 @@
                     <el-option
                       v-for="emp in approverOptions"
                       :key="emp.id"
-                      :label="emp.name + ' (' + emp.position + ')'"
+                      :label="emp.name"
                       :value="emp.id"
                     />
                   </el-select>
@@ -48,6 +48,14 @@
             </el-row>
 
             <el-divider content-position="left">时间信息</el-divider>
+
+            <el-form-item label="请假时长">
+              <el-radio-group v-model="form.durationType" @change="onDurationTypeChange">
+                <el-radio label="halfDay">半天 (0.5天)</el-radio>
+                <el-radio label="fullDay">一天 (1天)</el-radio>
+                <el-radio label="custom">自定义</el-radio>
+              </el-radio-group>
+            </el-form-item>
 
             <el-row :gutter="20">
               <el-col :span="12">
@@ -62,7 +70,7 @@
                   />
                 </el-form-item>
               </el-col>
-              <el-col :span="12">
+              <el-col :span="12" v-if="form.durationType === 'custom'">
                 <el-form-item label="结束日期" prop="endDate">
                   <el-date-picker
                     v-model="form.endDate"
@@ -79,7 +87,7 @@
 
             <el-form-item label="请假天数">
               <el-input v-model="form.days" disabled style="width: 140px">
-                <template #append>天</template>
+                <template #append">天</template>
               </el-input>
             </el-form-item>
 
@@ -205,6 +213,7 @@ const selectedApprover = computed(() => {
 
 const form = reactive({
   leaveType: '',
+  durationType: 'custom',
   startDate: '',
   endDate: '',
   days: '',
@@ -218,6 +227,19 @@ const rules = {
   endDate: [{ required: true, message: '请选择结束日期', trigger: 'change' }],
   reason: [{ required: true, message: '请输入请假原因', trigger: 'blur' }],
   approver: [{ required: true, message: '请选择审批人', trigger: 'change' }]
+}
+
+const onDurationTypeChange = () => {
+  if (form.durationType === 'halfDay') {
+    form.endDate = form.startDate
+    form.days = '0.5'
+  } else if (form.durationType === 'fullDay') {
+    form.endDate = form.startDate
+    calcDays()
+  } else {
+    form.endDate = ''
+    form.days = ''
+  }
 }
 
 const calcDays = () => {

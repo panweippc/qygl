@@ -82,7 +82,7 @@
                     <el-option
                       v-for="emp in approverOptions"
                       :key="emp.id"
-                      :label="emp.name + ' (' + emp.position + ')'"
+                      :label="emp.name"
                       :value="emp.id"
                     />
                   </el-select>
