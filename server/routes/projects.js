@@ -27,9 +27,9 @@ router.post('/project-categories', async (req, res) => {
       targetName: name,
       detail: `添加项目: ${name}`
     });
-    res.json({ success: true, message: '项目分类添加成功' });
+    res.json({ success: true, message: '产品分类添加成功' });
   } catch (error) {
-    res.status(500).json({ success: false, message: '添加项目分类失败' });
+    res.status(500).json({ success: false, message: '添加产品分类失败' });
   }
 });
 
@@ -43,11 +43,11 @@ router.delete('/project-categories/:category', async (req, res) => {
       action: 'delete',
       module: 'project',
       targetName: category,
-      detail: `删除项目分类: ${category}`
+      detail: `删除产品分类: ${category}`
     });
-    res.json({ success: true, message: '项目分类删除成功' });
+    res.json({ success: true, message: '产品分类删除成功' });
   } catch (error) {
-    res.status(500).json({ success: false, message: '删除项目分类失败' });
+    res.status(500).json({ success: false, message: '删除产品分类失败' });
   }
 });
 

@@ -272,7 +272,7 @@ router.put('/projects/update-manager', async (req, res) => {
       username: req.body.operator || '系统',
       action: 'update',
       module: 'project',
-      targetName: `项目分类"${projectType}"负责人变更为${manager}`,
+      targetName: `产品分类"${projectType}"负责人变更为${manager}`,
     });
     res.json({ success: true, message: '项目负责人更新成功' });
   } catch (error) {
