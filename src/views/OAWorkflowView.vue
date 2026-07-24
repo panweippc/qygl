@@ -565,7 +565,7 @@ const currentUsername = computed(() => {
 const isAdminComputed = computed(() => {
   const role = localStorage.getItem('role')
   const username = localStorage.getItem('username')
-  const adminRoles = ['admin', 'gm', 'ceo', 'general_manager', '系统管理员']
+  const adminRoles = ['admin', 'gm', 'ceo', 'general_manager', '系统管理员', '总经理']
   const isAdminRole = adminRoles.includes(role?.toLowerCase() || '')
   const isAdminName = username === '总经理' || username?.includes('admin')
   return isAdminRole || isAdminName

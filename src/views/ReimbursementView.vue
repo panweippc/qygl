@@ -154,9 +154,9 @@ const reimburseRecords = ref([
 
 // 计算用户角色
 const isAdmin = computed(() => {
-  // 从localStorage获取用户角色信息
   const role = localStorage.getItem('role')
-  // 实际项目中应该根据登录API返回的角色信息判�?  return role === 'admin'
+  const adminRoles = ['admin', 'gm', 'ceo', 'general_manager', '系统管理员', '总经理']
+  return adminRoles.includes(role?.toLowerCase() || '')
 })
 
 // 计算用户是否是财务总监

@@ -162,7 +162,8 @@ const fetchUnreadCount = async () => {
 const isAdmin = computed(() => {
   const role = localStorage.getItem('role')
   const username = localStorage.getItem('username')
-  return role === 'admin' || username === '总经理' || username === '管理员'
+  const adminRoles = ['admin', 'gm', 'ceo', 'general_manager', '系统管理员', '总经理']
+  return adminRoles.includes(role?.toLowerCase() || '') || username === '总经理' || username === '管理员'
 })
 
 const hasPermission = (menuPath: string) => {
