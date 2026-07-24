@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>菜单方案对比</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  body { background: #f0f2f5; padding: 30px; }
+  h1 { font-size: 20px; margin-bottom: 10px; color: #333; text-align: center; }
+  h2 { font-size: 14px; margin-bottom: 12px; color: #666; font-weight: 600; text-align: center; }
+  .grid { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; }
+  .card { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); width: 210px; overflow: hidden; }
+  .card-header { padding: 12px 16px; border-bottom: 1px solid #eee; font-size: 13px; color: #999; display: flex; justify-content: space-between; align-items: center; }
+  .card-header .badge { background: #e6f0ff; color: #4a7cf7; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+  .sidebar-preview { padding: 8px 0; min-height: 400px; }
+
+  /* ===== 当前方案 ===== */
+  .current .item { display: flex; align-items: center; padding: 10px 16px; cursor: pointer; font-size: 13px; color: #333; transition: 0.2s; gap: 10px; }
+  .current .item:hover { background: #f5f7fa; }
+  .current .icon { width: 18px; height: 18px; background: #e8ecf1; border-radius: 4px; flex-shrink: 0; }
+
+  /* ===== 方案A: 二级折叠 ===== */
+  .a .group { border-bottom: 1px solid #f0f0f0; }
+  .a .group-title { display: flex; align-items: center; padding: 10px 16px; font-size: 12px; color: #888; cursor: pointer; gap: 6px; font-weight: 600; }
+  .a .group-title .arrow { font-size: 10px; transition: 0.2s; }
+  .a .group-title .arrow.open { transform: rotate(90deg); }
+  .a .sub-item { display: flex; align-items: center; padding: 8px 16px 8px 32px; font-size: 13px; color: #333; cursor: pointer; gap: 10px; }
+  .a .sub-item:hover { background: #f5f7fa; }
+  .a .icon-sm { width: 14px; height: 14px; background: #e8ecf1; border-radius: 3px; flex-shrink: 0; }
+
+  /* ===== 方案B: 分隔线分组 ===== */
+  .b .item { display: flex; align-items: center; padding: 10px 16px; cursor: pointer; font-size: 13px; color: #333; gap: 10px; }
+  .b .item:hover { background: #f5f7fa; }
+  .b .icon { width: 18px; height: 18px; background: #e8ecf1; border-radius: 4px; flex-shrink: 0; }
+  .b .divider { height: 1px; background: #eee; margin: 6px 16px; }
+  .b .section-label { font-size: 11px; color: #aaa; padding: 10px 16px 4px; font-weight: 600; letter-spacing: 1px; }
+
+  /* ===== 方案C: 顶部Tab+侧栏联动 ===== */
+  .c .top-tabs { display: flex; border-bottom: 1px solid #eee; }
+  .c .top-tab { flex: 1; text-align: center; padding: 8px 0; font-size: 12px; cursor: pointer; color: #999; border-bottom: 2px solid transparent; }
+  .c .top-tab.active { color: #4a7cf7; border-bottom-color: #4a7cf7; font-weight: 600; }
+  .c .item { display: flex; align-items: center; padding: 10px 16px; cursor: pointer; font-size: 13px; color: #333; gap: 10px; }
+  .c .item:hover { background: #f5f7fa; }
+  .c .icon { width: 18px; height: 18px; background: #e8ecf1; border-radius: 4px; flex-shrink: 0; }
+
+  /* ===== 方案E: 双列紧凑 ===== */
+  .e { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 8px; }
+  .e .item { display: flex; flex-direction: column; align-items: center; padding: 12px 4px; cursor: pointer; border-radius: 8px; gap: 4px; }
+  .e .item:hover { background: #f5f7fa; }
+  .e .icon { width: 24px; height: 24px; background: #e8ecf1; border-radius: 6px; flex-shrink: 0; }
+  .e .label { font-size: 11px; color: #555; text-align: center; line-height: 1.2; }
+
+  /* ===== 方案F: 图标模式 ===== */
+  .f .icon-bar { display: flex; flex-direction: column; align-items: center; padding: 8px 0; gap: 2px; }
+  .f .icon-only { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 8px; margin: 2px 0; }
+  .f .icon-only:hover { background: #f0f4ff; }
+  .f .icon-only .dot { width: 20px; height: 20px; background: #d0d5de; border-radius: 5px; }
+  .f .icon-only.active .dot { background: #4a7cf7; }
+  .f .icon-only .badge-dot { width: 6px; height: 6px; background: #ff4d4f; border-radius: 50%; position: relative; top: -14px; left: 6px; }
+
+  /* tags */
+  .tag { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-left: 4px; }
+  .tag-new { background: #e6f7e6; color: #52c41a; }
+  .tag-hot { background: #fff0e6; color: #fa8c16; }
+
+  .note { text-align: center; margin-top: 30px; font-size: 13px; color: #999; }
+</style>
+</head>
+<body>
+
+<h1>📋 侧边栏菜单方案对比</h1>
+
+<div class="grid">
+
+  <!-- ========= 当前 ========= -->
+  <div class="card current">
+    <div class="card-header">当前 <span class="badge">15项平铺</span></div>
+    <div class="sidebar-preview">
+      <div class="item"><div class="icon"></div><span>工具入库</span></div>
+      <div class="item"><div class="icon"></div><span>OA办公</span></div>
+      <div class="item"><div class="icon"></div><span>月报</span></div>
+      <div class="item"><div class="icon"></div><span>员工管理</span></div>
+      <div class="item"><div class="icon"></div><span>文件存储</span></div>
+      <div class="item"><div class="icon"></div><span>项目分类</span></div>
+      <div class="item"><div class="icon"></div><span>成交项目</span></div>
+      <div class="item"><div class="icon"></div><span>销售漏斗</span></div>
+      <div class="item"><div class="icon"></div><span>销售目标</span></div>
+      <div class="item"><div class="icon"></div><span>客户管理</span></div>
+      <div class="item"><div class="icon"></div><span>机会跟进</span></div>
+      <div class="item"><div class="icon"></div><span>知识库</span></div>
+      <div class="item"><div class="icon"></div><span>消息中心</span></div>
+      <div class="item"><div class="icon"></div><span>操作日志</span></div>
+      <div class="item"><div class="icon"></div><span>系统管理</span></div>
+    </div>
+  </div>
+
+  <!-- ========= 方案A: 二级折叠 ========= -->
+  <div class="card a">
+    <div class="card-header">方案A <span class="badge">二级折叠</span></div>
+    <div class="sidebar-preview">
+      <div class="group">
+        <div class="group-title"><span class="arrow open">▶</span> 办公管理</div>
+        <div class="sub-item"><div class="icon-sm"></div>OA办公</div>
+        <div class="sub-item"><div class="icon-sm"></div>月报</div>
+        <div class="sub-item"><div class="icon-sm"></div>消息中心</div>
+        <div class="sub-item"><div class="icon-sm"></div>知识库</div>
+      </div>
+      <div class="group">
+        <div class="group-title"><span class="arrow">▶</span> 业务管理</div>
+        <div class="sub-item"><div class="icon-sm"></div>工具入库</div>
+        <div class="sub-item"><div class="icon-sm"></div>项目分类</div>
+        <div class="sub-item"><div class="icon-sm"></div>成交项目</div>
+        <div class="sub-item"><div class="icon-sm"></div>销售漏斗</div>
+        <div class="sub-item"><div class="icon-sm"></div>销售目标</div>
+        <div class="sub-item"><div class="icon-sm"></div>客户管理</div>
+        <div class="sub-item"><div class="icon-sm"></div>机会跟进</div>
+      </div>
+      <div class="group">
+        <div class="group-title"><span class="arrow">▶</span> 系统管理</div>
+        <div class="sub-item"><div class="icon-sm"></div>员工管理</div>
+        <div class="sub-item"><div class="icon-sm"></div>文件存储</div>
+        <div class="sub-item"><div class="icon-sm"></div>操作日志</div>
+        <div class="sub-item"><div class="icon-sm"></div>系统管理</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========= 方案B: 分隔线分组 ========= -->
+  <div class="card b">
+    <div class="card-header">方案B <span class="badge">分隔线分组</span></div>
+    <div class="sidebar-preview">
+      <div class="section-label">● 办公</div>
+      <div class="item"><div class="icon"></div>OA办公 <span class="tag tag-hot">常用</span></div>
+      <div class="item"><div class="icon"></div>月报</div>
+      <div class="item"><div class="icon"></div>消息中心</div>
+      <div class="item"><div class="icon"></div>知识库</div>
+      <div class="divider"></div>
+      <div class="section-label">● 业务</div>
+      <div class="item"><div class="icon"></div>工具入库</div>
+      <div class="item"><div class="icon"></div>客户管理 <span class="tag tag-new">新</span></div>
+      <div class="item"><div class="icon"></div>机会跟进</div>
+      <div class="item"><div class="icon"></div>项目分类</div>
+      <div class="divider"></div>
+      <div class="section-label">● 系统</div>
+      <div class="item"><div class="icon"></div>员工管理</div>
+      <div class="item"><div class="icon"></div>系统管理</div>
+    </div>
+  </div>
+
+  <!-- ========= 方案C: 顶部Tab+侧栏联动 ========= -->
+  <div class="card c">
+    <div class="card-header">方案C <span class="badge">Tab+侧栏联动</span></div>
+    <div class="top-tabs">
+      <div class="top-tab active">办公</div>
+      <div class="top-tab">业务</div>
+      <div class="top-tab">系统</div>
+    </div>
+    <div class="sidebar-preview">
+      <div class="item"><div class="icon"></div>OA办公</div>
+      <div class="item"><div class="icon"></div>月报</div>
+      <div class="item"><div class="icon"></div>消息中心</div>
+      <div class="item"><div class="icon"></div>知识库</div>
+    </div>
+  </div>
+
+  <!-- ========= 方案E: 双列紧凑 ========= -->
+  <div class="card">
+    <div class="card-header">方案E <span class="badge">双列紧凑</span></div>
+    <div class="sidebar-preview e">
+      <div class="item"><div class="icon"></div><span class="label">工具入库</span></div>
+      <div class="item"><div class="icon"></div><span class="label">OA办公</span></div>
+      <div class="item"><div class="icon"></div><span class="label">月报</span></div>
+      <div class="item"><div class="icon"></div><span class="label">员工管理</span></div>
+      <div class="item"><div class="icon"></div><span class="label">文件存储</span></div>
+      <div class="item"><div class="icon"></div><span class="label">项目分类</span></div>
+      <div class="item"><div class="icon"></div><span class="label">成交项目</span></div>
+      <div class="item"><div class="icon"></div><span class="label">销售漏斗</span></div>
+      <div class="item"><div class="icon"></div><span class="label">销售目标</span></div>
+      <div class="item"><div class="icon"></div><span class="label">客户管理</span></div>
+      <div class="item"><div class="icon"></div><span class="label">机会跟进</span></div>
+      <div class="item"><div class="icon"></div><span class="label">知识库</span></div>
+      <div class="item"><div class="icon"></div><span class="label">消息中心</span></div>
+      <div class="item"><div class="icon"></div><span class="label">操作日志</span></div>
+      <div class="item"><div class="icon"></div><span class="label">系统管理</span></div>
+    </div>
+  </div>
+
+  <!-- ========= 方案F: 图标模式 ========= -->
+  <div class="card">
+    <div class="card-header">方案F <span class="badge">图标模式</span></div>
+    <div class="sidebar-preview f">
+      <div class="icon-bar">
+        <div class="icon-only active"><div class="dot"></div></div>
+        <div class="icon-only"><div class="dot"></div></div>
+        <div class="icon-only"><div class="dot"></div></div>
+        <div class="icon-only"><div class="dot"></div></div>
+        <div class="icon-only"><div class="dot"></div></div>
+        <div class="icon-only"><div class="dot"></div><span class="badge-dot"></span></div>
+        <div class="icon-only"><div class="dot"></div></div>
+        <div class="icon-only"><div class="dot"></div></div>
+        <div class="icon-only"><div class="dot"></div></div>
+        <div class="icon-only"><div class="dot"></div></div>
+        <div class="icon-only"><div class="dot"></div></div>
+        <div class="icon-only"><div class="dot"></div></div>
+        <div class="icon-only"><div class="dot"></div></div>
+        <div class="icon-only"><div class="dot"></div></div>
+        <div class="icon-only"><div class="dot"></div></div>
+      </div>
+      <div style="text-align:center;padding:6px;font-size:11px;color:#999;border-top:1px solid #eee">悬停展开文字</div>
+    </div>
+  </div>
+
+</div>
+
+<p class="note">提示：用浏览器打开此HTML文件，各方案样式一目了然</p>
+
+</body>
+</html>
