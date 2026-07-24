@@ -257,9 +257,11 @@ const fetchLatestPermissions = async () => {
     const username = localStorage.getItem('username')
     if (username) {
       const response = await fetch('/api/user/permissions?username=' + encodeURIComponent(username)).then(r => r.json())
-      if (response.success) {
+      if (response.success && response.data && response.data.length > 0) {
         permissions.value = response.data
         localStorage.setItem('permissions', JSON.stringify(response.data))
+      } else if (!permissions.value || permissions.value.length === 0) {
+        loadUserPermissions()
       }
     }
   } catch (error) {
