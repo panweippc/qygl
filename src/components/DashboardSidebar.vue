@@ -227,13 +227,15 @@ const hasPermission = (menuPath: string) => {
 }
 
 const groupVisible = computed(() => {
-  const office = ['/oa-office', '/monthly-report', '/tool-inventory', '/file-storage', '/knowledge-base']
-  const business = ['/project-category', '/closing-project', '/sales-funnel', '/sales-target', '/customer-management', '/sales-opportunity']
-  const system = ['/employee-management', '/system']
+  if (isAdmin.value) return { office: true, business: true, system: true }
+  const hasPerm = (path: string) => permissions.value.some(r => r.path === path)
+  const officePerm = ['/oa-office', '/monthly-report', '/tool-inventory', '/file-storage', '/knowledge-base']
+  const businessPerm = ['/project-category', '/closing-project', '/sales-funnel', '/sales-target', '/customer-management', '/sales-opportunity']
+  const systemPerm = ['/employee-management', '/system']
   return {
-    office: isAdmin.value || office.some(p => permissions.value.some(r => r.path === p)),
-    business: isAdmin.value || business.some(p => permissions.value.some(r => r.path === p)),
-    system: isAdmin.value || system.some(p => permissions.value.some(r => r.path === p))
+    office: true, // 含消息中心(始终可见)
+    business: businessPerm.some(hasPerm),
+    system: true  // 含操作日志(始终可见)
   }
 })
 
