@@ -425,7 +425,7 @@
               :max-collapse-tags="3"
             >
               <el-option
-                v-for="emp in allEmployees"
+                v-for="emp in distributeTargetEmployees"
                 :key="emp.id"
                 :label="extractRealName(emp.name) + ' (' + emp.department + ')'"
                 :value="extractRealName(emp.name)"
@@ -576,7 +576,23 @@ const isCurrentUserGM = computed(() => {
   return gm && extractRealName(currentUsername.value) === extractRealName(gm.name)
 })
 
-const canDistribute = computed(() => isAdminComputed.value || isCurrentUserGM.value)
+const isBusinessCenterManager = computed(() => {
+  const currentName = extractRealName(currentUsername.value)
+  return allEmployees.value.some((emp: any) =>
+    extractRealName(emp.name) === currentName &&
+    (emp.position || '').includes('业务中心经理')
+  )
+})
+
+const canDistribute = computed(() => isAdminComputed.value || isCurrentUserGM.value || isBusinessCenterManager.value)
+
+const distributeTargetEmployees = computed(() => {
+  return allEmployees.value.filter((emp: any) => {
+    const pos = emp.position || ''
+    const name = extractRealName(emp.name)
+    return !pos.includes('总经理') && !name.includes('李智鑫')
+  })
+})
 
 const approvalStats = ref([
   { key: 'pending', label: '待审批', value: 0, gradient: 'linear-gradient(135deg, #FF9800, #FFC107)', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z' },
