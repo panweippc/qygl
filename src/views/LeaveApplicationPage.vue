@@ -243,7 +243,13 @@ const onDurationTypeChange = () => {
 }
 
 const calcDays = () => {
-  if (form.startDate && form.endDate) {
+  if (form.durationType === 'halfDay') {
+    form.endDate = form.startDate
+    form.days = form.startDate ? '0.5' : ''
+  } else if (form.durationType === 'fullDay') {
+    form.endDate = form.startDate
+    form.days = form.startDate ? '1' : ''
+  } else if (form.startDate && form.endDate) {
     const start = new Date(form.startDate)
     const end = new Date(form.endDate)
     const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1

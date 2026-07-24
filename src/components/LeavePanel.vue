@@ -579,7 +579,13 @@ const onLeaveDurationChange = () => {
 }
 
 const onLeaveDateChange = () => {
-  if (leaveForm.value.durationType === 'custom') {
+  if (leaveForm.value.durationType === 'halfDay') {
+    leaveForm.value.endDate = leaveForm.value.startDate
+    leaveForm.value.days = leaveForm.value.startDate ? '0.5' : ''
+  } else if (leaveForm.value.durationType === 'fullDay') {
+    leaveForm.value.endDate = leaveForm.value.startDate
+    leaveForm.value.days = leaveForm.value.startDate ? '1' : ''
+  } else if (leaveForm.value.durationType === 'custom') {
     calcLeaveDays()
   }
 }
