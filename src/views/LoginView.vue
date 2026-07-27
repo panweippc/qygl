@@ -337,7 +337,8 @@ const handleLogin = async () => {
         role: role,
         roles: [role],
         department: user.department || '',
-        position: user.position || ''
+        position: user.position || '',
+        avatar: user.avatar || ''
       }
       localStorage.setItem('user', JSON.stringify(userInfo))
       

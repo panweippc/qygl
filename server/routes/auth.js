@@ -66,6 +66,7 @@ router.post('/login', async (req, res) => {
       let department = '';
       let position = '';
       let roleName = '';
+      let avatar = '';
       try {
         let employeeName = user.username;
         if (user.username.startsWith('emp_')) {
@@ -79,11 +80,12 @@ router.post('/login', async (req, res) => {
           [employeeName]
         );
 
-        if (employees.length > 0) {
-          const employee = employees[0];
-          department = employee.department;
-          position = employee.position;
-          roleName = employee.roleName || '';
+          if (employees.length > 0) {
+            const employee = employees[0];
+            department = employee.department;
+            position = employee.position;
+            roleName = employee.roleName || '';
+            avatar = employee.avatar || '';
 
           if (employee.roleId) {
             const [rolePerms] = await pool.execute(
@@ -143,7 +145,7 @@ router.post('/login', async (req, res) => {
         ipAddress: ip
       });
 
-      const extraUserFields = { ...user, permissions, department, position, roleName };
+      const extraUserFields = { ...user, permissions, department, position, roleName, avatar };
       res.json({ success: true, user: extraUserFields });
     } else {
       res.json({ success: false, message: '用户名或密码错误' });

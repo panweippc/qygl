@@ -187,6 +187,16 @@ const router = createRouter({
       name: 'entertainment-apply',
       component: () => import('../views/EntertainmentApplyPage.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/profile',
+      name: 'profile',
+      component: () => import('../views/ProfileView.vue')
+    },
+    {
+      path: '/change-password',
+      name: 'change-password',
+      component: () => import('../views/ChangePasswordView.vue')
     }
   ]
 })

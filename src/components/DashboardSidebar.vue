@@ -218,7 +218,7 @@ const isAdmin = computed(() => {
   const role = localStorage.getItem('role')
   const username = localStorage.getItem('username')
   const adminRoles = ['admin', 'gm', 'ceo', 'general_manager', '系统管理员']
-  return adminRoles.includes(role?.toLowerCase() || '') || username === '总经理' || username === '管理员'
+  return adminRoles.includes(role?.toLowerCase() || '') || username === '管理员'
 })
 
 const hasPermission = (menuPath: string) => {
@@ -239,16 +239,6 @@ const groupVisible = computed(() => {
   }
 })
 
-const defaultPermissions = [
-  { path: '/tool-inventory' }, { path: '/oa-office' },
-  { path: '/monthly-report' }, { path: '/employee-management' },
-  { path: '/file-storage' }, { path: '/project-category' },
-  { path: '/closing-project' }, { path: '/sales-funnel' },
-  { path: '/sales-target' }, { path: '/customer-management' },
-  { path: '/sales-opportunity' }, { path: '/knowledge-base' },
-  { path: '/system' }
-]
-
 const loadUserPermissions = () => {
   try {
     const storedPermissions = localStorage.getItem('permissions')
@@ -259,7 +249,7 @@ const loadUserPermissions = () => {
   } catch (error) {
     console.error('加载权限失败:', error)
   }
-  permissions.value = [...defaultPermissions]
+  permissions.value = []
 }
 
 loadUserPermissions()

@@ -14,39 +14,66 @@
         <span v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
         <div class="nav-item-indicator"></div>
       </router-link>
-      <button class="nav-item user-btn" @click="handleUser">
-        <span>{{ currentUser }}</span>
-        <div class="nav-item-indicator"></div>
-      </button>
-      <button class="nav-item logout-btn" @click="handleLogout">
-        <span>退出</span>
-        <div class="nav-item-indicator"></div>
-      </button>
+
+      <el-dropdown trigger="click" placement="bottom-end" @command="handleCommand">
+        <div class="user-info">
+          <el-avatar :size="32" :src="avatarUrl">
+            <span class="avatar-placeholder">{{ avatarText }}</span>
+          </el-avatar>
+          <span class="username">{{ currentUser }}</span>
+          <el-icon class="dropdown-icon"><arrow-down /></el-icon>
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="profile">
+              <el-icon><user /></el-icon>个人中心
+            </el-dropdown-item>
+            <el-dropdown-item command="changePassword">
+              <el-icon><lock /></el-icon>修改密码
+            </el-dropdown-item>
+            <el-dropdown-item divided command="logout">
+              <el-icon><switch-button /></el-icon>退出登录
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </nav>
   </header>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ArrowDown, User, Lock, SwitchButton } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const currentUser = ref('用户')
-
+const currentUsername = ref('')
+const avatarUrl = ref('')
 const unreadCount = ref(0)
+let refreshInterval: ReturnType<typeof setInterval> | null = null
+
+const avatarText = computed(() => {
+  return currentUser.value.charAt(0).toUpperCase()
+})
 
 const fetchUnreadCount = async () => {
   const userId = localStorage.getItem('username')
   if (!userId) return
   try {
-    const res = await fetch(`/api/notifications/unread-count?userId=${userId}`)
+    const res = await fetch(`/api/notifications/unread-count?userId=${encodeURIComponent(userId)}`)
     const json = await res.json()
     if (json.success) unreadCount.value = json.data.count
   } catch { /* ignore */ }
 }
 
 const loadCurrentUser = () => {
-  const username = localStorage.getItem('username') || '用户'
+  const username = localStorage.getItem('username') || ''
+  currentUsername.value = username
+  if (!username) {
+    currentUser.value = '用户'
+    return
+  }
   if (username === 'admin') {
     currentUser.value = '系统管理员'
   } else {
@@ -59,8 +86,34 @@ const loadCurrentUser = () => {
   }
 }
 
-const handleUser = () => {
-  console.log('用户功能')
+const loadAvatar = async () => {
+  const username = currentUsername.value
+  if (!username) return
+  try {
+    const res = await fetch(`/api/user/avatar/${encodeURIComponent(username)}`)
+    const json = await res.json()
+    if (json.success && json.data.avatar) {
+      avatarUrl.value = json.data.avatar
+    } else {
+      const userStr = localStorage.getItem('user')
+      if (userStr) {
+        try {
+          const userInfo = JSON.parse(userStr)
+          if (userInfo.avatar) avatarUrl.value = userInfo.avatar
+        } catch { /* ignore */ }
+      }
+    }
+  } catch { /* ignore */ }
+}
+
+const handleCommand = (command: string) => {
+  if (command === 'logout') {
+    handleLogout()
+  } else if (command === 'changePassword') {
+    router.push('/change-password')
+  } else if (command === 'profile') {
+    router.push('/profile')
+  }
 }
 
 const handleLogout = () => {
@@ -70,11 +123,26 @@ const handleLogout = () => {
   localStorage.removeItem('role')
   localStorage.removeItem('user')
   localStorage.removeItem('permissions')
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+    refreshInterval = null
+  }
   router.push('/login')
 }
 
-loadCurrentUser()
-fetchUnreadCount()
+onMounted(() => {
+  loadCurrentUser()
+  loadAvatar()
+  fetchUnreadCount()
+  refreshInterval = setInterval(fetchUnreadCount, 30000)
+})
+
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+    refreshInterval = null
+  }
+})
 </script>
 
 <style scoped>
@@ -144,7 +212,7 @@ fetchUnreadCount()
   align-items: center;
   justify-content: flex-end;
   width: 100%;
-  max-width: 400px;
+  max-width: 500px;
 }
 
 .nav-item {
@@ -207,82 +275,51 @@ fetchUnreadCount()
   transform: translateX(-50%) scaleX(1);
 }
 
-.user-btn {
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: rgba(100, 149, 237, 0.1);
+  border: 1px solid rgba(100, 149, 237, 0.2);
+}
+
+.user-info:hover {
   background: rgba(100, 149, 237, 0.2);
-  color: #6495ED;
-  border: 1px solid rgba(100, 149, 237, 0.4);
-  border-radius: 6px;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  position: relative;
-  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(100, 149, 237, 0.3);
+}
+
+.user-info .username {
   font-size: 14px;
   font-weight: 500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
+  color: #333;
 }
 
-.user-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(100, 149, 237, 0.2), transparent);
-  transition: left 0.3s ease;
+.dropdown-icon {
+  font-size: 12px;
+  color: #999;
+  transition: transform 0.3s;
 }
 
-.user-btn:hover::before {
-  left: 100%;
+.user-info:hover .dropdown-icon {
+  transform: rotate(180deg);
 }
 
-.user-btn:hover {
-  background: rgba(100, 149, 237, 0.3);
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.4);
-  transform: translateY(-2px);
+.avatar-placeholder {
+  color: #fff;
+  font-weight: bold;
 }
 
-.logout-btn {
-  background: rgba(244, 67, 54, 0.1);
-  color: #f44336;
-  border: 1px solid rgba(244, 67, 54, 0.3);
-  border-radius: 6px;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  position: relative;
-  overflow: hidden;
-  font-size: 14px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.logout-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(244, 67, 54, 0.2), transparent);
-  transition: left 0.3s ease;
-}
-
-.logout-btn:hover::before {
-  left: 100%;
-}
-
-.logout-btn:hover {
-  background: rgba(244, 67, 54, 0.2);
-  box-shadow: 0 4px 15px rgba(244, 67, 54, 0.4);
-  transform: translateY(-2px);
+.notification-btn { position: relative; }
+.bell-icon { font-size: 20px; line-height: 1; }
+.badge {
+  position: absolute; top: 2px; right: 2px; background: #f44336; color: #fff;
+  font-size: 10px; min-width: 16px; height: 16px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 4px; font-weight: 600; box-shadow: 0 2px 6px rgba(244,67,54,0.4);
 }
 
 @media (max-width: 768px) {
@@ -293,7 +330,4 @@ fetchUnreadCount()
   .header { padding: 0 0.8rem; }
   .logo-text { font-size: 1.2rem; }
 }
-.notification-btn { position: relative; }
-.bell-icon { font-size: 20px; line-height: 1; }
-.badge { position: absolute; top: 2px; right: 2px; background: #f44336; color: #fff; font-size: 10px; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 4px; font-weight: 600; box-shadow: 0 2px 6px rgba(244,67,54,0.4); }
 </style>

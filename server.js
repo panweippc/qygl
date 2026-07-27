@@ -47,6 +47,7 @@ import uploadRouter from './server/routes/upload.js';
 import entertainmentRouter from './server/routes/entertainment.js';
 import salesImportRouter from './server/routes/sales-import.js';
 import knowledgeRouter from './server/routes/knowledge.js';
+import userProfileRouter from './server/routes/user-profile.js';
 
 // 启用CORS
 
@@ -113,6 +114,7 @@ app.use('/api', uploadRouter);
 app.use('/api', entertainmentRouter);
 app.use('/api', salesImportRouter);
 app.use('/api', knowledgeRouter);
+app.use('/api', userProfileRouter);
 app.use('/uploads', express.static('uploads'));
 
 // 创建数据库连接池
@@ -239,6 +241,7 @@ const initDatabase = async () => {
       { name: 'parentDepartmentId', type: "INT" },
       { name: 'level', type: "INT DEFAULT 1" },
       { name: 'roleId', type: "INT" },
+      { name: 'avatar', type: "VARCHAR(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT ''" },
       { name: 'id', type: "INT AUTO_INCREMENT PRIMARY KEY" }
     ];
     
