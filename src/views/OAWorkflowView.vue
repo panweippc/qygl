@@ -560,7 +560,8 @@ import {
   getStatDetailTypeLabel,
   getStatDetailName,
   exportToCSV,
-  exportSingleRow
+  exportSingleRow,
+  exportLeaveFormHTML
 } from '../utils/oaWorkflowUtils'
 
 import LeavePanel from '../components/LeavePanel.vue'
@@ -713,6 +714,10 @@ const exportDistributedData = () => {
 }
 
 const exportDistributedRow = (row: any) => {
+  if (row.applicationType === 'leave') {
+    exportLeaveFormHTML(row)
+    return
+  }
   const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '处理状态', '下发说明', '处理说明']
   const fields = ['id', 'applicationType', 'applicationId', 'applicant', 'distributedBy', 'distributeDate', 'status', 'comment', 'processComment']
   exportSingleRow(row, '下发记录', headers, fields)

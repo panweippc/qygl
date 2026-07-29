@@ -352,7 +352,8 @@ import {
   getLeaveTypeText,
   getLeaveTypeClass,
   exportToCSV,
-  exportSingleRow
+  exportSingleRow,
+  exportLeaveFormHTML
 } from '../utils/oaWorkflowUtils'
 
 const formatDays = (days: any) => {
@@ -667,10 +668,7 @@ const exportLeaveData = () => {
 }
 
 const exportLeaveRow = (row: any) => {
-  exportSingleRow(row, '请假申请_' + row.id,
-    ['申请编号', '申请人', '请假类型', '开始日期', '结束日期', '请假天数', '请假原因', '审批状态', '审批人', '提交时间'],
-    ['id', 'applicant', 'leaveType', 'startDate', 'endDate', 'days', 'reason', 'status', 'approver', 'submitDate']
-  )
+  exportLeaveFormHTML(row)
 }
 
 onMounted(() => {
