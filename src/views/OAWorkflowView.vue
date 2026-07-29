@@ -717,7 +717,8 @@ const exportDistributedRow = (row: any) => {
   if (row.applicationType === 'leave') {
     const emp = allEmployees.value.find((e: any) => extractRealName(e.name) === extractRealName(row.applicant))
     const dept = emp?.department || ''
-    exportLeaveFormHTML(row, dept)
+    const original = [...leaveRecords.value, ...allLeaveRecords.value].find((l: any) => String(l.id) === String(row.applicationId))
+    exportLeaveFormHTML(original || row, dept)
     return
   }
   const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '处理状态', '下发说明', '处理说明']
@@ -875,7 +876,7 @@ const submitApproval = async () => {
         if (type === 'meeting') {
           detailObj = { title: item.title, meetingDate: item.meetingDate, meetingTime: item.meetingTime, location: item.location }
     } else if (type === 'leave') {
-      detailObj = { leaveType: item.leaveType, days: item.days, startDate: item.startDate, endDate: item.endDate, reason: item.reason, result: item.result, comment: item.comment }
+      detailObj = { leaveType: item.leaveType, days: item.days, startDate: item.startDate, endDate: item.endDate, reason: item.reason, result: item.result, comment: item.comment, approver: extractRealName(item.approver || '') }
     } else if (type === 'reimbursement') {
       detailObj = { reimburseType: item.reimburseType, amount: item.amount, reimburseDate: item.reimburseDate, reason: item.reason }
     } else if (type === 'project') {
@@ -895,6 +896,7 @@ const submitApproval = async () => {
               targetUser: target,
               comment: '审批通过后自动下发',
               status: '待处理',
+              approver: extractRealName(item.approver || ''),
               detail: JSON.stringify(detailObj)
             })
           } catch (e) {
@@ -970,7 +972,7 @@ const handleDistribute = async () => {
     if (type === 'meeting') {
       detailObj = { title: item.title, meetingDate: item.meetingDate, meetingTime: item.meetingTime, location: item.location }
     } else if (type === 'leave') {
-      detailObj = { leaveType: item.leaveType, days: item.days, startDate: item.startDate, endDate: item.endDate, reason: item.reason, result: item.result, comment: item.comment }
+      detailObj = { leaveType: item.leaveType, days: item.days, startDate: item.startDate, endDate: item.endDate, reason: item.reason, result: item.result, comment: item.comment, approver: extractRealName(item.approver || '') }
     }
     const results = []
     for (const target of validTargets) {
@@ -982,6 +984,7 @@ const handleDistribute = async () => {
         targetUser: target,
         comment: distributeComment.value || '',
         status: '待处理',
+        approver: extractRealName(item.approver || ''),
         detail: JSON.stringify(detailObj)
       }
       const response = await addDistributedRecord(distributeData)

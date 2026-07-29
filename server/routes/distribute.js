@@ -77,8 +77,8 @@ router.post('/distributed-records', async (req, res) => {
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
     const [result] = await pool.execute(
-      'INSERT INTO distributed_records (applicationId, applicationType, applicant, distributedBy, targetUser, comment, status, detail, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [applicationId, applicationType, applicant, distributedBy, targetUser, comment || '', status || '待处理', detail || '', now]
+      'INSERT INTO distributed_records (applicationId, applicationType, applicant, distributedBy, targetUser, comment, status, detail, approver, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [applicationId, applicationType, applicant, distributedBy, targetUser, comment || '', status || '待处理', detail || '', req.body.approver || '', now]
     );
 
     console.log('下发记录添加成功, ID:', result.insertId);

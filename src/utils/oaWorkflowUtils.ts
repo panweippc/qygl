@@ -374,7 +374,7 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
 
   const approveRows = resultEntries.map((r: any) => {
     const matchComment = commentEntries.find((c: any) => c.name === r.name)
-    return `<tr><td style="padding:6px 10px;border:1px solid #000;">${r.name}</td><td style="padding:6px 10px;border:1px solid #000;">${r.action === '批准' ? '✓ 批准' : r.action === '拒绝' ? '✗ 拒绝' : r.action}</td><td style="padding:6px 10px;border:1px solid #000;">${matchComment ? matchComment.text : ''}</td></tr>`
+    return `<tr><td style="padding:6px 10px;border:1px solid #000;">${r.name}</td><td style="padding:6px 10px;border:1px solid #000;">${r.action === '批准' ? '✓ 批准' : r.action === '拒绝' ? '✗ 拒绝' : r.action}</td><td colspan="2" style="padding:6px 10px;border:1px solid #000;">${matchComment ? matchComment.text : ''}</td></tr>`
   }).join('')
 
   const html = `<!DOCTYPE html>
