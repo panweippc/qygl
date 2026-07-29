@@ -668,7 +668,9 @@ const exportLeaveData = () => {
 }
 
 const exportLeaveRow = (row: any) => {
-  exportLeaveFormHTML(row)
+  const emp = props.allEmployees.find((e: any) => extractRealName(e.name) === extractRealName(row.applicant))
+  const dept = emp?.department || ''
+  exportLeaveFormHTML(row, dept)
 }
 
 onMounted(() => {

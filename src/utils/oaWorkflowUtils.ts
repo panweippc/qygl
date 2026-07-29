@@ -333,7 +333,7 @@ export const hasButtonPermission = (buttonKey: string, menuPath?: string): boole
   } catch { return false }
 }
 
-export const exportLeaveFormHTML = (row: any) => {
+export const exportLeaveFormHTML = (row: any, department?: string) => {
   const getLeaveTypeCN = (t: string) => {
     const map: Record<string, string> = { 'sick': '病假', 'personal': '事假', 'annual': '年假', 'wedding': '婚假', 'maternity': '产假', 'funeral': '丧假', 'other': '其他' }
     return map[t] || t
@@ -351,11 +351,8 @@ export const exportLeaveFormHTML = (row: any) => {
   const days = row.days || '-'
   const reason = row.reason || ''
   const approver = row.approver || ''
-  const status = row.status || ''
   const resultChain = row.result || ''
   const comment = row.comment || ''
-
-  const statusCN: Record<string, string> = { '审批中': '审批中', '待审批': '待审批', '已批准': '✓ 已批准', '已拒绝': '✗ 已拒绝', '已取消': '已取消', 'approved': '✓ 已批准', 'rejected': '✗ 已拒绝' }
 
   const resultLines = resultChain
     ? resultChain.split('\n').filter((l: string) => l.trim()).map((l: string) => `<div class="result-line">${l}</div>`).join('')
@@ -385,7 +382,6 @@ export const exportLeaveFormHTML = (row: any) => {
   .title-cell { text-align: center; font-size: 20px; font-weight: bold; letter-spacing: 6px; padding: 14px; }
   .company-cell { text-align: center; font-size: 12px; color: #666; padding: 4px; letter-spacing: 2px; border-bottom: none; }
   .label { font-weight: bold; white-space: nowrap; width: 90px; background: #f9f9f9; }
-  .label-sm { font-weight: bold; white-space: nowrap; width: 70px; background: #f9f9f9; text-align: center; }
   .chk { display: inline-block; margin-right: 12px; }
   .chk-box { display: inline-block; width: 14px; height: 14px; border: 1px solid #333; margin-right: 3px; vertical-align: middle; text-align: center; line-height: 14px; font-size: 12px; }
   .chk-on .chk-box { background: #333; color: #fff; }
@@ -394,11 +390,6 @@ export const exportLeaveFormHTML = (row: any) => {
   .sign-row td { height: 50px; text-align: center; font-size: 12px; }
   .result-cell { background: #fafafa; line-height: 1.6; font-size: 13px; }
   .print-hint { text-align: center; margin-top: 10px; font-size: 11px; color: #aaa; }
-  .id-cell { font-size: 12px; color: #666; text-align: right; }
-  .status-tag { display: inline-block; padding: 2px 10px; font-weight: bold; font-size: 13px; }
-  .status-tag.approved { background: #e8f5e9; color: #2e7d32; }
-  .status-tag.rejected { background: #ffebee; color: #c62828; }
-  .status-tag.pending { background: #fff3e0; color: #e65100; }
   @media print { .print-hint { display: none; } body { padding: 0; } .form-wrap { margin: 0 auto; } }
 </style>
 </head>
@@ -410,8 +401,8 @@ export const exportLeaveFormHTML = (row: any) => {
   <tr>
     <td class="label">申请人</td>
     <td>${row.applicant || ''}</td>
-    <td class="label">审批状态</td>
-    <td><span class="status-tag ${status === '已批准' || status === 'approved' ? 'approved' : status === '已拒绝' || status === 'rejected' ? 'rejected' : 'pending'}">${statusCN[status] || status}</span></td>
+    <td class="label">部　门</td>
+    <td>${department || ''}</td>
   </tr>
   <tr>
     <td class="label">请假类型</td>
@@ -432,16 +423,10 @@ export const exportLeaveFormHTML = (row: any) => {
   <tr>
     <td class="label">审批人</td>
     <td>${approver || '未指定'}</td>
-    <td class="label">申请编号</td>
-    <td class="id-cell">#${row.id}</td>
-  </tr>
-  <tr>
     <td class="label">审批记录</td>
-    <td colspan="3" class="result-cell">
-      ${resultLines || '<div style="color:#999">暂无审批记录</div>'}
-      ${comment ? '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #ddd"><strong>审批意见：</strong>' + comment + '</div>' : ''}
-    </td>
+    <td class="result-cell">${resultLines || '暂无'}</td>
   </tr>
+  ${comment ? `<tr><td class="label">审批意见</td><td colspan="3" class="result-cell">${comment}</td></tr>` : ''}
   <tr><td colspan="4" style="padding:4px;background:#f5f5f5;font-size:12px;text-align:center;">以下由审批人填写</td></tr>
   <tr class="sign-row">
     <td>申请人签字<br/><br/></td>

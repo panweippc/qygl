@@ -715,7 +715,9 @@ const exportDistributedData = () => {
 
 const exportDistributedRow = (row: any) => {
   if (row.applicationType === 'leave') {
-    exportLeaveFormHTML(row)
+    const emp = allEmployees.value.find((e: any) => extractRealName(e.name) === extractRealName(row.applicant))
+    const dept = emp?.department || ''
+    exportLeaveFormHTML(row, dept)
     return
   }
   const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '处理状态', '下发说明', '处理说明']
