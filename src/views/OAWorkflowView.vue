@@ -388,6 +388,12 @@
         <el-form-item label="审批意见">
           <el-input v-model="approvalForm.comment" type="textarea" :rows="3" placeholder="请输入审批意见（可选）"></el-input>
         </el-form-item>
+        <el-form-item label="下发对象">
+          <el-select v-model="approvalForm.distributeTargets" multiple filterable placeholder="请选择下发对象（审批通过后自动下发）" style="width: 100%" collapse-tags collapse-tags-tooltip :max-collapse-tags="3">
+            <el-option v-for="emp in allEmployees" :key="emp.id" :label="extractRealName(emp.name) + ' (' + emp.department + ')'" :value="extractRealName(emp.name)" />
+          </el-select>
+          <div style="font-size: 12px; color: #909399; margin-top: 4px;">审批通过后将自动下发给所选人员，可在下方增删</div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
@@ -807,12 +813,17 @@ const openStatDetail = (statKey: string) => {
 
 const approvalDialogVisible = ref(false)
 const currentApprovalItem = ref<any>(null)
-const approvalForm = ref({ id: '', type: '', comment: '', result: '', forwardToGM: false })
+const approvalForm = ref({ id: '', type: '', comment: '', result: '', forwardToGM: false, distributeTargets: [] as string[] })
 const approvalFormRef = ref()
 
 const openApprovalDialog = (row: any, type: string) => {
   currentApprovalItem.value = { ...row, type }
-  approvalForm.value = { id: row.id, type, comment: '', result: '', forwardToGM: false }
+  const applicant = extractRealName(row.applicant || row.organizer || '')
+  const defaults: string[] = [applicant].filter(Boolean)
+  if (type !== 'project' && type !== 'meeting') {
+    defaults.push('张海琼')
+  }
+  approvalForm.value = { id: row.id, type, comment: '', result: '', forwardToGM: false, distributeTargets: [...new Set(defaults)] }
   approvalDialogVisible.value = true
 }
 
@@ -849,9 +860,47 @@ const submitApproval = async () => {
         break
     }
     if (response?.success) {
+      const targets = [...new Set(approvalForm.value.distributeTargets || [])]
+      if (approvalForm.value.result === '批准' && targets.length > 0) {
+        const item = currentApprovalItem.value
+        const type = approvalForm.value.type
+        let detailObj: any = {}
+        if (type === 'meeting') {
+          detailObj = { title: item.title, meetingDate: item.meetingDate, meetingTime: item.meetingTime, location: item.location }
+        } else if (type === 'leave') {
+          detailObj = { leaveType: item.leaveType, days: item.days, startDate: item.startDate, endDate: item.endDate, reason: item.reason }
+        } else if (type === 'reimbursement') {
+          detailObj = { reimburseType: item.reimburseType, amount: item.amount, reimburseDate: item.reimburseDate, reason: item.reason }
+        } else if (type === 'project') {
+          detailObj = { projectName: item.projectName, projectType: item.projectType, budget: item.budget }
+        } else if (type === 'businessTrip') {
+          detailObj = { destination: item.destination, tripType: item.tripType, days: item.days, estimatedCost: item.estimatedCost }
+        } else if (type === 'entertainment') {
+          detailObj = { guestName: item.guestName, guestCount: item.guestCount, expenseAmount: item.expenseAmount, expenseDate: item.expenseDate, purpose: item.purpose }
+        }
+        for (const target of targets) {
+          try {
+            await addDistributedRecord({
+              applicationId: item.id,
+              applicationType: type,
+              applicant: extractRealName(item.applicant || item.organizer || ''),
+              distributedBy: extractRealName(currentUsername.value),
+              targetUser: target,
+              comment: '审批通过后自动下发',
+              status: '待处理',
+              detail: JSON.stringify(detailObj)
+            })
+          } catch (e) {
+            console.warn('自动下发失败(' + target + '):', e)
+          }
+        }
+      }
       ElMessage.success(approvalForm.value.forwardToGM ? '审批完成，已转发至总经理' : '审批已完成')
       approvalDialogVisible.value = false
       await refreshAllData()
+      if (isAdminComputed.value) {
+        await loadAllDistributedRecords()
+      }
     } else {
       ElMessage.error(response?.message || '审批失败')
     }
