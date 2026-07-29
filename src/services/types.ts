@@ -256,6 +256,7 @@ export interface DistributedRecord {
   targetUser: string
   comment?: string
   status?: string
+  detail?: string
   createdAt?: string
 }
 

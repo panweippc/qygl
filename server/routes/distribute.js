@@ -49,7 +49,7 @@ router.post('/distributed-records', async (req, res) => {
   const { pool } = req.app.locals;
   const username = req.body.operator || req.body.username || '系统';
   try {
-    const { applicationId, applicationType, applicant, distributedBy, targetUser, comment, status } = req.body;
+    const { applicationId, applicationType, applicant, distributedBy, targetUser, comment, status, detail } = req.body;
 
     console.log('收到下发记录请求:', req.body);
 
@@ -77,8 +77,8 @@ router.post('/distributed-records', async (req, res) => {
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
     const [result] = await pool.execute(
-      'INSERT INTO distributed_records (applicationId, applicationType, applicant, distributedBy, targetUser, comment, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [applicationId, applicationType, applicant, distributedBy, targetUser, comment || '', status || '待处理', now]
+      'INSERT INTO distributed_records (applicationId, applicationType, applicant, distributedBy, targetUser, comment, status, detail, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [applicationId, applicationType, applicant, distributedBy, targetUser, comment || '', status || '待处理', detail || '', now]
     );
 
     console.log('下发记录添加成功, ID:', result.insertId);

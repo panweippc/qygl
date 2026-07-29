@@ -476,6 +476,7 @@ const submitAddProject = async () => {
       startDate: new Date().toISOString().split('T')[0],
       endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       description: addProjectForm.value.description || `${addProjectForm.value.name}的项目描述`,
+      project_link: addProjectForm.value.link || '',
       objectives: `${addProjectForm.value.name}的目标`,
       teamMembers: [30, 31],
       resources: '资源描述',

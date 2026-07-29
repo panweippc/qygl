@@ -1270,6 +1270,26 @@ const initDatabase = async () => {
       console.log('processComment字段检查/添加结果:', alterError.message);
     }
 
+    // 检查并添加detail字段
+    try {
+      const [columns] = await connection.execute(`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'distributed_records' AND COLUMN_NAME = 'detail'
+      `);
+
+      if (columns.length === 0) {
+        await connection.execute(`
+          ALTER TABLE distributed_records 
+          ADD COLUMN detail TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT '申请详情(JSON)'
+        `);
+        console.log('detail字段添加成功');
+      } else {
+        console.log('detail字段已存在');
+      }
+    } catch (alterError) {
+      console.log('detail字段检查/添加结果:', alterError.message);
+    }
+
     // 创建departments表（部门管理）
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS departments (

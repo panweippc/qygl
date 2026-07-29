@@ -457,15 +457,7 @@
                 :key="emp.id"
                 :label="extractRealName(emp.name) + ' (' + emp.department + ')'"
                 :value="extractRealName(emp.name)"
-                :disabled="extractRealName(emp.name) === '张海琼'"
               />
-              <template #tag="{ value, closable, onClose }">
-                <el-tag
-                  :closable="value !== '张海琼'"
-                  :disable-transitions="false"
-                  @close="onClose"
-                >{{ value }}</el-tag>
-              </template>
             </el-select>
           </el-form-item>
           <el-form-item label="下发说明">
@@ -888,7 +880,7 @@ const distributeComment = ref('')
 const openDistributeDialog = (row: any, type: string) => {
   currentDistributeItem.value = row
   currentDistributeType.value = type
-  distributeTarget.value = ['张海琼']
+  distributeTarget.value = []
   distributeComment.value = ''
   distributeDialogVisible.value = true
 }
@@ -916,16 +908,34 @@ const handleDistribute = async () => {
       ElMessage.warning(`${skipped.join('、')} 已收到过该下发，已自动跳过`)
     }
 
+    const item = currentDistributeItem.value
+    const type = currentDistributeType.value
+    let detailObj: any = {}
+    if (type === 'meeting') {
+      detailObj = { title: item.title, meetingDate: item.meetingDate, meetingTime: item.meetingTime, location: item.location }
+    } else if (type === 'leave') {
+      detailObj = { leaveType: item.leaveType, days: item.days, startDate: item.startDate, endDate: item.endDate, reason: item.reason }
+    } else if (type === 'reimbursement') {
+      detailObj = { reimburseType: item.reimburseType, amount: item.amount, reimburseDate: item.reimburseDate, reason: item.reason }
+    } else if (type === 'project') {
+      detailObj = { projectName: item.projectName, projectType: item.projectType, budget: item.budget }
+    } else if (type === 'businessTrip') {
+      detailObj = { destination: item.destination, tripType: item.tripType, days: item.days, estimatedCost: item.estimatedCost }
+    } else if (type === 'entertainment') {
+      detailObj = { guestName: item.guestName, guestCount: item.guestCount, expenseAmount: item.expenseAmount, expenseDate: item.expenseDate, purpose: item.purpose }
+    }
+
     const results = []
     for (const target of validTargets) {
       const distributeData = {
-        applicationId: currentDistributeItem.value.id,
-        applicationType: currentDistributeType.value,
-        applicant: extractRealName(currentDistributeItem.value.applicant || currentDistributeItem.value.organizer || ''),
+        applicationId: item.id,
+        applicationType: type,
+        applicant: extractRealName(item.applicant || item.organizer || ''),
         distributedBy: extractRealName(currentUsername.value),
         targetUser: target,
         comment: distributeComment.value || '',
-        status: '待处理'
+        status: '待处理',
+        detail: JSON.stringify(detailObj)
       }
       const response = await addDistributedRecord(distributeData)
       results.push(response)
@@ -988,7 +998,10 @@ const getApplicationDetailHtml = (row: any) => {
     const meetingTime = row.meetingTime || ''
     detailHtml = `<p><strong>会议主题：</strong>${meetingTitle}</p><p><strong>会议日期：</strong>${meetingDate}</p><p><strong>会议地点：</strong>${meetingLocation}</p><p><strong>会议时间：</strong>${meetingTime}</p>`
   } else if (type === 'leave') {
-    detailHtml = `<p><strong>请假类型：</strong>${row.leaveType || '-'}</p><p><strong>请假天数：</strong>${formatDays(row.days)}</p>`
+    const startDate = row.startDate || ''
+    const endDate = row.endDate || ''
+    const dateRange = startDate && endDate ? `<p><strong>请假时间：</strong>${startDate} 至 ${endDate}</p>` : ''
+    detailHtml = `<p><strong>请假类型：</strong>${row.leaveType || '-'}</p><p><strong>请假天数：</strong>${formatDays(row.days)}</p>${dateRange}`
   } else if (type === 'reimbursement') {
     detailHtml = `<p><strong>报销类型：</strong>${row.reimburseType || '-'}</p><p><strong>报销金额：</strong>¥${row.amount || 0}</p>`
   } else if (type === 'project') {
@@ -1285,29 +1298,37 @@ const loadAllDistributedRecords = async () => {
 }
 
 const enrichDistributedRecord = (record: any) => {
-  const aid = record.applicationId
-  const type = record.applicationType
   let extra: any = {}
-  if (type === 'meeting') {
-    const meeting = [...meetingRecords.value, ...allMeetingRecords.value].find((m: any) => String(m.id) === String(aid))
-    if (meeting) {
-      extra = { title: meeting.title, meetingDate: meeting.meetingDate, meetingLocation: meeting.location, meetingTime: meeting.meetingTime }
+  if (record.detail) {
+    try {
+      extra = JSON.parse(record.detail)
+    } catch (e) {
+      console.error('解析下发详情失败:', e)
     }
-  } else if (type === 'leave') {
-    const leave = [...leaveRecords.value, ...allLeaveRecords.value].find((l: any) => String(l.id) === String(aid))
-    if (leave) extra = { leaveType: leave.leaveType, days: leave.days }
-  } else if (type === 'reimbursement') {
-    const reimb = [...reimbursementRecords.value, ...allReimbursementRecords.value].find((r: any) => String(r.id) === String(aid))
-    if (reimb) extra = { reimburseType: reimb.reimburseType, amount: reimb.amount }
-  } else if (type === 'project') {
-    const proj = [...projectRecords.value, ...allProjectRecords.value].find((p: any) => String(p.id) === String(aid))
-    if (proj) extra = { projectName: proj.projectName, projectType: proj.projectType }
-  } else if (type === 'businessTrip') {
-    const trip = [...businessTripRecords.value, ...allBusinessTripRecords.value].find((t: any) => String(t.id) === String(aid))
-    if (trip) extra = { destination: trip.destination, days: trip.days }
-  } else if (type === 'entertainment') {
-    const ent = [...entertainmentRecords.value, ...allEntertainmentRecords.value].find((e: any) => String(e.id) === String(aid))
-    if (ent) extra = { guestName: ent.guestName, expenseAmount: ent.expenseAmount }
+  } else {
+    const aid = record.applicationId
+    const type = record.applicationType
+    if (type === 'meeting') {
+      const meeting = [...meetingRecords.value, ...allMeetingRecords.value].find((m: any) => String(m.id) === String(aid))
+      if (meeting) {
+        extra = { title: meeting.title, meetingDate: meeting.meetingDate, meetingLocation: meeting.location, meetingTime: meeting.meetingTime }
+      }
+    } else if (type === 'leave') {
+      const leave = [...leaveRecords.value, ...allLeaveRecords.value].find((l: any) => String(l.id) === String(aid))
+      if (leave) extra = { leaveType: leave.leaveType, days: leave.days, startDate: leave.startDate, endDate: leave.endDate }
+    } else if (type === 'reimbursement') {
+      const reimb = [...reimbursementRecords.value, ...allReimbursementRecords.value].find((r: any) => String(r.id) === String(aid))
+      if (reimb) extra = { reimburseType: reimb.reimburseType, amount: reimb.amount }
+    } else if (type === 'project') {
+      const proj = [...projectRecords.value, ...allProjectRecords.value].find((p: any) => String(p.id) === String(aid))
+      if (proj) extra = { projectName: proj.projectName, projectType: proj.projectType }
+    } else if (type === 'businessTrip') {
+      const trip = [...businessTripRecords.value, ...allBusinessTripRecords.value].find((t: any) => String(t.id) === String(aid))
+      if (trip) extra = { destination: trip.destination, days: trip.days }
+    } else if (type === 'entertainment') {
+      const ent = [...entertainmentRecords.value, ...allEntertainmentRecords.value].find((e: any) => String(e.id) === String(aid))
+      if (ent) extra = { guestName: ent.guestName, expenseAmount: ent.expenseAmount }
+    }
   }
   return { ...record, ...extra }
 }
