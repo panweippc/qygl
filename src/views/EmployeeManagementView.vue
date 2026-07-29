@@ -101,10 +101,10 @@
               <el-table-column prop="emergencyPhone" label="紧急电话" width="120" />
               <el-table-column label="操作" width="150" fixed="right">
                 <template #default="{ row }">
-                  <el-button size="small" @click="editEmployee(row)" class="edit-btn" v-if="hasPerm(\'btn_edit\')">
+                  <el-button size="small" @click="editEmployee(row)" class="edit-btn" v-if="hasPerm('btn_edit')">
                      编辑
                    </el-button>
-                  <el-button size="small" @click="deleteEmployee(row.name)" class="delete-btn" v-if="hasPerm(\'btn_delete\')">
+                  <el-button size="small" @click="deleteEmployee(row.name)" class="delete-btn" v-if="hasPerm('btn_delete')">
                      删除
                    </el-button>
                 </template>
