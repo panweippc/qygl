@@ -24,10 +24,10 @@
               <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM9 17H7V10H9V17ZM13 17H11V7H13V17ZM17 17H15V13H17V17Z"/>
             </svg>
           </span>
-          {{ townName }}瀹㈡埛璇︾粏淇℃伅
+          {{ townName }}客户详细信息
         </h2>
 
-        <!-- 涔￠晣基本信息鍗＄墖 -->
+        <!-- 乡镇基本信息卡片 -->
         <div class="town-info-card">
           <h3 class="card-title">{{ townName }}基本信息</h3>
           <div class="card-details">
@@ -40,17 +40,17 @@
               <span class="detail-value">{{ townData.contactPhone }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">瀹㈡埛绫诲瀷:</span>
-              <span class="detail-value">{{ townData.contactType || '未设置 }}</span>
+              <span class="detail-label">客户类型:</span>
+              <span class="detail-value">{{ townData.contactType || '未设置' }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">鎰忓悜绋嬪害:</span>
+              <span class="detail-label">意向程度:</span>
               <span class="detail-value">{{ getIntentionText(townData.intention) }}</span>
             </div>
           </div>
         </div>
 
-        <!-- 拜访记录鍒楄〃 -->
+        <!-- 拜访记录列表 -->
         <div class="customer-section">
           <div class="section-header">
             <h3 class="section-subtitle">拜访记录</h3>
