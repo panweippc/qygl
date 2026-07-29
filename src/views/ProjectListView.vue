@@ -132,10 +132,12 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, ArrowLeft } from '@element-plus/icons-vue';
+import { Plus, ArrowLeft } from '@element-plus/icons-vue'
+import { useButtonPermission } from '@/composables/usePermission';
 import { getProjectApplications, approveProject } from '@/services/workflow';
 
 const router = useRouter();
+const { hasPerm } = useButtonPermission();
 const loading = ref(false);
 const projectList = ref([]);
 const approving = ref(false);

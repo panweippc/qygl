@@ -131,11 +131,12 @@
               <el-button
                 v-if="(row.status === '已批准' || row.status === 'approved') && canDistribute"
                 size="small"
-                type="success"
-                @click="$emit('distribute', row, 'project')"
+                :type="isDistributed(row, 'project') ? 'warning' : 'success'"
+                :disabled="isDistributed(row, 'project')"
+                @click="!isDistributed(row, 'project') && $emit('distribute', row, 'project')"
                 class="distribute-btn"
               >
-                下发
+                {{ isDistributed(row, 'project') ? '已下发' : '下发' }}
               </el-button>
               <el-button
                 v-if="(row.status === '审批中' || row.status === 'pending') && !isAdmin"
@@ -224,10 +225,11 @@
             <el-button
               v-if="(row.status === '已批准' || row.status === 'approved') && canDistribute"
               size="small"
-              type="success"
-              @click="$emit('distribute', row, 'project')"
+              :type="isDistributed(row, 'project') ? 'warning' : 'success'"
+              :disabled="isDistributed(row, 'project')"
+              @click="!isDistributed(row, 'project') && $emit('distribute', row, 'project')"
             >
-              下发
+              {{ isDistributed(row, 'project') ? '已下发' : '下发' }}
             </el-button>
             <el-button
               v-if="(row.status === '审批中' || row.status === 'pending') && !isAdmin"
@@ -329,6 +331,12 @@ const getDistributedUsersForApplication = (applicationId: number, applicationTyp
     (r: any) => Number(r.applicationId) === Number(applicationId) && r.applicationType === applicationType
   )
   return [...new Set(records.map((r: any) => r.targetUser))]
+}
+
+const isDistributed = (row: any, type: string): boolean => {
+  return props.allDistributedRecords?.some(
+    (r: any) => Number(r.applicationId) === Number(row.id) && r.applicationType === type
+  )
 }
 
 const loadProjectRecords = async () => {

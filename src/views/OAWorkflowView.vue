@@ -207,15 +207,31 @@
                   <span class="title-text">下发申请管理</span>
                 </div>
                 <div class="header-actions">
+                  <el-button type="danger" @click="exportDistributedData" class="export-btn-small">
+                    导出
+                  </el-button>
                   <el-button type="primary" @click="loadDistributedRecords" class="refresh-btn">
                     <el-icon><Refresh /></el-icon> 刷新
                   </el-button>
                 </div>
               </div>
+              <div class="distributed-sub-tabs">
+                <div
+                  v-for="st in distributedSubTabs"
+                  :key="st.name"
+                  class="sub-tab-item"
+                  :class="{ active: distributedActiveSubTab === st.name }"
+                  @click="distributedActiveSubTab = st.name"
+                >
+                  <span class="sub-tab-icon">{{ st.icon }}</span>
+                  <span class="sub-tab-label">{{ st.label }}</span>
+                  <span v-if="st.badge > 0" class="sub-tab-badge">{{ st.badge }}</span>
+                </div>
+              </div>
               <div class="panel-content">
                 <div class="table-container">
                   <el-table
-                    :data="distributedRecords"
+                    :data="filteredDistributedRecords"
                     style="width: 100%"
                     :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: '600' }"
                     v-loading="loading"
@@ -248,6 +264,11 @@
                         </span>
                       </template>
                     </el-table-column>
+                    <el-table-column label="申请详情" min-width="180" v-if="distributedActiveSubTab !== 'all'">
+                      <template #default="{ row }">
+                        <span class="distributed-detail-text">{{ getDistributedDetail(row) }}</span>
+                      </template>
+                    </el-table-column>
                     <el-table-column prop="comment" label="下发说明" min-width="150">
                       <template #default="{ row }">
                         <span class="comment-text">{{ row.comment || '-' }}</span>
@@ -259,7 +280,7 @@
                         <span v-else class="no-process">-</span>
                       </template>
                     </el-table-column>
-                    <el-table-column label="操作" width="150" fixed="right">
+                    <el-table-column label="操作" width="200" fixed="right">
                       <template #default="{ row }">
                         <div class="action-group">
                           <el-button
@@ -277,6 +298,13 @@
                             class="view-btn"
                           >
                             详情
+                          </el-button>
+                          <el-button
+                            size="small"
+                            @click="exportDistributedRow(row)"
+                            class="export-row-btn"
+                          >
+                            导出
                           </el-button>
                         </div>
                       </template>
@@ -429,7 +457,15 @@
                 :key="emp.id"
                 :label="extractRealName(emp.name) + ' (' + emp.department + ')'"
                 :value="extractRealName(emp.name)"
+                :disabled="extractRealName(emp.name) === '张海琼'"
               />
+              <template #tag="{ value, closable, onClose }">
+                <el-tag
+                  :closable="value !== '张海琼'"
+                  :disable-transitions="false"
+                  @close="onClose"
+                >{{ value }}</el-tag>
+              </template>
             </el-select>
           </el-form-item>
           <el-form-item label="下发说明">
@@ -517,13 +553,16 @@ import {
 import {
   extractRealName,
   formatDate,
+  formatDays,
   getStatusClass,
   getStatusText,
   getApprovalTypeName,
   getApplicationTypeLabel,
   getDetailFields,
   getStatDetailTypeLabel,
-  getStatDetailName
+  getStatDetailName,
+  exportToCSV,
+  exportSingleRow
 } from '../utils/oaWorkflowUtils'
 
 import LeavePanel from '../components/LeavePanel.vue'
@@ -620,6 +659,66 @@ const pendingReimbursementCount = computed(() => (isAdminComputed.value ? allRei
 const pendingBusinessTripCount = computed(() => (isAdminComputed.value ? allBusinessTripRecords.value : businessTripRecords.value).length)
 const pendingEntertainmentCount = computed(() => (isAdminComputed.value ? allEntertainmentRecords.value : entertainmentRecords.value).length)
 const pendingDistributedCount = computed(() => distributedRecords.value.length)
+
+const distributedActiveSubTab = ref('all')
+
+const distributedSubTabs = computed(() => {
+  const counts: Record<string, number> = {}
+  distributedRecords.value.forEach(r => {
+    counts[r.applicationType] = (counts[r.applicationType] || 0) + 1
+  })
+  return [
+    { name: 'all', label: '全部', icon: '📋', badge: distributedRecords.value.length },
+    { name: 'leave', label: '请假', icon: '📝', badge: counts['leave'] || 0 },
+    { name: 'reimbursement', label: '报销', icon: '💰', badge: counts['reimbursement'] || 0 },
+    { name: 'meeting', label: '会议', icon: '📅', badge: counts['meeting'] || 0 },
+    { name: 'project', label: '项目', icon: '📊', badge: counts['project'] || 0 },
+    { name: 'businessTrip', label: '出差', icon: '✈️', badge: counts['businessTrip'] || 0 },
+    { name: 'entertainment', label: '招待', icon: '🍽️', badge: counts['entertainment'] || 0 }
+  ]
+})
+
+const filteredDistributedRecords = computed(() => {
+  if (distributedActiveSubTab.value === 'all') return distributedRecords.value
+  return distributedRecords.value.filter(r => r.applicationType === distributedActiveSubTab.value)
+})
+
+const getDistributedDetail = (row: any) => {
+  const type = row.applicationType
+  if (type === 'meeting') {
+    return `主题:${row.meetingTitle || row.title || '-'} 日期:${row.meetingDate || '-'} 地点:${row.meetingLocation || row.location || '-'} 时间:${row.meetingTime || '-'}`
+  }
+  if (type === 'leave') {
+    return `类型:${row.leaveType || '-'} 天数:${formatDays(row.days)}`
+  }
+  if (type === 'reimbursement') {
+    return `类型:${row.reimburseType || '-'} 金额:¥${row.amount || 0}`
+  }
+  if (type === 'project') {
+    return `名称:${row.projectName || '-'} 类型:${row.projectType || '-'}`
+  }
+  if (type === 'businessTrip') {
+    return `目的地:${row.destination || '-'} 天数:${formatDays(row.days)}`
+  }
+  if (type === 'entertainment') {
+    return `客户:${row.guestName || '-'} 金额:¥${row.expenseAmount || 0}`
+  }
+  return ''
+}
+
+const exportDistributedData = () => {
+  const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '处理状态', '下发说明', '处理说明']
+  const fields = ['id', 'applicationType', 'applicationId', 'applicant', 'distributedBy', 'distributeDate', 'status', 'comment', 'processComment']
+  const filename = '下发管理'
+  const data = filteredDistributedRecords.value.length > 0 ? filteredDistributedRecords.value : distributedRecords.value
+  exportToCSV(data, filename, headers, fields)
+}
+
+const exportDistributedRow = (row: any) => {
+  const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '处理状态', '下发说明', '处理说明']
+  const fields = ['id', 'applicationType', 'applicationId', 'applicant', 'distributedBy', 'distributeDate', 'status', 'comment', 'processComment']
+  exportSingleRow(row, '下发记录', headers, fields)
+}
 
 const tabs = computed(() => {
   const allMeetings = [...meetingRecords.value, ...allMeetingRecords.value]
@@ -789,7 +888,7 @@ const distributeComment = ref('')
 const openDistributeDialog = (row: any, type: string) => {
   currentDistributeItem.value = row
   currentDistributeType.value = type
-  distributeTarget.value = []
+  distributeTarget.value = ['张海琼']
   distributeComment.value = ''
   distributeDialogVisible.value = true
 }
@@ -879,7 +978,31 @@ const submitProcess = async () => {
   }
 }
 
+const getApplicationDetailHtml = (row: any) => {
+  const type = row.applicationType
+  let detailHtml = ''
+  if (type === 'meeting') {
+    const meetingTitle = row.meetingTitle || row.title || ''
+    const meetingDate = row.meetingDate || ''
+    const meetingLocation = row.meetingLocation || row.location || ''
+    const meetingTime = row.meetingTime || ''
+    detailHtml = `<p><strong>会议主题：</strong>${meetingTitle}</p><p><strong>会议日期：</strong>${meetingDate}</p><p><strong>会议地点：</strong>${meetingLocation}</p><p><strong>会议时间：</strong>${meetingTime}</p>`
+  } else if (type === 'leave') {
+    detailHtml = `<p><strong>请假类型：</strong>${row.leaveType || '-'}</p><p><strong>请假天数：</strong>${formatDays(row.days)}</p>`
+  } else if (type === 'reimbursement') {
+    detailHtml = `<p><strong>报销类型：</strong>${row.reimburseType || '-'}</p><p><strong>报销金额：</strong>¥${row.amount || 0}</p>`
+  } else if (type === 'project') {
+    detailHtml = `<p><strong>项目名称：</strong>${row.projectName || '-'}</p><p><strong>项目类型：</strong>${row.projectType || '-'}</p>`
+  } else if (type === 'businessTrip') {
+    detailHtml = `<p><strong>目的地：</strong>${row.destination || '-'}</p><p><strong>出差天数：</strong>${formatDays(row.days)}</p>`
+  } else if (type === 'entertainment') {
+    detailHtml = `<p><strong>客户名称：</strong>${row.guestName || '-'}</p><p><strong>招待金额：</strong>¥${row.expenseAmount || 0}</p>`
+  }
+  return detailHtml
+}
+
 const viewDistributedDetail = (row: any) => {
+  const appDetailHtml = getApplicationDetailHtml(row)
   ElMessageBox.alert(`
     <div style="text-align: left;">
       <p><strong>下发编号：</strong>#${row.id}</p>
@@ -890,6 +1013,7 @@ const viewDistributedDetail = (row: any) => {
       <p><strong>下发时间：</strong>${row.distributeDate}</p>
       <p><strong>处理状态：</strong>${row.status}</p>
       <p><strong>下发说明：</strong>${row.comment || '-'}</p>
+      ${appDetailHtml ? '<hr style="margin:8px 0;border-color:#eee"/>' + appDetailHtml : ''}
     </div>
   `, '下发详情', {
     dangerouslyUseHTMLString: true,
@@ -1153,11 +1277,39 @@ const loadAllDistributedRecords = async () => {
   try {
     const response = await getAllDistributedRecords()
     if (response.success) {
-      allDistributedRecords.value = response.data || []
+      allDistributedRecords.value = (response.data || []).map((r: any) => enrichDistributedRecord(r))
     }
   } catch (error) {
     console.error('获取所有下发记录失败:', error)
   }
+}
+
+const enrichDistributedRecord = (record: any) => {
+  const aid = record.applicationId
+  const type = record.applicationType
+  let extra: any = {}
+  if (type === 'meeting') {
+    const meeting = [...meetingRecords.value, ...allMeetingRecords.value].find((m: any) => String(m.id) === String(aid))
+    if (meeting) {
+      extra = { title: meeting.title, meetingDate: meeting.meetingDate, meetingLocation: meeting.location, meetingTime: meeting.meetingTime }
+    }
+  } else if (type === 'leave') {
+    const leave = [...leaveRecords.value, ...allLeaveRecords.value].find((l: any) => String(l.id) === String(aid))
+    if (leave) extra = { leaveType: leave.leaveType, days: leave.days }
+  } else if (type === 'reimbursement') {
+    const reimb = [...reimbursementRecords.value, ...allReimbursementRecords.value].find((r: any) => String(r.id) === String(aid))
+    if (reimb) extra = { reimburseType: reimb.reimburseType, amount: reimb.amount }
+  } else if (type === 'project') {
+    const proj = [...projectRecords.value, ...allProjectRecords.value].find((p: any) => String(p.id) === String(aid))
+    if (proj) extra = { projectName: proj.projectName, projectType: proj.projectType }
+  } else if (type === 'businessTrip') {
+    const trip = [...businessTripRecords.value, ...allBusinessTripRecords.value].find((t: any) => String(t.id) === String(aid))
+    if (trip) extra = { destination: trip.destination, days: trip.days }
+  } else if (type === 'entertainment') {
+    const ent = [...entertainmentRecords.value, ...allEntertainmentRecords.value].find((e: any) => String(e.id) === String(aid))
+    if (ent) extra = { guestName: ent.guestName, expenseAmount: ent.expenseAmount }
+  }
+  return { ...record, ...extra }
 }
 
 const loadDistributedRecords = async () => {
@@ -1166,7 +1318,7 @@ const loadDistributedRecords = async () => {
     const realUsername = extractRealName(currentUsername.value)
     const response = await getDistributedRecords(realUsername)
     if (response.success) {
-      distributedRecords.value = response.data.map((record: any) => ({
+      distributedRecords.value = response.data.map((record: any) => enrichDistributedRecord({
         ...record,
         distributeDate: record.createdAt ? formatDate(record.createdAt, true) : ''
       }))
@@ -1829,6 +1981,49 @@ onMounted(async () => {
   .stats-bar {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+.distributed-sub-tabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255,255,255,0.8);
+  border-bottom: 1px solid rgba(100, 149, 237, 0.2);
+  flex-wrap: wrap;
+}
+.sub-tab-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border-radius: 16px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.3s;
+  background: rgba(100, 149, 237, 0.08);
+  color: rgba(51,51,51,0.7);
+}
+.sub-tab-item:hover { background: rgba(100, 149, 237, 0.15); }
+.sub-tab-item.active {
+  background: rgba(100, 149, 237, 0.2);
+  color: #6495ED;
+  font-weight: 600;
+}
+.sub-tab-badge {
+  background: #6495ED;
+  color: #fff;
+  font-size: 10px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+.distributed-detail-text {
+  font-size: 12px;
+  color: rgba(51,51,51,0.7);
+  line-height: 1.4;
 }
 @media (max-width: 768px) {
   .page-header {

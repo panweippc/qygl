@@ -318,6 +318,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { useButtonPermission } from '@/composables/usePermission'
 import { getLeaveApplications, addLeaveApplication, updateLeaveApplication, getPendingLeaveApplications } from '../services/api'
 
 // 提取真实姓名（从emp_姓名_时间戳格式中提取）
@@ -332,6 +333,7 @@ const extractRealName = (name: string): string => {
 }
 
 const router = useRouter()
+const { hasPerm } = useButtonPermission()
 
 // 表单状态
   const form = ref({

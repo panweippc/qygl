@@ -211,9 +211,11 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Delete, Download, Folder, Document } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useButtonPermission } from '@/composables/usePermission'
 import { getFiles, deleteFile as apiDeleteFile, getFileCategories, addFileCategory, deleteFileCategory } from '../services/api'
 
 const router = useRouter()
+const { hasPerm } = useButtonPermission()
 
 const handleBack = () => {
   // 返回上一�?

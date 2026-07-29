@@ -165,11 +165,12 @@
               <el-button
                 v-if="row.status === '已批准' && canDistribute"
                 size="small"
-                type="success"
-                @click="$emit('distribute', row, 'reimbursement')"
+                :type="isDistributed(row, 'reimbursement') ? 'warning' : 'success'"
+                :disabled="isDistributed(row, 'reimbursement')"
+                @click="!isDistributed(row, 'reimbursement') && $emit('distribute', row, 'reimbursement')"
                 class="distribute-btn"
               >
-                下发
+                {{ isDistributed(row, 'reimbursement') ? '已下发' : '下发' }}
               </el-button>
               <el-button
                 size="small"
@@ -444,6 +445,12 @@ const getDistributedUsersForApplication = (applicationId: number, applicationTyp
     (r: any) => Number(r.applicationId) === Number(applicationId) && r.applicationType === applicationType
   )
   return [...new Set(records.map((r: any) => r.targetUser))]
+}
+
+const isDistributed = (row: any, type: string): boolean => {
+  return props.allDistributedRecords?.some(
+    (r: any) => Number(r.applicationId) === Number(row.id) && r.applicationType === type
+  )
 }
 
 const loadReimbursementRecords = async () => {

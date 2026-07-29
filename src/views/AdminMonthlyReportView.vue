@@ -8,7 +8,7 @@
       </div>
       <nav class="nav">
         <router-link to="/system" class="nav-item">系统管理</router-link>
-        <router-link to="/admin-monthly-report" class="nav-item active">管理员月�?/router-link>
+        <router-link to="/admin-monthly-report" class="nav-item active">管理员月报</router-link>
         <button class="nav-item logout-btn" @click="handleBack">返回</button>
       </nav>
     </header>
@@ -22,7 +22,7 @@
               <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19ZM8 16H16V14H8V16ZM8 12H16V10H8V12ZM8 8H16V6H8V8Z"/>
             </svg>
           </span>
-          管理员月报管�?        </h2>
+          管理员月报管理?        </h2>
 
         <!-- 月份选择 -->
         <div class="month-selector">
@@ -50,7 +50,7 @@
 
         <!-- 月报列表 -->
         <div class="history-section">
-          <h3 class="section-subtitle">所有用户月�?/h3>
+          <h3 class="section-subtitle">所有用户月报</h3>
           <div class="history-list">
             <div v-for="report in filteredReports" :key="report.id" class="report-item">
               <div class="report-header">
@@ -107,7 +107,7 @@
           </div>
         </div>
 
-        <!-- 预览对话�?-->
+        <!-- 预览对话框?-->
         <el-dialog
           v-model="previewVisible"
           :title="previewFileData.name"
@@ -136,7 +136,7 @@
               <div class="file-icon">
                 <el-icon><Document /></el-icon>
               </div>
-              <p>该文件类型无法直接预�?/p>
+              <p>该文件类型无法直接预览</p>
               <el-button type="primary" @click="downloadFile(previewFileData)">
                 下载文件
               </el-button>
@@ -246,7 +246,7 @@ const loadReports = async () => {
           const reportDate = new Date(report.createdAt)
           const year = reportDate.getFullYear()
           const month = reportDate.getMonth() + 1
-          date = `${year}�?{month}月`
+          date = `${year}年${month}月`
         }
         return {
           ...report,
@@ -347,7 +347,7 @@ const downloadFile = (file: any) => {
             })
             .catch(error => {
               console.error('处理文件数据失败:', error);
-              ElMessage.error('文件数据处理失败，下载失�?);
+              ElMessage.error('文件数据处理失败，下载失败');
             });
         } catch (fetchError) {
           console.error('下载文件失败:', fetchError);
@@ -377,7 +377,7 @@ const downloadFile = (file: any) => {
       ElMessage.error('文件下载失败');
     }
   } else {
-    ElMessage.error('文件链接不存�?);
+    ElMessage.error('文件链接不存在');
   }
 }
 
@@ -422,7 +422,7 @@ const previewFile = (file: any) => {
     
     // 显示预览对话�?    previewVisible.value = true;
   } else {
-    ElMessage.error('文件链接不存�?);
+    ElMessage.error('文件链接不存在');
   }
 }
 
@@ -874,7 +874,7 @@ const previewFile = (file: any) => {
   align-items: center;
 }
 
-/* 滚动条样�?*/
+/* 滚动条样式 */
 .main-content::-webkit-scrollbar {
   width: 8px;
 }
@@ -893,7 +893,7 @@ const previewFile = (file: any) => {
   background: rgba(100, 149, 237, 0.7);
 }
 
-/* 选择器样�?*/
+/* 选择器样式 */
 .el-select .el-input__wrapper {
   background: rgba(255, 255, 255, 0.8) !important;
   border: 1px solid rgba(100, 149, 237, 0.3) !important;
@@ -929,7 +929,7 @@ const previewFile = (file: any) => {
   color: #6495ED !important;
 }
 
-/* 预览对话框样�?*/
+/* 预览对话框样式 */
 .preview-dialog .el-dialog__header {
   background: rgba(255, 255, 255, 0.8);
   border-bottom: 1px solid rgba(100, 149, 237, 0.3);

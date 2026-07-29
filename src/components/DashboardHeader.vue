@@ -123,6 +123,7 @@ const handleLogout = () => {
   localStorage.removeItem('role')
   localStorage.removeItem('user')
   localStorage.removeItem('permissions')
+  localStorage.removeItem('buttonPermissions')
   if (refreshInterval) {
     clearInterval(refreshInterval)
     refreshInterval = null

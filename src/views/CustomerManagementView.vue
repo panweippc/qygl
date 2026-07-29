@@ -4,7 +4,7 @@
       <h2>客户管理</h2>
       <div class="header-actions">
         <el-input v-model="searchQuery" placeholder="搜索客户名称/联系人/电话" clearable style="width:260px" @clear="loadCustomers" @keyup.enter="loadCustomers" />
-        <el-button type="primary" @click="openAddDialog">+ 新增客户</el-button>
+        <el-button type="primary" v-if="hasPerm('btn_add')" @click="openAddDialog">+ 新增客户</el-button>
       </div>
     </header>
 
@@ -29,8 +29,8 @@
       </el-table-column>
       <el-table-column label="操作" width="120" fixed="right">
         <template #default="{ row }">
-          <el-button text size="small" @click.stop="openEdit(row)">编辑</el-button>
-          <el-popconfirm title="确定删除此客户？" @confirm.stop="deleteCustomer(row.id)">
+          <el-button text size="small" v-if="hasPerm('btn_edit')" @click.stop="openEdit(row)">编辑</el-button>
+          <el-popconfirm v-if="hasPerm('btn_delete')" title="确定删除此客户？" @confirm.stop="deleteCustomer(row.id)">
             <template #reference>
               <el-button text size="small" type="danger" @click.stop>删除</el-button>
             </template>
@@ -112,7 +112,7 @@
             <el-input v-model="activityForm.content" type="textarea" :rows="3" />
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="addActivity" :loading="savingActivity">添加跟进</el-button>
+            <el-button type="primary" v-if="hasPerm('btn_add')" @click="addActivity" :loading="savingActivity">添加跟进</el-button>
           </el-form-item>
         </el-form>
       </template>
@@ -123,9 +123,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useButtonPermission } from '@/composables/usePermission'
 
 const loading = ref(false)
 const saving = ref(false)
+const { hasPerm } = useButtonPermission()
 const savingActivity = ref(false)
 const customers = ref<any[]>([])
 const total = ref(0)

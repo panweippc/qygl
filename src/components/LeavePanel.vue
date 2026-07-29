@@ -114,7 +114,7 @@
         </el-table-column>
         <el-table-column prop="days" label="天数" width="80">
           <template #default="{ row }">
-            <span class="days-badge">{{ Number(row.days) === 0.5 ? '半天' : (Number(row.days) === Math.floor(Number(row.days)) ? Math.floor(Number(row.days)) + '天' : row.days + '天') }}</span>
+            <span class="days-badge">{{ formatDays(row.days) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="审批状态" width="120">
@@ -174,11 +174,12 @@
               <el-button
                 v-if="row.status === '已批准' && canDistribute"
                 size="small"
-                type="success"
-                @click="$emit('distribute', row, 'leave')"
+                :type="isDistributed(row, 'leave') ? 'warning' : 'success'"
+                :disabled="isDistributed(row, 'leave')"
+                @click="!isDistributed(row, 'leave') && $emit('distribute', row, 'leave')"
                 class="distribute-btn"
               >
-                下发
+                {{ isDistributed(row, 'leave') ? '已下发' : '下发' }}
               </el-button>
               <el-button
                 v-if="row.status === '审批中' && !isAdmin"
@@ -229,7 +230,7 @@
           </div>
           <div class="card-row">
             <span class="card-label">请假天数</span>
-            <span class="days-badge">{{ Number(row.days) === 0.5 ? '半天' : (Number(row.days) === Math.floor(Number(row.days)) ? Math.floor(Number(row.days)) + '天' : row.days + '天') }}</span>
+            <span class="days-badge">{{ formatDays(row.days) }}</span>
           </div>
         </div>
         <div class="card-footer">
@@ -353,6 +354,14 @@ import {
   exportToCSV,
   exportSingleRow
 } from '../utils/oaWorkflowUtils'
+
+const formatDays = (days: any) => {
+  const num = Number(days)
+  if (isNaN(num)) return days || '-'
+  if (Math.abs(num - 0.5) < 0.001) return '半天'
+  if (num === Math.floor(num)) return Math.floor(num) + '天'
+  return num + '天'
+}
 
 const props = defineProps<{
   isAdmin: boolean
@@ -487,6 +496,12 @@ const getDistributedUsersForApplication = (applicationId: number, applicationTyp
     (r: any) => Number(r.applicationId) === Number(applicationId) && r.applicationType === applicationType
   )
   return [...new Set(records.map((r: any) => r.targetUser))]
+}
+
+const isDistributed = (row: any, type: string): boolean => {
+  return props.allDistributedRecords?.some(
+    (r: any) => Number(r.applicationId) === Number(row.id) && r.applicationType === type
+  )
 }
 
 const loadLeaveRecords = async () => {

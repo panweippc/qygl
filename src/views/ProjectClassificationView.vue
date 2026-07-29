@@ -26,16 +26,16 @@
             </h2>
             <span class="project-total-count">{{ totalProjectCount }}个项目</span>
           </div>
-          <el-button v-if="currentLevel === 0" type="primary" @click="openAddProvinceDialog" class="add-btn">
+          <el-button v-if="hasPerm('btn_add') && currentLevel === 0" type="primary" @click="openAddProvinceDialog" class="add-btn">
             <span class="btn-icon">+</span>添加省份
           </el-button>
-          <el-button v-if="currentLevel === 1" type="primary" @click="openAddCityDialog" class="add-btn">
+          <el-button v-if="hasPerm('btn_add') && currentLevel === 1" type="primary" @click="openAddCityDialog" class="add-btn">
             <span class="btn-icon">+</span>添加城市
           </el-button>
-          <el-button v-if="currentLevel === 2" type="primary" @click="openAddCountyDialog" class="add-btn">
+          <el-button v-if="hasPerm('btn_add') && currentLevel === 2" type="primary" @click="openAddCountyDialog" class="add-btn">
             <span class="btn-icon">+</span>添加旗县
           </el-button>
-          <el-button v-if="currentLevel === 3" type="primary" @click="openAddProjectDialog" class="add-btn">
+          <el-button v-if="hasPerm('btn_add') && currentLevel === 3" type="primary" @click="openAddProjectDialog" class="add-btn">
             <span class="btn-icon">+</span>添加项目
           </el-button>
         </div>
@@ -137,11 +137,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useButtonPermission } from '@/composables/usePermission'
 import RegionCard from '../components/RegionCard.vue'
 import ProjectCard from '../components/ProjectCard.vue'
 import RegionDialogs from '../components/RegionDialogs.vue'
 
 const router = useRouter()
+const { hasPerm } = useButtonPermission()
 
 const currentLevel = ref(0)
 const currentProvinceId = ref<number | null>(null)

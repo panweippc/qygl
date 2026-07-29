@@ -1,17 +1,17 @@
-<template>
+﻿<template>
   <div class="town-detail-container">
-    <!-- 顶部导航 -->
+    <!-- 椤堕儴瀵艰埅 -->
     <header class="header">
       <div class="logo">
-        <span class="logo-text">宏友智慧办公平台</span>
+        <span class="logo-text">瀹忓弸鏅烘収鍔炲叕骞冲彴</span>
         <div class="logo-glow"></div>
       </div>
       <nav class="nav">
-        <router-link to="/" class="nav-item">首页</router-link>
+        <router-link to="/" class="nav-item">棣栭〉</router-link>
         <router-link to="/sales-funnel" class="nav-item">销售漏斗</router-link>
-        <router-link :to="`/city-sales/${encodeURIComponent(cityName)}`" class="nav-item">返回盟市</router-link>
-        <router-link :to="`/county-detail/${encodeURIComponent(cityName)}/${encodeURIComponent(countyName)}`" class="nav-item">返回旗县</router-link>
-        <button class="nav-item logout-btn" @click="handleBack">返回</button>
+        <router-link :to="`/city-sales/${encodeURIComponent(cityName)}`" class="nav-item">杩斿洖鐩熷競</router-link>
+        <router-link :to="`/county-detail/${encodeURIComponent(cityName)}/${encodeURIComponent(countyName)}`" class="nav-item">杩斿洖鏃楀幙</router-link>
+        <button class="nav-item logout-btn" @click="handleBack">杩斿洖</button>
       </nav>
     </header>
 
@@ -24,15 +24,15 @@
               <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM9 17H7V10H9V17ZM13 17H11V7H13V17ZM17 17H15V13H17V17Z"/>
             </svg>
           </span>
-          {{ townName }}客户详细信息
+          {{ townName }}瀹㈡埛璇︾粏淇℃伅
         </h2>
 
-        <!-- 乡镇基本信息卡片 -->
+        <!-- 涔￠晣基本信息鍗＄墖 -->
         <div class="town-info-card">
           <h3 class="card-title">{{ townName }}基本信息</h3>
           <div class="card-details">
             <div class="detail-item">
-              <span class="detail-label">联系人:</span>
+              <span class="detail-label">联系人</span>
               <span class="detail-value">{{ townData.contactPerson }}</span>
             </div>
             <div class="detail-item">
@@ -40,17 +40,17 @@
               <span class="detail-value">{{ townData.contactPhone }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">客户类型:</span>
-              <span class="detail-value">{{ townData.contactType || '未设置' }}</span>
+              <span class="detail-label">瀹㈡埛绫诲瀷:</span>
+              <span class="detail-value">{{ townData.contactType || '未设置 }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">意向程度:</span>
+              <span class="detail-label">鎰忓悜绋嬪害:</span>
               <span class="detail-value">{{ getIntentionText(townData.intention) }}</span>
             </div>
           </div>
         </div>
 
-        <!-- 拜访记录列表 -->
+        <!-- 拜访记录鍒楄〃 -->
         <div class="customer-section">
           <div class="section-header">
             <h3 class="section-subtitle">拜访记录</h3>
@@ -79,7 +79,7 @@
                   <span class="detail-value">{{ visit.visitDate }}</span>
                 </div>
                 <div class="detail-item">
-                  <span class="detail-label">拜访人:</span>
+                  <span class="detail-label">拜访人</span>
                   <span class="detail-value">{{ visit.visitPerson }}</span>
                 </div>
                 <div class="detail-item">
@@ -101,7 +101,7 @@
     <div v-if="showModal" class="modal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>{{ isEditMode ? '编辑拜访' : '添加拜访' }}</h3>
+          <h3>{{ isEditMode ? '编辑鎷滆' : '添加拜访' }}</h3>
           <button class="close-btn" @click="showModal = false">&times;</button>
         </div>
         <div class="modal-body">
@@ -131,8 +131,8 @@
               <textarea id="nextPlan" v-model="formData.nextPlan" rows="2" required></textarea>
             </div>
             <div class="form-actions">
-              <button type="button" class="cancel-btn" @click="showModal = false">取消</button>
-              <button type="submit" class="submit-btn">{{ isEditMode ? '更新' : '添加' }}</button>
+              <button type="button" class="cancel-btn" @click="showModal = false">鍙栨秷</button>
+              <button type="submit" class="submit-btn">{{ isEditMode ? '鏇存柊' : '娣诲姞' }}</button>
             </div>
           </form>
         </div>
@@ -142,7 +142,7 @@
     <!-- 页脚 -->
     <footer class="footer">
       <div class="footer-content">
-        <p>© 2026 企业管理系统 | 科技赋能未来</p>
+        <p>漏 2026 浼佷笟绠＄悊绯荤粺 | 绉戞妧璧嬭兘鏈潵</p>
       </div>
     </footer>
   </div>
@@ -155,12 +155,12 @@ import { useRouter, useRoute } from 'vue-router'
 const router = useRouter()
 const route = useRoute()
 
-// 获取路由参数
-const cityName = computed(() => route.params.cityName as string || '未知城市')
-const countyName = computed(() => route.params.countyName as string || '未知旗县')
-const townName = computed(() => route.params.townName as string || '未知乡镇')
+// 鑾峰彇璺敱鍙傛暟
+const cityName = computed(() => route.params.cityName as string || '鏈煡鍩庡競')
+const countyName = computed(() => route.params.countyName as string || '鏈煡鏃楀幙')
+const townName = computed(() => route.params.townName as string || '鏈煡涔￠晣')
 
-// 乡镇数据
+// 涔￠晣鏁版嵁
 const townData = ref({
   id: '',
   name: '',
@@ -170,14 +170,14 @@ const townData = ref({
   intention: 0
 })
 
-// 拜访数据
+// 鎷滆鏁版嵁
 const visitData = ref([])
 
-// 模态框状态
+// 模态框鐘舵€?
 const showModal = ref(false)
 const isEditMode = ref(false)
 
-// 表单数据
+// 琛ㄥ崟鏁版嵁
 const formData = ref({
   id: '',
   customerName: '',
@@ -188,7 +188,7 @@ const formData = ref({
   nextPlan: ''
 })
 
-// 意向程度文本
+// 鎰忓悜绋嬪害鏂囨湰
 const getIntentionText = (intention: number) => {
   if (intention === 90) return '很有意向'
   if (intention === 70) return '有一定意向'
@@ -196,34 +196,34 @@ const getIntentionText = (intention: number) => {
   return '无'
 }
 
-// 获取拜访次数文本
+// 鑾峰彇拜访次数鏂囨湰
 const getVisitNumber = (index: number) => {
-  const numberMap = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
+  const numberMap = ['涓€', '二', '三', '四', '二', '六', '三', '六', '九', '十']
   if (index < 10) {
-    return `${numberMap[index]}次拜访`
+    return `${numberMap[index]}娆℃嫓璁縛
   } else {
-    return `${index + 1}次拜访`
+    return `${index + 1}娆℃嫓璁縛
   }
 }
 
-// 加载乡镇数据
+// 鍔犺浇涔￠晣鏁版嵁
 const loadTownData = async () => {
   try {
-    // 获取盟市销售数据
+    // 鑾峰彇鐩熷競閿€鍞暟鎹?
     const cityResponse = await fetch('/api/city-sales')
     const cityData = await cityResponse.json()
     
     if (cityData.success) {
           const city = cityData.data.find((item: any) => item.name === cityName.value)
           if (city) {
-            // 获取旗县销售数据
+            // 鑾峰彇鏃楀幙閿€鍞暟鎹?
             const countyResponse = await fetch(`/api/county-sales/${city.id}`)
             const countyDataList = await countyResponse.json()
         
         if (countyDataList.success) {
           const county = countyDataList.data.find((item: any) => item.name === countyName.value)
           if (county) {
-            // 获取乡镇销售数据
+            // 鑾峰彇涔￠晣閿€鍞暟鎹?
             const townResponse = await fetch(`/api/town-sales/${county.id}`)
             const townDataList = await townResponse.json()
             
@@ -231,7 +231,7 @@ const loadTownData = async () => {
               const town = townDataList.data.find((item: any) => item.name === townName.value)
               if (town) {
                 townData.value = town
-                // 从API获取拜访记录
+                // 浠嶢PI鑾峰彇拜访记录
                 await loadVisitRecords(town.id)
               }
             }
@@ -240,11 +240,11 @@ const loadTownData = async () => {
       }
     }
   } catch (error) {
-    console.error('获取乡镇数据失败:', error)
+    console.error('鑾峰彇涔￠晣鏁版嵁澶辫触:', error)
   }
 }
 
-// 加载拜访记录
+// 鍔犺浇拜访记录
 const loadVisitRecords = async (townId: number) => {
   try {
     const response = await fetch(`/api/visit-records/${townId}`)
@@ -253,16 +253,16 @@ const loadVisitRecords = async (townId: number) => {
       visitData.value = data.data
     }
   } catch (error) {
-    console.error('获取拜访记录失败:', error)
+    console.error('鑾峰彇拜访记录澶辫触:', error)
   }
 }
 
 const handleBack = () => {
-  // 返回上一页
+  // 杩斿洖涓婁竴椤?
   router.back()
 }
 
-// 打开添加模态框
+// 鎵撳紑娣诲姞模态框
 const openAddModal = () => {
   isEditMode.value = false
   formData.value = {
@@ -277,7 +277,7 @@ const openAddModal = () => {
   showModal.value = true
 }
 
-// 打开编辑模态框
+// 鎵撳紑编辑模态框
 const openEditModal = (visit: any) => {
   isEditMode.value = true
   formData.value = {
@@ -292,11 +292,11 @@ const openEditModal = (visit: any) => {
   showModal.value = true
 }
 
-// 提交表单
+// 鎻愪氦琛ㄥ崟
 const submitForm = async () => {
   try {
     if (isEditMode.value) {
-      // 更新拜访数据
+      // 鏇存柊鎷滆鏁版嵁
       const response = await fetch(`/api/visit-records/${formData.value.id}`, {
         method: 'PUT',
         headers: {
@@ -316,7 +316,7 @@ const submitForm = async () => {
         await loadVisitRecords(townData.value.id)
       }
     } else {
-      // 添加拜访数据
+      // 添加拜访鏁版嵁
       const response = await fetch('/api/visit-records', {
         method: 'POST',
         headers: {
@@ -340,11 +340,11 @@ const submitForm = async () => {
     
     showModal.value = false
   } catch (error) {
-    console.error('提交表单失败:', error)
+    console.error('提交表单失败:'', error)
   }
 }
 
-// 删除拜访
+// 删除鎷滆
 const deleteVisit = async (visitId: string) => {
   if (confirm('确定要删除这个拜访记录吗？')) {
     try {
@@ -356,7 +356,7 @@ const deleteVisit = async (visitId: string) => {
         await loadVisitRecords(townData.value.id)
       }
     } catch (error) {
-      console.error('删除拜访记录失败:', error)
+      console.error('删除拜访记录澶辫触:', error)
     }
   }
 }
@@ -519,7 +519,7 @@ onMounted(async () => {
   gap: 2rem;
 }
 
-/* 标题 */
+/* 鏍囬 */
 .section-title {
   font-size: 1.5rem;
   font-weight: 600;
@@ -556,7 +556,7 @@ onMounted(async () => {
   text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
 }
 
-/* 乡镇信息卡片 */
+/* 涔￠晣淇℃伅鍗＄墖 */
 .town-info-card {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(100, 149, 237, 0.4);
@@ -601,7 +601,7 @@ onMounted(async () => {
   line-height: 1.4;
 }
 
-/* 客户列表 */
+/* 瀹㈡埛鍒楄〃 */
 .customer-section {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(100, 149, 237, 0.4);
@@ -879,7 +879,7 @@ onMounted(async () => {
   align-items: center;
 }
 
-/* 滚动条样式*/
+/* 滚动条样式 */
 .main-content::-webkit-scrollbar {
   width: 8px;
 }
@@ -898,7 +898,7 @@ onMounted(async () => {
   background: rgba(100, 149, 237, 0.7);
 }
 
-/* 响应式设计*/
+/* 响应式设计 */
 @media (max-width: 768px) {
   .customer-list {
     grid-template-columns: 1fr;
@@ -917,3 +917,4 @@ onMounted(async () => {
   }
 }
 </style>
+

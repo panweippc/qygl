@@ -165,6 +165,14 @@ export const getApplicationTypeLabel = (type: string) => {
   return typeMap[type] || type
 }
 
+export const formatDays = (days: any) => {
+  const num = Number(days)
+  if (isNaN(num)) return days || '-'
+  if (Math.abs(num - 0.5) < 0.001) return '半天'
+  if (num === Math.floor(num)) return Math.floor(num) + '天'
+  return num + '天'
+}
+
 export const getDetailFields = (item: any, type: string, currentUsername: string) => {
   const fields: Record<string, Record<string, string>> = {
     leave: {
@@ -172,7 +180,7 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
       '请假类型': item.leaveType,
       '开始日期': item.startDate,
       '结束日期': item.endDate,
-      '请假天数': item.days + '天',
+      '请假天数': formatDays(item.days),
       '请假原因': item.reason,
       '审批人': item.approver || '待分配',
       '提交时间': item.submitDate
@@ -210,7 +218,7 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
       '申请人': item.applicant || currentUsername,
       '目的地': item.destination,
       '出差类型': item.tripType,
-      '出差天数': item.days + '天',
+      '出差天数': formatDays(item.days),
       '预估费用': '¥' + item.estimatedCost,
       '提交时间': item.submitDate
     },
@@ -300,4 +308,27 @@ export const getStatDetailName = (record: any) => {
 export const stripApproverName = (text: string) => {
   if (!text) return ''
   return text.replace(/^[^:：]+[:：]\s*/gm, '').trim()
+}
+
+export const hasButtonPermission = (buttonKey: string, menuPath?: string): boolean => {
+  try {
+    const btnPermsStr = localStorage.getItem('buttonPermissions')
+    if (!btnPermsStr) return false
+    const btnPerms = JSON.parse(btnPermsStr)
+    const permsStr = localStorage.getItem('permissions')
+    if (!permsStr) return false
+    const perms = JSON.parse(permsStr)
+    let menuId = null
+    for (const perm of perms) {
+      if (menuPath && perm.path === menuPath) { menuId = perm.id; break }
+      if (!menuPath && perm.id) { menuId = perm.id; break }
+    }
+    if (!menuId) {
+      for (const perm of perms) {
+        if (perm.id) { menuId = perm.id; break }
+      }
+    }
+    if (!menuId || !btnPerms[menuId]) return false
+    return btnPerms[menuId].includes(buttonKey)
+  } catch { return false }
 }

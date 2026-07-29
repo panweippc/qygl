@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="city-sales-detail-container">
     <!-- 顶部导航 -->
     <header class="header">
@@ -27,7 +27,7 @@
 
 
 
-        <!-- 旗县乡镇销售数据-->
+        <!-- 旗县乡镇销售数据 -->
         <div class="county-section">
           <div class="section-header">
             <h3 class="section-subtitle">旗县乡镇销售分布</h3>
@@ -47,11 +47,7 @@
                 </div>
               </div>
               <div class="county-stats">
-                <span class="county-sales">销售额: {{ county.sales.toLocaleString() }}元</span>
-                <span class="county-customers">客户数: {{ county.customers }}</span>
-              </div>
-              <div class="county-bar-container">
-                <div class="county-bar" :style="{ width: (county.sales / maxSales * 100) + '%' }"></div>
+                <span class="county-customers">客户数 {{ county.customers }}</span>
               </div>
             </div>
           </div>
@@ -75,15 +71,7 @@
               <input type="text" id="name" v-model="formData.name" required>
             </div>
 
-            <div class="form-group">
-              <label for="sales">销售额（元）</label>
-              <input type="number" id="sales" v-model="formData.sales" min="0">
-            </div>
 
-            <div class="form-group">
-              <label for="customers">客户数</label>
-              <input type="number" id="customers" v-model="formData.customers" min="0">
-            </div>
 
             <div class="form-actions">
               <button type="button" class="cancel-btn" @click="closeModal">取消</button>
@@ -124,22 +112,13 @@ const cityName = computed(() => route.params.cityName as string || '未知城市
 // 旗县销售数据
 const countySalesData = ref([])
 
-// 计算最大销售额，用于进度条显示
-const maxSales = computed(() => {
-  if (countySalesData.value.length === 0) return 1
-  return Math.max(...countySalesData.value.map((item: any) => item.sales))
-})
-
-// 模态框状态
 const showModal = ref(false)
 const isEditing = ref(false)
 
 // 表单数据
 const formData = ref({
   id: '',
-  name: '',
-  sales: 100000,
-  customers: 5
+  name: ''
 })
 
 // 加载城市数据
@@ -185,7 +164,7 @@ const loadCityData = async () => {
       citySalesData.value = { totalSales, customers: totalCustomers, growthRate: 0 }
     }
   } catch (error) {
-    console.error('获取城市销售数据失败', error)
+    console.error('获取城市销售数据丢失', error)
   }
 }
 
@@ -194,9 +173,7 @@ const openAddModal = () => {
   isEditing.value = false
   formData.value = {
     id: '',
-    name: '',
-    sales: 100000,
-    customers: 5
+    name: ''
   }
   showModal.value = true
 }
@@ -206,9 +183,7 @@ const editCounty = (county: any) => {
   isEditing.value = true
   formData.value = {
     id: county.id,
-    name: county.name,
-    sales: county.sales,
-    customers: county.customers
+    name: county.name
   }
   showModal.value = true
 }
@@ -254,9 +229,7 @@ const submitForm = async () => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: formData.value.name,
-          sales: Number(formData.value.sales) || 0,
-          customers: Number(formData.value.customers) || 0
+          name: formData.value.name
         })
       })
       const updateData = await updateResponse.json()
@@ -272,7 +245,7 @@ const submitForm = async () => {
 
     const city = await getOrCreateCity()
     if (!city) {
-      ElMessage.error('未找到城市: ' + cityName.value)
+      ElMessage.error('未找到城市 ' + cityName.value)
       return
     }
     
@@ -281,9 +254,7 @@ const submitForm = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         cityId: city.id,
-        name: formData.value.name,
-        sales: Number(formData.value.sales) || 100000,
-        customers: Number(formData.value.customers) || 5
+        name: formData.value.name
       })
     })
     const addData = await addResponse.json()
@@ -530,7 +501,7 @@ onMounted(async () => {
   gap: 2rem;
 }
 
-/* 标题 */
+/* 鏍囬 */
 .section-title {
   font-size: 1.5rem;
   font-weight: 600;
@@ -569,7 +540,7 @@ onMounted(async () => {
 
 
 
-/* 旗县列表 */
+/* 旗县鍒楄〃 */
 .county-section {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(100, 149, 237, 0.4);
@@ -839,7 +810,7 @@ onMounted(async () => {
   align-items: center;
 }
 
-/* 滚动条样�?*/
+/* 滚动条样式 */
 .main-content::-webkit-scrollbar {
   width: 8px;
 }
@@ -865,3 +836,4 @@ onMounted(async () => {
   100% { background-position: 0% 50%; }
 }
 </style>
+

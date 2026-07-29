@@ -221,6 +221,64 @@ router.get('/roles/:roleId/permissions', async (req, res) => {
   }
 });
 
+// 获取角色的按钮权限
+router.get('/roles/:roleId/button-permissions', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { roleId } = req.params;
+  try {
+    const [permissions] = await pool.execute(
+      'SELECT menuId, buttonKey FROM role_button_permissions WHERE roleId = ?',
+      [roleId]
+    );
+    const grouped = {};
+    permissions.forEach(p => {
+      if (!grouped[p.menuId]) grouped[p.menuId] = [];
+      grouped[p.menuId].push(p.buttonKey);
+    });
+    res.json({ success: true, data: grouped });
+  } catch (error) {
+    console.error('获取角色按钮权限失败:', error);
+    res.status(500).json({ success: false, message: '获取角色按钮权限失败' });
+  }
+});
+
+// 分配角色按钮权限
+router.post('/roles/:roleId/button-permissions', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { roleId } = req.params;
+  const { permissions } = req.body; // { menuId: ['btn_add', 'btn_edit', ...] }
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    await connection.execute('DELETE FROM role_button_permissions WHERE roleId = ?', [roleId]);
+
+    if (permissions && typeof permissions === 'object') {
+      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      for (const menuIdStr of Object.keys(permissions)) {
+        const menuId = parseInt(menuIdStr);
+        const buttons = permissions[menuIdStr];
+        if (Array.isArray(buttons)) {
+          for (const buttonKey of buttons) {
+            await connection.execute(
+              'INSERT INTO role_button_permissions (roleId, menuId, buttonKey, createdAt) VALUES (?, ?, ?, ?)',
+              [roleId, menuId, buttonKey, now]
+            );
+          }
+        }
+      }
+    }
+
+    await connection.commit();
+    res.json({ success: true, message: '按钮权限分配成功' });
+  } catch (error) {
+    await connection.rollback();
+    console.error('分配按钮权限失败:', error);
+    res.status(500).json({ success: false, message: '分配按钮权限失败' });
+  } finally {
+    connection.release();
+  }
+});
+
 // 分配角色权限
 router.post('/roles/:roleId/permissions', async (req, res) => {
   const { pool } = req.app.locals;

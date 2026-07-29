@@ -119,8 +119,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useButtonPermission } from '@/composables/usePermission'
 
 const router = useRouter()
+const { hasPerm } = useButtonPermission()
 
 const form = ref({
   reimburseType: '',

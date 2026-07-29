@@ -355,6 +355,9 @@ const handleLogin = async () => {
         { path: '/system' }
       ]
       localStorage.setItem('permissions', JSON.stringify(user.permissions && user.permissions.length > 0 ? user.permissions : defaultPermissions))
+      if (user.buttonPermissions) {
+        localStorage.setItem('buttonPermissions', JSON.stringify(user.buttonPermissions))
+      }
       
       console.log('登录成功，跳转到首页');
       router.push('/');

@@ -253,10 +253,12 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElImage } from 'element-plus'
 import { Plus, Delete, Document, Download, View } from '@element-plus/icons-vue'
+import { useButtonPermission } from '@/composables/usePermission'
 import { getMonthlyReports, getEmployees, updateMonthlyReport } from '../services/api'
 import * as mammoth from 'mammoth'
 
 const router = useRouter()
+const { hasPerm } = useButtonPermission()
 const editUploadRef = ref<any>(null)
 
 const handleBack = () => {

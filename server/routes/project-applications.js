@@ -10,7 +10,7 @@ router.post('/projects', async (req, res) => {
     console.log('前端提交的参数:', req.body);
     const {
       projectName, projectType, priority, budget, startDate, endDate,
-      description, objectives, teamMembers, resources, applicantId, approverId
+      description, objectives, teamMembers, resources, applicantId, approverId, applicantName
     } = req.body;
 
     if (!projectName || !projectType || !priority || budget === undefined || !startDate || !endDate || !description || !objectives || !resources || !applicantId) {
@@ -38,7 +38,7 @@ router.post('/projects', async (req, res) => {
       return res.status(400).json({ success: false, message: '申请人不存在' });
     }
 
-    const applicant = employees[0];
+    const applicant = applicantName ? { name: applicantName, department: '' } : employees[0];
 
     let approverName = null;
     if (approverId) {
@@ -286,7 +286,7 @@ router.put('/projects/:id', async (req, res) => {
   const { pool } = req.app.locals;
   try {
     const { id } = req.params;
-    const { project_name, description, project_link } = req.body;
+    const { project_name, description, project_link, applicant_name, applicantId } = req.body;
 
     const [projects] = await pool.execute(
       'SELECT * FROM project_applications WHERE id = ?',
@@ -297,9 +297,15 @@ router.put('/projects/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: '项目不存在' });
     }
 
+    let name = applicant_name
+    if (applicantId && !name) {
+      const [emps] = await pool.execute('SELECT name FROM employees WHERE id = ?', [applicantId])
+      if (emps.length > 0) name = emps[0].name
+    }
+
     await pool.execute(
-      'UPDATE project_applications SET project_name = ?, description = ?, project_link = ?, updated_at = NOW() WHERE id = ?',
-      [project_name, description, project_link, id]
+      'UPDATE project_applications SET project_name = ?, description = ?, project_link = ?, applicant_name = ?, updated_at = NOW() WHERE id = ?',
+      [project_name, description, project_link, name || projects[0].applicant_name, id]
     );
 
     res.json({ success: true, message: '项目更新成功' });

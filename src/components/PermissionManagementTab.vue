@@ -19,7 +19,13 @@
           <el-button size="small" @click="clearAll">清空</el-button>
         </div>
       </div>
-      <el-tree ref="permissionTree" :data="menuTree" show-checkbox node-key="id" :default-expand-all="false" :props="{ label: 'name', children: 'children' }" @check-change="handlePermissionChange" class="permission-tree" />
+      <el-tree ref="permissionTree" :data="menuTree" show-checkbox node-key="id" :default-expand-all="false" :props="{ label: 'name', children: 'children' }" @check-change="handlePermissionChange" class="permission-tree">
+        <template #default="{ node }">
+          <span class="tree-node-label">
+            <span>{{ node.label }}</span>
+          </span>
+        </template>
+      </el-tree>
       <div class="permission-footer">
         <el-button type="primary" @click="savePermissions" :loading="saving">保存权限配置</el-button>
       </div>
@@ -45,9 +51,7 @@ async function fetchRoles() {
     const res = await fetch('/api/roles')
     const json = await res.json()
     if (json.success) roles.value = json.data
-  } catch (e: any) {
-    ElMessage.error('获取角色列表失败')
-  }
+  } catch { ElMessage.error('获取角色列表失败') }
 }
 
 async function fetchMenus() {
@@ -58,26 +62,21 @@ async function fetchMenus() {
       menus.value = json.data
       menuTree.value = json.data
     }
-  } catch (e: any) {
-    ElMessage.error('获取菜单失败')
-  }
+  } catch { ElMessage.error('获取菜单失败') }
 }
 
 async function loadRolePermissions() {
   if (!localRoleId.value) return
   permissionLoading.value = true
   try {
-    const res = await fetch(`/api/roles/${localRoleId.value}/permissions`)
-    const json = await res.json()
-    if (json.success) {
-      await nextTick()
-      permissionTree.value?.setCheckedKeys(json.data)
+    const menuRes = await fetch(`/api/roles/${localRoleId.value}/permissions`)
+    const menuJson = await menuRes.json()
+    await nextTick()
+    if (menuJson.success) {
+      permissionTree.value?.setCheckedKeys(menuJson.data)
     }
-  } catch (e: any) {
-    ElMessage.error('获取权限失败')
-  } finally {
-    permissionLoading.value = false
-  }
+  } catch { ElMessage.error('获取权限失败') }
+  finally { permissionLoading.value = false }
 }
 
 function expandAll() { permissionTree.value?.expandAll() }
@@ -88,7 +87,10 @@ function selectAll() {
   collect(menuTree.value)
   permissionTree.value?.setCheckedKeys(allIds)
 }
-function clearAll() { permissionTree.value?.setCheckedKeys([]) }
+function clearAll() {
+  permissionTree.value?.setCheckedKeys([])
+}
+
 function handlePermissionChange() {}
 
 async function savePermissions() {
@@ -98,17 +100,19 @@ async function savePermissions() {
     const checkedKeys = permissionTree.value?.getCheckedKeys() || []
     const halfCheckedKeys = permissionTree.value?.getHalfCheckedKeys() || []
     const allKeys = [...new Set([...checkedKeys, ...halfCheckedKeys])]
-    await fetch(`/api/roles/${localRoleId.value}/permissions`, {
+    const menuRes = await fetch(`/api/roles/${localRoleId.value}/permissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ menuIds: allKeys })
     })
-    ElMessage.success('权限配置保存成功')
-  } catch (e: any) {
-    ElMessage.error('保存失败')
-  } finally {
-    saving.value = false
-  }
+    const menuJson = await menuRes.json()
+    if (menuJson.success) {
+      ElMessage.success('权限配置保存成功')
+    } else {
+      ElMessage.error('保存失败')
+    }
+  } catch { ElMessage.error('保存失败') }
+  finally { saving.value = false }
 }
 
 watch(() => props.selectedRoleId, (val) => {
@@ -140,6 +144,10 @@ onMounted(async () => {
 .permission-title { font-size: 15px; font-weight: 600; color: #1a1a2e; margin: 0; }
 .permission-actions { display: flex; gap: 8px; }
 .permission-tree { max-height: 500px; overflow-y: auto; }
-.permission-tree :deep(.el-tree-node__content) { height: 36px; }
+.permission-tree :deep(.el-tree-node__content) { height: auto; min-height: 36px; padding: 4px 0; }
 .permission-footer { margin-top: 20px; display: flex; justify-content: flex-end; }
+.tree-node-label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.button-perms { display: inline-flex; gap: 2px; margin-left: 8px; }
+.btn-checkbox { margin-right: 4px; }
+.btn-checkbox :deep(.el-checkbox__label) { font-size: 12px; }
 </style>

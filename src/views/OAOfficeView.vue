@@ -45,7 +45,7 @@
 
         <!-- 协同管理功能模块 -->
         <div class="collaboration-section">
-          <!-- 我的工作�?-->
+          <!-- 我的工作台?-->
           <div class="module-card primary" @click="navigateTo('/oa-workflow')">
             <div class="module-header">
               <div class="module-icon">
@@ -75,7 +75,7 @@
               </div>
             </div>
             <h3 class="module-title">任务中心</h3>
-            <p class="module-description">个人任务管理与团队协作看�?/p>
+            <p class="module-description">个人任务管理与团队协作看板</p>
             <div class="module-features">
               <span class="feature-tag">任务看板</span>
               <span class="feature-tag">进度跟踪</span>
@@ -97,7 +97,7 @@
             <p class="module-description">企业文档管理与知识库共享</p>
             <div class="module-features">
               <span class="feature-tag">文档管理</span>
-              <span class="feature-tag">知识�?/span>
+              <span class="feature-tag">知识库</span>
               <span class="feature-tag">在线协作</span>
             </div>
             <button class="module-button secondary">管理文档</button>
@@ -113,11 +113,11 @@
               </div>
             </div>
             <h3 class="module-title">分析中心</h3>
-            <p class="module-description">流程数据分析与工作效能报�?/p>
+            <p class="module-description">流程数据分析与工作效能报表</p>
             <div class="module-features">
               <span class="feature-tag">流程分析</span>
               <span class="feature-tag">效能报表</span>
-              <span class="feature-tag">数据可视�?/span>
+              <span class="feature-tag">数据可视化</span>
             </div>
             <button class="module-button secondary">查看分析</button>
           </div>
@@ -140,7 +140,7 @@
               <span>创建会议</span>
             </button>
             <button class="quick-btn" @click="quickAction('task')">
-              <span class="quick-icon">�?/span>
+              <span class="quick-icon">📋</span>
               <span>新建任务</span>
             </button>
           </div>
@@ -166,10 +166,10 @@ const router = useRouter()
 
 // 统计数据
 const statistics = ref([
-  { key: 'pending', label: '待处�?, value: 0, class: 'orange', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z' },
-  { key: 'processing', label: '进行�?, value: 0, class: 'blue', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z' },
-  { key: 'completed', label: '已完�?, value: 0, class: 'green', icon: 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z' },
-  { key: 'total', label: '总事�?, value: 0, class: 'purple', icon: 'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z' }
+  { key: 'pending', label: '待处理', value: 0, class: 'orange', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z' },
+  { key: 'processing', label: '进行中', value: 0, class: 'blue', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z' },
+  { key: 'completed', label: '已完成', value: 0, class: 'green', icon: 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z' },
+  { key: 'total', label: '总事项', value: 0, class: 'purple', icon: 'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z' }
 ])
 
 // 待处理数�?const pendingCount = computed(() => {
@@ -711,7 +711,7 @@ onMounted(() => {
   align-items: center;
 }
 
-/* 滚动条样�?*/
+/* 滚动条样式 */
 .main-content::-webkit-scrollbar {
   width: 8px;
 }
@@ -730,7 +730,7 @@ onMounted(() => {
   background: rgba(100, 149, 237, 0.6);
 }
 
-/* 响应式设�?*/
+/* 响应式设计 */
 @media (max-width: 1200px) {
   .collaboration-section {
     grid-template-columns: repeat(2, 1fr);

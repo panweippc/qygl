@@ -216,9 +216,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useButtonPermission } from '@/composables/usePermission'
 import { getTools, addTool as apiAddTool, deleteTool as apiDeleteTool, updateTool } from '../services/api'
 
 const router = useRouter()
+const { hasPerm } = useButtonPermission()
 
 const handleBack = () => {
   // 返回上一�?

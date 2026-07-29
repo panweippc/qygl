@@ -9,7 +9,7 @@
         </h2>
       </div>
       <div class="header-actions">
-        <el-button type="primary" size="small" @click="openNewArticle">写文章</el-button>
+        <el-button type="primary" size="small" v-if="hasPerm('btn_add')" @click="openNewArticle">写文章</el-button>
         <el-button v-if="isManager" size="small" @click="showCategoryDialog = true">管理分类</el-button>
       </div>
     </header>
@@ -54,8 +54,8 @@
                 </div>
                 <div class="article-actions" @click.stop>
                 <el-tag size="small" class="cat-tag">{{ article.categoryName || '未分类' }}</el-tag>
-                <el-button v-if="isManager" text size="small" @click.stop="editArticle(article)">✏️</el-button>
-                <el-popconfirm v-if="isManager" title="确定删除此文章？" confirm-button-text="删除" @confirm="deleteArticle(article.id)">
+                <el-button v-if="hasPerm('btn_edit') && isManager" text size="small" @click.stop="editArticle(article)">✏️</el-button>
+                <el-popconfirm v-if="hasPerm('btn_delete') && isManager" title="确定删除此文章？" confirm-button-text="删除" @confirm="deleteArticle(article.id)">
                   <template #reference>
                     <el-button text size="small" type="danger">🗑️</el-button>
                   </template>
@@ -211,12 +211,12 @@
       <div class="category-mgr">
         <div class="add-cat-row">
           <el-input v-model="newCategoryName" placeholder="新分类名称" size="small" style="flex:1" />
-          <el-button type="primary" size="small" @click="addCategory" :disabled="!newCategoryName.trim()">添加</el-button>
+          <el-button type="primary" size="small" v-if="hasPerm('btn_add')" @click="addCategory" :disabled="!newCategoryName.trim()">添加</el-button>
         </div>
         <div v-for="cat in categories" :key="cat.id" class="cat-mgr-item">
           <span class="cat-name">{{ cat.name }}</span>
           <span class="cat-desc">{{ cat.description }}</span>
-          <el-button v-if="isManager" text size="small" type="danger" @click="deleteCategory(cat.id)">🗑️</el-button>
+          <el-button v-if="hasPerm('btn_delete') && isManager" text size="small" type="danger" @click="deleteCategory(cat.id)">🗑️</el-button>
         </div>
         <div v-if="categories.length === 0" class="empty-state" style="padding:1rem">
           <p>暂无分类</p>
@@ -234,6 +234,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useButtonPermission } from '@/composables/usePermission'
 import { Plus, Delete, Document, Download } from '@element-plus/icons-vue'
 import * as mammoth from 'mammoth'
 import { QuillEditor } from '@vueup/vue-quill'
@@ -241,6 +242,7 @@ import '@vueup/vue-quill/dist/vue-quill.snow.css'
 
 const loading = ref(false)
 const saving = ref(false)
+const { hasPerm } = useButtonPermission()
 
 const currentRole = ref(localStorage.getItem('role') || '')
 const isManager = computed(() => {

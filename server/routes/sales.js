@@ -135,8 +135,12 @@ router.get('/county-sales/:cityId', async (req, res) => {
   const { cityId } = req.params;
   try {
     const { pool } = req.app.locals;
-    const [data] = await pool.execute('SELECT * FROM county_sales WHERE cityId = ?', [cityId]);
-    res.json({ success: true, data: data });
+    const [counties] = await pool.execute('SELECT id, name FROM county_sales WHERE cityId = ?', [cityId]);
+    const result = await Promise.all(counties.map(async (c) => {
+      const [towns] = await pool.execute('SELECT COUNT(*) as cnt FROM town_sales WHERE countyId = ?', [c.id]);
+      return { ...c, sales: 0, customers: towns[0].cnt || 0 };
+    }));
+    res.json({ success: true, data: result });
   } catch (error) {
     res.status(500).json({ success: false, message: '获取旗县销售数据失败' });
   }
@@ -144,12 +148,12 @@ router.get('/county-sales/:cityId', async (req, res) => {
 
 // 添加旗县销售数据
 router.post('/county-sales', async (req, res) => {
-  const { cityId, name, sales = 100000, customers = 5 } = req.body;
+  const { cityId, name } = req.body;
   try {
     const { pool } = req.app.locals;
     await pool.execute(
-      'INSERT INTO county_sales (cityId, name, sales, customers, createdAt) VALUES (?, ?, ?, ?, ?)',
-      [cityId, name, sales, customers, new Date().toISOString().replace('T', ' ').replace('Z', '')]
+      'INSERT INTO county_sales (cityId, name, sales, customers, createdAt) VALUES (?, ?, 0, 0, ?)',
+      [cityId, name, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
     await createOperationLog(pool, {
       username: req.body.operator || '系统',
@@ -166,43 +170,17 @@ router.post('/county-sales', async (req, res) => {
 // 更新旗县销售数据
 router.put('/county-sales/:id', async (req, res) => {
   const { id } = req.params;
-  const { name, sales, customers } = req.body;
+  const { name } = req.body;
   try {
     const { pool } = req.app.locals;
-    const [old] = await pool.execute('SELECT name FROM county_sales WHERE id = ?', [id]);
-    const countyName = name || (old.length > 0 ? old[0].name : id);
-    const updates = [];
-    const values = [];
-
     if (name !== undefined) {
-      updates.push('name = ?');
-      values.push(name);
+      await pool.execute('UPDATE county_sales SET name = ? WHERE id = ?', [name, id]);
     }
-    if (sales !== undefined) {
-      updates.push('sales = ?');
-      values.push(sales);
-    }
-    if (customers !== undefined) {
-      updates.push('customers = ?');
-      values.push(customers);
-    }
-
-    if (updates.length === 0) {
-      res.json({ success: true, message: '没有需要更新的字段' });
-      return;
-    }
-
-    values.push(id);
-
-    await pool.execute(
-      `UPDATE county_sales SET ${updates.join(', ')} WHERE id = ?`,
-      values
-    );
     await createOperationLog(pool, {
       username: req.body.operator || '系统',
       action: 'update',
       module: 'sales',
-      targetName: `旗县销售数据"${countyName}"`,
+      targetName: `旗县"${name || id}"`,
       targetId: parseInt(id),
     });
     res.json({ success: true, message: '旗县销售数据更新成功' });

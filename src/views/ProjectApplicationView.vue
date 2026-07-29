@@ -34,13 +34,7 @@
               </el-col>
               <el-col :span="12">
                 <el-form-item label="项目类型" prop="projectType">
-                  <el-select v-model="form.projectType" placeholder="请选择项目类型" style="width: 100%">
-                    <el-option label="研发项目" value="研发项目" />
-                    <el-option label="市场项目" value="市场项目" />
-                    <el-option label="运营项目" value="运营项目" />
-                    <el-option label="基建项目" value="基建项目" />
-                    <el-option label="其他项目" value="其他项目" />
-                  </el-select>
+                  <el-input v-model="form.projectType" placeholder="请输入项目类型" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -324,7 +318,7 @@ const rules = {
       { min: 2, max: 100, message: '长度在 2 到 100 个字符之间', trigger: 'blur' }
     ],
   projectType: [
-    { required: true, message: '请选择项目类型', trigger: 'change' }
+    { required: true, message: '请输入项目类型', trigger: 'blur' }
   ],
   priority: [
     { required: true, message: '请选择优先级', trigger: 'change' }

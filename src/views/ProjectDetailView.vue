@@ -59,11 +59,11 @@
             </div>
           </div>
           <div class="project-actions">
-            <el-button type="primary" @click="openEditDialog">
+            <el-button type="primary" v-if="hasPerm('btn_edit')" @click="openEditDialog">
               <el-icon><Edit /></el-icon>
               编辑项目
             </el-button>
-            <el-button type="danger" @click="deleteProject">
+            <el-button type="danger" v-if="hasPerm('btn_delete')" @click="deleteProject">
               <el-icon><Delete /></el-icon>
               删除项目
             </el-button>
@@ -149,9 +149,11 @@ import { ref, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElOption, ElDatePicker, ElMessageBox } from 'element-plus'
 import { Edit, Delete } from '@element-plus/icons-vue'
+import { useButtonPermission } from '@/composables/usePermission'
 
 const router = useRouter()
 const route = useRoute()
+const { hasPerm } = useButtonPermission()
 
 const handleBack = () => {
   // 返回上一�?  router.back()

@@ -203,11 +203,13 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { Plus, ArrowLeft } from '@element-plus/icons-vue';
+import { Plus, ArrowLeft } from '@element-plus/icons-vue'
+import { useButtonPermission } from '@/composables/usePermission';
 import { getBusinessTrips, approveBusinessTrip } from '@/services/workflow';
 import api from '@/services/api';
 
 const router = useRouter();
+const { hasPerm } = useButtonPermission();
 const loading = ref(false);
 const tripList = ref([]);
 const approving = ref(false);

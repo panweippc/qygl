@@ -134,11 +134,12 @@
               <el-button
                 v-if="(row.status === '已批准' || row.status === 'approved') && canDistribute"
                 size="small"
-                type="success"
-                @click="$emit('distribute', row, 'meeting')"
+                :type="isDistributed(row, 'meeting') ? 'warning' : 'success'"
+                :disabled="isDistributed(row, 'meeting')"
+                @click="!isDistributed(row, 'meeting') && $emit('distribute', row, 'meeting')"
                 class="distribute-btn"
               >
-                下发
+                {{ isDistributed(row, 'meeting') ? '已下发' : '下发' }}
               </el-button>
               <el-button
                 v-if="(row.status === '审批中' || row.status === '待审批' || row.status === '待审核' || row.status === 'pending') && !isAdmin"
@@ -214,10 +215,11 @@
             <el-button
               v-if="(row.status === '已批准' || row.status === 'approved') && canDistribute"
               size="small"
-              type="success"
-              @click="$emit('distribute', row, 'meeting')"
+              :type="isDistributed(row, 'meeting') ? 'warning' : 'success'"
+              :disabled="isDistributed(row, 'meeting')"
+              @click="!isDistributed(row, 'meeting') && $emit('distribute', row, 'meeting')"
             >
-              下发
+              {{ isDistributed(row, 'meeting') ? '已下发' : '下发' }}
             </el-button>
             <el-button size="small" @click="$emit('view-detail', row, 'meeting')">详情</el-button>
           </div>
@@ -255,7 +257,9 @@
               </el-col>
             </el-row>
             <el-form-item label="参会人员" prop="participants">
-              <el-input v-model="meetingForm.participants" placeholder="请输入参会人员姓名，多个用逗号分隔"></el-input>
+              <el-select v-model="meetingForm.participants" multiple filterable allow-create collapse-tags collapse-tags-tooltip :max-collapse-tags="3" placeholder="请输入或选择参会人员" style="width: 100%" default-first-option>
+                <el-option v-for="emp in props.allEmployees" :key="emp.id" :label="extractRealName(emp.name) + ' (' + emp.department + ')'" :value="extractRealName(emp.name)" />
+              </el-select>
             </el-form-item>
             <el-form-item label="会议议程" prop="agenda">
               <el-input v-model="meetingForm.agenda" type="textarea" :rows="3" placeholder="请输入会议议程"></el-input>
@@ -332,7 +336,7 @@ const meetingForm = ref({
   meetingDate: '',
   meetingTime: '',
   location: '',
-  participants: '',
+  participants: [] as string[],
   agenda: '',
   approver: '总经理'
 })
@@ -467,6 +471,12 @@ const getDistributedUsersForApplication = (applicationId: number, applicationTyp
   return [...new Set(records.map((r: any) => r.targetUser))]
 }
 
+const isDistributed = (row: any, type: string): boolean => {
+  return props.allDistributedRecords?.some(
+    (r: any) => Number(r.applicationId) === Number(row.id) && r.applicationType === type
+  )
+}
+
 const fetchData = async () => {
   await loadMeetingRecords()
   if (props.isAdmin) {
@@ -492,7 +502,7 @@ const submitMeetingApplication = async () => {
           meetingDate: formatDate(meetingForm.value.meetingDate),
           meetingTime: meetingTime,
           location: meetingForm.value.location,
-          participants: meetingForm.value.participants,
+          participants: meetingForm.value.participants.join(', '),
           agenda: meetingForm.value.agenda,
           approver: meetingForm.value.approver
         }

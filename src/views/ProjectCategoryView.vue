@@ -41,6 +41,9 @@
               <div class="category-header">
                 <h3 class="category-name">{{ category.name }}</h3>
                 <div class="category-actions">
+                  <el-button size="small" type="success" @click="openAddProject(category)" class="action-btn add-project-btn">
+                    <el-icon><Plus /></el-icon>
+                  </el-button>
                   <el-button size="small" @click="editCategory(category)" class="action-btn">
                     <el-icon><Edit /></el-icon>
                   </el-button>
@@ -52,7 +55,6 @@
               <div class="category-info">
                 <div class="category-stats">
                   <span class="stat-item">项目数 {{ category.projectCount }}</span>
-                  <span class="stat-item">负责人 {{ category.manager }}</span>
                 </div>
               </div>
               <div class="category-projects">
@@ -63,6 +65,7 @@
                     <div class="project-content">
                       <div class="project-name">{{ project.project_name }}</div>
                       <div class="project-description">{{ project.description }}</div>
+                      <div v-if="project.applicant_name" class="project-manager">负责人: {{ project.applicant_name }}</div>
                       <div v-if="project.project_link" class="project-link">
                         <a :href="project.project_link" target="_blank" rel="noopener noreferrer" class="link-btn">
                           <el-icon><Link /></el-icon>
@@ -95,7 +98,7 @@
       </div>
     </footer>
 
-    <!-- 添加分类对话�?-->
+    <!-- 添加分类对话框 -->
     <el-dialog
       v-model="addDialogVisible"
       title="添加分类"
@@ -104,21 +107,10 @@
     >
       <el-form :model="categoryForm" label-position="top">
         <el-form-item label="分类名称">
-          <el-select v-model="categoryForm.name" placeholder="请选择分类名称" style="width:100%">
-            <el-option label="研发项目" value="研发项目" />
-            <el-option label="市场项目" value="市场项目" />
-            <el-option label="运营项目" value="运营项目" />
-            <el-option label="基建项目" value="基建项目" />
-            <el-option label="其他项目" value="其他项目" />
-          </el-select>
+          <el-input v-model="categoryForm.name" placeholder="请输入分类名称" />
         </el-form-item>
-        <el-form-item label="申请人">
-          <el-select v-model="categoryForm.applicantId" placeholder="请选择申请人" style="width:100%">
-            <el-option v-for="emp in allEmployees" :key="emp.id" :label="emp.name" :value="emp.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="项目数">
-          <el-input v-model.number="categoryForm.projectCount" type="number" placeholder="请输入项目数" />
+        <el-form-item label="分类详情">
+          <el-input v-model="categoryForm.detail" type="textarea" :rows="3" placeholder="请输入分类详情描述" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -138,21 +130,10 @@
     >
       <el-form :model="editForm" label-position="top">
         <el-form-item label="分类名称">
-          <el-select v-model="editForm.name" placeholder="请选择分类名称" style="width:100%">
-            <el-option label="研发项目" value="研发项目" />
-            <el-option label="市场项目" value="市场项目" />
-            <el-option label="运营项目" value="运营项目" />
-            <el-option label="基建项目" value="基建项目" />
-            <el-option label="其他项目" value="其他项目" />
-          </el-select>
+          <el-input v-model="editForm.name" placeholder="请输入分类名称" />
         </el-form-item>
-        <el-form-item label="负责人">
-          <el-select v-model="editForm.manager" placeholder="请选择负责人" style="width:100%">
-            <el-option v-for="emp in allEmployees" :key="emp.id" :label="emp.name" :value="emp.name" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="项目数">
-          <el-input :model-value="editForm.projectCount" disabled />
+        <el-form-item label="分类详情">
+          <el-input v-model="editForm.description" type="textarea" :rows="3" placeholder="请输入分类详情描述" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -180,11 +161,47 @@
         <el-form-item label="项目链接">
           <el-input v-model="editProjectForm.link" placeholder="请输入项目链接" />
         </el-form-item>
+        <el-form-item label="负责人">
+          <el-select v-model="editProjectForm.manager" placeholder="请选择负责人" style="width:100%" filterable>
+            <el-option v-for="emp in allEmployees" :key="emp.id" :label="emp.name" :value="emp.name" />
+          </el-select>
+        </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="editProjectDialogVisible = false">取消</el-button>
           <el-button type="primary" @click="updateProject">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 新增项目对话框 -->
+    <el-dialog
+      v-model="addProjectDialogVisible"
+      title="新增项目"
+      width="500px"
+      class="dialog"
+    >
+      <el-form :model="addProjectForm" label-position="top">
+        <el-form-item label="项目名称">
+          <el-input v-model="addProjectForm.name" placeholder="请输入项目名称" />
+        </el-form-item>
+        <el-form-item label="项目描述">
+          <el-input v-model="addProjectForm.description" type="textarea" placeholder="请输入项目描述" />
+        </el-form-item>
+        <el-form-item label="项目链接">
+          <el-input v-model="addProjectForm.link" placeholder="请输入项目链接" />
+        </el-form-item>
+        <el-form-item label="负责人">
+          <el-select v-model="addProjectForm.manager" placeholder="请选择负责人" style="width:100%" filterable>
+            <el-option v-for="emp in allEmployees" :key="emp.id" :label="emp.name" :value="emp.name" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="addProjectDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitAddProject">确定</el-button>
         </span>
       </template>
     </el-dialog>
@@ -194,7 +211,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Edit, Delete, Link } from '@element-plus/icons-vue'
+import { Edit, Delete, Link, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getProjects, addProjectApplication, deleteProject, deleteProjectCategory, updateProjectCategory, updateProjectDetail, updateProjectManager, getEmployees } from '../services/api'
 
@@ -231,8 +248,7 @@ const allEmployees = ref<any[]>([])
 
 const categoryForm = ref({
   name: '',
-  applicantId: 0,
-  projectCount: 1
+  detail: ''
 })
 
 const editForm = ref({
@@ -240,7 +256,6 @@ const editForm = ref({
   name: '',
   originalName: '',
   description: '',
-  manager: '',
   projectCount: 0
 })
 
@@ -249,7 +264,18 @@ const editProjectForm = ref({
   id: 0,
   name: '',
   description: '',
-  link: ''
+  link: '',
+  manager: ''
+})
+
+const addProjectDialogVisible = ref(false)
+const addProjectForm = ref({
+  categoryId: 0,
+  categoryName: '',
+  name: '',
+  description: '',
+  link: '',
+  manager: ''
 })
 
 const loadCategories = async () => {
@@ -265,23 +291,21 @@ const loadCategories = async () => {
     const categoryMap = new Map<string, Category>()
     
     projects.forEach(project => {
-      if (!categoryMap.has(project.project_type)) {
-        categoryMap.set(project.project_type, {
+      const key = project.project_type
+      if (!categoryMap.has(key)) {
+        categoryMap.set(key, {
           id: categoryMap.size + 1,
           name: project.project_type,
           description: project.description,
-          manager: project.applicant_name,
+          manager: '',
           projectCount: 0,
           projects: []
         })
       }
       
-      const category = categoryMap.get(project.project_type)!
+      const category = categoryMap.get(key)!
       category.projects.push(project)
       category.projectCount = category.projects.length
-      if (!category.manager && project.applicant_name) {
-        category.manager = project.applicant_name
-      }
     })
       
     categories.value = Array.from(categoryMap.values()).sort((a, b) => {
@@ -310,58 +334,43 @@ onMounted(async () => {
 })
 
 const openAddCategoryDialog = () => {
-  const currentUserId = parseInt(localStorage.getItem('userId') || '0')
   categoryForm.value = {
     name: '',
-    applicantId: currentUserId,
-    projectCount: 1
+    detail: ''
   }
   addDialogVisible.value = true
 }
 
+const getCurrentUserId = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    return user.id || user.userId || 0
+  } catch { return 0 }
+}
+
+const getCurrentUserName = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    return user.name || user.username || ''
+  } catch { return '' }
+}
+
 const addCategory = async () => {
   if (!categoryForm.value.name) {
-    ElMessage.warning('请选择分类名称')
+    ElMessage.warning('请输入分类名称')
     return
   }
-  if (!categoryForm.value.applicantId) {
-    ElMessage.warning('请选择申请人')
-    return
+  const newCategory: Category = {
+    id: Date.now(),
+    name: categoryForm.value.name,
+    description: categoryForm.value.detail || '',
+    manager: '',
+    projectCount: 0,
+    projects: []
   }
-  loading.value = true
-  try {
-    const projectCount = categoryForm.value.projectCount || 0;
-    
-    for (let i = 0; i < projectCount; i++) {
-      const response = await addProjectApplication({
-        projectName: `项目${i + 1}`,
-        projectType: categoryForm.value.name,
-        priority: '高',
-        budget: 1000,
-        startDate: new Date().toISOString().split('T')[0],
-        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        description: `项目${i + 1}的详细描述`,
-        objectives: `项目${i + 1}的目标`,
-        teamMembers: [30, 31],
-        resources: '资源描述',
-        applicantId: String(categoryForm.value.applicantId)
-      });
-      
-      if (!response.success) {
-        ElMessage.error(`添加产品分类失败: ${response.message || '未知错误'}`)
-        return;
-      }
-    }
-    
-    await loadCategories()
-    addDialogVisible.value = false
-    ElMessage.success('产品分类添加成功')
-  } catch (error: any) {
-    console.error('添加产品分类失败:', error)
-    ElMessage.error(`添加产品分类失败: ${error.message || '网络错误'}`)
-  } finally {
-    loading.value = false
-  }
+  categories.value.unshift(newCategory)
+  addDialogVisible.value = false
+  ElMessage.success('产品分类添加成功')
 }
 
 const editCategory = (category: Category) => {
@@ -371,7 +380,6 @@ const editCategory = (category: Category) => {
     name: category.name,
     originalName: category.name,
     description: category.description,
-    manager: category.manager,
     projectCount: category.projectCount
   }
   // 打开编辑对话�?
@@ -391,16 +399,6 @@ const updateCategory = async () => {
         ElMessage.error('编辑产品分类失败')
         return;
       }
-    }
-    
-    const projectType = editForm.value.originalName !== editForm.value.name ? editForm.value.name : editForm.value.originalName
-    const managerResponse = await updateProjectManager({
-      projectType,
-      manager: editForm.value.manager
-    })
-    if (!managerResponse.success) {
-      ElMessage.error('更新负责人失败')
-      return;
     }
     
     await loadCategories()
@@ -451,13 +449,63 @@ const deleteCategory = async (id: number) => {
   }
 }
 
+const openAddProject = (category: Category) => {
+  addProjectForm.value = {
+    categoryId: category.id,
+    categoryName: category.name,
+    name: '',
+    description: '',
+    link: '',
+    manager: ''
+  }
+  addProjectDialogVisible.value = true
+}
+
+const submitAddProject = async () => {
+  if (!addProjectForm.value.name) {
+    ElMessage.warning('请输入项目名称')
+    return
+  }
+  loading.value = true
+  try {
+    const response = await addProjectApplication({
+      projectName: addProjectForm.value.name,
+      projectType: addProjectForm.value.categoryName,
+      priority: '高',
+      budget: 1000,
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      description: addProjectForm.value.description || `${addProjectForm.value.name}的项目描述`,
+      objectives: `${addProjectForm.value.name}的目标`,
+      teamMembers: [30, 31],
+      resources: '资源描述',
+      applicantId: String(getCurrentUserId()),
+      applicantName: addProjectForm.value.manager || ''
+    });
+    
+    if (response.success) {
+      await loadCategories()
+      addProjectDialogVisible.value = false
+      ElMessage.success('项目添加成功')
+    } else {
+      ElMessage.error('添加项目失败')
+    }
+  } catch (error) {
+    console.error('添加项目失败:', error)
+    ElMessage.error('添加项目失败')
+  } finally {
+    loading.value = false
+  }
+}
+
 const editProject = (project: Project) => {
   // 填充编辑表单
   editProjectForm.value = {
     id: project.id,
     name: project.project_name,
     description: project.description,
-    link: project.project_link || ''
+    link: project.project_link || '',
+    manager: project.applicant_name || ''
   }
   // 打开编辑对话�?
   editProjectDialogVisible.value = true
@@ -468,10 +516,16 @@ const updateProject = async () => {
   try {
     console.log('编辑项目表单数据:', editProjectForm.value);
     // 使用API更新项目
+    let applicantName = ''
+    if (editProjectForm.value.manager) {
+      const emp = allEmployees.value.find((e: any) => e.name === editProjectForm.value.manager)
+      if (emp) applicantName = emp.name
+    }
     const response = await updateProjectDetail(editProjectForm.value.id, {
       project_name: editProjectForm.value.name,
       description: editProjectForm.value.description,
-      project_link: editProjectForm.value.link
+      project_link: editProjectForm.value.link,
+      applicant_name: applicantName
     });
     console.log('编辑项目API响应:', response);
     
@@ -806,6 +860,17 @@ const handleDeleteProject = async (project: Project) => {
   box-shadow: 0 0 10px rgba(244, 67, 54, 0.2) !important;
 }
 
+.action-btn.add-project-btn {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #10b981 !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+
+.action-btn.add-project-btn:hover {
+  background: rgba(16, 185, 129, 0.25) !important;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.3) !important;
+}
+
 .category-info {
   padding: 1.5rem;
   border-bottom: 1px solid rgba(100, 149, 237, 0.2);
@@ -917,6 +982,12 @@ const handleDeleteProject = async (project: Project) => {
   font-size: 0.85rem;
   margin-bottom: 0.75rem;
   line-height: 1.4;
+}
+
+.project-manager {
+  font-size: 0.8rem;
+  color: #6495ED;
+  margin-bottom: 0.5rem;
 }
 
 .project-link {

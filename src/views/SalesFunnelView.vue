@@ -406,7 +406,7 @@ const initMap = async () => {
 }
 
 onMounted(async () => {
-  await initMap()
+  initMap().catch(() => {})
   fetchCityList()
 })
 </script>

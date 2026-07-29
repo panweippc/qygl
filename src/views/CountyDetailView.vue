@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="county-detail-container">
     <!-- 顶部导航 -->
     <header class="header">
@@ -70,7 +70,7 @@
               </div>
               <div class="town-details">
                 <div class="detail-item">
-                  <span class="detail-label">联系人:</span>
+                  <span class="detail-label">联系人</span>
                   <span class="detail-value">{{ town.contactPerson }}</span>
                 </div>
                 <div class="detail-item">
@@ -90,7 +90,7 @@
                   <span class="detail-value">{{ town.customer_manager || '-' }}</span>
                 </div>
                 <div class="detail-item">
-                  <span class="detail-label">我方负责人:</span>
+                  <span class="detail-label">我方负责人</span>
                   <span class="detail-value">{{ town.our_manager || '-' }}</span>
                 </div>
               </div>
@@ -184,14 +184,14 @@
     <!-- 页脚 -->
     <footer class="footer">
       <div class="footer-content">
-        <p>© 2026 企业管理系统 | 科技赋能未来</p>
+        <p>&copy; 2026 企业管理系统 | 科技赋能未来</p>
       </div>
     </footer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
@@ -209,15 +209,15 @@ const countyData = ref({
   dealCustomers: 0
 })
 
-// 旗县ID
+// 鏃楀幙ID
 const countyId = ref('')
 
 // 乡镇数据
 const townData = ref([])
-// 负责人筛选
+// 璐熻矗浜虹瓫閫?
 const managerFilter = ref('')
 
-// 模态框状态
+// 模态框鐘舵€?
 const showModal = ref(false)
 const isEditMode = ref(false)
 
@@ -235,7 +235,7 @@ const formData = ref({
   isDealed: false
 })
 
-// 意向程度文本
+// 意向程度鏂囨湰
 const getIntentionText = (intention: number) => {
     if (intention === 90) return '很有意向'
     if (intention === 70) return '有一定'
@@ -340,6 +340,7 @@ const openAddModal = () => {
     isDealed: false
   }
   showModal.value = true
+  document.body.style.overflow = 'hidden'
 }
 
 // 打开编辑模态框
@@ -358,6 +359,7 @@ const openEditModal = (town: any) => {
     isDealed: Boolean(town.isDealed)
   }
   showModal.value = true
+  document.body.style.overflow = 'hidden'
 }
 
 // 提交表单
@@ -437,6 +439,13 @@ const deleteTown = async (townId: string) => {
     }
   }
 }
+
+// 监听模态框关闭，恢复body滚动
+watch(showModal, (val) => {
+  if (!val) {
+    document.body.style.overflow = ''
+  }
+})
 
 onMounted(async () => {
   await loadCountyData()
@@ -596,7 +605,7 @@ onMounted(async () => {
   gap: 2rem;
 }
 
-/* 标题 */
+/* 鏍囬 */
 .section-title {
   font-size: 1.5rem;
   font-weight: 600;
@@ -633,7 +642,7 @@ onMounted(async () => {
   text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
 }
 
-/* 旗县信息卡片 */
+/* 鏃楀幙淇℃伅鍗＄墖 */
 .county-info-card {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(100, 149, 237, 0.4);
@@ -679,7 +688,7 @@ onMounted(async () => {
   color: rgba(51, 51, 51, 0.7);
 }
 
-/* 乡镇列表 */
+/* 涔￠晣鍒楄〃 */
 .town-section {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(100, 149, 237, 0.4);
@@ -921,8 +930,10 @@ onMounted(async () => {
   height: 100%;
   background: rgba(0, 0, 0, 0.6);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
   z-index: 1000;
   backdrop-filter: blur(5px);
 }
@@ -934,6 +945,7 @@ onMounted(async () => {
   padding: 2rem;
   width: 90%;
   max-width: 500px;
+  margin: auto;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
@@ -1074,7 +1086,7 @@ onMounted(async () => {
   align-items: center;
 }
 
-/* 滚动条样式*/
+/* 滚动条样式 */
 .main-content::-webkit-scrollbar {
   width: 8px;
 }
@@ -1093,7 +1105,7 @@ onMounted(async () => {
   background: rgba(100, 149, 237, 0.7);
 }
 
-/* 响应式设计*/
+/* 响应式设计 */
 @media (max-width: 768px) {
   .town-list {
     grid-template-columns: 1fr;
@@ -1112,3 +1124,4 @@ onMounted(async () => {
   }
 }
 </style>
+

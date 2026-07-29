@@ -968,7 +968,7 @@ const initDatabase = async () => {
         leaveType VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
         startDate DATE NOT NULL,
         endDate DATE NOT NULL,
-        days INT NOT NULL,
+        days DECIMAL(5,1) NOT NULL,
         reason TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
         status VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '审批中',
         approver VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -978,6 +978,13 @@ const initDatabase = async () => {
         createdAt DATETIME NOT NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+
+    // 迁移days字段类型（INT→DECIMAL，支持半天0.5天）
+    try {
+      await connection.execute('ALTER TABLE leave_applications MODIFY COLUMN days DECIMAL(5,1) NOT NULL');
+    } catch (e) {
+      // 表可能不存在或已迁移
+    }
     
     // 创建reimbursements表（报销管理）
     await connection.execute(`
@@ -1447,6 +1454,19 @@ const initDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     
+    // 创建role_button_permissions表（按钮级权限）
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS role_button_permissions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        roleId INT NOT NULL,
+        menuId INT NOT NULL,
+        buttonKey VARCHAR(100) NOT NULL,
+        createdAt DATETIME NOT NULL,
+        FOREIGN KEY (roleId) REFERENCES roles(id) ON DELETE CASCADE,
+        UNIQUE KEY role_menu_button_unique (roleId, menuId, buttonKey)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
     // 检查并添加menuId字段（如果不存在）
     try {
       const [menuIdColumns] = await connection.execute(`
