@@ -688,7 +688,7 @@ const getDistributedDetail = (row: any) => {
     return `主题:${row.meetingTitle || row.title || '-'} 日期:${row.meetingDate || '-'} 地点:${row.meetingLocation || row.location || '-'} 时间:${row.meetingTime || '-'}`
   }
   if (type === 'leave') {
-    return `类型:${row.leaveType || '-'} 天数:${formatDays(row.days)}`
+    return `类型:${row.leaveType || '-'} 天数:${formatDays(row.days)}${row.reason ? ' 原因:' + row.reason : ''}`
   }
   if (type === 'reimbursement') {
     return `类型:${row.reimburseType || '-'} 金额:¥${row.amount || 0}`
@@ -874,18 +874,18 @@ const submitApproval = async () => {
         let detailObj: any = {}
         if (type === 'meeting') {
           detailObj = { title: item.title, meetingDate: item.meetingDate, meetingTime: item.meetingTime, location: item.location }
-        } else if (type === 'leave') {
-          detailObj = { leaveType: item.leaveType, days: item.days, startDate: item.startDate, endDate: item.endDate, reason: item.reason }
-        } else if (type === 'reimbursement') {
-          detailObj = { reimburseType: item.reimburseType, amount: item.amount, reimburseDate: item.reimburseDate, reason: item.reason }
-        } else if (type === 'project') {
-          detailObj = { projectName: item.projectName, projectType: item.projectType, budget: item.budget }
-        } else if (type === 'businessTrip') {
-          detailObj = { destination: item.destination, tripType: item.tripType, days: item.days, estimatedCost: item.estimatedCost }
-        } else if (type === 'entertainment') {
-          detailObj = { guestName: item.guestName, guestCount: item.guestCount, expenseAmount: item.expenseAmount, expenseDate: item.expenseDate, purpose: item.purpose }
-        }
-        for (const target of targets) {
+    } else if (type === 'leave') {
+      detailObj = { leaveType: item.leaveType, days: item.days, startDate: item.startDate, endDate: item.endDate, reason: item.reason, result: item.result, comment: item.comment }
+    } else if (type === 'reimbursement') {
+      detailObj = { reimburseType: item.reimburseType, amount: item.amount, reimburseDate: item.reimburseDate, reason: item.reason }
+    } else if (type === 'project') {
+      detailObj = { projectName: item.projectName, projectType: item.projectType, budget: item.budget }
+    } else if (type === 'businessTrip') {
+      detailObj = { destination: item.destination, tripType: item.tripType, days: item.days, estimatedCost: item.estimatedCost }
+    } else if (type === 'entertainment') {
+      detailObj = { guestName: item.guestName, guestCount: item.guestCount, expenseAmount: item.expenseAmount, expenseDate: item.expenseDate, purpose: item.purpose }
+    }
+    for (const target of targets) {
           try {
             await addDistributedRecord({
               applicationId: item.id,
@@ -970,17 +970,8 @@ const handleDistribute = async () => {
     if (type === 'meeting') {
       detailObj = { title: item.title, meetingDate: item.meetingDate, meetingTime: item.meetingTime, location: item.location }
     } else if (type === 'leave') {
-      detailObj = { leaveType: item.leaveType, days: item.days, startDate: item.startDate, endDate: item.endDate, reason: item.reason }
-    } else if (type === 'reimbursement') {
-      detailObj = { reimburseType: item.reimburseType, amount: item.amount, reimburseDate: item.reimburseDate, reason: item.reason }
-    } else if (type === 'project') {
-      detailObj = { projectName: item.projectName, projectType: item.projectType, budget: item.budget }
-    } else if (type === 'businessTrip') {
-      detailObj = { destination: item.destination, tripType: item.tripType, days: item.days, estimatedCost: item.estimatedCost }
-    } else if (type === 'entertainment') {
-      detailObj = { guestName: item.guestName, guestCount: item.guestCount, expenseAmount: item.expenseAmount, expenseDate: item.expenseDate, purpose: item.purpose }
+      detailObj = { leaveType: item.leaveType, days: item.days, startDate: item.startDate, endDate: item.endDate, reason: item.reason, result: item.result, comment: item.comment }
     }
-
     const results = []
     for (const target of validTargets) {
       const distributeData = {
@@ -1057,7 +1048,9 @@ const getApplicationDetailHtml = (row: any) => {
     const startDate = row.startDate || ''
     const endDate = row.endDate || ''
     const dateRange = startDate && endDate ? `<p><strong>请假时间：</strong>${startDate} 至 ${endDate}</p>` : ''
-    detailHtml = `<p><strong>请假类型：</strong>${row.leaveType || '-'}</p><p><strong>请假天数：</strong>${formatDays(row.days)}</p>${dateRange}`
+    const reasonText = row.reason ? `<p><strong>请假原因：</strong>${row.reason}</p>` : ''
+    const resultText = row.result ? `<p><strong>审批记录：</strong><span style="white-space:pre-line">${row.result}</span></p>` : ''
+    detailHtml = `<p><strong>请假类型：</strong>${row.leaveType || '-'}</p><p><strong>请假天数：</strong>${formatDays(row.days)}</p>${dateRange}${reasonText}${resultText}`
   } else if (type === 'reimbursement') {
     detailHtml = `<p><strong>报销类型：</strong>${row.reimburseType || '-'}</p><p><strong>报销金额：</strong>¥${row.amount || 0}</p>`
   } else if (type === 'project') {
@@ -1078,6 +1071,7 @@ const viewDistributedDetail = (row: any) => {
       <p><strong>申请类型：</strong>${getApplicationTypeLabel(row.applicationType)}</p>
       <p><strong>原申请编号：</strong>#${row.applicationId}</p>
       <p><strong>原申请人：</strong>${row.applicant}</p>
+      <p><strong>审批人：</strong>${row.approver && row.approver !== '未指定' ? row.approver : row.distributedBy}</p>
       <p><strong>下发人：</strong>${row.distributedBy}</p>
       <p><strong>下发时间：</strong>${row.distributeDate}</p>
       <p><strong>处理状态：</strong>${row.status}</p>

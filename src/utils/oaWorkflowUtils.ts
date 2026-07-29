@@ -362,6 +362,21 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
 
   const typeList = ['病假', '事假', '年假', '婚假', '产假', '丧假', '其他']
 
+  const resultEntries = (row.result || '').split(';').filter(Boolean).map((entry: string) => {
+    const idx = entry.indexOf(':')
+    return idx > 0 ? { name: entry.substring(0, idx).trim(), action: entry.substring(idx + 1).trim() } : null
+  }).filter(Boolean)
+
+  const commentEntries = (row.comment || '').split('\n---\n').filter(Boolean).map((entry: string) => {
+    const idx = entry.indexOf(':')
+    return idx > 0 ? { name: entry.substring(0, idx).trim(), text: entry.substring(idx + 1).trim() } : { name: '', text: entry.trim() }
+  })
+
+  const approveRows = resultEntries.map((r: any) => {
+    const matchComment = commentEntries.find((c: any) => c.name === r.name)
+    return `<tr><td style="padding:6px 10px;border:1px solid #000;">${r.name}</td><td style="padding:6px 10px;border:1px solid #000;">${r.action === '批准' ? '✓ 批准' : r.action === '拒绝' ? '✗ 拒绝' : r.action}</td><td style="padding:6px 10px;border:1px solid #000;">${matchComment ? matchComment.text : ''}</td></tr>`
+  }).join('')
+
   const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -383,6 +398,7 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
   .chk-on .chk-box::after { content: "✓"; }
   .reason-cell { min-height: 60px; line-height: 1.6; }
   .print-hint { text-align: center; margin-top: 10px; font-size: 11px; color: #aaa; }
+  .approve-header td { background: #f5f5f5; font-weight: bold; text-align: center; padding: 6px 10px; border: 1px solid #000; }
   @media print { .print-hint { display: none; } body { padding: 0; } .form-wrap { margin: 0 auto; } }
 </style>
 </head>
@@ -413,12 +429,7 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
     <td class="label">请假原因</td>
     <td colspan="3" class="reason-cell">${reason || '（未填写）'}</td>
   </tr>
-  <tr>
-    <td class="label">审批人</td>
-    <td>${approver || '未指定'}</td>
-    <td class="label">审批意见</td>
-    <td>${comment || ''}</td>
-  </tr>
+  ${approveRows ? `<tr class="approve-header"><td>审批人</td><td>审批结果</td><td colspan="2">审批意见</td></tr>${approveRows}` : `<tr><td class="label">审批人</td><td>${approver || '未指定'}</td><td class="label">审批意见</td><td>${comment || ''}</td></tr>`}
 </table>
 </div>
 <div class="print-hint">按 Ctrl+P 可导出为 PDF 打印</div>
