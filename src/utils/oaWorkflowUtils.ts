@@ -361,105 +361,96 @@ export const exportLeaveFormHTML = (row: any) => {
     ? resultChain.split('\n').filter((l: string) => l.trim()).map((l: string) => `<div class="result-line">${l}</div>`).join('')
     : ''
 
+  const yearS = startDate ? new Date(startDate).getFullYear() : ''
+  const monthS = startDate ? new Date(startDate).getMonth() + 1 : ''
+  const dayS = startDate ? new Date(startDate).getDate() : ''
+  const yearE = endDate ? new Date(endDate).getFullYear() : ''
+  const monthE = endDate ? new Date(endDate).getMonth() + 1 : ''
+  const dayE = endDate ? new Date(endDate).getDate() : ''
+
+  const typeList = ['病假', '事假', '年假', '婚假', '产假', '丧假', '其他']
+
   const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <title>请假申请单 #${row.id}</title>
 <style>
-  @page { margin: 15mm; }
+  @page { margin: 10mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: "SimSun", "宋体", serif; color: #333; padding: 20px; }
-  .form-container { max-width: 700px; margin: 0 auto; border: 2px solid #333; padding: 30px 35px; }
-  .company-name { text-align: center; font-size: 14px; color: #666; margin-bottom: 4px; letter-spacing: 2px; }
-  .form-title { text-align: center; font-size: 22px; font-weight: bold; letter-spacing: 4px; margin-bottom: 25px; padding-bottom: 10px; border-bottom: 2px solid #333; }
-  .info-row { display: flex; margin-bottom: 12px; line-height: 1.8; }
-  .info-label { width: 100px; font-weight: bold; flex-shrink: 0; }
-  .info-value { flex: 1; border-bottom: 1px solid #999; padding: 0 8px; min-height: 28px; }
-  .reason-box { border: 1px solid #999; padding: 10px; min-height: 80px; margin-top: 4px; line-height: 1.8; }
-  .status-badge { display: inline-block; padding: 4px 16px; border-radius: 3px; font-weight: bold; font-size: 14px; }
-  .status-badge.approved { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
-  .status-badge.rejected { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
-  .status-badge.pending { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
-  .section-title { font-size: 15px; font-weight: bold; margin: 20px 0 10px; padding-left: 8px; border-left: 3px solid #333; }
-  .result-box { background: #fafafa; border: 1px solid #ddd; padding: 10px; margin-top: 4px; line-height: 1.8; }
-  .result-line { padding: 2px 0; }
-  .footer-row { display: flex; justify-content: space-between; margin-top: 35px; }
-  .sign-line { width: 200px; }
-  .sign-line .label { font-size: 12px; color: #999; }
-  .sign-line .line { border-bottom: 1px solid #333; height: 28px; margin-top: 2px; }
-  .print-hint { text-align: center; margin-top: 20px; font-size: 12px; color: #ccc; }
-  @media print { .print-hint { display: none; } body { padding: 0; } }
+  body { font-family: "SimSun", "宋体", serif; color: #333; font-size: 14px; }
+  .form-wrap { max-width: 750px; margin: 20px auto; border: 2px solid #000; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  td { border: 1px solid #000; padding: 8px 10px; vertical-align: middle; }
+  .title-cell { text-align: center; font-size: 20px; font-weight: bold; letter-spacing: 6px; padding: 14px; }
+  .company-cell { text-align: center; font-size: 12px; color: #666; padding: 4px; letter-spacing: 2px; border-bottom: none; }
+  .label { font-weight: bold; white-space: nowrap; width: 90px; background: #f9f9f9; }
+  .label-sm { font-weight: bold; white-space: nowrap; width: 70px; background: #f9f9f9; text-align: center; }
+  .chk { display: inline-block; margin-right: 12px; }
+  .chk-box { display: inline-block; width: 14px; height: 14px; border: 1px solid #333; margin-right: 3px; vertical-align: middle; text-align: center; line-height: 14px; font-size: 12px; }
+  .chk-on .chk-box { background: #333; color: #fff; }
+  .chk-on .chk-box::after { content: "✓"; }
+  .reason-cell { min-height: 60px; line-height: 1.6; }
+  .sign-row td { height: 50px; text-align: center; font-size: 12px; }
+  .result-cell { background: #fafafa; line-height: 1.6; font-size: 13px; }
+  .print-hint { text-align: center; margin-top: 10px; font-size: 11px; color: #aaa; }
+  .id-cell { font-size: 12px; color: #666; text-align: right; }
+  .status-tag { display: inline-block; padding: 2px 10px; font-weight: bold; font-size: 13px; }
+  .status-tag.approved { background: #e8f5e9; color: #2e7d32; }
+  .status-tag.rejected { background: #ffebee; color: #c62828; }
+  .status-tag.pending { background: #fff3e0; color: #e65100; }
+  @media print { .print-hint { display: none; } body { padding: 0; } .form-wrap { margin: 0 auto; } }
 </style>
 </head>
 <body>
-<div class="form-container">
-  <div class="company-name">宏友软件</div>
-  <div class="form-title">请 假 申 请 单</div>
-
-  <div class="info-row">
-    <span class="info-label">编　　号：</span>
-    <span class="info-value">${row.id}</span>
-  </div>
-  <div class="info-row">
-    <span class="info-label">申 请 人：</span>
-    <span class="info-value">${row.applicant || ''}</span>
-  </div>
-  <div class="info-row">
-    <span class="info-label">请假类型：</span>
-    <span class="info-value">${leaveType}</span>
-  </div>
-  <div class="info-row">
-    <span class="info-label">开始日期：</span>
-    <span class="info-value">${formatDateCN(startDate)}</span>
-  </div>
-  <div class="info-row">
-    <span class="info-label">结束日期：</span>
-    <span class="info-value">${formatDateCN(endDate)}</span>
-  </div>
-  <div class="info-row">
-    <span class="info-label">请假天数：</span>
-    <span class="info-value">${days} 天</span>
-  </div>
-  <div class="info-row">
-    <span class="info-label">审批状态：</span>
-    <span class="info-value"><span class="status-badge ${status === '已批准' || status === 'approved' ? 'approved' : status === '已拒绝' || status === 'rejected' ? 'rejected' : 'pending'}">${statusCN[status] || status}</span></span>
-  </div>
-  <div class="info-row" style="align-items:flex-start;">
-    <span class="info-label">请假原因：</span>
-    <div class="info-value" style="border:none;padding:0;"><div class="reason-box">${reason || '无'}</div></div>
-  </div>
-
-  <div class="section-title">审批记录</div>
-  <div class="result-box">
-    ${resultLines || '<div style="color:#999">暂无审批记录</div>'}
-    ${comment ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #ddd"><strong>审批意见：</strong>' + comment + '</div>' : ''}
-  </div>
-
-  <div class="section-title">提交信息</div>
-  <div class="info-row">
-    <span class="info-label">审批人：</span>
-    <span class="info-value">${approver || '未指定'}</span>
-  </div>
-  <div class="info-row">
-    <span class="info-label">提交时间：</span>
-    <span class="info-value">${row.submitDate || ''}</span>
-  </div>
-
-  <div class="footer-row">
-    <div class="sign-line">
-      <div class="label">申请人签字</div>
-      <div class="line"></div>
-    </div>
-    <div class="sign-line">
-      <div class="label">审批人签字</div>
-      <div class="line"></div>
-    </div>
-    <div class="sign-line">
-      <div class="label">日期</div>
-      <div class="line"></div>
-    </div>
-  </div>
+<div class="form-wrap">
+<table>
+  <tr><td colspan="4" class="company-cell">宏友软件</td></tr>
+  <tr><td colspan="4" class="title-cell">请 假 申 请 单</td></tr>
+  <tr>
+    <td class="label">申请人</td>
+    <td>${row.applicant || ''}</td>
+    <td class="label">审批状态</td>
+    <td><span class="status-tag ${status === '已批准' || status === 'approved' ? 'approved' : status === '已拒绝' || status === 'rejected' ? 'rejected' : 'pending'}">${statusCN[status] || status}</span></td>
+  </tr>
+  <tr>
+    <td class="label">请假类型</td>
+    <td colspan="3">${typeList.map(t => `<span class="chk ${t === leaveType ? 'chk-on' : ''}"><span class="chk-box"></span>${t}</span>`).join('')}</td>
+  </tr>
+  <tr>
+    <td class="label">请假时间</td>
+    <td colspan="3">
+      自 ${yearS ? yearS + '年' : '____年'}${monthS ? monthS + '月' : '__月'}${dayS ? dayS + '日' : '__日'}
+      至 ${yearE ? yearE + '年' : '____年'}${monthE ? monthE + '月' : '__月'}${dayE ? dayE + '日' : '__日'}
+      ，共 <strong>${days}</strong> 天
+    </td>
+  </tr>
+  <tr>
+    <td class="label">请假原因</td>
+    <td colspan="3" class="reason-cell">${reason || '（未填写）'}</td>
+  </tr>
+  <tr>
+    <td class="label">审批人</td>
+    <td>${approver || '未指定'}</td>
+    <td class="label">申请编号</td>
+    <td class="id-cell">#${row.id}</td>
+  </tr>
+  <tr>
+    <td class="label">审批记录</td>
+    <td colspan="3" class="result-cell">
+      ${resultLines || '<div style="color:#999">暂无审批记录</div>'}
+      ${comment ? '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #ddd"><strong>审批意见：</strong>' + comment + '</div>' : ''}
+    </td>
+  </tr>
+  <tr><td colspan="4" style="padding:4px;background:#f5f5f5;font-size:12px;text-align:center;">以下由审批人填写</td></tr>
+  <tr class="sign-row">
+    <td>申请人签字<br/><br/></td>
+    <td>部门经理签字<br/><br/></td>
+    <td>人事部签字<br/><br/></td>
+    <td>总经理签字<br/><br/></td>
+  </tr>
+  <tr><td colspan="4" style="text-align:right;padding:6px 10px;font-size:12px;color:#666;">申请日期：${formatDateCN(startDate) || '____年__月__日'}</td></tr>
+</table>
 </div>
 <div class="print-hint">按 Ctrl+P 可导出为 PDF 打印</div>
 </body>
