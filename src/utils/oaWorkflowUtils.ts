@@ -351,12 +351,6 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
   const days = row.days || '-'
   const reason = row.reason || ''
   const approver = row.approver || ''
-  const resultChain = row.result || ''
-  const comment = row.comment || ''
-
-  const resultLines = resultChain
-    ? resultChain.split('\n').filter((l: string) => l.trim()).map((l: string) => `<div class="result-line">${l}</div>`).join('')
-    : ''
 
   const yearS = startDate ? new Date(startDate).getFullYear() : ''
   const monthS = startDate ? new Date(startDate).getMonth() + 1 : ''
@@ -387,8 +381,6 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
   .chk-on .chk-box { background: #333; color: #fff; }
   .chk-on .chk-box::after { content: "✓"; }
   .reason-cell { min-height: 60px; line-height: 1.6; }
-  .sign-row td { height: 50px; text-align: center; font-size: 12px; }
-  .result-cell { background: #fafafa; line-height: 1.6; font-size: 13px; }
   .print-hint { text-align: center; margin-top: 10px; font-size: 11px; color: #aaa; }
   @media print { .print-hint { display: none; } body { padding: 0; } .form-wrap { margin: 0 auto; } }
 </style>
@@ -423,18 +415,9 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
   <tr>
     <td class="label">审批人</td>
     <td>${approver || '未指定'}</td>
-    <td class="label">审批记录</td>
-    <td class="result-cell">${resultLines || '暂无'}</td>
+    <td class="label">申请日期</td>
+    <td>${formatDateCN(startDate) || '____年__月__日'}</td>
   </tr>
-  ${comment ? `<tr><td class="label">审批意见</td><td colspan="3" class="result-cell">${comment}</td></tr>` : ''}
-  <tr><td colspan="4" style="padding:4px;background:#f5f5f5;font-size:12px;text-align:center;">以下由审批人填写</td></tr>
-  <tr class="sign-row">
-    <td>申请人签字<br/><br/></td>
-    <td>部门经理签字<br/><br/></td>
-    <td>人事部签字<br/><br/></td>
-    <td>总经理签字<br/><br/></td>
-  </tr>
-  <tr><td colspan="4" style="text-align:right;padding:6px 10px;font-size:12px;color:#666;">申请日期：${formatDateCN(startDate) || '____年__月__日'}</td></tr>
 </table>
 </div>
 <div class="print-hint">按 Ctrl+P 可导出为 PDF 打印</div>
