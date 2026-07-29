@@ -340,7 +340,7 @@ const submitForm = async () => {
     
     showModal.value = false
   } catch (error) {
-    console.error('提交表单失败:'', error)
+    console.error('提交表单失败:', error)
   }
 }
 
