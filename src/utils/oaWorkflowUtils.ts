@@ -351,6 +351,7 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
   const days = row.days || '-'
   const reason = row.reason || ''
   const approver = row.approver || ''
+  const comment = row.comment || ''
 
   const yearS = startDate ? new Date(startDate).getFullYear() : ''
   const monthS = startDate ? new Date(startDate).getMonth() + 1 : ''
@@ -389,7 +390,7 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
 <div class="form-wrap">
 <table>
   <tr><td colspan="4" class="company-cell">宏友软件</td></tr>
-  <tr><td colspan="4" class="title-cell">请 假 申 请 单</td></tr>
+  <tr><td colspan="4" class="title-cell">请 假 申 请 单<br/><span style="font-size:13px;font-weight:normal;letter-spacing:1px;color:#666;">${formatDateCN(startDate) || ''}</span></td></tr>
   <tr>
     <td class="label">申请人</td>
     <td>${row.applicant || ''}</td>
@@ -415,8 +416,8 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
   <tr>
     <td class="label">审批人</td>
     <td>${approver || '未指定'}</td>
-    <td class="label">申请日期</td>
-    <td>${formatDateCN(startDate) || '____年__月__日'}</td>
+    <td class="label">审批意见</td>
+    <td>${comment || ''}</td>
   </tr>
 </table>
 </div>
