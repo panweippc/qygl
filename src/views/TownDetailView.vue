@@ -204,7 +204,6 @@ const getVisitNumber = (index: number) => {
   } else {
     return `${index + 1}次拜访`
   }
-  }
 }
 
 // 加载涔￠晣数据
