@@ -257,9 +257,30 @@
               </el-col>
             </el-row>
             <el-form-item label="参会人员" prop="participants">
-              <el-select v-model="meetingForm.participants" multiple collapse-tags collapse-tags-tooltip :max-collapse-tags="3" placeholder="请选择参会人员" style="width: 100%">
-                <el-option v-for="emp in allEmployees" :key="emp.id" :label="extractRealName(emp.name) + ' (' + (emp.department || '') + ')'" :value="extractRealName(emp.name)" />
-              </el-select>
+              <div class="participants-wrapper">
+                <el-popover placement="bottom" :width="320" trigger="click">
+                  <template #reference>
+                    <div class="participants-display" @click="participantsPopoverVisible = !participantsPopoverVisible">
+                      <div class="participants-tags" v-if="meetingForm.participants.length > 0">
+                        <el-tag v-for="p in meetingForm.participants" :key="p" closable size="small" :disable-transitions="true" @close.stop="meetingForm.participants = meetingForm.participants.filter(v => v !== p)" style="margin:2px 4px 2px 0">{{ p }}</el-tag>
+                      </div>
+                      <span v-else class="participants-placeholder">请选择参会人员</span>
+                      <el-icon class="participants-arrow"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg></el-icon>
+                    </div>
+                  </template>
+                  <el-checkbox-group v-model="meetingForm.participants">
+                    <el-checkbox
+                      v-for="emp in allEmployees"
+                      :key="emp.id"
+                      :label="extractRealName(emp.name)"
+                      style="display:flex;margin:8px 0;width:100%"
+                    >
+                      <span>{{ extractRealName(emp.name) }}</span>
+                      <span style="color:#909399;font-size:12px;margin-left:4px">({{ emp.department || '' }})</span>
+                    </el-checkbox>
+                  </el-checkbox-group>
+                </el-popover>
+              </div>
             </el-form-item>
             <el-form-item label="会议议程" prop="agenda">
               <el-input v-model="meetingForm.agenda" type="textarea" :rows="3" placeholder="请输入会议议程"></el-input>
@@ -837,5 +858,42 @@ defineExpose({ fetchData })
 .dialog-footer .el-button--primary {
   padding: 12px 32px;
   font-size: 15px;
+}
+.participants-wrapper {
+  width: 100%;
+}
+.participants-display {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-height: 32px;
+  padding: 1px 0;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color .2s;
+}
+.participants-display:hover {
+  border-color: #c0c4cc;
+}
+.participants-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 1px 0 1px 6px;
+  flex: 1;
+}
+.participants-placeholder {
+  color: #c0c4cc;
+  font-size: 14px;
+  padding: 0 12px;
+  flex: 1;
+}
+.participants-arrow {
+  color: #c0c4cc;
+  font-size: 14px;
+  padding: 0 8px;
+  transition: transform .3s;
 }
 </style>
