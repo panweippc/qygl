@@ -257,8 +257,8 @@
               </el-col>
             </el-row>
             <el-form-item label="参会人员" prop="participants">
-              <el-select v-model="meetingForm.participants" multiple filterable collapse-tags collapse-tags-tooltip :max-collapse-tags="3" placeholder="请选择参会人员" style="width: 100%">
-                <el-option v-for="emp in props.allEmployees" :key="emp.id" :label="extractRealName(emp.name) + ' (' + emp.department + ')'" :value="extractRealName(emp.name)" />
+              <el-select v-model="meetingForm.participants" multiple collapse-tags collapse-tags-tooltip :max-collapse-tags="3" placeholder="请选择参会人员" style="width: 100%" popper-append-to-body="false">
+                <el-option v-for="emp in allEmployees" :key="emp.id" :label="extractRealName(emp.name) + ' (' + (emp.department || '') + ')'" :value="extractRealName(emp.name)" />
               </el-select>
             </el-form-item>
             <el-form-item label="会议议程" prop="agenda">
