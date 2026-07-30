@@ -70,6 +70,11 @@
             {{ formatDate(row.start_date) }}
           </template>
         </el-table-column>
+        <el-table-column prop="approver" label="审批人" width="100">
+          <template #default="{ row }">
+            {{ row.approver || '-' }}
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewDetail(row)">查看</el-button>
@@ -155,6 +160,7 @@
         </el-descriptions-item>
         <el-descriptions-item label="住宿安排">{{ detailData.accommodation || '-' }}</el-descriptions-item>
         <el-descriptions-item label="交通方式">{{ detailData.transport || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="审批人">{{ detailData.approver || '-' }}</el-descriptions-item>
         <el-descriptions-item label="同行人员">
           <span v-if="detailData.accompany_persons && detailData.accompany_persons.length > 0">
             {{ detailData.accompany_persons.join('、') }}

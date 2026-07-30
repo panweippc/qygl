@@ -154,8 +154,8 @@ export const deleteProject = async (id: number): Promise<ApiResponse> => {
 };
 
 // 出差申请管理
-export const getBusinessTrips = async (): Promise<ApiResponse<any[]>> => {
-  const response = await api.get('/business-trips');
+export const getBusinessTrips = async (params?: any): Promise<ApiResponse<any[]>> => {
+  const response = await api.get('/business-trips', { params });
   return response.data;
 };
 

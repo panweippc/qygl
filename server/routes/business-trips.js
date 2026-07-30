@@ -62,11 +62,22 @@ router.get('/business-trips', async (req, res) => {
 router.post('/business-trips', async (req, res) => {
   const { pool } = req.app.locals;
   try {
-    const {
-      destination, tripType, startDate, endDate, purpose, itinerary,
-      estimatedCost, costBreakdown, accommodation, transport,
-      accompanyPersons, isUrgent, applicantId, approverId
-    } = req.body;
+    const destination = req.body.destination;
+    const tripType = req.body.tripType;
+    const startDate = req.body.startDate;
+    const endDate = req.body.endDate;
+    const frontendDays = req.body.days;
+    const purpose = req.body.purpose;
+    const itinerary = req.body.itinerary;
+    const estimatedCost = req.body.estimatedCost;
+    const costBreakdown = req.body.costBreakdown;
+    const accommodation = req.body.accommodation;
+    const transport = req.body.transport;
+    const accompanyPersons = req.body.accompanyPersons;
+    const isUrgent = req.body.isUrgent;
+    const applicantId = req.body.applicantId;
+    const approverId = req.body.approverId;
+    const approverName = req.body.approver || null;
 
     const [employees] = await pool.execute(
       'SELECT * FROM employees WHERE id = ?',
@@ -79,15 +90,14 @@ router.post('/business-trips', async (req, res) => {
 
     const applicant = employees[0];
 
-    let approverName = null;
-    if (approverId) {
-      const [approvers] = await pool.execute('SELECT * FROM employees WHERE id = ?', [approverId]);
-      if (approvers.length > 0) approverName = approvers[0].name;
+    let days;
+    if (frontendDays) {
+      days = parseFloat(frontendDays);
+    } else {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
     }
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
 
     const date = new Date();
     const year = date.getFullYear();

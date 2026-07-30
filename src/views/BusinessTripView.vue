@@ -31,14 +31,6 @@
                   />
                 </el-form-item>
               </el-col>
-              <el-col :span="12">
-                <el-form-item label="出差类型" prop="tripType">
-                  <el-select v-model="form.tripType" placeholder="请选择出差类型" style="width: 100%">
-                    <el-option label="国内出差" value="domestic" />
-                    <el-option label="国外出差" value="international" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
             </el-row>
 
             <el-row :gutter="20">
@@ -87,7 +79,15 @@
 
         <!-- 时间信息 -->
         <el-divider content-position="left">时间信息</el-divider>
-        
+
+        <el-form-item label="出差时长">
+          <el-radio-group v-model="form.durationType" @change="onDurationTypeChange">
+            <el-radio label="halfDay">半天 (0.5天)</el-radio>
+            <el-radio label="fullDay">一天 (1天)</el-radio>
+            <el-radio label="custom">自定义</el-radio>
+          </el-radio-group>
+        </el-form-item>
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="开始日期" prop="startDate">
@@ -97,10 +97,11 @@
                 placeholder="选择开始日期"
                 style="width: 100%"
                 value-format="YYYY-MM-DD"
+                @change="onDateChange"
               />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :span="12" v-if="form.durationType === 'custom'">
             <el-form-item label="结束日期" prop="endDate">
               <el-date-picker
                 v-model="form.endDate"
@@ -109,26 +110,27 @@
                 style="width: 100%"
                 value-format="YYYY-MM-DD"
                 :disabled-date="disabledEndDate"
+                @change="onDateChange"
               />
             </el-form-item>
           </el-col>
         </el-row>
 
         <el-form-item label="出差天数">
-          <el-input v-model="tripDays" disabled style="width: 120px">
+          <el-input v-model="form.days" disabled placeholder="自动计算" style="width: 120px">
             <template #append>天</template>
           </el-input>
         </el-form-item>
 
-        <!-- 出差目的 -->
+        <!-- 出差意向 -->
         <el-divider content-position="left">出差详情</el-divider>
         
-        <el-form-item label="出差目的" prop="purpose">
+        <el-form-item label="出差意向" prop="purpose">
           <el-input
             v-model="form.purpose"
             type="textarea"
             :rows="3"
-            placeholder="请详细描述出差目的和预期成果"
+            placeholder="请详细描述出差意向和预期成果"
             maxlength="500"
             show-word-limit
           />
@@ -237,7 +239,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="交通方式">
+            <el-form-item label="交通方式" prop="transport">
               <el-select v-model="form.transport" placeholder="请选择交通方式" style="width: 100%">
                 <el-option label="飞机" value="飞机" />
                 <el-option label="高铁" value="高铁" />
@@ -249,7 +251,7 @@
           </el-col>
         </el-row>
 
-        <el-form-item label="同行人员">
+        <el-form-item label="同行人员" prop="accompanyPersons">
           <el-select
             v-model="form.accompanyPersons"
             multiple
@@ -325,19 +327,7 @@
                 </div>
               </el-timeline-item>
 
-              <el-timeline-item 
-                v-if="form.tripType === 'international'" 
-                type="warning" 
-                :hollow="true"
-              >
-                <template #dot>
-                  <el-icon><UserFilled /></el-icon>
-                </template>
-                <div class="timeline-content">
-                  <h4>外事审批</h4>
-                  <p class="text-gray">国外出差需HR审批</p>
-                </div>
-              </el-timeline-item>
+
 
               <el-timeline-item 
                 v-if="form.estimatedCost >= 5000" 
@@ -404,7 +394,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { User, UserFilled, CircleCheck, Plus, Delete } from '@element-plus/icons-vue';
@@ -428,11 +418,12 @@ const selectedApprover = computed(() => {
 
 const form = reactive({
   destination: '',
-  tripType: 'domestic',
+  durationType: 'custom',
   isUrgent: false,
   estimatedCost: 0,
   startDate: '',
   endDate: '',
+  days: '',
   purpose: '',
   itinerary: [] as any[],
   costBreakdown: {
@@ -452,9 +443,6 @@ const rules = {
   destination: [
     { required: true, message: '请输入出差目的地', trigger: 'blur' }
   ],
-  tripType: [
-    { required: true, message: '请选择出差类型', trigger: 'change' }
-  ],
   estimatedCost: [
       { required: true, message: '请输入预估费用', trigger: 'blur' },
       { type: 'number', min: 0, message: '费用不能为负数', trigger: 'blur' }
@@ -470,16 +458,50 @@ const rules = {
   ],
   purpose: [
     { required: true, message: '请输入出差目的', trigger: 'blur' }
+  ],
+  transport: [
+    { required: true, message: '请选择交通方式', trigger: 'change' }
+  ],
+  accompanyPersons: [
+    { required: true, message: '请选择同行人员', trigger: 'change' }
   ]
 };
 
-const tripDays = computed(() => {
-  if (!form.startDate || !form.endDate) return 0;
-  const start = new Date(form.startDate);
-  const end = new Date(form.endDate);
-  const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-  return days > 0 ? days : 0;
-});
+const onDurationTypeChange = () => {
+  if (form.durationType === 'halfDay') {
+    form.endDate = form.startDate
+    form.days = form.startDate ? '0.5' : ''
+  } else if (form.durationType === 'fullDay') {
+    form.endDate = form.startDate
+    calcDays()
+  } else {
+    form.endDate = ''
+    form.days = ''
+  }
+}
+
+const onDateChange = () => {
+  if (form.durationType === 'halfDay') {
+    form.endDate = form.startDate
+    form.days = form.startDate ? '0.5' : ''
+  } else if (form.durationType === 'fullDay') {
+    form.endDate = form.startDate
+    form.days = form.startDate ? '1' : ''
+  } else if (form.durationType === 'custom') {
+    calcDays()
+  }
+}
+
+const calcDays = () => {
+  if (form.startDate && form.endDate) {
+    const startD = new Date(form.startDate)
+    const endD = new Date(form.endDate)
+    const days = Math.ceil((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    form.days = days > 0 ? String(days) : ''
+  } else {
+    form.days = ''
+  }
+}
 
 const totalCost = computed(() => {
   const { transport, accommodation, meals, other } = form.costBreakdown;
@@ -505,9 +527,11 @@ const submitForm = async () => {
       try {
         const submitData = {
           ...form,
+          days: form.days || '1',
           applicantId: currentUser.value.id,
           applicantName: currentUser.value.name,
-          approverId: form.approver
+          approverId: form.approver,
+          approver: selectedApprover.value?.name || ''
         };
 
         const response = await createBusinessTrip(submitData);

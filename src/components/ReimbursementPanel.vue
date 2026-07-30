@@ -312,7 +312,8 @@ import {
   getStatusText,
   getReimburseTypeClass,
   exportToCSV,
-  exportSingleRow
+  exportSingleRow,
+  exportReimbursementFormHTML
 } from '../utils/oaWorkflowUtils'
 
 const props = defineProps<{
@@ -556,10 +557,8 @@ const exportReimbursementData = () => {
 }
 
 const exportReimbursementRow = (row: any) => {
-  exportSingleRow(row, '报销申请_' + row.id,
-    ['报销编号', '申请人', '报销类型', '报销金额', '报销日期', '报销事由', '审批状态', '审批人', '提交时间'],
-    ['id', 'applicant', 'reimburseType', 'amount', 'reimburseDate', 'reason', 'status', 'approver', 'submitDate']
-  )
+  const dept = props.allEmployees.find((e: any) => extractRealName(e.name) === extractRealName(row.applicant))?.department || ''
+  exportReimbursementFormHTML(row, dept)
 }
 
 onMounted(() => {

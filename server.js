@@ -1087,6 +1087,8 @@ const initDatabase = async () => {
         id INT AUTO_INCREMENT PRIMARY KEY,
         applicant VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
         guestName VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+        guestUnit VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        location VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
         guestCount INT NOT NULL DEFAULT 1,
         expenseType VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
         expenseAmount DECIMAL(10,2) NOT NULL,
@@ -1099,6 +1101,12 @@ const initDatabase = async () => {
         createdAt DATETIME NOT NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+
+    // 迁移：为旧表添加guestUnit和location列（如果不存在）
+    try { await connection.execute('ALTER TABLE entertainment_expenses ADD COLUMN guestUnit VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER guestName'); } catch (e) {}
+    try { await connection.execute('ALTER TABLE entertainment_expenses ADD COLUMN location VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER guestUnit'); } catch (e) {}
+    // 迁移：修改出差申请表days列为DECIMAL支持半天
+    try { await connection.execute('ALTER TABLE business_trip_applications MODIFY COLUMN days DECIMAL(5,1) NOT NULL'); } catch (e) {}
     
     // 创建oa_approval_flows表（OA审批流程定义）
     await connection.execute(`
@@ -2062,16 +2070,16 @@ const createBusinessTripTable = async () => {
     const connection = await pool.getConnection();
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS business_trip_applications (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        trip_code VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL UNIQUE,
-        applicant_id VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-        applicant_name VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-        department VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-        destination VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-        trip_type VARCHAR(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-        start_date DATE NOT NULL,
-        end_date DATE NOT NULL,
-        days INT NOT NULL,
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  trip_code VARCHAR(50) NOT NULL UNIQUE,
+  applicant_id VARCHAR(50) NOT NULL,
+  applicant_name VARCHAR(50) NOT NULL,
+  department VARCHAR(50) NOT NULL,
+  destination VARCHAR(100) NOT NULL,
+  trip_type VARCHAR(30) NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  days DECIMAL(5,1) NOT NULL,
         purpose TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
         itinerary TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
         estimated_cost DECIMAL(12,2) NOT NULL,

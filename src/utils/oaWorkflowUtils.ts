@@ -216,16 +216,22 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
     },
     businessTrip: {
       '申请人': item.applicant || currentUsername,
+      '同行人员': item.companion || '',
       '目的地': item.destination,
-      '出差类型': item.tripType,
+      '出差意向': item.purpose || '',
+      '出差开始时间': item.startDate || '',
+      '出差结束时间': item.endDate || '',
       '出差天数': formatDays(item.days),
       '预估费用': '¥' + item.estimatedCost,
+      '审批人': item.approver || '待分配',
       '提交时间': item.submitDate
     },
     entertainment: {
       '申请人': item.applicant || currentUsername,
       '客户名称': item.guestName,
+      '招待单位': item.guestUnit || item.guest_unit || '',
       '招待人数': item.guestCount + '人',
+      '场　所': item.location || '',
       '费用类型': item.expenseType,
       '招待金额': '¥' + item.expenseAmount,
       '招待日期': item.expenseDate,
@@ -289,6 +295,476 @@ export const exportSingleRow = (row: any, filename: string, headers: string[], f
   exportToCSV([row], filename, headers, fields)
 }
 
+const buildApproveRows = (row: any, resultColspan: number = 1, commentColspan: number = 1) => {
+  const resultEntries = (row.result || '').split(';').filter(Boolean).map((entry: string) => {
+    const idx = entry.indexOf(':')
+    return idx > 0 ? { name: entry.substring(0, idx).trim(), action: entry.substring(idx + 1).trim() } : null
+  }).filter(Boolean)
+  const commentEntries = (row.comment || '').split('\n---\n').filter(Boolean).map((entry: string) => {
+    const idx = entry.indexOf(':')
+    return idx > 0 ? { name: entry.substring(0, idx).trim(), text: entry.substring(idx + 1).trim() } : { name: '', text: entry.trim() }
+  })
+  const totalCols = 1 + resultColspan + commentColspan
+
+  if (resultEntries.length === 0) {
+    return `<tr><td colspan="${totalCols}" style="padding:6px 10px;border:1px solid #000;text-align:center;color:#999;">（暂无审批记录）</td></tr>`
+  }
+
+  // 收集所有审批意见文本用于备注
+  const allComments = commentEntries.map(c => c.text).filter(Boolean)
+  const remarkText = allComments.length > 0 ? allComments.join('；') : ''
+
+  const buildRow = (r: any) => {
+    const matchComment = commentEntries.find((c: any) => c.name === r.name)
+    const actionText = r.action === '批准' ? '✓ 批准' : r.action === '拒绝' ? '✗ 拒绝' : r.action
+    return `<tr><td style="padding:6px 10px;border:1px solid #000;">${r.name}</td><td colspan="${resultColspan}" style="padding:6px 10px;border:1px solid #000;">${actionText}</td><td colspan="${commentColspan}" style="padding:6px 10px;border:1px solid #000;">${matchComment ? matchComment.text : ''}</td></tr>`
+  }
+
+  const headerRow = (label: string) =>
+    `<tr class="approve-header"><td>${label}</td><td colspan="${resultColspan}" style="padding:6px 10px;border:1px solid #000;background:#eaeaea;font-weight:bold;text-align:center;">审批结果</td><td colspan="${commentColspan}" style="padding:6px 10px;border:1px solid #000;background:#eaeaea;font-weight:bold;text-align:center;">审批意见</td></tr>`
+
+  let html = ''
+  if (resultEntries.length > 1) {
+    // 多审批人: 第一位显示"部门审批人"表头
+    html += headerRow('部门审批人')
+    html += buildRow(resultEntries[0])
+    // 其余显示"审批人"表头
+    html += headerRow('审批人')
+    for (let i = 1; i < resultEntries.length; i++) {
+      html += buildRow(resultEntries[i])
+    }
+  } else {
+    // 单个审批人: 显示"审批人"表头
+    html += headerRow('审批人')
+    html += buildRow(resultEntries[0])
+  }
+  // 备注行
+  html += `<tr><td style="padding:6px 10px;border:1px solid #000;font-weight:bold;background:#f5f5f5;">备注</td><td colspan="${totalCols - 1}" style="padding:6px 10px;border:1px solid #000;">${remarkText}</td></tr>`
+  return html
+}
+
+export const exportBusinessTripFormHTML = (row: any, department?: string) => {
+  const formatDateCN = (d: any) => {
+    if (!d) return ''
+    const dt = new Date(d)
+    return `${dt.getFullYear()}年${dt.getMonth() + 1}月${dt.getDate()}日`
+  }
+  const applicant = row.applicant || ''
+  const destination = row.destination || ''
+  const tripType = row.tripType || ''
+  const purpose = row.purpose || row.reason || ''
+  const days = row.days || ''
+  const startDate = row.startDate || ''
+  const endDate = row.endDate || ''
+  const transport = row.transport || row.transportation || ''
+  const companion = (row.companion || '').replace(/[\[\]"]/g, '')
+  const yearS = startDate ? new Date(startDate).getFullYear() : ''
+  const monthS = startDate ? new Date(startDate).getMonth() + 1 : ''
+  const dayS = startDate ? new Date(startDate).getDate() : ''
+  const yearE = endDate ? new Date(endDate).getFullYear() : ''
+  const monthE = endDate ? new Date(endDate).getMonth() + 1 : ''
+  const dayE = endDate ? new Date(endDate).getDate() : ''
+  const transports = ['公司车', '私家车', '火车或高铁', '汽车', '飞机', '其他']
+  const approveRows = buildApproveRows(row, 2, 1)
+
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>出差登记表 #${row.id}</title>
+<style>
+  @page { margin: 10mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "SimSun", "宋体", serif; color: #000; font-size: 14px; background: #fff; }
+  .form-wrap { max-width: 750px; margin: 20px auto; border: 2px solid #000; padding: 0; background: #fff; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  td { border: 1px solid #000; padding: 8px 10px; vertical-align: middle; }
+  .company-cell { text-align: center; font-size: 12px; color: #666; padding: 4px; letter-spacing: 2px; border-bottom: none; }
+  .title-cell { text-align: center; font-size: 22px; font-weight: bold; letter-spacing: 8px; padding: 14px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
+  .label { font-weight: bold; white-space: nowrap; width: 90px; background: #f5f5f5; text-align: center; }
+  .reason-cell { min-height: 60px; line-height: 1.8; padding: 12px 10px; }
+  .chk { display: inline-block; margin-right: 12px; }
+  .chk-box { display: inline-block; width: 12px; height: 12px; border: 1px solid #333; margin-right: 3px; vertical-align: middle; }
+  .chk-on .chk-box { background: #333; }
+  .chk-on .chk-box::after { content: "✓"; color: #fff; font-size: 10px; line-height: 12px; padding-left: 1px; }
+  .approve-header td { background: #eaeaea; font-weight: bold; text-align: center; padding: 6px 10px; }
+  .print-hint { text-align: center; margin-top: 10px; font-size: 11px; color: #aaa; }
+  @media print { .print-hint { display: none; } body { padding: 0; } .form-wrap { margin: 0 auto; } }
+</style>
+</head>
+<body>
+<div class="form-wrap">
+<table>
+  <tr><td colspan="4" class="company-cell">内蒙古宏友软件技术服务有限公司</td></tr>
+  <tr><td colspan="4" class="title-cell">出 差 登 记 表</td></tr>
+  <tr>
+    <td class="label">申请人</td>
+    <td>${applicant}</td>
+    <td class="label">所属部门</td>
+    <td>${department || ''}</td>
+  </tr>
+  <tr>
+    <td class="label">同行人员</td>
+    <td>${companion || '　'}</td>
+    <td class="label">出差地点</td>
+    <td>${destination || '　'}</td>
+  </tr>
+  <tr>
+    <td class="label">计划出差时间</td>
+    <td colspan="3">
+      自 ${yearS || '____'}年${monthS || '__'}月${dayS || '__'}日
+      至 ${yearE || '____'}年${monthE || '__'}月${dayE || '__'}日
+      止（共 <strong>${days}</strong> 日）
+    </td>
+  </tr>
+  <tr>
+    <td class="label">出差意向</td>
+    <td colspan="3" class="reason-cell">${purpose || '（未填写）'}</td>
+  </tr>
+  <tr>
+    <td class="label">交通工具</td>
+    <td colspan="3">${transports.map(t => `<span class="chk ${t === transport ? 'chk-on' : ''}"><span class="chk-box"></span>${t}</span>`).join('')}${transport && !transports.includes(transport) ? `<span class="chk chk-on"><span class="chk-box"></span>${transport}</span>` : ''}</td>
+  </tr>
+  ${approveRows}
+  <tr>
+    <td class="label">部门意见</td>
+    <td colspan="3" style="min-height:30px;">　</td>
+  </tr>
+  <tr>
+    <td class="label">负责人意见</td>
+    <td colspan="3" style="min-height:30px;">　</td>
+  </tr>
+</table>
+</div>
+<div class="form-date" style="text-align:right;margin-top:8px;font-size:12px;color:#999;">打印时间：${formatDateCN(new Date())}</div>
+<div class="print-hint">按 Ctrl+P 可导出为 PDF 打印</div>
+</body>
+</html>`
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const w = window.open(url, '_blank')
+  if (w) {
+    w.document.title = `出差登记表_${applicant}_${destination}`
+  } else {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `出差登记表_${row.id}.html`
+    a.click()
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60000)
+}
+
+export const exportEntertainmentFormHTML = (row: any, department?: string) => {
+  const formatDateCN = (d: any) => {
+    if (!d) return ''
+    const dt = new Date(d)
+    return `${dt.getFullYear()}年${dt.getMonth() + 1}月${dt.getDate()}日`
+  }
+  const applicant = row.applicant || ''
+  const guestName = row.guestName || ''
+  const guestUnit = row.guestUnit || ''
+  const guestCount = row.guestCount || ''
+  const expenseType = row.expenseType || ''
+  const expenseAmount = row.expenseAmount || ''
+  const expenseDate = row.expenseDate || ''
+  const purpose = row.purpose || ''
+  const location = row.location || ''
+  const approveRows = buildApproveRows(row, 2, 1)
+  const numberToCN = (n: string) => {
+    if (!n) return ''
+    const digits = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']
+    const units = ['', '拾', '佰', '仟']
+    const bigUnits = ['', '万', '亿']
+    const parts = n.split('.')
+    let intPart = parseInt(parts[0] || '0', 10)
+    let decPart = parts[1] || ''
+    if (intPart === 0 && !decPart) return '零元整'
+    let result = ''
+    let groupIdx = 0
+    while (intPart > 0) {
+      const group = intPart % 10000
+      if (group > 0) {
+        let groupStr = ''
+        let g = group
+        let u = 0
+        while (g > 0) {
+          const d = g % 10
+          if (d > 0) groupStr = digits[d] + units[u] + groupStr
+          else if (groupStr) groupStr = '零' + groupStr
+          g = Math.floor(g / 10)
+          u++
+        }
+        result = groupStr + bigUnits[groupIdx] + result
+      } else if (result && !result.startsWith('零')) {
+        result = '零' + result
+      }
+      intPart = Math.floor(intPart / 10000)
+      groupIdx++
+    }
+    result += '元'
+    if (decPart) {
+      const jiao = parseInt(decPart[0] || '0', 10)
+      const fen = parseInt(decPart[1] || '0', 10)
+      if (jiao > 0) result += digits[jiao] + '角'
+      else if (fen > 0 && result) result += '零'
+      if (fen > 0) result += digits[fen] + '分'
+      else if (jiao === 0) result += '整'
+    } else {
+      result += '整'
+    }
+    return result
+  }
+
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>业务招待费申请表 #${row.id}</title>
+<style>
+  @page { margin: 10mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "SimSun", "宋体", serif; color: #000; font-size: 14px; background: #fff; }
+  .form-wrap { max-width: 750px; margin: 20px auto; border: 2px solid #000; padding: 0; background: #fff; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  td { border: 1px solid #000; padding: 8px 10px; vertical-align: middle; }
+  .company-cell { text-align: center; font-size: 12px; color: #666; padding: 4px; letter-spacing: 2px; border-bottom: none; }
+  .title-cell { text-align: center; font-size: 22px; font-weight: bold; letter-spacing: 8px; padding: 14px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
+  .label { font-weight: bold; white-space: nowrap; width: 110px; background: #f5f5f5; text-align: center; }
+  .reason-cell { min-height: 50px; line-height: 1.8; padding: 12px 10px; }
+  .approve-header td { background: #eaeaea; font-weight: bold; text-align: center; padding: 6px 10px; }
+  .print-hint { text-align: center; margin-top: 10px; font-size: 11px; color: #aaa; }
+  @media print { .print-hint { display: none; } body { padding: 0; } .form-wrap { margin: 0 auto; } }
+</style>
+</head>
+<body>
+<div class="form-wrap">
+<table>
+  <tr><td colspan="4" class="company-cell">内蒙古宏友软件技术服务有限公司</td></tr>
+  <tr><td colspan="4" class="title-cell">业 务 招 待 费 申 请 表</td></tr>
+  <tr>
+    <td class="label">申请部门</td>
+    <td colspan="3">${department || ''}</td>
+  </tr>
+  <tr>
+    <td class="label">申请人</td>
+    <td>${applicant}</td>
+    <td class="label">申请时间</td>
+    <td>${formatDateCN(expenseDate) || '　　年　月　日'}</td>
+  </tr>
+  <tr>
+    <td class="label">招待单位</td>
+    <td>${guestUnit || guestName || '　'}</td>
+    <td class="label">招待人数</td>
+    <td>${guestCount} 人</td>
+  </tr>
+  <tr>
+    <td class="label">招待事由</td>
+    <td colspan="3" class="reason-cell">${purpose || '（未填写）'}</td>
+  </tr>
+  <tr>
+    <td class="label">招待时间</td>
+    <td colspan="3">${formatDateCN(expenseDate) || '　　年　月　日'}</td>
+  </tr>
+  <tr>
+    <td class="label">场　所</td>
+    <td colspan="3">${location || '　'}</td>
+  </tr>
+  <tr>
+    <td class="label">预计金额</td>
+    <td colspan="1">小写：¥ ${expenseAmount}</td>
+    <td colspan="2">大写：${numberToCN(String(expenseAmount))}</td>
+  </tr>
+  <tr>
+    <td class="label">费用类型</td>
+    <td colspan="3">${expenseType || '　'}</td>
+  </tr>
+  <tr class="approve-header">
+    <td>审批人</td>
+    <td colspan="2">审批结果</td>
+    <td>审批意见</td>
+  </tr>
+  ${approveRows}
+  <tr>
+    <td class="label">部门负责人签字</td>
+    <td colspan="3" style="height:36px;">　</td>
+  </tr>
+  <tr>
+    <td class="label">财务负责人签字</td>
+    <td colspan="3" style="height:36px;">　</td>
+  </tr>
+  <tr>
+    <td class="label">总经理签字</td>
+    <td colspan="3" style="height:36px;">　</td>
+  </tr>
+  <tr>
+    <td class="label">备　注</td>
+    <td colspan="3">招待完毕后凭发票报销。</td>
+  </tr>
+</table>
+</div>
+<div class="print-hint">按 Ctrl+P 可导出为 PDF 打印</div>
+</body>
+</html>`
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const w = window.open(url, '_blank')
+  if (w) {
+    w.document.title = `业务招待费申请表_${applicant}_${guestName}`
+  } else {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `业务招待费申请表_${row.id}.html`
+    a.click()
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60000)
+}
+
+export const exportReimbursementFormHTML = (row: any, department?: string) => {
+  const formatDateCN = (d: any) => {
+    if (!d) return ''
+    const dt = new Date(d)
+    return `${dt.getFullYear()}年${dt.getMonth() + 1}月${dt.getDate()}日`
+  }
+  const formatDateShort = (d: any) => {
+    if (!d) return ''
+    const dt = new Date(d)
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+  }
+
+  const reimburseType = row.reimburseType || ''
+  const reason = row.reason || ''
+  const amount = row.amount || ''
+  const reimburseDate = formatDateCN(row.reimburseDate)
+  const reimburseDateShort = formatDateShort(row.reimburseDate)
+  const approver = row.approver || ''
+  const comment = row.comment || ''
+
+  const isTravel = /差旅|出差/.test(reimburseType)
+  const title = isTravel ? '差 旅 费 报 销 单' : '报 销 单'
+
+  const approveRows = buildApproveRows(row, 2, 2)
+
+  const travelDetailsTable = isTravel ? `
+  <tr>
+    <td colspan="5" style="padding:8px 10px;border:1px solid #000;font-weight:bold;background:#f5f5f5;">报 销 明 细</td>
+  </tr>
+  <tr style="background:#fafafa;">
+    <td style="padding:6px 10px;border:1px solid #000;text-align:center;font-weight:bold;width:15%;">日　期</td>
+    <td style="padding:6px 10px;border:1px solid #000;text-align:center;font-weight:bold;width:18%;">起　点</td>
+    <td style="padding:6px 10px;border:1px solid #000;text-align:center;font-weight:bold;width:18%;">终　点</td>
+    <td style="padding:6px 10px;border:1px solid #000;text-align:center;font-weight:bold;width:33%;">交通费 / 住宿费 / 其他费用</td>
+    <td style="padding:6px 10px;border:1px solid #000;text-align:center;font-weight:bold;width:16%;">合　计</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 10px;border:1px solid #000;text-align:center;">${reimburseDateShort || '　'}</td>
+    <td style="padding:6px 10px;border:1px solid #000;">　</td>
+    <td style="padding:6px 10px;border:1px solid #000;">　</td>
+    <td style="padding:6px 10px;border:1px solid #000;">　</td>
+    <td style="padding:6px 10px;border:1px solid #000;text-align:right;">　</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 10px;border:1px solid #000;text-align:center;">　</td>
+    <td style="padding:6px 10px;border:1px solid #000;">　</td>
+    <td style="padding:6px 10px;border:1px solid #000;">　</td>
+    <td style="padding:6px 10px;border:1px solid #000;">　</td>
+    <td style="padding:6px 10px;border:1px solid #000;text-align:right;">　</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 10px;border:1px solid #000;text-align:center;">　</td>
+    <td style="padding:6px 10px;border:1px solid #000;">　</td>
+    <td style="padding:6px 10px;border:1px solid #000;">　</td>
+    <td style="padding:6px 10px;border:1px solid #000;">　</td>
+    <td style="padding:6px 10px;border:1px solid #000;text-align:right;">　</td>
+  </tr>
+  <tr>
+    <td colspan="4" style="padding:6px 10px;border:1px solid #000;text-align:right;font-weight:bold;background:#fafafa;">合　计　金　额</td>
+    <td style="padding:6px 10px;border:1px solid #000;text-align:right;font-weight:bold;font-size:15px;color:#c00;">¥ ${amount}</td>
+  </tr>` : `
+  <tr>
+    <td class="label">报销金额</td>
+    <td colspan="4" style="padding:8px 10px;border:1px solid #000;font-size:16px;font-weight:bold;color:#c00;">¥ ${amount}</td>
+  </tr>`
+
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>${title} #${row.id}</title>
+<style>
+  @page { margin: 10mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "SimSun", "宋体", serif; color: #000; font-size: 14px; background: #fff; }
+  .form-wrap { max-width: 750px; margin: 20px auto; border: 2px solid #000; padding: 0; background: #fff; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  td { border: 1px solid #000; padding: 8px 10px; vertical-align: middle; }
+  .company-cell { text-align: center; font-size: 12px; color: #666; padding: 4px; letter-spacing: 2px; border-bottom: none; }
+  .title-cell { text-align: center; font-size: 22px; font-weight: bold; letter-spacing: 8px; padding: 14px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
+  .label { font-weight: bold; white-space: nowrap; width: 90px; background: #f5f5f5; text-align: center; }
+  .reason-cell { min-height: 80px; line-height: 1.8; padding: 12px 10px; }
+  .approve-header td { background: #eaeaea; font-weight: bold; text-align: center; padding: 6px 10px; }
+  .print-hint { text-align: center; margin-top: 10px; font-size: 11px; color: #aaa; }
+  @media print {
+    .print-hint { display: none; }
+    body { padding: 0; }
+    .form-wrap { margin: 0 auto; }
+  }
+</style>
+</head>
+<body>
+<div class="form-wrap">
+<table>
+  <tr><td colspan="5" class="company-cell">内蒙古宏友软件技术服务有限公司</td></tr>
+  <tr><td colspan="5" class="title-cell">${title}</td></tr>
+  <tr>
+    <td class="label">单据编号</td>
+    <td colspan="2">#${row.id || ''}</td>
+    <td class="label">报销日期</td>
+    <td>${reimburseDate || '　'}</td>
+  </tr>
+  <tr>
+    <td class="label">报销人</td>
+    <td colspan="2">${row.applicant || ''}</td>
+    <td class="label">部　门</td>
+    <td>${department || ''}</td>
+  </tr>
+  <tr>
+    <td class="label">报销类型</td>
+    <td colspan="4">${reimburseType || ''}</td>
+  </tr>
+  <tr>
+    <td class="label">报销事由</td>
+    <td colspan="4" class="reason-cell">${reason || '（未填写）'}</td>
+  </tr>
+  ${travelDetailsTable}
+  ${approveRows}
+  <tr>
+    <td class="label">申请人签字</td>
+    <td colspan="2" style="height:40px;">　</td>
+    <td class="label">日　期</td>
+    <td>　</td>
+  </tr>
+</table>
+</div>
+<div class="print-hint">按 Ctrl+P 可导出为 PDF 打印</div>
+</body>
+</html>`
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const w = window.open(url, '_blank')
+  if (w) {
+    w.document.title = `${title}_${row.applicant}_${reimburseDateShort}`
+  } else {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${title}_${row.id}.html`
+    a.click()
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60000)
+}
+
 export const getStatDetailTypeLabel = (type: string) => {
   const typeMap: Record<string, string> = {
     'project': '项目申请',
@@ -350,8 +826,6 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
   const leaveType = getLeaveTypeCN(row.leaveType)
   const days = row.days || '-'
   const reason = row.reason || ''
-  const approver = row.approver || ''
-  const comment = row.comment || ''
 
   const yearS = startDate ? new Date(startDate).getFullYear() : ''
   const monthS = startDate ? new Date(startDate).getMonth() + 1 : ''
@@ -362,20 +836,7 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
 
   const typeList = ['病假', '事假', '年假', '婚假', '产假', '丧假', '其他']
 
-  const resultEntries = (row.result || '').split(';').filter(Boolean).map((entry: string) => {
-    const idx = entry.indexOf(':')
-    return idx > 0 ? { name: entry.substring(0, idx).trim(), action: entry.substring(idx + 1).trim() } : null
-  }).filter(Boolean)
-
-  const commentEntries = (row.comment || '').split('\n---\n').filter(Boolean).map((entry: string) => {
-    const idx = entry.indexOf(':')
-    return idx > 0 ? { name: entry.substring(0, idx).trim(), text: entry.substring(idx + 1).trim() } : { name: '', text: entry.trim() }
-  })
-
-  const approveRows = resultEntries.map((r: any) => {
-    const matchComment = commentEntries.find((c: any) => c.name === r.name)
-    return `<tr><td style="padding:6px 10px;border:1px solid #000;">${r.name}</td><td style="padding:6px 10px;border:1px solid #000;">${r.action === '批准' ? '✓ 批准' : r.action === '拒绝' ? '✗ 拒绝' : r.action}</td><td colspan="2" style="padding:6px 10px;border:1px solid #000;">${matchComment ? matchComment.text : ''}</td></tr>`
-  }).join('')
+  const approveRows = buildApproveRows(row, 1, 2)
 
   const html = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -405,7 +866,7 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
 <body>
 <div class="form-wrap">
 <table>
-  <tr><td colspan="4" class="company-cell">宏友软件</td></tr>
+  <tr><td colspan="4" class="company-cell">内蒙古宏友软件技术服务有限公司</td></tr>
   <tr><td colspan="4" class="title-cell">请 假 申 请 单<br/><span style="font-size:13px;font-weight:normal;letter-spacing:1px;color:#666;">${formatDateCN(startDate) || ''}</span></td></tr>
   <tr>
     <td class="label">申请人</td>
@@ -429,7 +890,7 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
     <td class="label">请假原因</td>
     <td colspan="3" class="reason-cell">${reason || '（未填写）'}</td>
   </tr>
-  ${approveRows ? `<tr class="approve-header"><td>审批人</td><td>审批结果</td><td colspan="2">审批意见</td></tr>${approveRows}` : `<tr><td class="label">审批人</td><td>${approver || '未指定'}</td><td class="label">审批意见</td><td>${comment || ''}</td></tr>`}
+  ${approveRows}
 </table>
 </div>
 <div class="print-hint">按 Ctrl+P 可导出为 PDF 打印</div>

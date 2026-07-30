@@ -561,7 +561,10 @@ import {
   getStatDetailName,
   exportToCSV,
   exportSingleRow,
-  exportLeaveFormHTML
+  exportLeaveFormHTML,
+  exportReimbursementFormHTML,
+  exportBusinessTripFormHTML,
+  exportEntertainmentFormHTML
 } from '../utils/oaWorkflowUtils'
 
 import LeavePanel from '../components/LeavePanel.vue'
@@ -714,11 +717,28 @@ const exportDistributedData = () => {
 }
 
 const exportDistributedRow = (row: any) => {
+  const getDept = (applicant: string) => {
+    const emp = allEmployees.value.find((e: any) => extractRealName(e.name) === extractRealName(applicant))
+    return emp?.department || ''
+  }
   if (row.applicationType === 'leave') {
-    const emp = allEmployees.value.find((e: any) => extractRealName(e.name) === extractRealName(row.applicant))
-    const dept = emp?.department || ''
     const original = [...leaveRecords.value, ...allLeaveRecords.value].find((l: any) => String(l.id) === String(row.applicationId))
-    exportLeaveFormHTML(original || row, dept)
+    exportLeaveFormHTML(original || row, getDept(row.applicant))
+    return
+  }
+  if (row.applicationType === 'reimbursement') {
+    const original = [...reimbursementRecords.value, ...allReimbursementRecords.value].find((r: any) => String(r.id) === String(row.applicationId))
+    exportReimbursementFormHTML(original || row, getDept(row.applicant))
+    return
+  }
+  if (row.applicationType === 'businessTrip') {
+    const original = [...businessTripRecords.value, ...allBusinessTripRecords.value].find((r: any) => String(r.id) === String(row.applicationId))
+    exportBusinessTripFormHTML(original || row, getDept(row.applicant))
+    return
+  }
+  if (row.applicationType === 'entertainment') {
+    const original = [...entertainmentRecords.value, ...allEntertainmentRecords.value].find((r: any) => String(r.id) === String(row.applicationId))
+    exportEntertainmentFormHTML(original || row, getDept(row.applicant))
     return
   }
   const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '处理状态', '下发说明', '处理说明']
@@ -1061,7 +1081,7 @@ const getApplicationDetailHtml = (row: any) => {
   } else if (type === 'businessTrip') {
     detailHtml = `<p><strong>目的地：</strong>${row.destination || '-'}</p><p><strong>出差天数：</strong>${formatDays(row.days)}</p>`
   } else if (type === 'entertainment') {
-    detailHtml = `<p><strong>客户名称：</strong>${row.guestName || '-'}</p><p><strong>招待金额：</strong>¥${row.expenseAmount || 0}</p>`
+    detailHtml = `<p><strong>客户名称：</strong>${row.guestName || '-'}</p><p><strong>招待单位：</strong>${row.guestUnit || '-'}</p><p><strong>场　所：</strong>${row.location || '-'}</p><p><strong>招待金额：</strong>¥${row.expenseAmount || 0}</p>`
   }
   return detailHtml
 }
@@ -1214,15 +1234,20 @@ const loadProjectRecords = async () => {
 
 const loadBusinessTripRecords = async () => {
   try {
-    const response = await getBusinessTrips()
+    const response = await getBusinessTrips({ pageSize: 9999 })
     if (response.success && response.data && response.data.list) {
       businessTripRecords.value = filterUserRecords(response.data.list.map((item: any) => ({
         ...item,
         applicant: item.applicant_name,
         destination: item.destination || '',
         tripType: item.trip_type || '',
+        companion: (() => { try { const d = item.accompany_persons || item.accompanyPersons || ''; const p = typeof d === 'string' ? JSON.parse(d) : d; if (Array.isArray(p)) return p.map((id: any) => { const e = allEmployees.value.find((x: any) => String(x.id) === String(id)); return e ? extractRealName(e.name) : String(id) }).join('、'); return String(d) } catch { return '' } })(),
+        purpose: item.purpose || item.reason || '',
+        startDate: item.start_date || item.startDate || '',
+        endDate: item.end_date || item.endDate || '',
         submitDate: item.created_at?.substring(0, 10) || '',
-        estimatedCost: item.estimated_cost || item.estimatedCost || 0
+        estimatedCost: item.estimated_cost || item.estimatedCost || 0,
+        approver: item.approver || ''
       })))
     }
   } catch (error) {
@@ -1295,16 +1320,21 @@ const loadAllProjectRecords = async () => {
 
 const loadAllBusinessTripRecords = async () => {
   try {
-    const response = await getBusinessTrips()
+    const response = await getBusinessTrips({ pageSize: 9999 })
     if (response.success && response.data && response.data.list) {
       allBusinessTripRecords.value = response.data.list.map((item: any) => ({
         ...item,
         applicant: item.applicant_name,
         destination: item.destination || '',
         tripType: item.trip_type || '',
+        companion: (() => { try { const d = item.accompany_persons || item.accompanyPersons || ''; const p = typeof d === 'string' ? JSON.parse(d) : d; if (Array.isArray(p)) return p.map((id: any) => { const e = allEmployees.value.find((x: any) => String(x.id) === String(id)); return e ? extractRealName(e.name) : String(id) }).join('、'); return String(d) } catch { return '' } })(),
+        purpose: item.purpose || item.reason || '',
+        startDate: item.start_date || item.startDate || '',
+        endDate: item.end_date || item.endDate || '',
         submitDate: item.created_at?.substring(0, 10) || '',
         estimatedCost: item.estimated_cost || item.estimatedCost || 0,
-        distributedUsers: []
+        distributedUsers: [],
+        approver: item.approver || ''
       }))
     }
   } catch (error) {
@@ -1377,10 +1407,10 @@ const enrichDistributedRecord = (record: any) => {
       if (proj) extra = { projectName: proj.projectName, projectType: proj.projectType }
     } else if (type === 'businessTrip') {
       const trip = [...businessTripRecords.value, ...allBusinessTripRecords.value].find((t: any) => String(t.id) === String(aid))
-      if (trip) extra = { destination: trip.destination, days: trip.days }
+      if (trip) extra = { destination: trip.destination, days: trip.days, approver: trip.approver }
     } else if (type === 'entertainment') {
       const ent = [...entertainmentRecords.value, ...allEntertainmentRecords.value].find((e: any) => String(e.id) === String(aid))
-      if (ent) extra = { guestName: ent.guestName, expenseAmount: ent.expenseAmount }
+      if (ent) extra = { guestName: ent.guestName, guestUnit: ent.guestUnit, location: ent.location, expenseAmount: ent.expenseAmount }
     }
   }
   return { ...record, ...extra }

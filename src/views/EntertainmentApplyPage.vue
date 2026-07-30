@@ -34,6 +34,18 @@
 
             <el-row :gutter="20">
               <el-col :span="12">
+                <el-form-item label="招待单位">
+                  <el-input v-model="form.guestUnit" placeholder="请输入招待单位" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="场　所">
+                  <el-input v-model="form.location" placeholder="请输入招待场所" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="20">
+              <el-col :span="12">
                 <el-form-item label="费用类型" prop="expenseType">
                   <el-select v-model="form.expenseType" placeholder="请选择" style="width: 100%">
                     <el-option label="餐饮" value="餐饮" />
@@ -200,6 +212,8 @@ const selectedApprover = computed(() => {
 
 const form = reactive({
   guestName: '',
+  guestUnit: '',
+  location: '',
   guestCount: 1,
   expenseType: '',
   expenseAmount: 0,
@@ -245,6 +259,8 @@ const submitForm = async () => {
         const data = {
           applicant: username,
           guestName: form.guestName,
+          guestUnit: form.guestUnit,
+          location: form.location,
           guestCount: form.guestCount,
           expenseType: form.expenseType,
           expenseAmount: form.expenseAmount,

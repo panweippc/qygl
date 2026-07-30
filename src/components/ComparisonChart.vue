@@ -55,8 +55,8 @@ const initChart = async () => {
   }
 
   try {
-    const businessTripResponse = await getBusinessTrips()
-    businessTripCount = businessTripResponse.success && Array.isArray(businessTripResponse.data) ? businessTripResponse.data.length : 0
+    const businessTripResponse = await getBusinessTrips({ pageSize: 9999 })
+    businessTripCount = businessTripResponse.success && businessTripResponse.data?.list?.length ? businessTripResponse.data.list.length : 0
   } catch (error) {
     console.error('获取出差申请数据失败:', error)
   }

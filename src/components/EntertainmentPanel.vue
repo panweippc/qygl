@@ -53,6 +53,12 @@
           <template #default="{ row }">{{ extractRealName(row.applicant) }}</template>
         </el-table-column>
         <el-table-column prop="guestName" label="招待对象" width="140" />
+        <el-table-column label="招待单位">
+          <template #default="{ row }">{{ row.guestUnit || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="场　所">
+          <template #default="{ row }">{{ row.location || '-' }}</template>
+        </el-table-column>
         <el-table-column prop="expenseType" label="费用类型" width="100">
           <template #default="{ row }"><span class="type-tag" :class="'type-' + row.expenseType">{{ row.expenseType }}</span></template>
         </el-table-column>
@@ -136,6 +142,18 @@
             </el-row>
             <el-row :gutter="24">
               <el-col :span="12">
+                <el-form-item label="招待单位">
+                  <el-input v-model="entertainmentForm.guestUnit" placeholder="请输入招待单位" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="场　所">
+                  <el-input v-model="entertainmentForm.location" placeholder="请输入招待场所" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="24">
+              <el-col :span="12">
                 <el-form-item label="费用类型" prop="expenseType">
                   <el-select v-model="entertainmentForm.expenseType" placeholder="请选择" style="width: 100%">
                     <el-option label="餐饮" value="餐饮" />
@@ -187,7 +205,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getEntertainmentExpenses, addEntertainmentExpense, updateEntertainmentExpense } from '../services/api'
-import { extractRealName, formatDate, getStatusClass, getStatusText, exportToCSV, exportSingleRow } from '../utils/oaWorkflowUtils'
+import { extractRealName, formatDate, getStatusClass, getStatusText, exportToCSV, exportSingleRow, exportEntertainmentFormHTML } from '../utils/oaWorkflowUtils'
 
 const props = defineProps<{
   isAdmin: boolean
@@ -216,7 +234,7 @@ const entertainmentYearDate = ref(null)
 const entertainmentDialogVisible = ref(false)
 const entertainmentRecords = ref<any[]>([])
 
-const entertainmentForm = ref({ guestName: '', guestCount: 1, expenseType: '', expenseAmount: '', expenseDate: '', purpose: '', approver: '总经理' })
+const entertainmentForm = ref({ guestName: '', guestUnit: '', location: '', guestCount: 1, expenseType: '', expenseAmount: '', expenseDate: '', purpose: '', approver: '总经理' })
 
 const entertainmentRules = {
   guestName: [{ required: true, message: '请输入招待对象', trigger: 'blur' }],
@@ -306,6 +324,8 @@ const submitEntertainmentApplication = async () => {
         const data = {
           applicant: currentUsername.value,
           guestName: entertainmentForm.value.guestName,
+          guestUnit: entertainmentForm.value.guestUnit,
+          location: entertainmentForm.value.location,
           guestCount: entertainmentForm.value.guestCount,
           expenseType: entertainmentForm.value.expenseType,
           expenseAmount: entertainmentForm.value.expenseAmount,
@@ -366,16 +386,14 @@ const exportEntertainmentData = () => {
   if (entertainmentPersonFilter.value !== 'all' && entertainmentPersonFilter.value) fileName += `_${entertainmentPersonFilter.value}`
   exportToCSV(
     data, fileName,
-    ['编号', '申请人', '招待对象', '招待人数', '费用类型', '费用金额', '招待日期', '招待事由', '审批状态', '审批人', '提交时间'],
-    ['id', 'applicant', 'guestName', 'guestCount', 'expenseType', 'expenseAmount', 'expenseDate', 'purpose', 'status', 'approver', 'submitDate']
+    ['编号', '申请人', '招待对象', '招待单位', '场所', '招待人数', '费用类型', '费用金额', '招待日期', '招待事由', '审批状态', '审批人', '提交时间'],
+    ['id', 'applicant', 'guestName', 'guestUnit', 'location', 'guestCount', 'expenseType', 'expenseAmount', 'expenseDate', 'purpose', 'status', 'approver', 'submitDate']
   )
 }
 
 const exportEntertainmentRow = (row: any) => {
-  exportSingleRow(row, '业务招待费_' + row.id,
-    ['编号', '申请人', '招待对象', '招待人数', '费用类型', '费用金额', '招待日期', '招待事由', '审批状态', '审批人', '提交时间'],
-    ['id', 'applicant', 'guestName', 'guestCount', 'expenseType', 'expenseAmount', 'expenseDate', 'purpose', 'status', 'approver', 'submitDate']
-  )
+  const dept = props.allEmployees.find((e: any) => extractRealName(e.name) === extractRealName(row.applicant))?.department || ''
+  exportEntertainmentFormHTML(row, dept)
 }
 
 onMounted(() => { fetchData() })

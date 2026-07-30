@@ -52,11 +52,14 @@
             <span class="destination">{{ row.destination }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="tripType" label="出差类型">
+        <el-table-column label="同行人员" min-width="120">
           <template #default="{ row }">
-            <span class="type-tag" :class="getTripTypeClass(row.tripType)">
-              {{ row.tripType }}
-            </span>
+            <span>{{ row.companion || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="出差意向" min-width="120">
+          <template #default="{ row }">
+            <span>{{ row.purpose || row.reason || '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="days" label="天数" width="80">
@@ -83,6 +86,7 @@
             {{ row.approver || '-' }}
           </template>
         </el-table-column>
+
         <el-table-column label="提交时间" width="100">
           <template #default="{ row }">
             {{ formatDate(row.submitDate, false) }}
@@ -247,7 +251,8 @@ import {
   getStatusText,
   getTripTypeClass,
   exportToCSV,
-  exportSingleRow
+  exportSingleRow,
+  exportBusinessTripFormHTML
 } from '../utils/oaWorkflowUtils'
 
 const router = useRouter()
@@ -325,11 +330,12 @@ const isDistributed = (row: any, type: string): boolean => {
 
 const loadBusinessTripRecords = async () => {
   try {
-    const response = await getBusinessTrips()
+    const response = await getBusinessTrips({ pageSize: 9999 })
     if (response.success && response.data && response.data.list) {
       const filteredData = response.data.list.filter((item: any) => {
         return extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':'))
       })
+      console.log('原始出差数据字段:', Object.keys(filteredData[0] || {}).join(','), 'approver值:', filteredData[0]?.approver, 'approver_id:', filteredData[0]?.approver_id)
       businessTripRecords.value = filteredData.map((item: any) => {
         let destination = item.destination ? String(item.destination) : ''
         let tripType = item.trip_type ? String(item.trip_type) : ''
@@ -354,8 +360,13 @@ const loadBusinessTripRecords = async () => {
           applicant: item.applicant_name,
           destination: destination,
           tripType: tripType,
+          companion: (() => { try { const d = item.accompany_persons || item.accompanyPersons || ''; const p = typeof d === 'string' ? JSON.parse(d) : d; if (Array.isArray(p)) return p.map((id: any) => { const e = props.allEmployees.find((x: any) => String(x.id) === String(id)); return e ? extractRealName(e.name) : String(id) }).join('、'); return String(d) } catch { return '' } })(),
+          purpose: item.purpose || item.reason || '',
+          startDate: item.start_date || item.startDate || '',
+          endDate: item.end_date || item.endDate || '',
           submitDate: item.created_at?.substring(0, 10) || '',
-          estimatedCost: item.estimated_cost || item.estimatedCost || 0
+          estimatedCost: item.estimated_cost || item.estimatedCost || 0,
+          approver: item.approver || ''
         }
       })
     }
@@ -366,7 +377,7 @@ const loadBusinessTripRecords = async () => {
 
 const loadAllBusinessTripRecords = async () => {
   try {
-    const response = await getBusinessTrips()
+    const response = await getBusinessTrips({ pageSize: 9999 })
     if (response.success && response.data && response.data.list) {
       allBusinessTripRecords.value = response.data.list.map((item: any) => {
         let destination = item.destination ? String(item.destination) : ''
@@ -392,9 +403,14 @@ const loadAllBusinessTripRecords = async () => {
           applicant: item.applicant_name,
           destination: destination,
           tripType: tripType,
+          companion: (() => { try { const d = item.accompany_persons || item.accompanyPersons || ''; const p = typeof d === 'string' ? JSON.parse(d) : d; if (Array.isArray(p)) return p.map((id: any) => { const e = props.allEmployees.find((x: any) => String(x.id) === String(id)); return e ? extractRealName(e.name) : String(id) }).join('、'); return String(d) } catch { return '' } })(),
+          purpose: item.purpose || item.reason || '',
+          startDate: item.start_date || item.startDate || '',
+          endDate: item.end_date || item.endDate || '',
           submitDate: item.created_at?.substring(0, 10) || '',
           estimatedCost: item.estimated_cost || item.estimatedCost || 0,
-          distributedUsers: []
+          distributedUsers: [],
+          approver: item.approver || ''
         }
       })
       allBusinessTripRecords.value = allBusinessTripRecords.value.map((item: any) => ({
@@ -470,10 +486,8 @@ const exportBusinessTripData = () => {
 }
 
 const exportBusinessTripRow = (row: any) => {
-  exportSingleRow(row, '出差申请_' + row.id,
-    ['申请编号', '申请人', '目的地', '出差类型', '出差天数', '预估费用', '审批状态', '提交时间'],
-    ['id', 'applicant', 'destination', 'tripType', 'days', 'estimatedCost', 'status', 'submitDate']
-  )
+  const dept = props.allEmployees.find((e: any) => extractRealName(e.name) === extractRealName(row.applicant))?.department || ''
+  exportBusinessTripFormHTML(row, dept)
 }
 
 onMounted(() => {
