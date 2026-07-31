@@ -15,6 +15,21 @@ router.get('/reimbursements', async (req, res) => {
   }
 });
 
+// 获取单个报销记录
+router.get('/reimbursements/:id', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const [records] = await pool.execute('SELECT * FROM reimbursements WHERE id = ?', [req.params.id]);
+    if (records.length === 0) {
+      return res.status(404).json({ success: false, message: '报销记录不存在' });
+    }
+    res.json({ success: true, data: records[0] });
+  } catch (error) {
+    console.error('获取报销记录详情失败:', error);
+    res.status(500).json({ success: false, message: '获取报销记录详情失败' });
+  }
+});
+
 // 提交报销申请
 router.post('/reimbursements', async (req, res) => {
   const { applicant, reimburseType, amount, reimburseDate, reason, approver, attachments } = req.body;

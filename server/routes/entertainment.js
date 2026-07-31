@@ -14,6 +14,20 @@ router.get('/entertainment-expenses', async (req, res) => {
   }
 });
 
+router.get('/entertainment-expenses/:id', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const [records] = await pool.execute('SELECT * FROM entertainment_expenses WHERE id = ?', [req.params.id]);
+    if (records.length === 0) {
+      return res.status(404).json({ success: false, message: '业务招待费记录不存在' });
+    }
+    res.json({ success: true, data: records[0] });
+  } catch (error) {
+    console.error('获取业务招待费记录详情失败:', error);
+    res.status(500).json({ success: false, message: '获取业务招待费记录详情失败' });
+  }
+});
+
 router.post('/entertainment-expenses', async (req, res) => {
   const { applicant, guestName, guestUnit, location, guestCount, expenseType, expenseAmount, expenseDate, purpose, approver } = req.body;
   try {

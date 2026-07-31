@@ -1298,6 +1298,26 @@ const initDatabase = async () => {
       console.log('detail字段检查/添加结果:', alterError.message);
     }
 
+    // 检查并添加approver字段
+    try {
+      const [columns] = await connection.execute(`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'distributed_records' AND COLUMN_NAME = 'approver'
+      `);
+
+      if (columns.length === 0) {
+        await connection.execute(`
+          ALTER TABLE distributed_records 
+          ADD COLUMN approver VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '审批人' AFTER applicant
+        `);
+        console.log('approver字段添加成功');
+      } else {
+        console.log('approver字段已存在');
+      }
+    } catch (alterError) {
+      console.log('approver字段检查/添加结果:', alterError.message);
+    }
+
     // 创建departments表（部门管理）
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS departments (
@@ -2089,6 +2109,7 @@ const createBusinessTripTable = async () => {
         accompany_persons TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
         customer_info TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
         status VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
+        approver VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
         current_step INT DEFAULT 1,
         current_approvers TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
         approval_history TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
@@ -2101,6 +2122,23 @@ const createBusinessTripTable = async () => {
         INDEX idx_dates (start_date, end_date)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    try {
+      await connection.execute(
+        `ALTER TABLE business_trip_applications ADD COLUMN approver VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER status`
+      );
+      console.log('出差申请表approver列迁移完成');
+    } catch (e) {
+      if (!e.message.includes('Duplicate column')) {
+        console.log('出差申请表approver列迁移:', e.message);
+      }
+    }
+    try {
+      await connection.execute(
+        `ALTER TABLE business_trip_applications MODIFY COLUMN days DECIMAL(5,1) NOT NULL`
+      );
+    } catch (e) {
+      console.log('出差表days列迁移:', e.message);
+    }
     connection.release();
     console.log('出差申请表创建成功');
   } catch (error) {

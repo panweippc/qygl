@@ -171,16 +171,14 @@
               >
                 终止
               </el-button>
-              <el-button
-                v-if="row.status === '已批准' && canDistribute"
+              <el-tag
+                v-if="row.status === '已批准' && canDistribute && isDistributed(row, 'leave')"
+                type="warning"
                 size="small"
-                :type="isDistributed(row, 'leave') ? 'warning' : 'success'"
-                :disabled="isDistributed(row, 'leave')"
-                @click="!isDistributed(row, 'leave') && $emit('distribute', row, 'leave')"
-                class="distribute-btn"
+                effect="plain"
               >
-                {{ isDistributed(row, 'leave') ? '已下发' : '下发' }}
-              </el-button>
+                已下发
+              </el-tag>
               <el-button
                 v-if="row.status === '审批中' && !isAdmin"
                 size="small"

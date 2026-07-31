@@ -127,16 +127,14 @@
               >
                 终止
               </el-button>
-              <el-button
-                v-if="(row.status === '已批准' || row.status === 'approved') && canDistribute"
+              <el-tag
+                v-if="(row.status === '已批准' || row.status === 'approved') && canDistribute && isDistributed(row, 'businessTrip')"
+                type="warning"
                 size="small"
-                :type="isDistributed(row, 'businessTrip') ? 'warning' : 'success'"
-                :disabled="isDistributed(row, 'businessTrip')"
-                @click="!isDistributed(row, 'businessTrip') && $emit('distribute', row, 'businessTrip')"
-                class="distribute-btn"
+                effect="plain"
               >
-                {{ isDistributed(row, 'businessTrip') ? '已下发' : '下发' }}
-              </el-button>
+                已下发
+              </el-tag>
               <el-button
                 v-if="(row.status === '审批中' || row.status === 'pending') && !isAdmin"
                 size="small"
@@ -212,15 +210,14 @@
             >
               终止
             </el-button>
-            <el-button
-              v-if="(row.status === '已批准' || row.status === 'approved') && canDistribute"
+            <el-tag
+              v-if="(row.status === '已批准' || row.status === 'approved') && canDistribute && isDistributed(row, 'businessTrip')"
+              type="warning"
               size="small"
-              :type="isDistributed(row, 'businessTrip') ? 'warning' : 'success'"
-              :disabled="isDistributed(row, 'businessTrip')"
-              @click="!isDistributed(row, 'businessTrip') && $emit('distribute', row, 'businessTrip')"
+              effect="plain"
             >
-              {{ isDistributed(row, 'businessTrip') ? '已下发' : '下发' }}
-            </el-button>
+              已下发
+            </el-tag>
             <el-button
               v-if="(row.status === '审批中' || row.status === 'pending') && !isAdmin"
               size="small"

@@ -454,9 +454,9 @@ router.post("/business-trips", async (req, res) => {
     finalDays = finalDays || 1;
 
     const [result] = await pool.query(
-      `INSERT INTO business_trip_applications
-       (trip_code, applicant_id, applicant_name, department, destination, trip_type, is_urgent, start_date, end_date, days, purpose, estimated_cost, itinerary, cost_breakdown, accommodation, transport, accompany_persons, customer_info, status, current_step, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, ?)`,
+       `INSERT INTO business_trip_applications
+        (trip_code, applicant_id, applicant_name, department, destination, trip_type, is_urgent, start_date, end_date, days, purpose, estimated_cost, itinerary, cost_breakdown, accommodation, transport, accompany_persons, customer_info, status, current_step, approver, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, ?, ?)`,
       [
         tripCode,
         applicantIdVal || '',
@@ -477,7 +477,8 @@ router.post("/business-trips", async (req, res) => {
         typeof accompanyPersons === 'object' ? JSON.stringify(accompanyPersons) : (accompany_persons || ''),
         typeof customerInfo === 'object' ? JSON.stringify(customerInfo) : (customer_info || ''),
         now,
-        now
+        now,
+        approverNameVal || null
       ]
     );
 

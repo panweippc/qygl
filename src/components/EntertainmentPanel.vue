@@ -88,6 +88,7 @@
           <template #default="{ row }">
             <div class="action-group">
               <el-button v-if="row.status === '审批中' && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))" size="small" type="primary" @click="handleApprove(row)" class="action-btn-small">审批</el-button>
+              <el-tag v-if="row.status === '已批准' && canDistribute && isDistributed(row, 'entertainment')" type="warning" size="small" effect="plain">已下发</el-tag>
               <el-button v-if="(row.status === '审批中' || row.status === 'pending') && !isAdmin" size="small" @click="cancelEntertainmentApplication(row)" class="cancel-btn">取消</el-button>
               <el-button v-if="row.status === '审批中' && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))" size="small" type="danger" @click="$emit('terminate', row, 'entertainment')" class="terminate-btn">终止</el-button>
               <el-button size="small" @click="$emit('view-detail', row, 'entertainment')" class="view-btn">详情</el-button>
@@ -115,6 +116,7 @@
           <span class="card-date">{{ row.submitDate }}</span>
           <div class="card-actions">
             <el-button v-if="row.status === '审批中' && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))" size="small" type="primary" @click="handleApprove(row)">审批</el-button>
+            <el-tag v-if="row.status === '已批准' && canDistribute && isDistributed(row, 'entertainment')" type="warning" size="small" effect="plain">已下发</el-tag>
             <el-button v-if="(row.status === '审批中' || row.status === 'pending') && !isAdmin" size="small" @click="cancelEntertainmentApplication(row)" class="cancel-btn">取消</el-button>
             <el-button v-if="row.status === '审批中' && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))" size="small" type="danger" @click="$emit('terminate', row, 'entertainment')">终止</el-button>
             <el-button size="small" @click="$emit('view-detail', row, 'entertainment')">详情</el-button>
@@ -209,11 +211,13 @@ import { extractRealName, formatDate, getStatusClass, getStatusText, exportToCSV
 
 const props = defineProps<{
   isAdmin: boolean
+  canDistribute: boolean
   currentUser: string
   searchKeyword: string
   viewMode: string
   allEmployees: any[]
   approverEmployees: any[]
+  allDistributedRecords: any[]
 }>()
 
 const emit = defineEmits<{
@@ -222,7 +226,14 @@ const emit = defineEmits<{
   'approve': [row: any, type: string]
   'terminate': [row: any, type: string]
   'view-detail': [row: any, type: string]
+  'distribute': [row: any, type: string]
 }>()
+
+const isDistributed = (row: any, type: string): boolean => {
+  return props.allDistributedRecords?.some(
+    (r: any) => Number(r.applicationId) === Number(row.id) && r.applicationType === type
+  )
+}
 
 const entertainmentFilter = ref('all')
 const entertainmentPersonFilter = ref('all')

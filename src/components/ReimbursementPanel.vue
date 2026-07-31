@@ -162,16 +162,14 @@
               >
                 终止
               </el-button>
-              <el-button
-                v-if="row.status === '已批准' && canDistribute"
+              <el-tag
+                v-if="row.status === '已批准' && canDistribute && isDistributed(row, 'reimbursement')"
+                type="warning"
                 size="small"
-                :type="isDistributed(row, 'reimbursement') ? 'warning' : 'success'"
-                :disabled="isDistributed(row, 'reimbursement')"
-                @click="!isDistributed(row, 'reimbursement') && $emit('distribute', row, 'reimbursement')"
-                class="distribute-btn"
+                effect="plain"
               >
-                {{ isDistributed(row, 'reimbursement') ? '已下发' : '下发' }}
-              </el-button>
+                已下发
+              </el-tag>
               <el-button
                 size="small"
                 @click="$emit('view-detail', row, 'reimbursement')"

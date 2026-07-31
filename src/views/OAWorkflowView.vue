@@ -187,6 +187,7 @@
               <EntertainmentPanel
                 ref="entertainmentPanelRef"
                 :isAdmin="isAdminComputed"
+                :canDistribute="canDistribute"
                 :currentUser="currentUsername"
                 :searchKeyword="searchKeyword"
                 :viewMode="viewMode"
@@ -272,12 +273,6 @@
                     <el-table-column prop="comment" label="下发说明" min-width="150">
                       <template #default="{ row }">
                         <span class="comment-text">{{ row.comment || '-' }}</span>
-                      </template>
-                    </el-table-column>
-                    <el-table-column prop="processComment" label="处理说明" min-width="150">
-                      <template #default="{ row }">
-                        <span v-if="row.status === '已处理'" class="process-comment-text">{{ row.processComment || row.comment || '-' }}</span>
-                        <span v-else class="no-process">-</span>
                       </template>
                     </el-table-column>
                     <el-table-column label="操作" width="200" fixed="right">
@@ -709,36 +704,73 @@ const getDistributedDetail = (row: any) => {
 }
 
 const exportDistributedData = () => {
-  const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '处理状态', '下发说明', '处理说明']
-  const fields = ['id', 'applicationType', 'applicationId', 'applicant', 'distributedBy', 'distributeDate', 'status', 'comment', 'processComment']
+  const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '处理状态', '申请详情', '下发说明', '处理说明']
+  const fields = ['id', 'applicationType', 'applicationId', 'applicant', 'distributedBy', 'distributeDate', 'status', 'detailText', 'comment', 'processComment']
   const filename = '下发管理'
-  const data = filteredDistributedRecords.value.length > 0 ? filteredDistributedRecords.value : distributedRecords.value
+  const data = (filteredDistributedRecords.value.length > 0 ? filteredDistributedRecords.value : distributedRecords.value)
+    .map((r: any) => ({ ...r, detailText: getDistributedDetail(r) }))
   exportToCSV(data, filename, headers, fields)
 }
 
-const exportDistributedRow = (row: any) => {
+const exportDistributedRow = async (row: any) => {
   const getDept = (applicant: string) => {
     const emp = allEmployees.value.find((e: any) => extractRealName(e.name) === extractRealName(applicant))
     return emp?.department || ''
   }
-  if (row.applicationType === 'leave') {
-    const original = [...leaveRecords.value, ...allLeaveRecords.value].find((l: any) => String(l.id) === String(row.applicationId))
-    exportLeaveFormHTML(original || row, getDept(row.applicant))
-    return
+  // 始终从API获取原始申请完整数据（解决财务等非申请人看不到审批结果的问题）
+  let appRecord: any = null
+  try {
+    const apiPaths: Record<string, { url: string; mapper?: (d: any) => any }> = {
+      leave:         { url: '/api/leave-applications' },
+      reimbursement: { url: '/api/reimbursements' },
+      businessTrip:  { url: '/api/business-trips', mapper: mapTripRecord },
+      entertainment: { url: '/api/entertainment-expenses' },
+      meeting:       { url: '/api/meetings' },
+      project:       { url: '/api/projects' }
+    }
+    const cfg = apiPaths[row.applicationType]
+    if (cfg) {
+      // 先尝试 GET /:id 单条获取
+      const singleRes = await fetch(`${cfg.url}/${row.applicationId}`)
+      if (singleRes.ok) {
+        const singleJson = await singleRes.json()
+        if (singleJson.success && singleJson.data) {
+          appRecord = cfg.mapper ? cfg.mapper(singleJson.data) : singleJson.data
+        }
+      }
+    }
+  } catch (e) { /* ignore */ }
+
+  // 单条未找到，回退：从列表API拉取全量找出匹配记录
+  if (!appRecord) {
+    try {
+      const cfg = apiPaths[row.applicationType]
+      if (cfg) {
+        const listRes = await fetch(`${cfg.url}?pageSize=9999`)
+        const listJson = await listRes.json()
+        if (listJson.success) {
+          const list = listJson.data?.list || listJson.data || []
+          const origin = list.find((item: any) => String(item.id) === String(row.applicationId))
+          appRecord = origin ? (cfg.mapper ? cfg.mapper(origin) : origin) : null
+        }
+      }
+    } catch (e) { /* ignore */ }
   }
-  if (row.applicationType === 'reimbursement') {
-    const original = [...reimbursementRecords.value, ...allReimbursementRecords.value].find((r: any) => String(r.id) === String(row.applicationId))
-    exportReimbursementFormHTML(original || row, getDept(row.applicant))
-    return
+
+  // 最终保底
+  appRecord = appRecord || { ...row, id: row.applicationId }
+
+  const typeActions: Record<string, (r: any, d: string) => void> = {
+    leave:         (r, d) => exportLeaveFormHTML(r, d),
+    reimbursement: (r, d) => exportReimbursementFormHTML(r, d),
+    businessTrip:  (r, d) => exportBusinessTripFormHTML(r, d),
+    entertainment: (r, d) => exportEntertainmentFormHTML(r, d),
+    meeting:       (r, d) => exportMeetingFormHTML(r, d),
+    project:       (r, d) => exportProjectFormHTML(r, d)
   }
-  if (row.applicationType === 'businessTrip') {
-    const original = [...businessTripRecords.value, ...allBusinessTripRecords.value].find((r: any) => String(r.id) === String(row.applicationId))
-    exportBusinessTripFormHTML(original || row, getDept(row.applicant))
-    return
-  }
-  if (row.applicationType === 'entertainment') {
-    const original = [...entertainmentRecords.value, ...allEntertainmentRecords.value].find((r: any) => String(r.id) === String(row.applicationId))
-    exportEntertainmentFormHTML(original || row, getDept(row.applicant))
+  const action = typeActions[row.applicationType]
+  if (action) {
+    action(appRecord, getDept(appRecord.applicant || row.applicant))
     return
   }
   const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '处理状态', '下发说明', '处理说明']
@@ -846,12 +878,7 @@ const approvalFormRef = ref()
 
 const openApprovalDialog = (row: any, type: string) => {
   currentApprovalItem.value = { ...row, type }
-  const applicant = extractRealName(row.applicant || row.organizer || '')
-  const defaults: string[] = [applicant].filter(Boolean)
-  if (type !== 'project' && type !== 'meeting') {
-    defaults.push('张海琼')
-  }
-  approvalForm.value = { id: row.id, type, comment: '', result: '', forwardToGM: false, distributeTargets: [...new Set(defaults)] }
+  approvalForm.value = { id: row.id, type, comment: '', result: '', forwardToGM: false, distributeTargets: ['张海琼'] }
   approvalDialogVisible.value = true
 }
 
@@ -926,10 +953,8 @@ const submitApproval = async () => {
       }
       ElMessage.success(approvalForm.value.forwardToGM ? '审批完成，已转发至总经理' : '审批已完成')
       approvalDialogVisible.value = false
+      await loadAllDistributedRecords()
       await refreshAllData()
-      if (isAdminComputed.value) {
-        await loadAllDistributedRecords()
-      }
     } else {
       ElMessage.error(response?.message || '审批失败')
     }
@@ -1232,23 +1257,41 @@ const loadProjectRecords = async () => {
   }
 }
 
+const mapTripRecord = (item: any) => {
+  const resolveNameById = (id: any) => {
+    const e = allEmployees.value.find((x: any) => String(x.id) === String(id))
+    return e ? extractRealName(e.name) : String(id)
+  }
+  const parseCompanion = () => {
+    try {
+      const raw = item.accompany_persons || item.accompanyPersons || ''
+      if (!raw) return ''
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+      if (Array.isArray(parsed)) return parsed.map(resolveNameById).join('、')
+      return String(raw)
+    } catch { return '' }
+  }
+  return {
+    ...item,
+    applicant: item.applicant_name,
+    destination: item.destination || '',
+    tripType: item.trip_type || '',
+    companion: parseCompanion(),
+    purpose: item.purpose || '',
+    startDate: item.start_date || '',
+    endDate: item.end_date || '',
+    submitDate: item.created_at?.substring(0, 10) || '',
+    estimatedCost: item.estimated_cost || item.estimatedCost || 0,
+    approver: item.approver || '',
+    approval_history: (() => { try { return typeof item.approval_history === 'string' ? JSON.parse(item.approval_history) : item.approval_history } catch { return [] } })()
+  }
+}
+
 const loadBusinessTripRecords = async () => {
   try {
     const response = await getBusinessTrips({ pageSize: 9999 })
     if (response.success && response.data && response.data.list) {
-      businessTripRecords.value = filterUserRecords(response.data.list.map((item: any) => ({
-        ...item,
-        applicant: item.applicant_name,
-        destination: item.destination || '',
-        tripType: item.trip_type || '',
-        companion: (() => { try { const d = item.accompany_persons || item.accompanyPersons || ''; const p = typeof d === 'string' ? JSON.parse(d) : d; if (Array.isArray(p)) return p.map((id: any) => { const e = allEmployees.value.find((x: any) => String(x.id) === String(id)); return e ? extractRealName(e.name) : String(id) }).join('、'); return String(d) } catch { return '' } })(),
-        purpose: item.purpose || item.reason || '',
-        startDate: item.start_date || item.startDate || '',
-        endDate: item.end_date || item.endDate || '',
-        submitDate: item.created_at?.substring(0, 10) || '',
-        estimatedCost: item.estimated_cost || item.estimatedCost || 0,
-        approver: item.approver || ''
-      })))
+      businessTripRecords.value = filterUserRecords(response.data.list.map(mapTripRecord))
     }
   } catch (error) {
     console.error('获取出差记录失败:', error)
@@ -1323,18 +1366,8 @@ const loadAllBusinessTripRecords = async () => {
     const response = await getBusinessTrips({ pageSize: 9999 })
     if (response.success && response.data && response.data.list) {
       allBusinessTripRecords.value = response.data.list.map((item: any) => ({
-        ...item,
-        applicant: item.applicant_name,
-        destination: item.destination || '',
-        tripType: item.trip_type || '',
-        companion: (() => { try { const d = item.accompany_persons || item.accompanyPersons || ''; const p = typeof d === 'string' ? JSON.parse(d) : d; if (Array.isArray(p)) return p.map((id: any) => { const e = allEmployees.value.find((x: any) => String(x.id) === String(id)); return e ? extractRealName(e.name) : String(id) }).join('、'); return String(d) } catch { return '' } })(),
-        purpose: item.purpose || item.reason || '',
-        startDate: item.start_date || item.startDate || '',
-        endDate: item.end_date || item.endDate || '',
-        submitDate: item.created_at?.substring(0, 10) || '',
-        estimatedCost: item.estimated_cost || item.estimatedCost || 0,
-        distributedUsers: [],
-        approver: item.approver || ''
+        ...mapTripRecord(item),
+        distributedUsers: []
       }))
     }
   } catch (error) {
@@ -1374,6 +1407,7 @@ const loadAllDistributedRecords = async () => {
     const response = await getAllDistributedRecords()
     if (response.success) {
       allDistributedRecords.value = (response.data || []).map((r: any) => enrichDistributedRecord(r))
+      await ensureOriginRecordsLoaded(allDistributedRecords.value)
     }
   } catch (error) {
     console.error('获取所有下发记录失败:', error)

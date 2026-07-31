@@ -182,7 +182,7 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
       '结束日期': item.endDate,
       '请假天数': formatDays(item.days),
       '请假原因': item.reason,
-      '审批人': item.approver || '待分配',
+      '负责人': item.approver || '-',
       '提交时间': item.submitDate
     },
     reimbursement: {
@@ -191,7 +191,7 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
       '报销金额': '¥' + item.amount,
       '报销日期': item.reimburseDate,
       '报销事由': item.reason,
-      '审批人': item.approver || '待分配',
+      '审批人': item.approver || '-',
       '附件': item.attachments || '',
       '提交时间': item.submitDate
     },
@@ -203,7 +203,7 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
       '会议地点': item.location,
       '参会人员': item.participants,
       '会议议程': item.agenda,
-      '审批人': item.approver || '待分配',
+      '审批人': item.approver || '-',
       '创建时间': item.submitDate
     },
     project: {
@@ -223,7 +223,7 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
       '出差结束时间': item.endDate || '',
       '出差天数': formatDays(item.days),
       '预估费用': '¥' + item.estimatedCost,
-      '审批人': item.approver || '待分配',
+      '审批人': item.approver || '-',
       '提交时间': item.submitDate
     },
     entertainment: {
@@ -236,7 +236,7 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
       '招待金额': '¥' + item.expenseAmount,
       '招待日期': item.expenseDate,
       '招待事由': item.purpose,
-      '审批人': item.approver || '待分配',
+      '审批人': item.approver || '-',
       '提交时间': item.submitDate
     }
   }
@@ -296,49 +296,66 @@ export const exportSingleRow = (row: any, filename: string, headers: string[], f
 }
 
 const buildApproveRows = (row: any, resultColspan: number = 1, commentColspan: number = 1) => {
-  const resultEntries = (row.result || '').split(';').filter(Boolean).map((entry: string) => {
-    const idx = entry.indexOf(':')
-    return idx > 0 ? { name: entry.substring(0, idx).trim(), action: entry.substring(idx + 1).trim() } : null
-  }).filter(Boolean)
-  const commentEntries = (row.comment || '').split('\n---\n').filter(Boolean).map((entry: string) => {
-    const idx = entry.indexOf(':')
-    return idx > 0 ? { name: entry.substring(0, idx).trim(), text: entry.substring(idx + 1).trim() } : { name: '', text: entry.trim() }
-  })
   const totalCols = 1 + resultColspan + commentColspan
+  let entries: { name: string; action: string; text: string }[] = []
 
-  if (resultEntries.length === 0) {
+  // 1) 优先使用 approval_history（JSON 数组，结构化数据）
+  try {
+    const raw = row.approval_history
+    if (raw) {
+      const list = typeof raw === 'string' ? JSON.parse(raw) : raw
+      if (Array.isArray(list) && list.length > 0) {
+        entries = list.map((h: any) => ({
+          name: extractRealName(String(h.approverName || h.approver_name || h.approver || '')) || (h.approverName || h.approver_name || ''),
+          action: h.action === 'agree' || h.action === 'approved' ? '批准' : h.action === 'reject' || h.action === 'rejected' ? '拒绝' : (h.action || '已处理'),
+          text: h.comment || h.commentText || ''
+        }))
+      }
+    }
+  } catch {}
+
+  // 2) 回退使用 result 字段（"name:action;name:action" 格式）
+  if (entries.length === 0 && row.result) {
+    entries = (row.result as string).split(';').filter(Boolean).map((e: string) => {
+      const idx = e.indexOf(':')
+      return idx > 0 ? { name: e.substring(0, idx).trim(), action: e.substring(idx + 1).trim(), text: '' } : null
+    }).filter(Boolean) as any
+  }
+
+  // 3) 最后回退：解析 comment 字段（"name: comment\n---\nname: comment"）
+  if (entries.length === 0 && row.comment) {
+    entries = (row.comment as string).split('\n---\n').filter(Boolean).map((e: string) => {
+      const idx = e.indexOf(':')
+      if (idx > 0) {
+        return { name: e.substring(0, idx).trim(), action: row.status === 'approved' || row.status === '已批准' ? '批准' : row.status === 'rejected' || row.status === '已拒绝' ? '拒绝' : '已处理', text: e.substring(idx + 1).trim() }
+      }
+      return { name: '', action: '已处理', text: e.trim() }
+    })
+  }
+
+  if (entries.length === 0) {
     return `<tr><td colspan="${totalCols}" style="padding:6px 10px;border:1px solid #000;text-align:center;color:#999;">（暂无审批记录）</td></tr>`
   }
 
-  // 收集所有审批意见文本用于备注
-  const allComments = commentEntries.map(c => c.text).filter(Boolean)
-  const remarkText = allComments.length > 0 ? allComments.join('；') : ''
+  const remarkText = entries.map((e: any) => e.text).filter(Boolean).join('；') || ''
 
-  const buildRow = (r: any) => {
-    const matchComment = commentEntries.find((c: any) => c.name === r.name)
-    const actionText = r.action === '批准' ? '✓ 批准' : r.action === '拒绝' ? '✗ 拒绝' : r.action
-    return `<tr><td style="padding:6px 10px;border:1px solid #000;">${r.name}</td><td colspan="${resultColspan}" style="padding:6px 10px;border:1px solid #000;">${actionText}</td><td colspan="${commentColspan}" style="padding:6px 10px;border:1px solid #000;">${matchComment ? matchComment.text : ''}</td></tr>`
+  const buildRow = (e: any) => {
+    const actionText = e.action === '批准' || e.action === 'approved' ? '✓ 批准' : e.action === '拒绝' || e.action === 'rejected' ? '✗ 拒绝' : (e.action || '已处理')
+    return `<tr><td style="padding:6px 10px;border:1px solid #000;">${e.name}</td><td colspan="${resultColspan}" style="padding:6px 10px;border:1px solid #000;">${actionText}</td><td colspan="${commentColspan}" style="padding:6px 10px;border:1px solid #000;">${e.text || ''}</td></tr>`
   }
-
   const headerRow = (label: string) =>
     `<tr class="approve-header"><td>${label}</td><td colspan="${resultColspan}" style="padding:6px 10px;border:1px solid #000;background:#eaeaea;font-weight:bold;text-align:center;">审批结果</td><td colspan="${commentColspan}" style="padding:6px 10px;border:1px solid #000;background:#eaeaea;font-weight:bold;text-align:center;">审批意见</td></tr>`
 
   let html = ''
-  if (resultEntries.length > 1) {
-    // 多审批人: 第一位显示"部门审批人"表头
+  if (entries.length > 1) {
     html += headerRow('部门审批人')
-    html += buildRow(resultEntries[0])
-    // 其余显示"审批人"表头
+    html += buildRow(entries[0])
     html += headerRow('审批人')
-    for (let i = 1; i < resultEntries.length; i++) {
-      html += buildRow(resultEntries[i])
-    }
+    for (let i = 1; i < entries.length; i++) html += buildRow(entries[i])
   } else {
-    // 单个审批人: 显示"审批人"表头
     html += headerRow('审批人')
-    html += buildRow(resultEntries[0])
+    html += buildRow(entries[0])
   }
-  // 备注行
   html += `<tr><td style="padding:6px 10px;border:1px solid #000;font-weight:bold;background:#f5f5f5;">备注</td><td colspan="${totalCols - 1}" style="padding:6px 10px;border:1px solid #000;">${remarkText}</td></tr>`
   return html
 }
@@ -365,7 +382,6 @@ export const exportBusinessTripFormHTML = (row: any, department?: string) => {
   const monthE = endDate ? new Date(endDate).getMonth() + 1 : ''
   const dayE = endDate ? new Date(endDate).getDate() : ''
   const transports = ['公司车', '私家车', '火车或高铁', '汽车', '飞机', '其他']
-  const approveRows = buildApproveRows(row, 2, 1)
 
   const html = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -425,15 +441,55 @@ export const exportBusinessTripFormHTML = (row: any, department?: string) => {
     <td class="label">交通工具</td>
     <td colspan="3">${transports.map(t => `<span class="chk ${t === transport ? 'chk-on' : ''}"><span class="chk-box"></span>${t}</span>`).join('')}${transport && !transports.includes(transport) ? `<span class="chk chk-on"><span class="chk-box"></span>${transport}</span>` : ''}</td>
   </tr>
-  ${approveRows}
+  ${(() => {
+    let entries: { name: string; action: string }[] = []
+    // 1) approval_history（解析后的数组或JSON字符串）
+    const ah = row.approval_history
+    if (ah && (Array.isArray(ah) ? ah.length > 0 : true)) {
+      try {
+        const list = typeof ah === 'string' ? JSON.parse(ah) : ah
+        if (Array.isArray(list) && list.length > 0) {
+          entries = list.map((h: any) => ({
+            name: extractRealName(String(h.approverName || h.approver_name || h.approver || '')) || (h.approverName || h.approver_name || ''),
+            action: h.action === 'agree' || h.action === 'approved' ? '批准' : h.action === 'reject' || h.action === 'rejected' ? '拒绝' : (h.action === undefined || h.action === null ? '' : h.action)
+          }))
+        }
+      } catch {}
+    }
+    // 2) comment 字段（"李智鑫: 同意出差" 格式）
+    if (entries.length === 0 && row.comment) {
+      entries = String(row.comment).split('\n---\n').filter(Boolean).map((e: string) => {
+        const idx = e.indexOf(':')
+        if (idx > 0) {
+          const txt = e.substring(idx + 1).trim()
+          return { name: e.substring(0, idx).trim(), action: txt }
+        }
+        return { name: '', action: '' }
+      })
+    }
+    // 归一化动作：批准/拒绝/空
+    const normalize = (a: string) => {
+      if (!a || a === '批准' || a === '同意' || a === 'agree' || a === 'approved' || a === '通过') return '批准'
+      if (a === '拒绝' || a === '驳回' || a === '不同意' || a === 'reject' || a === 'rejected') return '拒绝'
+      return a
+    }
+    const getDefaultAction = () => {
+      const s = String(row.status || '')
+      return /approved|已批准/.test(s) ? '批准' : /rejected|已拒绝/.test(s) ? '拒绝' : ''
+    }
+    const deptAction = entries.length > 0 ? normalize(entries[0].action) : getDefaultAction()
+    const finalAction = entries.length > 0 ? normalize(entries[entries.length - 1].action) : getDefaultAction()
+    const fmt = (v: string) => v ? `<span style="color:#c00;font-weight:bold;">${v}</span>` : '　'
+    return `
   <tr>
     <td class="label">部门意见</td>
-    <td colspan="3" style="min-height:30px;">　</td>
+    <td colspan="3" style="min-height:30px;">${fmt(deptAction)}</td>
   </tr>
   <tr>
     <td class="label">负责人意见</td>
-    <td colspan="3" style="min-height:30px;">　</td>
-  </tr>
+    <td colspan="3" style="min-height:30px;">${fmt(finalAction)}</td>
+  </tr>`
+  })()}
 </table>
 </div>
 <div class="form-date" style="text-align:right;margin-top:8px;font-size:12px;color:#999;">打印时间：${formatDateCN(new Date())}</div>
@@ -834,63 +890,114 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
   const monthE = endDate ? new Date(endDate).getMonth() + 1 : ''
   const dayE = endDate ? new Date(endDate).getDate() : ''
 
-  const typeList = ['病假', '事假', '年假', '婚假', '产假', '丧假', '其他']
-
-  const approveRows = buildApproveRows(row, 1, 2)
+  // 解析审批历史：从 result/approval_history 提取审批结果
+  const normalize = (a: string) => {
+    if (!a) return ''
+    if (a === '同意' || a === 'agree' || a === 'approved' || a === '通过') return '批准'
+    if (a === '拒绝' || a === 'reject' || a === 'rejected' || a === '驳回') return '拒绝'
+    return a
+  }
+  console.log('[导出请假单调试] id:', row.id, 'result:', row.result, 'status:', row.status, 'comment:', row.comment, 'approval_history:', row.approval_history)
+  let deptOpinion = ''
+  let leaderOpinion = ''
+  // 1) 尝试 approval_history（结构化数组）
+  try {
+    const ah = row.approval_history
+    if (ah) {
+      const list = typeof ah === 'string' ? JSON.parse(ah) : ah
+      if (Array.isArray(list) && list.length > 0) {
+        // 按角色区分：第一个非总经理→部门意见；总经理→负责人审批
+        const dept = list.find((h: any) => h.approverRole && !/总经理/.test(h.approverRole))
+        if (dept) deptOpinion = normalize(dept.action)
+        const leader = list.find((h: any) => h.approverRole && /总经理/.test(h.approverRole))
+        if (leader) leaderOpinion = normalize(leader.action)
+        // 如果没分出来，第一个→部门，最后一个→负责人
+        if (!deptOpinion && !leaderOpinion && list.length > 0) {
+          deptOpinion = normalize(list[0].action)
+          if (list.length > 1) leaderOpinion = normalize(list[list.length - 1].action)
+        }
+      }
+    }
+  } catch {}
+  // 2) 回退使用 result 字段（"name:批准;name:批准" 格式）
+  if (!deptOpinion && !leaderOpinion && row.result) {
+    try {
+      const items = String(row.result).split(';').filter(Boolean).map((s: string) => {
+        const idx = s.indexOf(':')
+        return idx > 0 ? { name: s.substring(0, idx).trim(), action: normalize(s.substring(idx + 1).trim()) } : null
+      }).filter(Boolean)
+      if (items.length > 0) deptOpinion = items[0].action
+      if (items.length > 1) leaderOpinion = items[items.length - 1].action
+    } catch {}
+  }
+  // 3) 最终回退：从 status 推断
+  if (!deptOpinion && !leaderOpinion) {
+    const s = String(row.status || '')
+    const r = /approved|已批准/.test(s) ? '批准' : /rejected|已拒绝/.test(s) ? '拒绝' : ''
+    if (r) { leaderOpinion = r }
+  }
 
   const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>请假申请单 #${row.id}</title>
+<title>请假单 #${row.id}</title>
 <style>
-  @page { margin: 10mm; }
+  @page { margin: 8mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: "SimSun", "宋体", serif; color: #333; font-size: 14px; }
-  .form-wrap { max-width: 750px; margin: 20px auto; border: 2px solid #000; }
-  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  td { border: 1px solid #000; padding: 8px 10px; vertical-align: middle; }
-  .title-cell { text-align: center; font-size: 20px; font-weight: bold; letter-spacing: 6px; padding: 14px; }
-  .company-cell { text-align: center; font-size: 12px; color: #666; padding: 4px; letter-spacing: 2px; border-bottom: none; }
-  .label { font-weight: bold; white-space: nowrap; width: 90px; background: #f9f9f9; }
-  .chk { display: inline-block; margin-right: 12px; }
-  .chk-box { display: inline-block; width: 14px; height: 14px; border: 1px solid #333; margin-right: 3px; vertical-align: middle; text-align: center; line-height: 14px; font-size: 12px; }
-  .chk-on .chk-box { background: #333; color: #fff; }
-  .chk-on .chk-box::after { content: "✓"; }
-  .reason-cell { min-height: 60px; line-height: 1.6; }
-  .print-hint { text-align: center; margin-top: 10px; font-size: 11px; color: #aaa; }
-  .approve-header td { background: #f5f5f5; font-weight: bold; text-align: center; padding: 6px 10px; border: 1px solid #000; }
+  body { font-family: "楷体", "SimSun", "宋体", serif; color: #000; font-size: 14px; }
+  .form-wrap { max-width: 680px; margin: 15px auto; border: 2px solid #000; padding: 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td { border: 1px solid #000; padding: 2px 5px; vertical-align: middle; }
+  .title-row td { text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 12px; padding: 8px 0 6px; border-bottom: none; font-family: "SimHei","黑体",sans-serif; }
+  .date-row td { text-align: right; padding: 3px 14px 3px 0; font-size: 13px; letter-spacing: 1px; border-top: none; border-bottom: none; }
+  .subtitle-row td { text-align: left; padding: 2px 14px; font-size: 12px; color: #666; border-top: none; }
+  .label { text-align: center; white-space: nowrap; width: 70px; font-weight: bold; font-size: 14px; background: #fff; border-bottom: 1px solid #000; }
+  .field-value { font-weight: normal; padding-left: 8px; font-size: 14px; border-bottom: 1px solid #000; }
+  .content-area { min-height: 70px; line-height: 1.8; padding: 6px 10px; font-size: 14px; }
+  .approval-area { min-height: 40px; padding: 6px 10px; }
+  .approval-result { color: #c00; font-weight: bold; font-size: 15px; }
+  .print-hint { text-align: center; margin-top: 8px; font-size: 11px; color: #aaa; }
   @media print { .print-hint { display: none; } body { padding: 0; } .form-wrap { margin: 0 auto; } }
 </style>
 </head>
 <body>
 <div class="form-wrap">
 <table>
-  <tr><td colspan="4" class="company-cell">内蒙古宏友软件技术服务有限公司</td></tr>
-  <tr><td colspan="4" class="title-cell">请 假 申 请 单<br/><span style="font-size:13px;font-weight:normal;letter-spacing:1px;color:#666;">${formatDateCN(startDate) || ''}</span></td></tr>
-  <tr>
-    <td class="label">申请人</td>
-    <td>${row.applicant || ''}</td>
-    <td class="label">部　门</td>
-    <td>${department || ''}</td>
+  <tr class="title-row">
+    <td colspan="6">请 假 单</td>
+  </tr>
+  <tr class="date-row">
+    <td colspan="6">${formatDateCN(new Date()) || '　年　月　日'}</td>
   </tr>
   <tr>
-    <td class="label">请假类型</td>
-    <td colspan="3">${typeList.map(t => `<span class="chk ${t === leaveType ? 'chk-on' : ''}"><span class="chk-box"></span>${t}</span>`).join('')}</td>
+    <td class="label">姓名</td>
+    <td class="field-value" colspan="2">${row.applicant || ''}</td>
+    <td class="label">部门</td>
+    <td class="field-value" colspan="2">${department || ''}</td>
   </tr>
   <tr>
     <td class="label">请假时间</td>
-    <td colspan="3">
-      自 ${yearS ? yearS + '年' : '____年'}${monthS ? monthS + '月' : '__月'}${dayS ? dayS + '日' : '__日'}
-      至 ${yearE ? yearE + '年' : '____年'}${monthE ? monthE + '月' : '__月'}${dayE ? dayE + '日' : '__日'}
+    <td class="field-value" colspan="5">
+      ${yearS || '____'}年${monthS || '__'}月${dayS || '__'}日
+      至 ${yearE || '____'}年${monthE || '__'}月${dayE || '__'}日
       ，共 <strong>${days}</strong> 天
     </td>
   </tr>
   <tr>
     <td class="label">请假原因</td>
-    <td colspan="3" class="reason-cell">${reason || '（未填写）'}</td>
+    <td colspan="5" class="content-area">${reason || ''}</td>
   </tr>
-  ${approveRows}
+  <tr>
+    <td class="label">部门意见</td>
+    <td class="approval-area" colspan="2">${deptOpinion ? `<span class="approval-result">${deptOpinion}</span>` : ''}</td>
+    <td class="label">负责人<br>审批</td>
+    <td class="approval-area" colspan="2">${leaderOpinion ? `<span class="approval-result">${leaderOpinion}</span>` : ''}</td>
+  </tr>
+  <tr>
+    <td style="text-align:center;font-weight:bold;width:70px;">备注：</td>
+    <td colspan="5" class="approval-area" style="min-height:40px;padding:4px 10px;"></td>
+  </tr>
 </table>
 </div>
 <div class="print-hint">按 Ctrl+P 可导出为 PDF 打印</div>
@@ -901,11 +1008,11 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
   const url = URL.createObjectURL(blob)
   const w = window.open(url, '_blank')
   if (w) {
-    w.document.title = `请假申请单_${row.applicant}_${formatDateCN(startDate)}`
+    w.document.title = `请假单_${row.applicant}_${formatDateCN(startDate)}`
   } else {
     const a = document.createElement('a')
     a.href = url
-    a.download = `请假申请单_${row.id}.html`
+    a.download = `请假单_${row.id}.html`
     a.click()
   }
   setTimeout(() => URL.revokeObjectURL(url), 60000)

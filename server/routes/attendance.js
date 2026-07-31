@@ -15,6 +15,21 @@ router.get('/leave-applications', async (req, res) => {
   }
 });
 
+// 获取单个请假申请
+router.get('/leave-applications/:id', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const [applications] = await pool.execute('SELECT * FROM leave_applications WHERE id = ?', [req.params.id]);
+    if (applications.length === 0) {
+      return res.status(404).json({ success: false, message: '请假申请不存在' });
+    }
+    res.json({ success: true, data: applications[0] });
+  } catch (error) {
+    console.error('获取请假申请详情失败:', error);
+    res.status(500).json({ success: false, message: '获取请假申请详情失败' });
+  }
+});
+
 // 提交请假申请
 router.post('/leave-applications', async (req, res) => {
   const { applicant, leaveType, startDate, endDate, days, reason, approver } = req.body;

@@ -9,7 +9,8 @@ router.get('/business-trips', async (req, res) => {
   try {
     const { applicantId, status, page = 1, pageSize = 10 } = req.query;
 
-    let sql = 'SELECT * FROM business_trip_applications WHERE 1=1';
+    const columns = 'id, trip_code, applicant_id, applicant_name, department, destination, trip_type, start_date, end_date, days, purpose, itinerary, estimated_cost, cost_breakdown, accommodation, transport, accompany_persons, customer_info, status, approver, current_step, current_approvers, approval_history, is_urgent, comment, created_at, updated_at';
+    let sql = `SELECT ${columns} FROM business_trip_applications WHERE 1=1`;
     const params = [];
 
     if (applicantId) {
@@ -78,7 +79,6 @@ router.post('/business-trips', async (req, res) => {
     const applicantId = req.body.applicantId;
     const approverId = req.body.approverId;
     const approverName = req.body.approver || null;
-
     const [employees] = await pool.execute(
       'SELECT * FROM employees WHERE id = ?',
       [applicantId]
@@ -108,7 +108,7 @@ router.post('/business-trips', async (req, res) => {
     const sequence = String(countResult[0].count + 1).padStart(4, '0');
     const tripCode = `TRIP-${year}-${sequence}`;
 
-    const [result] = await pool.execute(
+    const [result] = await pool.query(
       `INSERT INTO business_trip_applications 
        (trip_code, applicant_id, applicant_name, department, destination, trip_type,
         start_date, end_date, days, purpose, itinerary, estimated_cost, cost_breakdown,
@@ -148,8 +148,9 @@ router.get('/business-trips/:id', async (req, res) => {
   const { pool } = req.app.locals;
   try {
     const { id } = req.params;
+    const trip_columns = 'id, trip_code, applicant_id, applicant_name, department, destination, trip_type, start_date, end_date, days, purpose, itinerary, estimated_cost, cost_breakdown, accommodation, transport, accompany_persons, customer_info, status, approver, current_step, current_approvers, approval_history, is_urgent, comment, created_at, updated_at';
     const [trips] = await pool.execute(
-      'SELECT * FROM business_trip_applications WHERE id = ?',
+      `SELECT ${trip_columns} FROM business_trip_applications WHERE id = ?`,
       [id]
     );
 

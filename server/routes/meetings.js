@@ -14,6 +14,20 @@ router.get('/meetings', async (req, res) => {
   }
 });
 
+router.get('/meetings/:id', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const [meetings] = await pool.execute('SELECT * FROM meetings WHERE id = ?', [req.params.id]);
+    if (meetings.length === 0) {
+      return res.status(404).json({ success: false, message: '会议记录不存在' });
+    }
+    res.json({ success: true, data: meetings[0] });
+  } catch (error) {
+    console.error('获取会议记录详情失败:', error);
+    res.status(500).json({ success: false, message: '获取会议记录详情失败' });
+  }
+});
+
 router.post('/meetings', async (req, res) => {
   const { title, organizer, meetingDate, meetingTime, location, participants, agenda, approver } = req.body;
   try {
