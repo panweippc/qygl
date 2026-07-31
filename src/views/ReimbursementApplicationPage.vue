@@ -90,9 +90,17 @@
                     />
                   </el-form-item>
                 </el-col>
-                <el-col :span="12">
-                  <el-form-item label="出发地点">
-                    <el-input v-model="segment.departureLocation" placeholder="请输入出发地点" />
+                <el-col :span="12" v-if="segment.durationType === 'custom'">
+                  <el-form-item label="到达日期">
+                    <el-date-picker
+                      v-model="segment.arrivalDate"
+                      type="date"
+                      placeholder="选择到达日期"
+                      style="width: 100%"
+                      value-format="YYYY-MM-DD"
+                      :disabled-date="(time) => disabledEndDate(time, segment)"
+                      @change="calcSegmentDays(segment)"
+                    />
                   </el-form-item>
                 </el-col>
               </el-row>
@@ -107,17 +115,9 @@
                     </el-radio-group>
                   </el-form-item>
                 </el-col>
-                <el-col :span="12" v-if="segment.durationType === 'custom'">
-                  <el-form-item label="到达日期">
-                    <el-date-picker
-                      v-model="segment.arrivalDate"
-                      type="date"
-                      placeholder="选择到达日期"
-                      style="width: 100%"
-                      value-format="YYYY-MM-DD"
-                      :disabled-date="(time) => disabledEndDate(time, segment)"
-                      @change="calcSegmentDays(segment)"
-                    />
+                <el-col :span="12">
+                  <el-form-item label="出发地点">
+                    <el-input v-model="segment.departureLocation" placeholder="请输入出发地点" />
                   </el-form-item>
                 </el-col>
               </el-row>
