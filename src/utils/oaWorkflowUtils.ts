@@ -181,18 +181,23 @@ const buildReimbursementDetailFields = (item: any): Record<string, string> => {
     if (d.projectName) extra['项目名称'] = d.projectName
     const segs = Array.isArray(d.segments) && d.segments.length > 0
       ? d.segments
-      : (d.departureDate ? [{ departureTime: d.departureDate, departureLocation: d.departureLocation, arrivalTime: d.arrivalDate, arrivalLocation: d.arrivalLocation, days: d.allowanceDays }] : [])
+      : (d.departureDate || d.departureTime
+        ? [{ departureDate: d.departureTime || d.departureDate, departureLocation: d.departureLocation, arrivalDate: d.arrivalTime || d.arrivalDate, arrivalLocation: d.arrivalLocation, days: d.allowanceDays }]
+        : [])
     if (segs.length > 0) {
       const lines = segs.map((s: any, i: number) =>
-        `第${i + 1}段：${s.departureTime || ''} ${s.departureLocation || ''} → ${s.arrivalTime || ''} ${s.arrivalLocation || ''}${s.days ? `（${s.days}天）` : ''}`
+        `第${i + 1}段：${s.departureDate || s.departureTime || ''} ${s.departureLocation || ''} → ${s.arrivalDate || s.arrivalTime || ''} ${s.arrivalLocation || ''}${s.days ? `（${s.days}天）` : ''}`
       )
       extra['行程安排'] = lines.join('\n')
     }
     const pre = d.preBorrowedAmount
     if (pre !== undefined && pre !== null && pre !== '') {
       extra['预借金额'] = '¥' + Number(pre).toFixed(2)
-      const refund = Math.round((Number(item.amount) - Number(pre)) * 100) / 100
-      extra['退/补金额'] = (refund >= 0 ? '+' : '') + refund.toFixed(2)
+    }
+    const refund = d.refundAmount
+    if (refund !== undefined && refund !== null && refund !== '') {
+      const v = Number(refund)
+      extra['退/补金额'] = (v >= 0 ? '+' : '') + v.toFixed(2)
     }
   } catch {}
   return extra
@@ -792,29 +797,36 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
 
   // 行程段：优先使用新结构 segments，兼容旧字段
   let segments: any[] = Array.isArray(d.segments) && d.segments.length > 0 ? d.segments : []
-  if (segments.length === 0 && (d.departureDate || d.arrivalDate || d.departureLocation || d.arrivalLocation)) {
+  if (segments.length === 0 && (d.departureDate || d.arrivalDate || d.departureLocation || d.arrivalLocation || d.departureTime)) {
     segments = [{
-      departureTime: d.departureDate,
+      departureDate: d.departureTime || d.departureDate,
       departureLocation: d.departureLocation,
-      arrivalTime: d.arrivalDate,
+      arrivalDate: d.arrivalTime || d.arrivalDate,
       arrivalLocation: d.arrivalLocation,
       transport: d.transport,
       transportAmount: d.transportAmount,
-      days: d.allowanceDays
+      days: d.allowanceDays,
+      allowanceStandard: d.allowanceStandard,
+      allowanceAmount: d.allowanceAmount,
+      lodgingAmount: d.lodgingAmount,
+      localTransportAmount: d.localTransportAmount,
+      otherAmount: d.otherAmount
     }]
   }
   while (segments.length < 4) segments.push({})
   segments = segments.slice(0, 4)
 
   const totalDays = segments.reduce((sum: number, s: any) => sum + (Number(s.days) || 0), 0)
-  const allowanceStandard = d.allowanceStandard || 0
-  const allowanceAmount = Math.round(totalDays * (Number(allowanceStandard) || 0) * 100) / 100
-  const lodgingAmount = d.lodgingAmount || 0
-  const localTransportAmount = d.localTransportAmount || 0
-  const otherAmount = d.otherAmount || 0
-  const preBorrowedAmount = d.preBorrowedAmount || 0
   const transportTotal = segments.reduce((sum: number, s: any) => sum + (Number(s.transportAmount) || 0), 0)
-  const refundAmount = Math.round((Number(amount) - Number(preBorrowedAmount)) * 100) / 100
+  const allowanceTotal = segments.reduce((sum: number, s: any) => sum + (Number(s.allowanceAmount) || 0), 0)
+  const lodgingTotal = segments.reduce((sum: number, s: any) => sum + (Number(s.lodgingAmount) || 0), 0)
+  const localTotal = segments.reduce((sum: number, s: any) => sum + (Number(s.localTransportAmount) || 0), 0)
+  const otherTotal = segments.reduce((sum: number, s: any) => sum + (Number(s.otherAmount) || 0), 0)
+  const preBorrowedAmount = d.preBorrowedAmount || 0
+  // 退/补金额优先用手动输入值，未填写时兼容自动计算
+  const refundAmount = (d.refundAmount !== undefined && d.refundAmount !== null && d.refundAmount !== '')
+    ? Number(d.refundAmount)
+    : Math.round((Number(amount) - Number(preBorrowedAmount)) * 100) / 100
 
   const money = (v: any) => (Number(v) || 0).toFixed(2)
   const moneySigned = (v: number) => `${v >= 0 ? '+' : ''}${money(v)}`
@@ -825,16 +837,28 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     if (m) return `${Number(m[1])}年${Number(m[2])}月${Number(m[3])}日 ${m[4]}:${m[5]}`
     return formatDateCN(dt)
   }
-  const segmentRows = segments.map((s: any, i: number) => `
+  const segmentRows = segments.map((s: any, i: number) => {
+    const sub = Math.round(((Number(s.transportAmount) || 0) + (Number(s.allowanceAmount) || 0) + (Number(s.lodgingAmount) || 0) + (Number(s.localTransportAmount) || 0) + (Number(s.otherAmount) || 0)) * 100) / 100
+    return `
   <tr>
-    <td colspan="2" class="label" style="background:#fff;text-align:center;">第 ${i + 1} 段</td>
-    <td colspan="2" style="text-align:center;">${formatDateTimeCN(s.departureTime)}</td>
+    <td colspan="1" class="label" style="background:#fff;text-align:center;">第 ${i + 1} 段</td>
+    <td colspan="2" style="text-align:center;">${formatDateTimeCN(s.departureDate)}</td>
     <td colspan="2">${s.departureLocation || '　'}</td>
-    <td colspan="2" style="text-align:center;">${formatDateTimeCN(s.arrivalTime)}</td>
+    <td colspan="2" style="text-align:center;">${formatDateTimeCN(s.arrivalDate)}</td>
     <td colspan="2">${s.arrivalLocation || '　'}</td>
+    <td colspan="1" style="text-align:center;">${s.transport || '　'}</td>
     <td colspan="2" style="text-align:center;">${money(s.transportAmount)}</td>
     <td colspan="1" style="text-align:center;">${s.days || '　'}</td>
-  </tr>`).join('')
+  </tr>
+  <tr>
+    <td colspan="1" class="label" style="background:#fff;text-align:center;">标准<br>${money(s.allowanceStandard)}</td>
+    <td colspan="2" class="label" style="text-align:center;">补助<br>${money(s.allowanceAmount)}</td>
+    <td colspan="2" class="label" style="text-align:center;">住宿<br>${money(s.lodgingAmount)}</td>
+    <td colspan="2" class="label" style="text-align:center;">市内<br>${money(s.localTransportAmount)}</td>
+    <td colspan="2" class="label" style="text-align:center;">其他<br>${money(s.otherAmount)}</td>
+    <td colspan="4" class="label" style="background:#fff;text-align:center;">段小计<br><span style="color:#c00;">${money(sub)}</span></td>
+  </tr>`
+  }).join('')
 
   const numberToCN = (n: string) => {
     if (!n) return ''
@@ -960,39 +984,33 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     <td colspan="11">${d.projectName || '　'}</td>
   </tr>
   <tr style="background:#fafafa;font-weight:bold;">
-    <td colspan="2" class="label" style="text-align:center;">项　目</td>
-    <td colspan="2" class="label" style="text-align:center;">出发时间</td>
+    <td colspan="1" class="label" style="text-align:center;">项　目</td>
+    <td colspan="2" class="label" style="text-align:center;">出发日期</td>
     <td colspan="2" class="label" style="text-align:center;">出发地点</td>
-    <td colspan="2" class="label" style="text-align:center;">到达时间</td>
+    <td colspan="2" class="label" style="text-align:center;">到达日期</td>
     <td colspan="2" class="label" style="text-align:center;">到达地点</td>
+    <td colspan="1" class="label" style="text-align:center;">交通工具</td>
     <td colspan="2" class="label" style="text-align:center;">交通金额</td>
     <td colspan="1" class="label" style="text-align:center;">天　数</td>
   </tr>
   ${segmentRows}
   <tr style="font-weight:bold;">
-    <td colspan="2" class="label" style="background:#fff;text-align:right;">合　计</td>
+    <td colspan="1" class="label" style="background:#fff;text-align:right;">合　计</td>
     <td colspan="2" style="text-align:center;">　</td>
     <td colspan="2" style="text-align:center;">　</td>
     <td colspan="2" style="text-align:center;">　</td>
     <td colspan="2" style="text-align:center;">　</td>
+    <td colspan="1" style="text-align:center;">　</td>
     <td colspan="2" style="text-align:center;color:#c00;">${money(transportTotal)}</td>
     <td colspan="1" style="text-align:center;">${totalDays || '　'}</td>
   </tr>
-  <tr>
-    <td colspan="2" class="label" style="background:#fafafa;text-align:center;">补助标准</td>
-    <td colspan="2" class="label" style="background:#fafafa;text-align:center;">补助金额</td>
-    <td colspan="2" class="label" style="background:#fafafa;text-align:center;">住宿费用</td>
-    <td colspan="2" class="label" style="background:#fafafa;text-align:center;">市内交通</td>
-    <td colspan="2" class="label" style="background:#fafafa;text-align:center;">其他费用</td>
-    <td colspan="3" class="label" style="background:#fafafa;text-align:center;">合　　计</td>
-  </tr>
-  <tr>
-    <td colspan="2" style="text-align:center;">${money(allowanceStandard)}</td>
-    <td colspan="2" style="text-align:center;">${money(allowanceAmount)}</td>
-    <td colspan="2" style="text-align:center;">${money(lodgingAmount)}</td>
-    <td colspan="2" style="text-align:center;">${money(localTransportAmount)}</td>
-    <td colspan="2" style="text-align:center;">${money(otherAmount)}</td>
-    <td colspan="3" style="text-align:center;font-weight:bold;color:#c00;font-size:15px;">¥ ${money(amount)}</td>
+  <tr style="font-weight:bold;">
+    <td colspan="1" class="label" style="background:#fff;text-align:right;">合　计</td>
+    <td colspan="2" class="label" style="text-align:center;">${money(allowanceTotal)}</td>
+    <td colspan="2" class="label" style="text-align:center;">${money(lodgingTotal)}</td>
+    <td colspan="2" class="label" style="text-align:center;">${money(localTotal)}</td>
+    <td colspan="2" class="label" style="text-align:center;">${money(otherTotal)}</td>
+    <td colspan="4" style="text-align:center;font-weight:bold;color:#c00;font-size:15px;">合计金额 ¥ ${money(amount)}</td>
   </tr>
   <tr>
     <td colspan="2" rowspan="2" class="label" style="background:#fafafa;">报销<br>总额</td>
