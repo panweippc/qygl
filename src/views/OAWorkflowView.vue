@@ -1042,7 +1042,7 @@ const handleDistribute = async () => {
     if (allSuccess) {
       ElMessage.success(`已成功下发给 ${validTargets.join('、')}`)
       distributeDialogVisible.value = false
-      if (isAdminComputed.value) {
+      if (canDistribute.value) {
         await loadAllDistributedRecords()
       }
       await refreshAllData()
@@ -1501,6 +1501,8 @@ const refreshAllData = async () => {
   await loadNonAdminData()
   if (isAdminComputed.value) {
     await loadAdminData()
+  } else if (canDistribute.value) {
+    await loadAllDistributedRecords()
   }
   updateStats()
   await loadDistributedRecords()
