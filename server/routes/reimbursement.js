@@ -32,13 +32,13 @@ router.get('/reimbursements/:id', async (req, res) => {
 
 // 提交报销申请
 router.post('/reimbursements', async (req, res) => {
-  const { applicant, reimburseType, amount, reimburseDate, reason, approver, attachments } = req.body;
+  const { applicant, reimburseType, amount, reimburseDate, reason, approver, attachments, detail } = req.body;
   try {
     const { pool } = req.app.locals;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await pool.execute(
-      'INSERT INTO reimbursements (applicant, reimburseType, amount, reimburseDate, reason, approver, attachments, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [applicant, reimburseType, amount, reimburseDate, reason, approver, attachments || null, '审批中', now]
+      'INSERT INTO reimbursements (applicant, reimburseType, amount, reimburseDate, reason, approver, attachments, detail, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [applicant, reimburseType, amount, reimburseDate, reason, approver, attachments || null, detail ? JSON.stringify(detail) : null, '审批中', now]
     );
 
     await createNotification(pool, {

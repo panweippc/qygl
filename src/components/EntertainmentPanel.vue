@@ -404,7 +404,7 @@ const exportEntertainmentData = () => {
 
 const exportEntertainmentRow = (row: any) => {
   const dept = props.allEmployees.find((e: any) => extractRealName(e.name) === extractRealName(row.applicant))?.department || ''
-  exportEntertainmentFormHTML(row, dept)
+  exportEntertainmentFormHTML(row, dept, props.allEmployees)
 }
 
 onMounted(() => { fetchData() })

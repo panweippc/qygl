@@ -81,12 +81,6 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="审批人" width="100">
-          <template #default="{ row }">
-            {{ row.approver || '-' }}
-          </template>
-        </el-table-column>
-
         <el-table-column label="提交时间" width="100">
           <template #default="{ row }">
             {{ formatDate(row.submitDate, false) }}
@@ -332,7 +326,6 @@ const loadBusinessTripRecords = async () => {
       const filteredData = response.data.list.filter((item: any) => {
         return extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':'))
       })
-      console.log('原始出差数据字段:', Object.keys(filteredData[0] || {}).join(','), 'approver值:', filteredData[0]?.approver, 'approver_id:', filteredData[0]?.approver_id)
       businessTripRecords.value = filteredData.map((item: any) => {
         let destination = item.destination ? String(item.destination) : ''
         let tripType = item.trip_type ? String(item.trip_type) : ''

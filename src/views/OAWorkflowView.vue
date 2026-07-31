@@ -523,6 +523,7 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Refresh } from '@element-plus/icons-vue'
 import {
   getEmployees,
   getLeaveApplications,
@@ -764,7 +765,7 @@ const exportDistributedRow = async (row: any) => {
     leave:         (r, d) => exportLeaveFormHTML(r, d),
     reimbursement: (r, d) => exportReimbursementFormHTML(r, d),
     businessTrip:  (r, d) => exportBusinessTripFormHTML(r, d),
-    entertainment: (r, d) => exportEntertainmentFormHTML(r, d),
+    entertainment: (r, d) => exportEntertainmentFormHTML(r, d, allEmployees.value),
     meeting:       (r, d) => exportMeetingFormHTML(r, d),
     project:       (r, d) => exportProjectFormHTML(r, d)
   }
@@ -931,7 +932,7 @@ const submitApproval = async () => {
     } else if (type === 'businessTrip') {
       detailObj = { destination: item.destination, tripType: item.tripType, days: item.days, estimatedCost: item.estimatedCost }
     } else if (type === 'entertainment') {
-      detailObj = { guestName: item.guestName, guestCount: item.guestCount, expenseAmount: item.expenseAmount, expenseDate: item.expenseDate, purpose: item.purpose }
+      detailObj = { guestName: item.guestName, guestUnit: item.guestUnit, location: item.location, guestCount: item.guestCount, expenseType: item.expenseType, expenseAmount: item.expenseAmount, expenseDate: item.expenseDate, purpose: item.purpose }
     }
     for (const target of targets) {
           try {
@@ -1018,6 +1019,8 @@ const handleDistribute = async () => {
       detailObj = { title: item.title, meetingDate: item.meetingDate, meetingTime: item.meetingTime, location: item.location }
     } else if (type === 'leave') {
       detailObj = { leaveType: item.leaveType, days: item.days, startDate: item.startDate, endDate: item.endDate, reason: item.reason, result: item.result, comment: item.comment, approver: extractRealName(item.approver || '') }
+    } else if (type === 'entertainment') {
+      detailObj = { guestName: item.guestName, guestUnit: item.guestUnit, location: item.location, guestCount: item.guestCount, expenseType: item.expenseType, expenseAmount: item.expenseAmount }
     }
     const results = []
     for (const target of validTargets) {
@@ -1100,7 +1103,7 @@ const getApplicationDetailHtml = (row: any) => {
     const resultText = row.result ? `<p><strong>审批记录：</strong><span style="white-space:pre-line">${row.result}</span></p>` : ''
     detailHtml = `<p><strong>请假类型：</strong>${row.leaveType || '-'}</p><p><strong>请假天数：</strong>${formatDays(row.days)}</p>${dateRange}${reasonText}${resultText}`
   } else if (type === 'reimbursement') {
-    detailHtml = `<p><strong>报销类型：</strong>${row.reimburseType || '-'}</p><p><strong>报销金额：</strong>¥${row.amount || 0}</p>`
+    detailHtml = `<p><strong>报销类型：</strong>${row.reimburseType || '-'}</p><p><strong>合计金额：</strong>¥${row.amount || 0}</p>`
   } else if (type === 'project') {
     detailHtml = `<p><strong>项目名称：</strong>${row.projectName || '-'}</p><p><strong>项目类型：</strong>${row.projectType || '-'}</p>`
   } else if (type === 'businessTrip') {

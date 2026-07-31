@@ -26,8 +26,8 @@
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="报销金额" prop="amount">
-                  <el-input v-model.number="form.amount" type="number" placeholder="请输入金额" :min="0">
+                <el-form-item label="合计金额" prop="totalAmount">
+                  <el-input :model-value="totalAmountText" readonly>
                     <template #prefix>¥</template>
                   </el-input>
                 </el-form-item>
@@ -49,11 +49,181 @@
               </el-col>
             </el-row>
 
-            <el-divider content-position="left">报销事由</el-divider>
-
             <el-form-item label="报销事由" prop="reason">
               <el-input v-model="form.reason" type="textarea" :rows="4" placeholder="请输入报销事由" maxlength="500" show-word-limit />
             </el-form-item>
+
+            <el-divider content-position="left">出差明细（差旅费必填）</el-divider>
+
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="项目名称">
+                  <el-input v-model="form.detail.projectName" placeholder="请输入项目名称" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="人　数">
+                  <el-input v-model.number="form.detail.peopleCount" type="number" placeholder="请输入人数" :min="1" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-divider content-position="left">行程安排（可添加多段行程）</el-divider>
+
+            <div v-for="(segment, index) in form.detail.segments" :key="index" class="segment-card">
+              <div class="segment-header">
+                <span class="segment-title">第 {{ index + 1 }} 段</span>
+                <el-button
+                  v-if="form.detail.segments.length > 1"
+                  type="danger"
+                  size="small"
+                  plain
+                  @click="removeSegment(index)"
+                >
+                  删除
+                </el-button>
+              </div>
+
+              <el-row :gutter="20">
+                <el-col :span="12">
+                  <el-form-item label="出发时间">
+                    <el-date-picker
+                      v-model="segment.departureTime"
+                      type="datetime"
+                      placeholder="选择出发时间"
+                      style="width: 100%"
+                      value-format="YYYY-MM-DD HH:mm"
+                    />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="出发地点">
+                    <el-input v-model="segment.departureLocation" placeholder="请输入出发地点" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+
+              <el-row :gutter="20">
+                <el-col :span="12">
+                  <el-form-item label="到达时间">
+                    <el-date-picker
+                      v-model="segment.arrivalTime"
+                      type="datetime"
+                      placeholder="选择到达时间"
+                      style="width: 100%"
+                      value-format="YYYY-MM-DD HH:mm"
+                    />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="到达地点">
+                    <el-input v-model="segment.arrivalLocation" placeholder="请输入到达地点" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+
+              <el-row :gutter="20">
+                <el-col :span="8">
+                  <el-form-item label="交通工具">
+                    <el-select v-model="segment.transport" placeholder="请选择" style="width: 100%">
+                      <el-option label="火车" value="火车" />
+                      <el-option label="高铁" value="高铁" />
+                      <el-option label="飞机" value="飞机" />
+                      <el-option label="汽车" value="汽车" />
+                      <el-option label="公司车" value="公司车" />
+                      <el-option label="其他" value="其他" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="8">
+                  <el-form-item label="交通金额">
+                    <el-input v-model.number="segment.transportAmount" type="number" placeholder="请输入金额">
+                      <template #prefix>¥</template>
+                    </el-input>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="8">
+                  <el-form-item label="天　数">
+                    <div class="days-input">
+                      <el-input-number v-model="segment.days" :min="0" :max="30" :step="0.5" :precision="1" style="flex: 1" />
+                      <el-button-group class="days-quick">
+                        <el-button size="small" @click="setDays(segment, 0.5)">半天</el-button>
+                        <el-button size="small" @click="setDays(segment, 1)">一天</el-button>
+                      </el-button-group>
+                    </div>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </div>
+
+            <el-form-item>
+              <el-button type="primary" plain @click="addSegment">
+                ＋ 添加行程
+              </el-button>
+            </el-form-item>
+
+            <el-divider content-position="left">费用明细</el-divider>
+
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="补助标准">
+                  <el-input v-model.number="form.detail.allowanceStandard" type="number" placeholder="元/天">
+                    <template #prefix>¥</template>
+                  </el-input>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="补助金额">
+                  <el-input :model-value="allowanceAmountText" readonly>
+                    <template #prefix>¥</template>
+                    <template #append>自动计算</template>
+                  </el-input>
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="住宿费用">
+                  <el-input v-model.number="form.detail.lodgingAmount" type="number" placeholder="请输入金额">
+                    <template #prefix>¥</template>
+                  </el-input>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="市内交通">
+                  <el-input v-model.number="form.detail.localTransportAmount" type="number" placeholder="请输入金额">
+                    <template #prefix>¥</template>
+                  </el-input>
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-form-item label="其他费用">
+              <el-input v-model.number="form.detail.otherAmount" type="number" placeholder="请输入其他费用金额">
+                <template #prefix>¥</template>
+              </el-input>
+            </el-form-item>
+
+            <el-divider content-position="left">资金信息</el-divider>
+
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="预借金额">
+                  <el-input v-model.number="form.detail.preBorrowedAmount" type="number" placeholder="请输入已预借金额">
+                    <template #prefix>¥</template>
+                  </el-input>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="退/补金额">
+                  <el-input :model-value="refundAmountText" readonly>
+                    <template #prefix>¥</template>
+                    <template #append>自动计算</template>
+                  </el-input>
+                </el-form-item>
+              </el-col>
+            </el-row>
 
             <el-form-item>
               <el-button type="primary" @click="submitForm" :loading="submitting" size="large">提交申请</el-button>
@@ -122,21 +292,85 @@ const currentUser = computed(() => {
   return userStr ? JSON.parse(userStr) : null
 })
 
+const createSegment = () => ({
+  departureTime: '',
+  departureLocation: '',
+  arrivalTime: '',
+  arrivalLocation: '',
+  transport: '',
+  transportAmount: 0,
+  days: 0
+})
+
 const form = reactive({
   reimburseType: '',
-  amount: 0,
   reimburseDate: '',
   reason: '',
-  approver: '总经理'
+  approver: '总经理',
+  detail: {
+    projectName: '',
+    peopleCount: 1,
+    segments: [createSegment()],
+    allowanceStandard: 0,
+    lodgingAmount: 0,
+    localTransportAmount: 0,
+    otherAmount: 0,
+    preBorrowedAmount: 0
+  }
 })
 
 const rules = {
   reimburseType: [{ required: true, message: '请选择报销类型', trigger: 'change' }],
-  amount: [{ required: true, message: '请输入报销金额', trigger: 'blur' }],
   reimburseDate: [{ required: true, message: '请选择报销日期', trigger: 'change' }],
   reason: [{ required: true, message: '请输入报销事由', trigger: 'blur' }],
   approver: [{ required: true, message: '请选择审批人', trigger: 'change' }]
 }
+
+const addSegment = () => {
+  form.detail.segments.push(createSegment())
+}
+
+const removeSegment = (index: number) => {
+  form.detail.segments.splice(index, 1)
+}
+
+const setDays = (segment: any, days: number) => {
+  segment.days = days
+}
+
+const totalDays = computed(() =>
+  form.detail.segments.reduce((sum, seg) => sum + (Number(seg.days) || 0), 0)
+)
+
+const allowanceAmount = computed(() => {
+  const val = totalDays.value * (Number(form.detail.allowanceStandard) || 0)
+  return Math.round(val * 100) / 100
+})
+
+const transportTotal = computed(() =>
+  form.detail.segments.reduce((sum, seg) => sum + (Number(seg.transportAmount) || 0), 0)
+)
+
+const totalAmount = computed(() => {
+  const val = transportTotal.value
+    + allowanceAmount.value
+    + (Number(form.detail.lodgingAmount) || 0)
+    + (Number(form.detail.localTransportAmount) || 0)
+    + (Number(form.detail.otherAmount) || 0)
+  return Math.round(val * 100) / 100
+})
+
+const refundAmount = computed(() => {
+  const val = totalAmount.value - (Number(form.detail.preBorrowedAmount) || 0)
+  return Math.round(val * 100) / 100
+})
+
+const totalAmountText = computed(() => totalAmount.value.toFixed(2))
+const allowanceAmountText = computed(() => allowanceAmount.value.toFixed(2))
+const refundAmountText = computed(() => {
+  const v = refundAmount.value
+  return `${v >= 0 ? '+' : ''}${v.toFixed(2)}`
+})
 
 const loadApprovers = async () => {
   try {
@@ -159,16 +393,21 @@ const submitForm = async () => {
   if (!formRef.value) return
   await formRef.value.validate(async (valid: boolean) => {
     if (valid) {
+      if (totalAmount.value <= 0) {
+        ElMessage.warning('合计金额必须大于0')
+        return
+      }
       submitting.value = true
       try {
         const username = localStorage.getItem('username') || '当前用户'
         const data = {
           applicant: username,
           reimburseType: form.reimburseType,
-          amount: form.amount,
+          amount: totalAmount.value,
           reimburseDate: form.reimburseDate,
           reason: form.reason,
-          approver: form.approver
+          approver: form.approver,
+          detail: form.detail
         }
         const response = await addReimbursement(data)
         if (response.success) {
@@ -214,4 +453,30 @@ onMounted(() => {
 .tips-card { margin-top: 20px; }
 .tips-list { margin: 0; padding-left: 20px; }
 .tips-list li { margin: 8px 0; font-size: 13px; color: #606266; line-height: 1.6; }
+.segment-card {
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  padding: 16px 16px 0;
+  margin-bottom: 16px;
+  background: #fafcff;
+}
+.segment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.segment-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6495ED;
+}
+.days-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.days-quick {
+  flex-shrink: 0;
+}
 </style>

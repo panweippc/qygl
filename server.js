@@ -1000,9 +1000,16 @@ const initDatabase = async () => {
         comment TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
         result VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
         attachments TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        detail TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
         createdAt DATETIME NOT NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    // 迁移：给已存在的reimbursements表补充detail字段
+    try {
+      await connection.execute('ALTER TABLE reimbursements ADD COLUMN detail TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL');
+    } catch (e) {
+      // 字段可能已存在
+    }
     try {
       await connection.execute(`ALTER TABLE reimbursements ADD COLUMN attachments TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
     } catch (_e) {}
@@ -1263,11 +1270,11 @@ const initDatabase = async () => {
         SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_NAME = 'distributed_records' AND COLUMN_NAME = 'processComment'
       `);
-      
+
       if (columns.length === 0) {
         // 字段不存在，添加字段
         await connection.execute(`
-          ALTER TABLE distributed_records 
+          ALTER TABLE distributed_records
           ADD COLUMN processComment TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT '处理说明'
         `);
         console.log('processComment字段添加成功');
@@ -1276,6 +1283,26 @@ const initDatabase = async () => {
       }
     } catch (alterError) {
       console.log('processComment字段检查/添加结果:', alterError.message);
+    }
+
+    // 检查并添加approver字段
+    try {
+      const [columns] = await connection.execute(`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'distributed_records' AND COLUMN_NAME = 'approver'
+      `);
+
+      if (columns.length === 0) {
+        await connection.execute(`
+          ALTER TABLE distributed_records
+          ADD COLUMN approver VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '审批人'
+        `);
+        console.log('approver字段添加成功');
+      } else {
+        console.log('approver字段已存在');
+      }
+    } catch (alterError) {
+      console.log('approver字段检查/添加结果:', alterError.message);
     }
 
     // 检查并添加detail字段

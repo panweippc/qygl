@@ -102,7 +102,7 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="amount" label="报销金额">
+        <el-table-column prop="amount" label="合计金额">
           <template #default="{ row }">
             <span class="amount-badge">¥{{ row.amount }}</span>
           </template>
@@ -120,25 +120,6 @@
         <el-table-column label="审批人" width="100">
           <template #default="{ row }">
             {{ row.approver || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="提交时间" width="100">
-          <template #default="{ row }">
-            {{ formatDate(row.submitDate, false) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="下发人员" width="150" v-if="isAdmin">
-          <template #default="{ row }">
-            <div class="distributed-users">
-              <template v-if="row.distributedUsers && row.distributedUsers.length > 0">
-                <el-tooltip :content="row.distributedUsers.join('，')" placement="top">
-                  <span class="distributed-tag">
-                    {{ row.distributedUsers.length }}人
-                  </span>
-                </el-tooltip>
-              </template>
-              <span v-else class="no-distributed">-</span>
-            </div>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="240" fixed="right">
@@ -206,7 +187,7 @@
             <span class="type-tag" :class="getReimburseTypeClass(row.reimburseType)">{{ row.reimburseType }}</span>
           </div>
           <div class="card-row">
-            <span class="card-label">报销金额</span>
+            <span class="card-label">合计金额</span>
             <span class="amount-badge">¥{{ row.amount }}</span>
           </div>
           <div class="card-row">
@@ -233,6 +214,7 @@
             >
               终止
             </el-button>
+            <el-tag v-if="row.status === '已批准' && canDistribute && isDistributed(row, 'reimbursement')" type="warning" size="small" effect="plain" style="margin-right:6px;">已下发</el-tag>
             <el-button size="small" @click="$emit('view-detail', row, 'reimbursement')">详情</el-button>
           </div>
         </div>
@@ -257,8 +239,8 @@
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="报销金额" prop="amount">
-                  <el-input v-model="reimbursementForm.amount" type="number" placeholder="请输入金额">
+                <el-form-item label="合计金额">
+                  <el-input :model-value="reimbursementTotalAmountText" readonly>
                     <template #prefix>¥</template>
                   </el-input>
                 </el-form-item>
@@ -281,6 +263,130 @@
             <el-form-item label="报销事由" prop="reason">
               <el-input v-model="reimbursementForm.reason" type="textarea" :rows="4" placeholder="请输入报销事由" maxlength="500" show-word-limit></el-input>
             </el-form-item>
+            <el-divider content-position="left">出差明细（差旅费填写）</el-divider>
+            <el-row :gutter="24">
+              <el-col :span="12">
+                <el-form-item label="项目名称">
+                  <el-input v-model="reimbursementForm.detail.projectName" placeholder="请输入项目名称"></el-input>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="人　数">
+                  <el-input v-model.number="reimbursementForm.detail.peopleCount" type="number" placeholder="人数" :min="1"></el-input>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-divider content-position="left">行程安排</el-divider>
+            <div v-for="(segment, index) in reimbursementForm.detail.segments" :key="index" class="segment-card">
+              <div class="segment-header">
+                <span class="segment-title">第 {{ index + 1 }} 段</span>
+                <el-button
+                  v-if="reimbursementForm.detail.segments.length > 1"
+                  type="danger"
+                  size="small"
+                  plain
+                  @click="reimbursementForm.detail.segments.splice(index, 1)"
+                >
+                  删除
+                </el-button>
+              </div>
+              <el-row :gutter="24">
+                <el-col :span="12">
+                  <el-form-item label="出发时间">
+                    <el-date-picker v-model="segment.departureTime" type="datetime" placeholder="选择出发时间" style="width: 100%" value-format="YYYY-MM-DD HH:mm"></el-date-picker>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="出发地点">
+                    <el-input v-model="segment.departureLocation" placeholder="出发地点"></el-input>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <el-row :gutter="24">
+                <el-col :span="12">
+                  <el-form-item label="到达时间">
+                    <el-date-picker v-model="segment.arrivalTime" type="datetime" placeholder="选择到达时间" style="width: 100%" value-format="YYYY-MM-DD HH:mm"></el-date-picker>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="到达地点">
+                    <el-input v-model="segment.arrivalLocation" placeholder="到达地点"></el-input>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <el-row :gutter="24">
+                <el-col :span="8">
+                  <el-form-item label="交通工具">
+                    <el-select v-model="segment.transport" placeholder="请选择" style="width: 100%">
+                      <el-option label="火车" value="火车" />
+                      <el-option label="高铁" value="高铁" />
+                      <el-option label="飞机" value="飞机" />
+                      <el-option label="汽车" value="汽车" />
+                      <el-option label="公司车" value="公司车" />
+                      <el-option label="其他" value="其他" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="8">
+                  <el-form-item label="交通金额">
+                    <el-input v-model.number="segment.transportAmount" type="number" placeholder="金额"><template #prefix>¥</template></el-input>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="8">
+                  <el-form-item label="天　数">
+                    <div class="days-input">
+                      <el-input-number v-model="segment.days" :min="0" :max="30" :step="0.5" :precision="1" style="flex: 1" />
+                      <el-button-group class="days-quick">
+                        <el-button size="small" @click="segment.days = 0.5">半天</el-button>
+                        <el-button size="small" @click="segment.days = 1">一天</el-button>
+                      </el-button-group>
+                    </div>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </div>
+            <el-form-item>
+              <el-button type="primary" plain @click="reimbursementForm.detail.segments.push(createReimbursementSegment())">＋ 添加行程</el-button>
+            </el-form-item>
+            <el-row :gutter="24">
+              <el-col :span="12">
+                <el-form-item label="补助标准">
+                  <el-input v-model.number="reimbursementForm.detail.allowanceStandard" type="number" placeholder="元/天"><template #prefix>¥</template></el-input>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="补助金额">
+                  <el-input :model-value="reimbursementAllowanceAmountText" readonly><template #prefix>¥</template><template #append>自动</template></el-input>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="24">
+              <el-col :span="12">
+                <el-form-item label="住宿费用">
+                  <el-input v-model.number="reimbursementForm.detail.lodgingAmount" type="number" placeholder="金额"><template #prefix>¥</template></el-input>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="市内交通">
+                  <el-input v-model.number="reimbursementForm.detail.localTransportAmount" type="number" placeholder="金额"><template #prefix>¥</template></el-input>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-form-item label="其他费用">
+              <el-input v-model.number="reimbursementForm.detail.otherAmount" type="number" placeholder="金额"><template #prefix>¥</template></el-input>
+            </el-form-item>
+            <el-row :gutter="24">
+              <el-col :span="12">
+                <el-form-item label="预借金额">
+                  <el-input v-model.number="reimbursementForm.detail.preBorrowedAmount" type="number" placeholder="请输入已预借金额"><template #prefix>¥</template></el-input>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="退/补金额">
+                  <el-input :model-value="reimbursementRefundAmountText" readonly><template #prefix>¥</template><template #append>自动</template></el-input>
+                </el-form-item>
+              </el-col>
+            </el-row>
           </el-form>
         </div>
       </div>
@@ -345,17 +451,69 @@ const reimbursementDialogVisible = ref(false)
 const reimbursementRecords = ref<any[]>([])
 const allReimbursementRecords = ref<any[]>([])
 
+const createReimbursementSegment = () => ({
+  departureTime: '',
+  departureLocation: '',
+  arrivalTime: '',
+  arrivalLocation: '',
+  transport: '',
+  transportAmount: 0,
+  days: 0
+})
+
 const reimbursementForm = ref({
   reimburseType: '',
-  amount: '',
   reimburseDate: '',
   reason: '',
-  approver: '总经理'
+  approver: '总经理',
+  detail: {
+    projectName: '',
+    peopleCount: 1,
+    segments: [createReimbursementSegment()],
+    allowanceStandard: 0,
+    lodgingAmount: 0,
+    localTransportAmount: 0,
+    otherAmount: 0,
+    preBorrowedAmount: 0
+  }
+})
+
+const reimbursementTotalDays = computed(() =>
+  reimbursementForm.value.detail.segments.reduce((sum, seg: any) => sum + (Number(seg.days) || 0), 0)
+)
+
+const reimbursementAllowanceAmount = computed(() => {
+  const val = reimbursementTotalDays.value * (Number(reimbursementForm.value.detail.allowanceStandard) || 0)
+  return Math.round(val * 100) / 100
+})
+
+const reimbursementTransportTotal = computed(() =>
+  reimbursementForm.value.detail.segments.reduce((sum, seg: any) => sum + (Number(seg.transportAmount) || 0), 0)
+)
+
+const reimbursementTotalAmount = computed(() => {
+  const val = reimbursementTransportTotal.value
+    + reimbursementAllowanceAmount.value
+    + (Number(reimbursementForm.value.detail.lodgingAmount) || 0)
+    + (Number(reimbursementForm.value.detail.localTransportAmount) || 0)
+    + (Number(reimbursementForm.value.detail.otherAmount) || 0)
+  return Math.round(val * 100) / 100
+})
+
+const reimbursementRefundAmount = computed(() => {
+  const val = reimbursementTotalAmount.value - (Number(reimbursementForm.value.detail.preBorrowedAmount) || 0)
+  return Math.round(val * 100) / 100
+})
+
+const reimbursementTotalAmountText = computed(() => reimbursementTotalAmount.value.toFixed(2))
+const reimbursementAllowanceAmountText = computed(() => reimbursementAllowanceAmount.value.toFixed(2))
+const reimbursementRefundAmountText = computed(() => {
+  const v = reimbursementRefundAmount.value
+  return `${v >= 0 ? '+' : ''}${v.toFixed(2)}`
 })
 
 const reimbursementRules = {
   reimburseType: [{ required: true, message: '请选择报销类型', trigger: 'change' }],
-  amount: [{ required: true, message: '请输入报销金额', trigger: 'blur' }],
   reimburseDate: [{ required: true, message: '请选择报销日期', trigger: 'change' }],
   reason: [{ required: true, message: '请输入报销事由', trigger: 'blur' }]
 }
@@ -502,14 +660,19 @@ const goToReimbursementApply = () => {
 const submitReimbursementApplication = async () => {
   reimbursementFormRef.value?.validate(async (valid: boolean) => {
     if (valid) {
+      if (reimbursementTotalAmount.value <= 0) {
+        ElMessage.warning('合计金额必须大于0')
+        return
+      }
       try {
         const data = {
           applicant: currentUsername.value,
           reimburseType: reimbursementForm.value.reimburseType,
-          amount: reimbursementForm.value.amount,
+          amount: reimbursementTotalAmount.value,
           reimburseDate: formatDate(reimbursementForm.value.reimburseDate),
           reason: reimbursementForm.value.reason,
-          approver: reimbursementForm.value.approver
+          approver: reimbursementForm.value.approver,
+          detail: reimbursementForm.value.detail
         }
         const response = await addReimbursement(data)
         if (response.success) {
@@ -549,7 +712,7 @@ const exportReimbursementData = () => {
   exportToCSV(
     data,
     fileName,
-    ['报销编号', '申请人', '报销类型', '报销金额', '报销日期', '报销事由', '审批状态', '审批人', '提交时间'],
+    ['报销编号', '申请人', '报销类型', '合计金额', '报销日期', '报销事由', '审批状态', '审批人', '提交时间'],
     ['id', 'applicant', 'reimburseType', 'amount', 'reimburseDate', 'reason', 'status', 'approver', 'submitDate']
   )
 }
@@ -871,4 +1034,31 @@ defineExpose({ fetchData })
   padding: 12px 32px;
   font-size: 15px;
 }
+.segment-card {
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  padding: 14px 14px 0;
+  margin-bottom: 14px;
+  background: #fafcff;
+}
+.segment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.segment-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6495ED;
+}
+.days-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.days-quick {
+  flex-shrink: 0;
+}
+
 </style>

@@ -37,6 +37,10 @@ router.get('/distributed-records/user/:targetUser', async (req, res) => {
     );
 
     console.log('查询到的下发记录数量:', records.length);
+    try {
+      const [all] = await pool.execute('SELECT id, applicationType, applicationId, applicant, targetUser, status FROM distributed_records ORDER BY id DESC LIMIT 20');
+      console.log('最近20条下发记录(targetUser字段值):', JSON.stringify(all.map(r => ({ id: r.id, type: r.applicationType, appId: r.applicationId, targetUser: r.targetUser, status: r.status }))));
+    } catch (e) {}
     res.json({ success: true, data: records });
   } catch (error) {
     console.error('获取下发记录失败:', error);

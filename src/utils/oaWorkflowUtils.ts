@@ -173,6 +173,31 @@ export const formatDays = (days: any) => {
   return num + '天'
 }
 
+const buildReimbursementDetailFields = (item: any): Record<string, string> => {
+  let extra: Record<string, string> = {}
+  try {
+    const raw = item.detail
+    const d = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : {}
+    if (d.projectName) extra['项目名称'] = d.projectName
+    const segs = Array.isArray(d.segments) && d.segments.length > 0
+      ? d.segments
+      : (d.departureDate ? [{ departureTime: d.departureDate, departureLocation: d.departureLocation, arrivalTime: d.arrivalDate, arrivalLocation: d.arrivalLocation, days: d.allowanceDays }] : [])
+    if (segs.length > 0) {
+      const lines = segs.map((s: any, i: number) =>
+        `第${i + 1}段：${s.departureTime || ''} ${s.departureLocation || ''} → ${s.arrivalTime || ''} ${s.arrivalLocation || ''}${s.days ? `（${s.days}天）` : ''}`
+      )
+      extra['行程安排'] = lines.join('\n')
+    }
+    const pre = d.preBorrowedAmount
+    if (pre !== undefined && pre !== null && pre !== '') {
+      extra['预借金额'] = '¥' + Number(pre).toFixed(2)
+      const refund = Math.round((Number(item.amount) - Number(pre)) * 100) / 100
+      extra['退/补金额'] = (refund >= 0 ? '+' : '') + refund.toFixed(2)
+    }
+  } catch {}
+  return extra
+}
+
 export const getDetailFields = (item: any, type: string, currentUsername: string) => {
   const fields: Record<string, Record<string, string>> = {
     leave: {
@@ -188,9 +213,10 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
     reimbursement: {
       '申请人': item.applicant || currentUsername,
       '报销类型': item.reimburseType,
-      '报销金额': '¥' + item.amount,
+      '合计金额': '¥' + item.amount,
       '报销日期': item.reimburseDate,
       '报销事由': item.reason,
+      ...buildReimbursementDetailFields(item),
       '审批人': item.approver || '-',
       '附件': item.attachments || '',
       '提交时间': item.submitDate
@@ -223,7 +249,6 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
       '出差结束时间': item.endDate || '',
       '出差天数': formatDays(item.days),
       '预估费用': '¥' + item.estimatedCost,
-      '审批人': item.approver || '-',
       '提交时间': item.submitDate
     },
     entertainment: {
@@ -511,7 +536,7 @@ export const exportBusinessTripFormHTML = (row: any, department?: string) => {
   setTimeout(() => URL.revokeObjectURL(url), 60000)
 }
 
-export const exportEntertainmentFormHTML = (row: any, department?: string) => {
+export const exportEntertainmentFormHTML = (row: any, department?: string, employees?: any[]) => {
   const formatDateCN = (d: any) => {
     if (!d) return ''
     const dt = new Date(d)
@@ -526,7 +551,73 @@ export const exportEntertainmentFormHTML = (row: any, department?: string) => {
   const expenseDate = row.expenseDate || ''
   const purpose = row.purpose || ''
   const location = row.location || ''
-  const approveRows = buildApproveRows(row, 2, 1)
+  // 解析审批：部门负责人意见(非总经理)、总经理意见
+  const normalizeAct = (a: string) => {
+    if (!a) return ''
+    if (a === '同意' || a === 'agree' || a === 'approved' || a === '通过') return '批准'
+    if (a === '拒绝' || a === 'reject' || a === 'rejected' || a === '驳回') return '拒绝'
+    return a
+  }
+  let deptOpinionAct = ''
+  let financeOpinionAct = ''
+  let gmOpinionAct = ''
+  // 按角色分配意见：财务总监→财务意见，总经理→总经理意见，其余→部门意见
+  const assignByRole = (name: string, act: string) => {
+    if (!name || !act) return
+    const emp = (employees || []).find((e: any) => extractRealName(e.name) === extractRealName(name))
+    const role = emp?.position || ''
+    if (/财务/.test(role)) {
+      if (!financeOpinionAct) financeOpinionAct = act
+    } else if (/总经理/.test(role)) {
+      if (!gmOpinionAct) gmOpinionAct = act
+    } else if (!deptOpinionAct) {
+      deptOpinionAct = act
+    }
+  }
+  try {
+    const ah = row.approval_history
+    if (ah) {
+      const list = typeof ah === 'string' ? JSON.parse(ah) : ah
+      if (Array.isArray(list)) {
+        for (const h of list) {
+          const act = normalizeAct(h.action)
+          const name = String(h.approverName || h.approver_name || h.approver || '')
+          const role = String(h.approverRole || '')
+          if (role) {
+            if (/财务/.test(role)) { if (!financeOpinionAct) financeOpinionAct = act }
+            else if (/总经理/.test(role)) { if (!gmOpinionAct) gmOpinionAct = act }
+            else if (!deptOpinionAct) deptOpinionAct = act
+          } else {
+            assignByRole(name, act)
+          }
+        }
+      }
+    }
+  } catch {}
+  // 从 result 字段回退（格式："李智鑫:批准" 或 "李智鑫:批准;陈东:批准"），按角色分配
+  if (!deptOpinionAct && !financeOpinionAct && !gmOpinionAct && row.result) {
+    String(row.result).split(';').filter(Boolean).forEach((s: string) => {
+      const idx = s.indexOf(':')
+      const name = idx > 0 ? s.substring(0, idx).trim() : ''
+      const act = normalizeAct(idx > 0 ? s.substring(idx + 1).trim() : s.trim())
+      assignByRole(name, act)
+    })
+    // 兜底：单一审批人视为总经理（最终审批人）；多个→第一个部门、最后一个总经理
+    if (!deptOpinionAct && !financeOpinionAct && !gmOpinionAct) {
+      const acts = String(row.result).split(';').filter(Boolean).map((s: string) => {
+        const idx = s.indexOf(':')
+        return normalizeAct(idx > 0 ? s.substring(idx + 1).trim() : s.trim())
+      })
+      if (acts.length === 1) gmOpinionAct = acts[0]
+      else if (acts.length > 1) { deptOpinionAct = acts[0]; gmOpinionAct = acts[acts.length - 1] }
+    }
+    // 强制修正：单一审批人应归入总经理意见
+    const totalApprovers = String(row.result).split(';').filter(Boolean).length
+    if (totalApprovers === 1 && deptOpinionAct && !gmOpinionAct) {
+      gmOpinionAct = deptOpinionAct
+      deptOpinionAct = ''
+    }
+  }
   const numberToCN = (n: string) => {
     if (!n) return ''
     const digits = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']
@@ -635,23 +726,23 @@ export const exportEntertainmentFormHTML = (row: any, department?: string) => {
     <td class="label">费用类型</td>
     <td colspan="3">${expenseType || '　'}</td>
   </tr>
-  <tr class="approve-header">
-    <td>审批人</td>
-    <td colspan="2">审批结果</td>
-    <td>审批意见</td>
-  </tr>
-  ${approveRows}
   <tr>
+    <td class="label" style="color:#c00;">部门负责人意见</td>
+    <td style="height:36px;color:#c00;font-weight:bold;">${deptOpinionAct || '　'}</td>
     <td class="label">部门负责人签字</td>
-    <td colspan="3" style="height:36px;">　</td>
+    <td style="height:36px;">　</td>
   </tr>
   <tr>
+    <td class="label" style="color:#c00;">财务负责人意见</td>
+    <td style="height:36px;color:#c00;font-weight:bold;">${financeOpinionAct || '　'}</td>
     <td class="label">财务负责人签字</td>
-    <td colspan="3" style="height:36px;">　</td>
+    <td style="height:36px;">　</td>
   </tr>
   <tr>
+    <td class="label" style="color:#c00;">总经理意见</td>
+    <td style="height:36px;color:#c00;font-weight:bold;">${gmOpinionAct || '　'}</td>
     <td class="label">总经理签字</td>
-    <td colspan="3" style="height:36px;">　</td>
+    <td style="height:36px;">　</td>
   </tr>
   <tr>
     <td class="label">备　注</td>
@@ -683,65 +774,145 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     const dt = new Date(d)
     return `${dt.getFullYear()}年${dt.getMonth() + 1}月${dt.getDate()}日`
   }
-  const formatDateShort = (d: any) => {
-    if (!d) return ''
-    const dt = new Date(d)
-    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
-  }
 
   const reimburseType = row.reimburseType || ''
   const reason = row.reason || ''
   const amount = row.amount || ''
   const reimburseDate = formatDateCN(row.reimburseDate)
-  const reimburseDateShort = formatDateShort(row.reimburseDate)
-  const approver = row.approver || ''
-  const comment = row.comment || ''
+
+  // 解析出差明细 detail（JSON对象或字符串）
+  let d: any = {}
+  try {
+    const raw = row.detail
+    if (raw) d = typeof raw === 'string' ? JSON.parse(raw) : raw
+  } catch {}
 
   const isTravel = /差旅|出差/.test(reimburseType)
-  const title = isTravel ? '差 旅 费 报 销 单' : '报 销 单'
+  const title = isTravel ? '差旅费用报销单' : '报 销 单'
 
-  const approveRows = buildApproveRows(row, 2, 2)
+  // 行程段：优先使用新结构 segments，兼容旧字段
+  let segments: any[] = Array.isArray(d.segments) && d.segments.length > 0 ? d.segments : []
+  if (segments.length === 0 && (d.departureDate || d.arrivalDate || d.departureLocation || d.arrivalLocation)) {
+    segments = [{
+      departureTime: d.departureDate,
+      departureLocation: d.departureLocation,
+      arrivalTime: d.arrivalDate,
+      arrivalLocation: d.arrivalLocation,
+      transport: d.transport,
+      transportAmount: d.transportAmount,
+      days: d.allowanceDays
+    }]
+  }
+  while (segments.length < 4) segments.push({})
+  segments = segments.slice(0, 4)
 
-  const travelDetailsTable = isTravel ? `
+  const totalDays = segments.reduce((sum: number, s: any) => sum + (Number(s.days) || 0), 0)
+  const allowanceStandard = d.allowanceStandard || 0
+  const allowanceAmount = Math.round(totalDays * (Number(allowanceStandard) || 0) * 100) / 100
+  const lodgingAmount = d.lodgingAmount || 0
+  const localTransportAmount = d.localTransportAmount || 0
+  const otherAmount = d.otherAmount || 0
+  const preBorrowedAmount = d.preBorrowedAmount || 0
+  const transportTotal = segments.reduce((sum: number, s: any) => sum + (Number(s.transportAmount) || 0), 0)
+  const refundAmount = Math.round((Number(amount) - Number(preBorrowedAmount)) * 100) / 100
+
+  const money = (v: any) => (Number(v) || 0).toFixed(2)
+  const moneySigned = (v: number) => `${v >= 0 ? '+' : ''}${money(v)}`
+  const formatDateTimeCN = (dt: any) => {
+    if (!dt) return '　'
+    const str = String(dt).replace('T', ' ')
+    const m = str.match(/^(\d{4})[-/](\d{2})[-/](\d{2})\s+(\d{2}):(\d{2})/)
+    if (m) return `${Number(m[1])}年${Number(m[2])}月${Number(m[3])}日 ${m[4]}:${m[5]}`
+    return formatDateCN(dt)
+  }
+  const segmentRows = segments.map((s: any, i: number) => `
   <tr>
-    <td colspan="5" style="padding:8px 10px;border:1px solid #000;font-weight:bold;background:#f5f5f5;">报 销 明 细</td>
-  </tr>
-  <tr style="background:#fafafa;">
-    <td style="padding:6px 10px;border:1px solid #000;text-align:center;font-weight:bold;width:15%;">日　期</td>
-    <td style="padding:6px 10px;border:1px solid #000;text-align:center;font-weight:bold;width:18%;">起　点</td>
-    <td style="padding:6px 10px;border:1px solid #000;text-align:center;font-weight:bold;width:18%;">终　点</td>
-    <td style="padding:6px 10px;border:1px solid #000;text-align:center;font-weight:bold;width:33%;">交通费 / 住宿费 / 其他费用</td>
-    <td style="padding:6px 10px;border:1px solid #000;text-align:center;font-weight:bold;width:16%;">合　计</td>
-  </tr>
-  <tr>
-    <td style="padding:6px 10px;border:1px solid #000;text-align:center;">${reimburseDateShort || '　'}</td>
-    <td style="padding:6px 10px;border:1px solid #000;">　</td>
-    <td style="padding:6px 10px;border:1px solid #000;">　</td>
-    <td style="padding:6px 10px;border:1px solid #000;">　</td>
-    <td style="padding:6px 10px;border:1px solid #000;text-align:right;">　</td>
-  </tr>
-  <tr>
-    <td style="padding:6px 10px;border:1px solid #000;text-align:center;">　</td>
-    <td style="padding:6px 10px;border:1px solid #000;">　</td>
-    <td style="padding:6px 10px;border:1px solid #000;">　</td>
-    <td style="padding:6px 10px;border:1px solid #000;">　</td>
-    <td style="padding:6px 10px;border:1px solid #000;text-align:right;">　</td>
-  </tr>
-  <tr>
-    <td style="padding:6px 10px;border:1px solid #000;text-align:center;">　</td>
-    <td style="padding:6px 10px;border:1px solid #000;">　</td>
-    <td style="padding:6px 10px;border:1px solid #000;">　</td>
-    <td style="padding:6px 10px;border:1px solid #000;">　</td>
-    <td style="padding:6px 10px;border:1px solid #000;text-align:right;">　</td>
-  </tr>
-  <tr>
-    <td colspan="4" style="padding:6px 10px;border:1px solid #000;text-align:right;font-weight:bold;background:#fafafa;">合　计　金　额</td>
-    <td style="padding:6px 10px;border:1px solid #000;text-align:right;font-weight:bold;font-size:15px;color:#c00;">¥ ${amount}</td>
-  </tr>` : `
-  <tr>
-    <td class="label">报销金额</td>
-    <td colspan="4" style="padding:8px 10px;border:1px solid #000;font-size:16px;font-weight:bold;color:#c00;">¥ ${amount}</td>
-  </tr>`
+    <td colspan="2" class="label" style="background:#fff;text-align:center;">第 ${i + 1} 段</td>
+    <td colspan="2" style="text-align:center;">${formatDateTimeCN(s.departureTime)}</td>
+    <td colspan="2">${s.departureLocation || '　'}</td>
+    <td colspan="2" style="text-align:center;">${formatDateTimeCN(s.arrivalTime)}</td>
+    <td colspan="2">${s.arrivalLocation || '　'}</td>
+    <td colspan="2" style="text-align:center;">${money(s.transportAmount)}</td>
+    <td colspan="1" style="text-align:center;">${s.days || '　'}</td>
+  </tr>`).join('')
+
+  const numberToCN = (n: string) => {
+    if (!n) return ''
+    const digits = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']
+    const units = ['', '拾', '佰', '仟']
+    const bigUnits = ['', '万', '亿']
+    const parts = String(n).split('.')
+    let intPart = parseInt(parts[0] || '0', 10)
+    let decPart = parts[1] || ''
+    if (intPart === 0 && !decPart) return '零元整'
+    let result = ''
+    let groupIdx = 0
+    while (intPart > 0) {
+      const group = intPart % 10000
+      if (group > 0) {
+        let groupStr = ''
+        let g = group
+        let u = 0
+        while (g > 0) {
+          const d = g % 10
+          if (d > 0) groupStr = digits[d] + units[u] + groupStr
+          else if (groupStr) groupStr = '零' + groupStr
+          g = Math.floor(g / 10)
+          u++
+        }
+        result = groupStr + bigUnits[groupIdx] + result
+      } else if (result && !result.startsWith('零')) {
+        result = '零' + result
+      }
+      intPart = Math.floor(intPart / 10000)
+      groupIdx++
+    }
+    result += '元'
+    if (decPart) {
+      const jiao = parseInt(decPart[0] || '0', 10)
+      const fen = parseInt(decPart[1] || '0', 10)
+      if (jiao > 0) result += digits[jiao] + '角'
+      else if (fen > 0 && result) result += '零'
+      if (fen > 0) result += digits[fen] + '分'
+      else if (jiao === 0) result += '整'
+    } else {
+      result += '整'
+    }
+    return result
+  }
+
+  // 审批意见拆分（按角色）
+  const normalizeAct = (a: string) => {
+    if (!a) return ''
+    if (a === '同意' || a === 'agree' || a === 'approved' || a === '通过') return '批准'
+    if (a === '拒绝' || a === 'reject' || a === 'rejected' || a === '驳回') return '拒绝'
+    return a
+  }
+  let deptAct = '', financeAct = '', gmAct = ''
+  try {
+    const ah = row.approval_history
+    if (ah) {
+      const list = typeof ah === 'string' ? JSON.parse(ah) : ah
+      if (Array.isArray(list)) {
+        for (const h of list) {
+          const role = String(h.approverRole || '')
+          const act = normalizeAct(h.action)
+          if (/财务/.test(role)) financeAct = act
+          else if (/总经理/.test(role)) gmAct = act
+          else if (!deptAct) deptAct = act
+        }
+      }
+    }
+  } catch {}
+  if (!deptAct && !financeAct && !gmAct && row.result) {
+    const acts = String(row.result).split(';').filter(Boolean).map((s: string) => {
+      const idx = s.indexOf(':')
+      return normalizeAct(idx > 0 ? s.substring(idx + 1).trim() : s.trim())
+    })
+    if (acts.length === 1) gmAct = acts[0]
+    else if (acts.length === 2) { deptAct = acts[0]; financeAct = acts[1] }
+    else if (acts.length >= 3) { deptAct = acts[0]; financeAct = acts[1]; gmAct = acts[acts.length - 1] }
+  }
 
   const html = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -749,58 +920,115 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
 <meta charset="UTF-8">
 <title>${title} #${row.id}</title>
 <style>
-  @page { margin: 10mm; }
+  @page { margin: 8mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: "SimSun", "宋体", serif; color: #000; font-size: 14px; background: #fff; }
-  .form-wrap { max-width: 750px; margin: 20px auto; border: 2px solid #000; padding: 0; background: #fff; }
+  body { font-family: "SimSun", "宋体", serif; color: #000; font-size: 13px; background: #fff; }
+  .form-wrap { max-width: 760px; margin: 10px auto; border: 2px solid #000; padding: 0; background: #fff; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  td { border: 1px solid #000; padding: 8px 10px; vertical-align: middle; }
-  .company-cell { text-align: center; font-size: 12px; color: #666; padding: 4px; letter-spacing: 2px; border-bottom: none; }
-  .title-cell { text-align: center; font-size: 22px; font-weight: bold; letter-spacing: 8px; padding: 14px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
-  .label { font-weight: bold; white-space: nowrap; width: 90px; background: #f5f5f5; text-align: center; }
-  .reason-cell { min-height: 80px; line-height: 1.8; padding: 12px 10px; }
-  .approve-header td { background: #eaeaea; font-weight: bold; text-align: center; padding: 6px 10px; }
-  .print-hint { text-align: center; margin-top: 10px; font-size: 11px; color: #aaa; }
-  @media print {
-    .print-hint { display: none; }
-    body { padding: 0; }
-    .form-wrap { margin: 0 auto; }
-  }
+  td { border: 1px solid #000; padding: 6px 8px; vertical-align: middle; }
+  .title-cell { text-align: center; font-size: 26px; font-weight: bold; letter-spacing: 14px; padding: 10px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
+  .label { font-weight: bold; text-align: center; white-space: nowrap; background: #fafafa; }
+  .field-value { padding-left: 6px; }
+  .reason-cell { min-height: 50px; line-height: 1.6; padding: 8px; }
+  .approve-header td { background: #f5f5f5; font-weight: bold; text-align: center; padding: 4px 6px; }
+  .print-hint { text-align: center; margin-top: 8px; font-size: 11px; color: #aaa; }
+  @media print { .print-hint { display: none; } body { padding: 0; } .form-wrap { margin: 0 auto; } }
 </style>
 </head>
 <body>
 <div class="form-wrap">
 <table>
-  <tr><td colspan="5" class="company-cell">内蒙古宏友软件技术服务有限公司</td></tr>
-  <tr><td colspan="5" class="title-cell">${title}</td></tr>
+  <tr><td colspan="13" class="title-cell">${title}</td></tr>
   <tr>
-    <td class="label">单据编号</td>
-    <td colspan="2">#${row.id || ''}</td>
-    <td class="label">报销日期</td>
-    <td>${reimburseDate || '　'}</td>
+    <td class="label" colspan="2">报销日期</td>
+    <td colspan="3">${reimburseDate || '　年　月　日'}</td>
+    <td colspan="2" class="label">编　号</td>
+    <td colspan="6">#${row.id || ''}</td>
   </tr>
   <tr>
-    <td class="label">报销人</td>
-    <td colspan="2">${row.applicant || ''}</td>
-    <td class="label">部　门</td>
-    <td>${department || ''}</td>
+    <td class="label" colspan="2">部　门</td>
+    <td colspan="6">${department || ''}</td>
+    <td class="label" colspan="2">出差人</td>
+    <td colspan="3">${row.applicant || ''}</td>
   </tr>
   <tr>
-    <td class="label">报销类型</td>
-    <td colspan="4">${reimburseType || ''}</td>
+    <td class="label" colspan="2">出差事由</td>
+    <td colspan="11" class="reason-cell">${reason || ''}</td>
   </tr>
   <tr>
-    <td class="label">报销事由</td>
-    <td colspan="4" class="reason-cell">${reason || '（未填写）'}</td>
+    <td class="label" colspan="2">项目名称</td>
+    <td colspan="11">${d.projectName || '　'}</td>
   </tr>
-  ${travelDetailsTable}
-  ${approveRows}
+  <tr style="background:#fafafa;font-weight:bold;">
+    <td colspan="2" class="label" style="text-align:center;">项　目</td>
+    <td colspan="2" class="label" style="text-align:center;">出发时间</td>
+    <td colspan="2" class="label" style="text-align:center;">出发地点</td>
+    <td colspan="2" class="label" style="text-align:center;">到达时间</td>
+    <td colspan="2" class="label" style="text-align:center;">到达地点</td>
+    <td colspan="2" class="label" style="text-align:center;">交通金额</td>
+    <td colspan="1" class="label" style="text-align:center;">天　数</td>
+  </tr>
+  ${segmentRows}
+  <tr style="font-weight:bold;">
+    <td colspan="2" class="label" style="background:#fff;text-align:right;">合　计</td>
+    <td colspan="2" style="text-align:center;">　</td>
+    <td colspan="2" style="text-align:center;">　</td>
+    <td colspan="2" style="text-align:center;">　</td>
+    <td colspan="2" style="text-align:center;">　</td>
+    <td colspan="2" style="text-align:center;color:#c00;">${money(transportTotal)}</td>
+    <td colspan="1" style="text-align:center;">${totalDays || '　'}</td>
+  </tr>
   <tr>
-    <td class="label">申请人签字</td>
-    <td colspan="2" style="height:40px;">　</td>
-    <td class="label">日　期</td>
-    <td>　</td>
+    <td colspan="2" class="label" style="background:#fafafa;text-align:center;">补助标准</td>
+    <td colspan="2" class="label" style="background:#fafafa;text-align:center;">补助金额</td>
+    <td colspan="2" class="label" style="background:#fafafa;text-align:center;">住宿费用</td>
+    <td colspan="2" class="label" style="background:#fafafa;text-align:center;">市内交通</td>
+    <td colspan="2" class="label" style="background:#fafafa;text-align:center;">其他费用</td>
+    <td colspan="3" class="label" style="background:#fafafa;text-align:center;">合　　计</td>
   </tr>
+  <tr>
+    <td colspan="2" style="text-align:center;">${money(allowanceStandard)}</td>
+    <td colspan="2" style="text-align:center;">${money(allowanceAmount)}</td>
+    <td colspan="2" style="text-align:center;">${money(lodgingAmount)}</td>
+    <td colspan="2" style="text-align:center;">${money(localTransportAmount)}</td>
+    <td colspan="2" style="text-align:center;">${money(otherAmount)}</td>
+    <td colspan="3" style="text-align:center;font-weight:bold;color:#c00;font-size:15px;">¥ ${money(amount)}</td>
+  </tr>
+  <tr>
+    <td colspan="2" rowspan="2" class="label" style="background:#fafafa;">报销<br>总额</td>
+    <td colspan="4" rowspan="2" style="text-align:center;font-weight:bold;font-size:14px;">（大写） ${numberToCN(String(amount))}</td>
+    <td colspan="3" class="label" style="background:#fafafa;text-align:right;">人民币　</td>
+    <td colspan="2" style="text-align:right;font-weight:bold;color:#c00;">¥ ${money(amount)}</td>
+    <td colspan="2" rowspan="2" class="label" style="background:#fafafa;">预借金额<br>¥ ${money(preBorrowedAmount)}</td>
+  </tr>
+  <tr>
+    <td colspan="3" class="label" style="background:#fafafa;text-align:right;">退／补金额</td>
+    <td colspan="2" style="text-align:right;font-weight:bold;color:#c00;">${moneySigned(refundAmount)}</td>
+  </tr>
+  <tr>
+    <td colspan="3" class="label" style="background:#fafafa;">附单据张数合计</td>
+    <td colspan="2">　</td>
+    <td colspan="2" class="label" style="background:#fafafa;">对应上方的项目</td>
+    <td colspan="2">　</td>
+    <td colspan="2" class="label" style="background:#fafafa;">城际交通</td>
+    <td colspan="2" class="label" style="background:#fafafa;">其他</td>
+  </tr>
+  <tr>
+    <td colspan="3" class="label" style="background:#fafafa;">领导批示</td>
+    <td colspan="2" rowspan="4" style="height:60px;">${gmAct ? `<span style="color:#c00;font-weight:bold;">${gmAct}</span>` : ''}</td>
+    <td colspan="2" class="label" style="background:#fafafa;">部门主管</td>
+    <td colspan="2" rowspan="4" style="height:60px;">${deptAct ? `<span style="color:#c00;font-weight:bold;">${deptAct}</span>` : ''}</td>
+    <td colspan="2" class="label" style="background:#fafafa;">财务主管</td>
+    <td colspan="2" rowspan="4" style="height:60px;">${financeAct ? `<span style="color:#c00;font-weight:bold;">${financeAct}</span>` : ''}</td>
+  </tr>
+  <tr>
+    <td colspan="3" rowspan="3" style="height:80px;"></td>
+    <td colspan="2" class="label" style="background:#fafafa;">会　计</td>
+    <td colspan="2" class="label" style="background:#fafafa;">出　纳</td>
+    <td colspan="2" class="label" style="background:#fafafa;">领款人</td>
+  </tr>
+  <tr><td colspan="2" rowspan="2" style="height:60px;">　</td><td colspan="2" rowspan="2" style="height:60px;">　</td><td colspan="2" rowspan="2" style="height:60px;">　</td></tr>
+  <tr></tr>
 </table>
 </div>
 <div class="print-hint">按 Ctrl+P 可导出为 PDF 打印</div>
@@ -811,7 +1039,7 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
   const url = URL.createObjectURL(blob)
   const w = window.open(url, '_blank')
   if (w) {
-    w.document.title = `${title}_${row.applicant}_${reimburseDateShort}`
+    w.document.title = `${title}_${row.applicant}`
   } else {
     const a = document.createElement('a')
     a.href = url
@@ -897,7 +1125,6 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
     if (a === '拒绝' || a === 'reject' || a === 'rejected' || a === '驳回') return '拒绝'
     return a
   }
-  console.log('[导出请假单调试] id:', row.id, 'result:', row.result, 'status:', row.status, 'comment:', row.comment, 'approval_history:', row.approval_history)
   let deptOpinion = ''
   let leaderOpinion = ''
   // 1) 尝试 approval_history（结构化数组）
