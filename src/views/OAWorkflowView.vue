@@ -426,9 +426,7 @@
                 <a
                   v-for="(file, i) in currentAttachments"
                   :key="i"
-                  :href="file.url"
-                  target="_blank"
-                  rel="noopener"
+                  :href="getAttachmentDownloadUrl(file)"
                   class="attachment-link"
                 >
                   {{ file.name }}
@@ -990,6 +988,10 @@ const currentDetailType = ref('')
 const currentAttachments = computed(() => {
   return parseAttachments(currentDetailItem.value?.attachments)
 })
+
+const getAttachmentDownloadUrl = (file: { name: string; url: string }) => {
+  return `/api/attachments/download?file=${encodeURIComponent(file.url)}&name=${encodeURIComponent(file.name)}`
+}
 
 const viewDetail = (row: any, type: string) => {
   currentDetailItem.value = row

@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -61,6 +62,27 @@ router.post('/upload', upload.array('file', 10), async (req, res) => {
   } catch (error) {
     console.error('上传文件失败:', error);
     res.status(500).json({ success: false, message: '上传失败' });
+  }
+});
+
+// 附件下载（保持上传时的原始文件名，不预览直接下载）
+router.get('/attachments/download', (req, res) => {
+  try {
+    const file = decodeURIComponent(req.query.file || '');
+    const rawName = decodeURIComponent(req.query.name || '');
+    const fileName = file.replace(/^\/uploads\//, '');
+    if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
+      return res.status(400).json({ success: false, message: '非法文件路径' });
+    }
+    const safeName = rawName.replace(/[\\/\r\n"]/g, '_') || fileName;
+    const filePath = path.join(__dirname, '../../uploads', fileName);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: '文件不存在' });
+    }
+    res.download(filePath, safeName);
+  } catch (error) {
+    console.error('附件下载失败:', error);
+    res.status(500).json({ success: false, message: '下载失败' });
   }
 });
 
