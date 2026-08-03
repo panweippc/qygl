@@ -270,11 +270,6 @@
                         <span class="distributed-detail-text">{{ getDistributedDetail(row) }}</span>
                       </template>
                     </el-table-column>
-                    <el-table-column prop="comment" label="下发说明" min-width="150">
-                      <template #default="{ row }">
-                        <span class="comment-text">{{ row.comment || '-' }}</span>
-                      </template>
-                    </el-table-column>
                     <el-table-column label="操作" width="200" fixed="right">
                       <template #default="{ row }">
                         <div class="action-group">
@@ -512,10 +507,6 @@
             <span class="info-label">下发人：</span>
             <span class="info-value">{{ currentProcessItem.distributedBy }}</span>
           </div>
-          <div class="info-row">
-            <span class="info-label">下发说明：</span>
-            <span class="info-value">{{ currentProcessItem.comment || '-' }}</span>
-          </div>
         </div>
       </div>
       <template #footer>
@@ -721,8 +712,8 @@ const getDistributedDetail = (row: any) => {
 }
 
 const exportDistributedData = () => {
-  const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '处理状态', '申请详情', '下发说明', '处理说明']
-  const fields = ['id', 'applicationType', 'applicationId', 'applicant', 'distributedBy', 'distributeDate', 'status', 'detailText', 'comment', 'processComment']
+  const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '处理状态', '申请详情', '处理说明']
+  const fields = ['id', 'applicationType', 'applicationId', 'applicant', 'distributedBy', 'distributeDate', 'status', 'detailText', 'processComment']
   const filename = '下发管理'
   const data = (filteredDistributedRecords.value.length > 0 ? filteredDistributedRecords.value : distributedRecords.value)
     .map((r: any) => ({ ...r, detailText: getDistributedDetail(r) }))
@@ -790,8 +781,8 @@ const exportDistributedRow = async (row: any) => {
     action(appRecord, getDept(appRecord.applicant || row.applicant))
     return
   }
-  const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '处理状态', '下发说明', '处理说明']
-  const fields = ['id', 'applicationType', 'applicationId', 'applicant', 'distributedBy', 'distributeDate', 'status', 'comment', 'processComment']
+  const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '处理状态', '处理说明']
+  const fields = ['id', 'applicationType', 'applicationId', 'applicant', 'distributedBy', 'distributeDate', 'status', 'processComment']
   exportSingleRow(row, '下发记录', headers, fields)
 }
 
@@ -933,7 +924,10 @@ const submitApproval = async () => {
     }
     if (response?.success) {
       const targets = [...new Set(approvalForm.value.distributeTargets || [])]
-      if (approvalForm.value.result === '批准' && targets.length > 0) {
+      const effectiveTargets = targets.length > 0
+        ? targets
+        : (approvalForm.value.result === '批准' && approvalForm.value.type === 'reimbursement' ? ['张海琼'] : [])
+      if (approvalForm.value.result === '批准' && effectiveTargets.length > 0) {
         const item = currentApprovalItem.value
         const type = approvalForm.value.type
         let detailObj: any = {}
@@ -950,7 +944,11 @@ const submitApproval = async () => {
     } else if (type === 'entertainment') {
       detailObj = { guestName: item.guestName, guestUnit: item.guestUnit, location: item.location, guestCount: item.guestCount, expenseType: item.expenseType, expenseAmount: item.expenseAmount, expenseDate: item.expenseDate, purpose: item.purpose }
     }
-    for (const target of targets) {
+    const distributedAttachments = parseAttachments(item.attachments)
+    if (distributedAttachments.length > 0) {
+      detailObj.attachments = distributedAttachments
+    }
+    for (const target of effectiveTargets) {
           try {
             await addDistributedRecord({
               applicationId: item.id,
@@ -1046,6 +1044,10 @@ const handleDistribute = async () => {
     } else if (type === 'entertainment') {
       detailObj = { guestName: item.guestName, guestUnit: item.guestUnit, location: item.location, guestCount: item.guestCount, expenseType: item.expenseType, expenseAmount: item.expenseAmount }
     }
+    const manualAttachments = parseAttachments(item.attachments)
+    if (manualAttachments.length > 0) {
+      detailObj.attachments = manualAttachments
+    }
     const results = []
     for (const target of validTargets) {
       const distributeData = {
@@ -1138,8 +1140,27 @@ const getApplicationDetailHtml = (row: any) => {
   return detailHtml
 }
 
+const getDistributedAttachmentsHtml = (row: any) => {
+  if (!row.detail) return ''
+  try {
+    const detail = JSON.parse(row.detail)
+    const files = Array.isArray(detail.attachments) ? detail.attachments : []
+    if (files.length === 0) return ''
+    const links = files
+      .map((f: any) => {
+        const url = `/api/attachments/download?file=${encodeURIComponent(f.url || '')}&name=${encodeURIComponent(f.name || '')}`
+        return `<a href="${url}" style="color:#6495ED;font-weight:500;text-decoration:underline;word-break:break-all;">📎 ${f.name || '附件'}</a>`
+      })
+      .join('<br/>')
+    return `<p><strong>附件：</strong><br/>${links}</p>`
+  } catch (e) {
+    return ''
+  }
+}
+
 const viewDistributedDetail = (row: any) => {
   const appDetailHtml = getApplicationDetailHtml(row)
+  const attachmentsHtml = getDistributedAttachmentsHtml(row)
   ElMessageBox.alert(`
     <div style="text-align: left;">
       <p><strong>下发编号：</strong>#${row.id}</p>
@@ -1150,8 +1171,8 @@ const viewDistributedDetail = (row: any) => {
       <p><strong>下发人：</strong>${row.distributedBy}</p>
       <p><strong>下发时间：</strong>${row.distributeDate}</p>
       <p><strong>处理状态：</strong>${row.status}</p>
-      <p><strong>下发说明：</strong>${row.comment || '-'}</p>
       ${appDetailHtml ? '<hr style="margin:8px 0;border-color:#eee"/>' + appDetailHtml : ''}
+      ${attachmentsHtml ? '<hr style="margin:8px 0;border-color:#eee"/>' + attachmentsHtml : ''}
     </div>
   `, '下发详情', {
     dangerouslyUseHTMLString: true,
