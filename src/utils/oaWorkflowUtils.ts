@@ -844,14 +844,14 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     <td colspan="2" class="label" style="text-align:center;">出发地点</td>
     <td colspan="2" class="label" style="text-align:center;">到达日期</td>
     <td colspan="2" class="label" style="text-align:center;">到达地点</td>
-    <td class="label" style="text-align:center;">交通工具</td>
-    <td class="label" style="text-align:center;">交通金额</td>
-    <td class="label" style="text-align:center;">天数</td>
-    <td class="label" style="text-align:center;">补助标准</td>
-    <td class="label" style="text-align:center;">补助金额</td>
-    <td class="label" style="text-align:center;">住宿</td>
-    <td class="label" style="text-align:center;">市内</td>
-    <td class="label" style="text-align:center;">其他</td>
+    <td class="label" style="text-align:center;">交通<br>工具</td>
+    <td class="label" style="text-align:center;">交通<br>金额</td>
+    <td class="label" style="text-align:center;">天<br>数</td>
+    <td class="label" style="text-align:center;">补助<br>标准</td>
+    <td class="label" style="text-align:center;">补助<br>金额</td>
+    <td class="label" style="text-align:center;">住<br>宿</td>
+    <td class="label" style="text-align:center;">市<br>内</td>
+    <td class="label" style="text-align:center;">其<br>他</td>
   </tr>`
 
   const segmentRows = segments.map((s: any, i: number) => {
@@ -992,45 +992,37 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
 <body>
 <div class="form-wrap">
 <table>
-  <tr><td colspan="13" class="title-cell">${title}</td></tr>
+  <tr><td colspan="17" class="title-cell">${title}</td></tr>
   <tr>
     <td class="label" colspan="2">报销日期</td>
     <td colspan="3">${reimburseDate || '　年　月　日'}</td>
     <td colspan="2" class="label">编　号</td>
-    <td colspan="6">#${row.id || ''}</td>
+    <td colspan="10">#${row.id || ''}</td>
   </tr>
   <tr>
     <td class="label" colspan="2">部　门</td>
-    <td colspan="6">${department || ''}</td>
+    <td colspan="15">${department || ''}</td>
+  </tr>
+  <tr>
     <td class="label" colspan="2">出差人</td>
     <td colspan="3">${row.applicant || ''}</td>
-  </tr>
-  <tr>
     <td class="label" colspan="2">出差事由</td>
-    <td colspan="11" class="reason-cell">${reason || ''}</td>
-  </tr>
-  <tr>
+    <td colspan="6" class="reason-cell">${reason || ''}</td>
     <td class="label" colspan="2">项目名称</td>
-    <td colspan="11">${d.projectName || '　'}</td>
+    <td colspan="2">${d.projectName || '　'}</td>
   </tr>
-  <tr>
-    <td colspan="13" style="padding:0;border:0;">
-      <table style="width:100%;border-collapse:collapse;">
-        ${segHeader}
-        ${segmentRows}
-        ${segTotalRow}
-        <tr style="font-weight:bold;">
-          <td colspan="17" style="text-align:center;color:#c00;font-size:15px;">合计金额 ¥ ${money(amount)}</td>
-        </tr>
-      </table>
-    </td>
+  ${segHeader}
+  ${segmentRows}
+  ${segTotalRow}
+  <tr style="font-weight:bold;">
+    <td colspan="17" style="text-align:center;color:#c00;font-size:15px;">合计金额 ¥ ${money(amount)}</td>
   </tr>
   <tr>
     <td colspan="2" rowspan="2" class="label" style="background:#fafafa;">报销<br>总额</td>
     <td colspan="4" rowspan="2" style="text-align:center;font-weight:bold;font-size:14px;">（大写） ${numberToCN(String(amount))}</td>
     <td colspan="3" class="label" style="background:#fafafa;text-align:right;">人民币　</td>
     <td colspan="2" style="text-align:right;font-weight:bold;color:#c00;">¥ ${money(amount)}</td>
-    <td colspan="2" rowspan="2" class="label" style="background:#fafafa;">预借金额<br>¥ ${money(preBorrowedAmount)}</td>
+    <td colspan="6" rowspan="2" class="label" style="background:#fafafa;">预借金额<br>¥ ${money(preBorrowedAmount)}</td>
   </tr>
   <tr>
     <td colspan="3" class="label" style="background:#fafafa;text-align:right;">退／补金额</td>
@@ -1040,8 +1032,9 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     <td colspan="3" class="label" style="background:#fafafa;">附单据张数合计</td>
     <td colspan="2">　</td>
     <td colspan="2" class="label" style="background:#fafafa;">对应上方的项目</td>
-    <td colspan="2">　</td>
+    <td colspan="4">　</td>
     <td colspan="2" class="label" style="background:#fafafa;">城际交通</td>
+    <td colspan="2">　</td>
     <td colspan="2" class="label" style="background:#fafafa;">其他</td>
   </tr>
   <tr>
@@ -1051,6 +1044,7 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     <td colspan="2" rowspan="4" style="height:60px;">${deptAct ? `<span style="color:#c00;font-weight:bold;">${deptAct}</span>` : ''}</td>
     <td colspan="2" class="label" style="background:#fafafa;">财务主管</td>
     <td colspan="2" rowspan="4" style="height:60px;">${financeAct ? `<span style="color:#c00;font-weight:bold;">${financeAct}</span>` : ''}</td>
+    <td colspan="4" rowspan="4"></td>
   </tr>
   <tr>
     <td colspan="3" rowspan="3" style="height:80px;"></td>
