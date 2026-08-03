@@ -311,7 +311,7 @@ const submitForm = async () => {
         let attachments = null
         if (fileList.value.length > 0) {
           const files = fileList.value.map((item: any) => item.raw).filter(Boolean) as File[]
-          const uploadRes = await uploadAttachmentFiles(files)
+          const uploadRes = await uploadAttachmentFiles(files, currentUser.value?.id)
           if (!uploadRes.success) {
             ElMessage.error(uploadRes.message || '附件上传失败')
             return

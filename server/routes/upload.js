@@ -43,7 +43,7 @@ router.post('/upload', upload.array('file', 10), async (req, res) => {
     }
     const { pool } = req.app.locals;
     const categoryId = req.body.categoryId || null;
-    const uploaderId = req.body.uploaderId || null;
+    const uploaderId = req.body.uploaderId || 0;
     const now = new Date().toISOString().replace('T', ' ').replace('Z', '');
 
     const fileList = [];

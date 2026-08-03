@@ -494,9 +494,12 @@ export const updateSalesTargets = async (targets: any[]): Promise<ApiResponse> =
 };
 
 // 附件上传（OA申请附件）
-export const uploadAttachmentFiles = async (files: File[]): Promise<{ success: boolean; data: { name: string; url: string; size: number }[]; message?: string }> => {
+export const uploadAttachmentFiles = async (files: File[], uploaderId?: number): Promise<{ success: boolean; data: { name: string; url: string; size: number }[]; message?: string }> => {
   const formData = new FormData();
   files.forEach(f => formData.append('file', f));
+  if (uploaderId) {
+    formData.append('uploaderId', String(uploaderId));
+  }
   const response = await api.post('/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   });
