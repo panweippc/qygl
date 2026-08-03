@@ -1044,13 +1044,13 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     <td colspan="2" rowspan="4" style="height:60px;">${deptAct ? `<span style="color:#c00;font-weight:bold;">${deptAct}</span>` : ''}</td>
     <td colspan="2" class="label" style="background:#fafafa;">财务主管</td>
     <td colspan="2" rowspan="4" style="height:60px;">${financeAct ? `<span style="color:#c00;font-weight:bold;">${financeAct}</span>` : ''}</td>
-    <td colspan="4" rowspan="4"></td>
+    <td colspan="2" class="label" rowspan="2" style="background:#fafafa;">领款人</td>
+    <td colspan="2" rowspan="4"></td>
   </tr>
   <tr>
     <td colspan="3" rowspan="3" style="height:80px;"></td>
     <td colspan="2" class="label" style="background:#fafafa;">会　计</td>
     <td colspan="2" class="label" style="background:#fafafa;">出　纳</td>
-    <td colspan="2" class="label" style="background:#fafafa;">领款人</td>
   </tr>
   <tr><td colspan="2" rowspan="2" style="height:60px;">　</td><td colspan="2" rowspan="2" style="height:60px;">　</td><td colspan="2" rowspan="2" style="height:60px;">　</td></tr>
   <tr></tr>
