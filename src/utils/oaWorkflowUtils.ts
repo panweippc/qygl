@@ -837,28 +837,58 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     if (m) return `${Number(m[1])}年${Number(m[2])}月${Number(m[3])}日 ${m[4]}:${m[5]}`
     return formatDateCN(dt)
   }
+  const segHeader = `
+  <tr style="background:#fafafa;font-weight:bold;">
+    <td class="label" style="text-align:center;">段</td>
+    <td colspan="2" class="label" style="text-align:center;">出发日期</td>
+    <td colspan="2" class="label" style="text-align:center;">出发地点</td>
+    <td colspan="2" class="label" style="text-align:center;">到达日期</td>
+    <td colspan="2" class="label" style="text-align:center;">到达地点</td>
+    <td class="label" style="text-align:center;">交通工具</td>
+    <td class="label" style="text-align:center;">交通金额</td>
+    <td class="label" style="text-align:center;">天数</td>
+    <td class="label" style="text-align:center;">补助标准</td>
+    <td class="label" style="text-align:center;">补助金额</td>
+    <td class="label" style="text-align:center;">住宿</td>
+    <td class="label" style="text-align:center;">市内</td>
+    <td class="label" style="text-align:center;">其他</td>
+  </tr>`
+
   const segmentRows = segments.map((s: any, i: number) => {
-    const sub = Math.round(((Number(s.transportAmount) || 0) + (Number(s.allowanceAmount) || 0) + (Number(s.lodgingAmount) || 0) + (Number(s.localTransportAmount) || 0) + (Number(s.otherAmount) || 0)) * 100) / 100
     return `
   <tr>
-    <td colspan="1" class="label" style="background:#fff;text-align:center;">第 ${i + 1} 段</td>
+    <td class="label" style="background:#fff;text-align:center;">${i + 1}</td>
     <td colspan="2" style="text-align:center;">${formatDateTimeCN(s.departureDate)}</td>
     <td colspan="2">${s.departureLocation || '　'}</td>
     <td colspan="2" style="text-align:center;">${formatDateTimeCN(s.arrivalDate)}</td>
     <td colspan="2">${s.arrivalLocation || '　'}</td>
-    <td colspan="1" style="text-align:center;">${s.transport || '　'}</td>
-    <td colspan="2" style="text-align:center;">${money(s.transportAmount)}</td>
-    <td colspan="1" style="text-align:center;">${s.days || '　'}</td>
-  </tr>
-  <tr>
-    <td colspan="1" class="label" style="background:#fff;text-align:center;">标准<br>${money(s.allowanceStandard)}</td>
-    <td colspan="2" class="label" style="text-align:center;">补助<br>${money(s.allowanceAmount)}</td>
-    <td colspan="2" class="label" style="text-align:center;">住宿<br>${money(s.lodgingAmount)}</td>
-    <td colspan="2" class="label" style="text-align:center;">市内<br>${money(s.localTransportAmount)}</td>
-    <td colspan="2" class="label" style="text-align:center;">其他<br>${money(s.otherAmount)}</td>
-    <td colspan="4" class="label" style="background:#fff;text-align:center;">段小计<br><span style="color:#c00;">${money(sub)}</span></td>
+    <td style="text-align:center;">${s.transport || '　'}</td>
+    <td style="text-align:center;">${money(s.transportAmount)}</td>
+    <td style="text-align:center;">${s.days || '　'}</td>
+    <td style="text-align:center;">${money(s.allowanceStandard)}</td>
+    <td style="text-align:center;">${money(s.allowanceAmount)}</td>
+    <td style="text-align:center;">${money(s.lodgingAmount)}</td>
+    <td style="text-align:center;">${money(s.localTransportAmount)}</td>
+    <td style="text-align:center;">${money(s.otherAmount)}</td>
   </tr>`
   }).join('')
+
+  const segTotalRow = `
+  <tr style="font-weight:bold;">
+    <td class="label" style="background:#fff;text-align:center;">合计</td>
+    <td colspan="2"></td>
+    <td colspan="2"></td>
+    <td colspan="2"></td>
+    <td colspan="2"></td>
+    <td></td>
+    <td style="text-align:center;color:#c00;">${money(transportTotal)}</td>
+    <td style="text-align:center;">${totalDays || '　'}</td>
+    <td></td>
+    <td style="text-align:center;color:#c00;">${money(allowanceTotal)}</td>
+    <td style="text-align:center;color:#c00;">${money(lodgingTotal)}</td>
+    <td style="text-align:center;color:#c00;">${money(localTotal)}</td>
+    <td style="text-align:center;color:#c00;">${money(otherTotal)}</td>
+  </tr>`
 
   const numberToCN = (n: string) => {
     if (!n) return ''
@@ -983,34 +1013,17 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     <td class="label" colspan="2">项目名称</td>
     <td colspan="11">${d.projectName || '　'}</td>
   </tr>
-  <tr style="background:#fafafa;font-weight:bold;">
-    <td colspan="1" class="label" style="text-align:center;">项　目</td>
-    <td colspan="2" class="label" style="text-align:center;">出发日期</td>
-    <td colspan="2" class="label" style="text-align:center;">出发地点</td>
-    <td colspan="2" class="label" style="text-align:center;">到达日期</td>
-    <td colspan="2" class="label" style="text-align:center;">到达地点</td>
-    <td colspan="1" class="label" style="text-align:center;">交通工具</td>
-    <td colspan="2" class="label" style="text-align:center;">交通金额</td>
-    <td colspan="1" class="label" style="text-align:center;">天　数</td>
-  </tr>
-  ${segmentRows}
-  <tr style="font-weight:bold;">
-    <td colspan="1" class="label" style="background:#fff;text-align:right;">合　计</td>
-    <td colspan="2" style="text-align:center;">　</td>
-    <td colspan="2" style="text-align:center;">　</td>
-    <td colspan="2" style="text-align:center;">　</td>
-    <td colspan="2" style="text-align:center;">　</td>
-    <td colspan="1" style="text-align:center;">　</td>
-    <td colspan="2" style="text-align:center;color:#c00;">${money(transportTotal)}</td>
-    <td colspan="1" style="text-align:center;">${totalDays || '　'}</td>
-  </tr>
-  <tr style="font-weight:bold;">
-    <td colspan="1" class="label" style="background:#fff;text-align:right;">合　计</td>
-    <td colspan="2" class="label" style="text-align:center;">${money(allowanceTotal)}</td>
-    <td colspan="2" class="label" style="text-align:center;">${money(lodgingTotal)}</td>
-    <td colspan="2" class="label" style="text-align:center;">${money(localTotal)}</td>
-    <td colspan="2" class="label" style="text-align:center;">${money(otherTotal)}</td>
-    <td colspan="4" style="text-align:center;font-weight:bold;color:#c00;font-size:15px;">合计金额 ¥ ${money(amount)}</td>
+  <tr>
+    <td colspan="13" style="padding:0;border:0;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${segHeader}
+        ${segmentRows}
+        ${segTotalRow}
+        <tr style="font-weight:bold;">
+          <td colspan="17" style="text-align:center;color:#c00;font-size:15px;">合计金额 ¥ ${money(amount)}</td>
+        </tr>
+      </table>
+    </td>
   </tr>
   <tr>
     <td colspan="2" rowspan="2" class="label" style="background:#fafafa;">报销<br>总额</td>
