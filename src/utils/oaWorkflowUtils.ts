@@ -996,12 +996,16 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
   </tr>
   <tr>
     <td colspan="2" rowspan="2" class="label" style="background:#fafafa;">报销<br>总额</td>
-    <td colspan="4" rowspan="2" style="text-align:center;font-weight:bold;font-size:14px;">（大写） ${numberToCN(String(amount))}</td>
-    <td colspan="6" style="text-align:right;font-weight:bold;">¥ ${money(amount)}</td>
-    <td colspan="6" class="label" style="background:#fafafa;text-align:center;">预借金额　¥ ${money(preBorrowedAmount)}</td>
+    <td colspan="6" rowspan="2" style="text-align:center;border-right:1px solid #000;">
+      <div style="font-weight:bold;font-size:14px;">（大写） ${numberToCN(String(amount))}</div>
+      <div style="font-weight:bold;font-size:14px;margin-top:6px;">¥ ${money(amount)}</div>
+    </td>
+    <td colspan="5" class="label" style="background:#fafafa;">预借金额</td>
+    <td colspan="5" style="text-align:right;font-weight:bold;font-size:14px;">¥ ${money(preBorrowedAmount)}</td>
   </tr>
   <tr>
-    <td colspan="12" style="text-align:right;font-weight:bold;">退／补金额　${moneySigned(refundAmount)}</td>
+    <td colspan="5" class="label" style="background:#fafafa;">退／补金额</td>
+    <td colspan="5" style="text-align:right;font-weight:bold;font-size:14px;">${moneySigned(refundAmount)}</td>
   </tr>
   <tr>
     <td colspan="3" class="label" style="background:#fafafa;">附单据张数合计</td>
