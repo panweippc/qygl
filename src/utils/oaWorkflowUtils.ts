@@ -839,11 +839,19 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
   }
   const segHeader = `
   <tr style="background:#fafafa;font-weight:bold;">
-    <td class="label" style="text-align:center;">段</td>
+    <td class="label" style="text-align:center;" rowspan="2">段</td>
+    <td colspan="4" class="label" style="text-align:center;">出发</td>
+    <td colspan="5" class="label" style="text-align:center;">到达</td>
+    <td colspan="3" class="label" style="text-align:center;">交通</td>
+    <td colspan="2" class="label" style="text-align:center;">出差补助</td>
+    <td colspan="3" class="label" style="text-align:center;">其他费用金额</td>
+  </tr>
+  <tr style="background:#fafafa;font-weight:bold;">
     <td colspan="2" class="label" style="text-align:center;">出发日期</td>
     <td colspan="2" class="label" style="text-align:center;">出发地点</td>
     <td colspan="2" class="label" style="text-align:center;">到达日期</td>
     <td colspan="2" class="label" style="text-align:center;">到达地点</td>
+    <td class="label" style="text-align:center;">人<br>数</td>
     <td class="label" style="text-align:center;">交通<br>工具</td>
     <td class="label" style="text-align:center;">交通<br>金额</td>
     <td class="label" style="text-align:center;">天<br>数</td>
@@ -862,6 +870,7 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     <td colspan="2">${s.departureLocation || '　'}</td>
     <td colspan="2" style="text-align:center;">${formatDateTimeCN(s.arrivalDate)}</td>
     <td colspan="2">${s.arrivalLocation || '　'}</td>
+    <td style="text-align:center;">${d.peopleCount || '　'}</td>
     <td style="text-align:center;">${s.transport || '　'}</td>
     <td style="text-align:center;">${money(s.transportAmount)}</td>
     <td style="text-align:center;">${s.days || '　'}</td>
@@ -881,13 +890,14 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     <td colspan="2"></td>
     <td colspan="2"></td>
     <td></td>
-    <td style="text-align:center;color:#c00;">${money(transportTotal)}</td>
+    <td></td>
+    <td style="text-align:center;">${money(transportTotal)}</td>
     <td style="text-align:center;">${totalDays || '　'}</td>
     <td></td>
-    <td style="text-align:center;color:#c00;">${money(allowanceTotal)}</td>
-    <td style="text-align:center;color:#c00;">${money(lodgingTotal)}</td>
-    <td style="text-align:center;color:#c00;">${money(localTotal)}</td>
-    <td style="text-align:center;color:#c00;">${money(otherTotal)}</td>
+    <td style="text-align:center;">${money(allowanceTotal)}</td>
+    <td style="text-align:center;">${money(lodgingTotal)}</td>
+    <td style="text-align:center;">${money(localTotal)}</td>
+    <td style="text-align:center;">${money(otherTotal)}</td>
   </tr>`
 
   const numberToCN = (n: string) => {
@@ -944,7 +954,7 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
   @page { margin: 8mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: "SimSun", "宋体", serif; color: #000; font-size: 13px; background: #fff; }
-  .form-wrap { max-width: 920px; margin: 10px auto; border: 2px solid #000; padding: 0; background: #fff; }
+  .form-wrap { max-width: 1040px; margin: 10px auto; border: 2px solid #000; padding: 0; background: #fff; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   td { border: 1px solid #000; padding: 6px 8px; vertical-align: middle; }
   .title-cell { text-align: center; font-size: 26px; font-weight: bold; letter-spacing: 14px; padding: 10px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
@@ -959,16 +969,16 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
 <body>
 <div class="form-wrap">
 <table>
-  <tr><td colspan="17" class="title-cell">${title}</td></tr>
+  <tr><td colspan="18" class="title-cell">${title}</td></tr>
   <tr>
     <td class="label" colspan="2">报销日期</td>
     <td colspan="3">${reimburseDate || '　年　月　日'}</td>
     <td colspan="2" class="label">编　号</td>
-    <td colspan="10">#${row.id || ''}</td>
+    <td colspan="11">#${row.id || ''}</td>
   </tr>
   <tr>
     <td class="label" colspan="2">部　门</td>
-    <td colspan="15">${department || ''}</td>
+    <td colspan="16">${department || ''}</td>
   </tr>
   <tr>
     <td class="label" colspan="2">出差人</td>
@@ -976,37 +986,34 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     <td class="label" colspan="2">出差事由</td>
     <td colspan="6" class="reason-cell">${reason || ''}</td>
     <td class="label" colspan="2">项目名称</td>
-    <td colspan="2">${d.projectName || '　'}</td>
+    <td colspan="3">${d.projectName || '　'}</td>
   </tr>
   ${segHeader}
   ${segmentRows}
   ${segTotalRow}
   <tr style="font-weight:bold;">
-    <td colspan="17" style="text-align:center;color:#c00;font-size:15px;">合计金额 ¥ ${money(amount)}</td>
+    <td colspan="18" style="text-align:center;color:#c00;font-size:15px;">合计金额 ¥ ${money(amount)}</td>
   </tr>
   <tr>
     <td colspan="2" rowspan="2" class="label" style="background:#fafafa;">报销<br>总额</td>
     <td colspan="4" rowspan="2" style="text-align:center;font-weight:bold;font-size:14px;">（大写） ${numberToCN(String(amount))}</td>
-    <td colspan="3" class="label" style="background:#fafafa;text-align:right;">人民币　</td>
-    <td colspan="2" style="text-align:right;font-weight:bold;color:#c00;">¥ ${money(amount)}</td>
-    <td colspan="6" class="label" style="background:#fafafa;text-align:center;">预借金额<br>¥ ${money(preBorrowedAmount)}</td>
+    <td colspan="6" style="text-align:right;font-weight:bold;">¥ ${money(amount)}</td>
+    <td colspan="6" class="label" style="background:#fafafa;text-align:center;">预借金额　¥ ${money(preBorrowedAmount)}</td>
   </tr>
   <tr>
-    <td colspan="3"></td>
-    <td colspan="2"></td>
-    <td colspan="6" style="text-align:center;font-weight:bold;color:#c00;">退／补金额　${moneySigned(refundAmount)}</td>
+    <td colspan="12" style="text-align:right;font-weight:bold;">退／补金额　${moneySigned(refundAmount)}</td>
   </tr>
   <tr>
     <td colspan="3" class="label" style="background:#fafafa;">附单据张数合计</td>
     <td colspan="2">　</td>
     <td colspan="2" class="label" style="background:#fafafa;">对应上方的项目</td>
-    <td colspan="4">　</td>
+    <td colspan="5">　</td>
     <td colspan="2" class="label" style="background:#fafafa;">城际交通</td>
     <td colspan="2">　</td>
     <td colspan="2" class="label" style="background:#fafafa;">其他</td>
   </tr>
   <tr style="height:50px;">
-    <td colspan="2" class="label" style="background:#fafafa;">领导批示</td>
+    <td colspan="3" class="label" style="background:#fafafa;">领导批示</td>
     <td></td>
     <td colspan="2" class="label" style="background:#fafafa;">部门主管</td>
     <td></td>
