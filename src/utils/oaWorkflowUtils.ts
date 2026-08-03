@@ -883,7 +883,7 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
   }).join('')
 
   const segTotalRow = `
-  <tr style="font-weight:bold;">
+  <tr>
     <td class="label" style="background:#fff;text-align:center;">合计</td>
     <td colspan="2"></td>
     <td colspan="2"></td>
