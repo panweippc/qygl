@@ -935,39 +935,6 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     return result
   }
 
-  // 审批意见拆分（按角色）
-  const normalizeAct = (a: string) => {
-    if (!a) return ''
-    if (a === '同意' || a === 'agree' || a === 'approved' || a === '通过') return '批准'
-    if (a === '拒绝' || a === 'reject' || a === 'rejected' || a === '驳回') return '拒绝'
-    return a
-  }
-  let deptAct = '', financeAct = '', gmAct = ''
-  try {
-    const ah = row.approval_history
-    if (ah) {
-      const list = typeof ah === 'string' ? JSON.parse(ah) : ah
-      if (Array.isArray(list)) {
-        for (const h of list) {
-          const role = String(h.approverRole || '')
-          const act = normalizeAct(h.action)
-          if (/财务/.test(role)) financeAct = act
-          else if (/总经理/.test(role)) gmAct = act
-          else if (!deptAct) deptAct = act
-        }
-      }
-    }
-  } catch {}
-  if (!deptAct && !financeAct && !gmAct && row.result) {
-    const acts = String(row.result).split(';').filter(Boolean).map((s: string) => {
-      const idx = s.indexOf(':')
-      return normalizeAct(idx > 0 ? s.substring(idx + 1).trim() : s.trim())
-    })
-    if (acts.length === 1) gmAct = acts[0]
-    else if (acts.length === 2) { deptAct = acts[0]; financeAct = acts[1] }
-    else if (acts.length >= 3) { deptAct = acts[0]; financeAct = acts[1]; gmAct = acts[acts.length - 1] }
-  }
-
   const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -977,7 +944,7 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
   @page { margin: 8mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: "SimSun", "宋体", serif; color: #000; font-size: 13px; background: #fff; }
-  .form-wrap { max-width: 760px; margin: 10px auto; border: 2px solid #000; padding: 0; background: #fff; }
+  .form-wrap { max-width: 920px; margin: 10px auto; border: 2px solid #000; padding: 0; background: #fff; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   td { border: 1px solid #000; padding: 6px 8px; vertical-align: middle; }
   .title-cell { text-align: center; font-size: 26px; font-weight: bold; letter-spacing: 14px; padding: 10px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
@@ -1022,11 +989,12 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     <td colspan="4" rowspan="2" style="text-align:center;font-weight:bold;font-size:14px;">（大写） ${numberToCN(String(amount))}</td>
     <td colspan="3" class="label" style="background:#fafafa;text-align:right;">人民币　</td>
     <td colspan="2" style="text-align:right;font-weight:bold;color:#c00;">¥ ${money(amount)}</td>
-    <td colspan="6" rowspan="2" class="label" style="background:#fafafa;">预借金额<br>¥ ${money(preBorrowedAmount)}</td>
+    <td colspan="6" class="label" style="background:#fafafa;text-align:center;">预借金额<br>¥ ${money(preBorrowedAmount)}</td>
   </tr>
   <tr>
-    <td colspan="3" class="label" style="background:#fafafa;text-align:right;">退／补金额</td>
-    <td colspan="2" style="text-align:right;font-weight:bold;color:#c00;">${moneySigned(refundAmount)}</td>
+    <td colspan="3"></td>
+    <td colspan="2"></td>
+    <td colspan="6" style="text-align:center;font-weight:bold;color:#c00;">退／补金额　${moneySigned(refundAmount)}</td>
   </tr>
   <tr>
     <td colspan="3" class="label" style="background:#fafafa;">附单据张数合计</td>
@@ -1037,23 +1005,20 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     <td colspan="2">　</td>
     <td colspan="2" class="label" style="background:#fafafa;">其他</td>
   </tr>
-  <tr>
-    <td colspan="3" class="label" style="background:#fafafa;">领导批示</td>
-    <td colspan="2" rowspan="4" style="height:60px;">${gmAct ? `<span style="color:#c00;font-weight:bold;">${gmAct}</span>` : ''}</td>
+  <tr style="height:50px;">
+    <td colspan="2" class="label" style="background:#fafafa;">领导批示</td>
+    <td></td>
     <td colspan="2" class="label" style="background:#fafafa;">部门主管</td>
-    <td colspan="2" rowspan="4" style="height:60px;">${deptAct ? `<span style="color:#c00;font-weight:bold;">${deptAct}</span>` : ''}</td>
+    <td></td>
     <td colspan="2" class="label" style="background:#fafafa;">财务主管</td>
-    <td colspan="2" rowspan="4" style="height:60px;">${financeAct ? `<span style="color:#c00;font-weight:bold;">${financeAct}</span>` : ''}</td>
-    <td colspan="2" class="label" rowspan="2" style="background:#fafafa;">领款人</td>
-    <td colspan="2" rowspan="4"></td>
-  </tr>
-  <tr>
-    <td colspan="3" rowspan="3" style="height:80px;"></td>
+    <td></td>
     <td colspan="2" class="label" style="background:#fafafa;">会　计</td>
-    <td colspan="2" class="label" style="background:#fafafa;">出　纳</td>
+    <td></td>
+    <td class="label" style="background:#fafafa;">出　纳</td>
+    <td></td>
+    <td colspan="2" class="label" style="background:#fafafa;">领款人</td>
+    <td></td>
   </tr>
-  <tr><td colspan="2" rowspan="2" style="height:60px;">　</td><td colspan="2" rowspan="2" style="height:60px;">　</td><td colspan="2" rowspan="2" style="height:60px;">　</td></tr>
-  <tr></tr>
 </table>
 </div>
 <div class="print-hint">按 Ctrl+P 可导出为 PDF 打印</div>
