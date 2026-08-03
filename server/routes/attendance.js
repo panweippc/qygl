@@ -32,13 +32,13 @@ router.get('/leave-applications/:id', async (req, res) => {
 
 // 提交请假申请
 router.post('/leave-applications', async (req, res) => {
-  const { applicant, leaveType, startDate, endDate, days, reason, approver } = req.body;
+  const { applicant, leaveType, startDate, endDate, days, reason, approver, attachments } = req.body;
   try {
     const { pool } = req.app.locals;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await pool.execute(
-      'INSERT INTO leave_applications (applicant, leaveType, startDate, endDate, days, reason, approver, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [applicant, leaveType, startDate, endDate, days, reason, approver, '审批中', now]
+      'INSERT INTO leave_applications (applicant, leaveType, startDate, endDate, days, reason, approver, attachments, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [applicant, leaveType, startDate, endDate, days, reason, approver, attachments || null, '审批中', now]
     );
 
     await createNotification(pool, {

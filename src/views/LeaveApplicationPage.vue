@@ -104,6 +104,26 @@
               />
             </el-form-item>
 
+            <el-divider content-position="left">附件</el-divider>
+
+            <el-form-item label="附件">
+              <el-upload
+                :file-list="fileList"
+                :auto-upload="false"
+                multiple
+                :limit="5"
+                :on-exceed="onFileExceed"
+                :on-change="handleFileChange"
+                :on-remove="handleFileChange"
+                accept=".jpg,.jpeg,.png,.gif,.bmp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md"
+              >
+                <el-button type="primary" plain>选择文件</el-button>
+                <template #tip>
+                  <div class="el-upload__tip">支持上传诊断证明、请假单等材料，单个文件不超过50MB</div>
+                </template>
+              </el-upload>
+            </el-form-item>
+
             <el-form-item>
               <el-button type="primary" @click="submitForm" :loading="submitting" size="large">
                 提交申请
@@ -195,12 +215,13 @@ import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, UserFilled, CircleCheck } from '@element-plus/icons-vue'
-import { addLeaveApplication, getEmployees } from '../services/api'
+import { addLeaveApplication, getEmployees, uploadAttachmentFiles } from '../services/api'
 
 const router = useRouter()
 const formRef = ref()
 const submitting = ref(false)
 const approverOptions = ref<any[]>([])
+const fileList = ref<any[]>([])
 
 const currentUser = computed(() => {
   const userStr = localStorage.getItem('user')
@@ -287,6 +308,16 @@ const submitForm = async () => {
       try {
         const username = localStorage.getItem('username') || '当前用户'
         const approverName = selectedApprover.value?.name || ''
+        let attachments = null
+        if (fileList.value.length > 0) {
+          const files = fileList.value.map((item: any) => item.raw).filter(Boolean) as File[]
+          const uploadRes = await uploadAttachmentFiles(files)
+          if (!uploadRes.success) {
+            ElMessage.error(uploadRes.message || '附件上传失败')
+            return
+          }
+          attachments = JSON.stringify(uploadRes.data || [])
+        }
         const data = {
           applicant: username,
           leaveType: form.leaveType,
@@ -294,7 +325,8 @@ const submitForm = async () => {
           endDate: form.endDate,
           days: form.days,
           reason: form.reason,
-          approver: approverName
+          approver: approverName,
+          attachments
         }
         const response = await addLeaveApplication(data)
         if (response.success) {
@@ -311,6 +343,14 @@ const submitForm = async () => {
       }
     }
   })
+}
+
+const onFileExceed = () => {
+  ElMessage.warning('最多只能上传5个附件')
+}
+
+const handleFileChange = (file: any, files: any[]) => {
+  fileList.value = files
 }
 
 const goBack = () => {

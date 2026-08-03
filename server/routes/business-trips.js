@@ -9,7 +9,7 @@ router.get('/business-trips', async (req, res) => {
   try {
     const { applicantId, status, page = 1, pageSize = 10 } = req.query;
 
-    const columns = 'id, trip_code, applicant_id, applicant_name, department, destination, trip_type, start_date, end_date, days, purpose, itinerary, estimated_cost, cost_breakdown, accommodation, transport, accompany_persons, customer_info, status, approver, current_step, current_approvers, approval_history, is_urgent, comment, created_at, updated_at';
+    const columns = 'id, trip_code, applicant_id, applicant_name, department, destination, trip_type, start_date, end_date, days, purpose, itinerary, estimated_cost, cost_breakdown, accommodation, transport, accompany_persons, customer_info, status, approver, current_step, current_approvers, approval_history, is_urgent, attachments, comment, created_at, updated_at';
     let sql = `SELECT ${columns} FROM business_trip_applications WHERE 1=1`;
     const params = [];
 
@@ -112,13 +112,13 @@ router.post('/business-trips', async (req, res) => {
       `INSERT INTO business_trip_applications 
        (trip_code, applicant_id, applicant_name, department, destination, trip_type,
         start_date, end_date, days, purpose, itinerary, estimated_cost, cost_breakdown,
-        accommodation, transport, accompany_persons, is_urgent, status, current_step, approver, created_at, updated_at) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, NOW(), NOW())`,
+        accommodation, transport, accompany_persons, is_urgent, attachments, status, current_step, approver, created_at, updated_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, NOW(), NOW())`,
       [
         tripCode, applicantId, applicant.name, applicant.department, destination, tripType,
         startDate, endDate, days, purpose, JSON.stringify(itinerary || []), estimatedCost,
         JSON.stringify(costBreakdown || {}), accommodation, transport,
-        JSON.stringify(accompanyPersons || []), isUrgent ? 1 : 0, approverName
+        JSON.stringify(accompanyPersons || []), isUrgent ? 1 : 0, req.body.attachments || null, approverName
       ]
     );
 
@@ -148,7 +148,7 @@ router.get('/business-trips/:id', async (req, res) => {
   const { pool } = req.app.locals;
   try {
     const { id } = req.params;
-    const trip_columns = 'id, trip_code, applicant_id, applicant_name, department, destination, trip_type, start_date, end_date, days, purpose, itinerary, estimated_cost, cost_breakdown, accommodation, transport, accompany_persons, customer_info, status, approver, current_step, current_approvers, approval_history, is_urgent, comment, created_at, updated_at';
+    const trip_columns = 'id, trip_code, applicant_id, applicant_name, department, destination, trip_type, start_date, end_date, days, purpose, itinerary, estimated_cost, cost_breakdown, accommodation, transport, accompany_persons, customer_info, status, approver, current_step, current_approvers, approval_history, is_urgent, attachments, comment, created_at, updated_at';
     const [trips] = await pool.execute(
       `SELECT ${trip_columns} FROM business_trip_applications WHERE id = ?`,
       [id]

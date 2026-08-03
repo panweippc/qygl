@@ -985,6 +985,10 @@ const initDatabase = async () => {
     } catch (e) {
       // 表可能不存在或已迁移
     }
+    // 迁移：给已存在的leave_applications表补充attachments字段（存附件JSON）
+    try {
+      await connection.execute(`ALTER TABLE leave_applications ADD COLUMN attachments TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    } catch (_e) {}
     
     // 创建reimbursements表（报销管理）
     await connection.execute(`
@@ -1112,6 +1116,8 @@ const initDatabase = async () => {
     // 迁移：为旧表添加guestUnit和location列（如果不存在）
     try { await connection.execute('ALTER TABLE entertainment_expenses ADD COLUMN guestUnit VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER guestName'); } catch (e) {}
     try { await connection.execute('ALTER TABLE entertainment_expenses ADD COLUMN location VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER guestUnit'); } catch (e) {}
+    // 迁移：为业务招待申请表补充attachments字段（存附件JSON）
+    try { await connection.execute(`ALTER TABLE entertainment_expenses ADD COLUMN attachments TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`); } catch (_e) {}
     // 迁移：修改出差申请表days列为DECIMAL支持半天
     try { await connection.execute('ALTER TABLE business_trip_applications MODIFY COLUMN days DECIMAL(5,1) NOT NULL'); } catch (e) {}
     
@@ -2165,6 +2171,16 @@ const createBusinessTripTable = async () => {
       );
     } catch (e) {
       console.log('出差表days列迁移:', e.message);
+    }
+    // 迁移：为出差申请表补充attachments字段（存附件JSON）
+    try {
+      await connection.execute(
+        `ALTER TABLE business_trip_applications ADD COLUMN attachments TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
+      );
+    } catch (e) {
+      if (!e.message.includes('Duplicate column')) {
+        console.log('出差表attachments列迁移:', e.message);
+      }
     }
     connection.release();
     console.log('出差申请表创建成功');

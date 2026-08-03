@@ -419,6 +419,23 @@
               <span class="detail-value result-chain">{{ currentDetailItem.result }}</span>
             </div>
           </div>
+          <div class="detail-section" v-if="currentAttachments.length > 0">
+            <div class="detail-row">
+              <span class="detail-label">附件</span>
+              <span class="detail-value attachment-list">
+                <a
+                  v-for="(file, i) in currentAttachments"
+                  :key="i"
+                  :href="file.url"
+                  target="_blank"
+                  rel="noopener"
+                  class="attachment-link"
+                >
+                  {{ file.name }}
+                </a>
+              </span>
+            </div>
+          </div>
           <div class="comment-box" v-if="currentDetailItem.comment">
             <span class="comment-label">审批意见：</span>
             <span class="comment-content" style="white-space: pre-line;">{{ currentDetailItem.comment }}</span>
@@ -542,7 +559,8 @@ import {
   addDistributedRecord,
   updateDistributedRecord,
   getEntertainmentExpenses,
-  updateEntertainmentExpense
+  updateEntertainmentExpense,
+  parseAttachments
 } from '../services/api'
 import {
   extractRealName,
@@ -968,6 +986,10 @@ const submitApproval = async () => {
 const detailDialogVisible = ref(false)
 const currentDetailItem = ref<any>(null)
 const currentDetailType = ref('')
+
+const currentAttachments = computed(() => {
+  return parseAttachments(currentDetailItem.value?.attachments)
+})
 
 const viewDetail = (row: any, type: string) => {
   currentDetailItem.value = row
@@ -2040,6 +2062,20 @@ onMounted(async () => {
   flex: 1;
   color: #333;
   font-weight: 500;
+}
+.attachment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.attachment-link {
+  color: #6495ED;
+  font-weight: 500;
+  text-decoration: underline;
+  word-break: break-all;
+}
+.attachment-link:hover {
+  color: #3b82f6;
 }
 .detail-footer {
   margin-top: 1.5rem;

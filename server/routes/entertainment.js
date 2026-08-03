@@ -29,13 +29,13 @@ router.get('/entertainment-expenses/:id', async (req, res) => {
 });
 
 router.post('/entertainment-expenses', async (req, res) => {
-  const { applicant, guestName, guestUnit, location, guestCount, expenseType, expenseAmount, expenseDate, purpose, approver } = req.body;
+  const { applicant, guestName, guestUnit, location, guestCount, expenseType, expenseAmount, expenseDate, purpose, approver, attachments } = req.body;
   try {
     const { pool } = req.app.locals;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await pool.execute(
-      'INSERT INTO entertainment_expenses (applicant, guestName, guestUnit, location, guestCount, expenseType, expenseAmount, expenseDate, purpose, approver, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [applicant, guestName, guestUnit || '', location || '', guestCount || 1, expenseType, expenseAmount, expenseDate, purpose, approver, '审批中', now]
+      'INSERT INTO entertainment_expenses (applicant, guestName, guestUnit, location, guestCount, expenseType, expenseAmount, expenseDate, purpose, approver, attachments, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [applicant, guestName, guestUnit || '', location || '', guestCount || 1, expenseType, expenseAmount, expenseDate, purpose, approver, attachments || null, '审批中', now]
     );
     await createNotification(pool, { userId: approver, title: '业务招待费审批提醒', content: `${applicant} 提交了${expenseAmount}元的${expenseType}招待申请，请审批`, type: 'approval' });
     await createOperationLog(pool, { username: applicant, action: 'submit', module: 'entertainment', targetName: `${expenseType}招待(${expenseAmount}元)`, detail: `提交给${approver}审批` });

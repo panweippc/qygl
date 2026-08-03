@@ -279,6 +279,27 @@
           />
         </el-form-item>
 
+        <!-- 附件 -->
+        <el-divider content-position="left">附件</el-divider>
+
+        <el-form-item label="附件">
+          <el-upload
+            :file-list="fileList"
+            :auto-upload="false"
+            multiple
+            :limit="5"
+            :on-exceed="onFileExceed"
+            :on-change="handleFileChange"
+            :on-remove="handleFileChange"
+            accept=".jpg,.jpeg,.png,.gif,.bmp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md"
+          >
+            <el-button type="primary" plain>选择文件</el-button>
+            <template #tip>
+              <div class="el-upload__tip">支持上传行程单、审批单等材料，单个文件不超过50MB</div>
+            </template>
+          </el-upload>
+        </el-form-item>
+
         <!-- 提交按钮 -->
         <el-form-item>
           <el-button type="primary" @click="submitForm" :loading="submitting">
@@ -399,13 +420,14 @@ import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { User, UserFilled, CircleCheck, Plus, Delete } from '@element-plus/icons-vue';
 import { createBusinessTrip } from '@/services/workflow';
-import { getEmployees } from '@/services/api';
+import { getEmployees, uploadAttachmentFiles } from '@/services/api';
 
 const router = useRouter();
 const formRef = ref();
 const submitting = ref(false);
 const employeeOptions = ref([]);
 const approverOptions = ref([]);
+const fileList = ref<any[]>([]);
 
 const currentUser = computed(() => {
   const userStr = localStorage.getItem('user');
@@ -525,13 +547,24 @@ const submitForm = async () => {
 
       submitting.value = true;
       try {
+        let attachments = null;
+        if (fileList.value.length > 0) {
+          const files = fileList.value.map((item: any) => item.raw).filter(Boolean) as File[];
+          const uploadRes = await uploadAttachmentFiles(files);
+          if (!uploadRes.success) {
+            ElMessage.error(uploadRes.message || '附件上传失败');
+            return;
+          }
+          attachments = JSON.stringify(uploadRes.data || []);
+        }
         const submitData = {
           ...form,
           days: form.days || '1',
           applicantId: currentUser.value.id,
           applicantName: currentUser.value.name,
           approverId: form.approver,
-          approver: selectedApprover.value?.name || ''
+          approver: selectedApprover.value?.name || '',
+          attachments
         };
 
         const response = await createBusinessTrip(submitData);
@@ -558,6 +591,14 @@ const addItinerary = () => {
     location: '',
     activity: ''
   });
+};
+
+const onFileExceed = () => {
+  ElMessage.warning('最多只能上传5个附件');
+};
+
+const handleFileChange = (file: any, files: any[]) => {
+  fileList.value = files;
 };
 
 const removeItinerary = (index: number) => {
