@@ -387,6 +387,8 @@ const uploadFile = async (file: any): Promise<{name: string, url: string, type: 
   if (file.raw) {
     const formData = new FormData()
     formData.append('file', file.raw, encodeURIComponent(file.name))
+    const userId = getCurrentUserId()
+    if (userId) formData.append('uploaderId', String(userId))
     const response = await fetch('/api/upload', { method: 'POST', body: formData })
     const data = await response.json()
     if (data.success && data.data.length > 0) {

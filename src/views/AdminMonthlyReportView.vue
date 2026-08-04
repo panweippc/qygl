@@ -73,7 +73,7 @@
                 <div class="files-list">
                   <div v-for="(file, index) in report.files" :key="index" class="file-item">
                     <el-image
-                      v-if="file.url && (file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/gif')"
+                      v-if="isImageFile(file)"
                       :src="file.url"
                       class="file-preview"
                       fit="cover"
@@ -388,6 +388,13 @@ const downloadFile = (file: any) => {
   } else {
     ElMessage.error('文件链接不存在');
   }
+}
+
+// 判断是否为图片（兼容 type 缺失的旧数据，按扩展名兜底）
+const isImageFile = (file: any): boolean => {
+  const type = file.type || '';
+  const name = file.name || '';
+  return type.startsWith('image/') || /\.(jpe?g|png|gif|bmp|webp)$/i.test(name);
 }
 
 // 预览附件

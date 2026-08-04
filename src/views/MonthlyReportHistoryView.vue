@@ -75,7 +75,7 @@
                     <div class="files-list">
                       <div v-for="(file, index) in report.files" :key="index" class="file-item">
                         <el-image
-                          v-if="file.url && (file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/gif')"
+                          v-if="isImageFile(file)"
                           :src="file.url"
                           class="file-preview"
                           fit="cover"
@@ -688,7 +688,7 @@ const downloadFile = (file: any) => {
   }
 }
 
-// 判断文件类型是否可预览
+// 判断文件是否可预览
 const canPreview = (file: any): boolean => {
   const type = file.type || '';
   const name = file.name || '';
@@ -696,7 +696,14 @@ const canPreview = (file: any): boolean => {
     type === 'application/pdf' || type === 'application/json' || type === 'application/xml' ||
     type === 'application/msword' ||
     type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    name.endsWith('.doc') || name.endsWith('.docx');
+    name.endsWith('.doc') || name.endsWith('.docx') || isImageFile(file);
+}
+
+// 判断是否为图片（兼容 type 缺失的旧数据，按扩展名兜底）
+const isImageFile = (file: any): boolean => {
+  const type = file.type || '';
+  const name = file.name || '';
+  return type.startsWith('image/') || /\.(jpe?g|png|gif|bmp|webp)$/i.test(name);
 }
 
 // 预览附件
@@ -770,6 +777,8 @@ const saveEdit = async () => {
       if (file.raw) {
         const formData = new FormData()
         formData.append('file', file.raw, encodeURIComponent(file.name))
+        const userId = getCurrentUserId()
+        if (userId) formData.append('uploaderId', String(userId))
         const response = await fetch('/api/upload', { method: 'POST', body: formData })
         const data = await response.json()
         if (data.success && data.data.length > 0) {
