@@ -332,7 +332,6 @@ router.get('/business-trips', async (req, res) => {
       applicant_name: trip.applicant_name || '',
       applicant_id: trip.applicant_id || '',
       department: trip.department || '',
-      trip_type: trip.trip_type || 'domestic',
       is_urgent: trip.is_urgent || false,
       days: trip.days || 0,
       estimated_cost: trip.estimated_cost || 0,
@@ -391,8 +390,6 @@ router.post("/business-trips", async (req, res) => {
     const { pool } = req.app.locals;
     const {
       destination,
-      tripType,
-      trip_type,
       startDate,
       start_date,
       endDate,
@@ -440,7 +437,6 @@ router.post("/business-trips", async (req, res) => {
 
     const tripCode = 'TRP' + String(Date.now()).slice(-6);
     const now = new Date();
-    const finalTripType = tripType || trip_type || 'domestic';
     const finalStartDate = startDate || start_date || null;
     const finalEndDate = endDate || end_date || null;
     let finalDays = days;
@@ -455,15 +451,14 @@ router.post("/business-trips", async (req, res) => {
 
     const [result] = await pool.query(
        `INSERT INTO business_trip_applications
-        (trip_code, applicant_id, applicant_name, department, destination, trip_type, is_urgent, start_date, end_date, days, purpose, estimated_cost, itinerary, cost_breakdown, accommodation, transport, accompany_persons, customer_info, status, current_step, approver, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, ?, ?)`,
+        (trip_code, applicant_id, applicant_name, department, destination, is_urgent, start_date, end_date, days, purpose, estimated_cost, itinerary, cost_breakdown, accommodation, transport, accompany_persons, customer_info, status, current_step, approver, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, ?, ?)`,
       [
         tripCode,
         applicantIdVal || '',
         applicantNameVal || '未知申请人',
         '',
         destination || '',
-        finalTripType,
         isUrgent || is_urgent ? 1 : 0,
         finalStartDate,
         finalEndDate,

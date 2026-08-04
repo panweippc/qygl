@@ -398,7 +398,6 @@ export const exportBusinessTripFormHTML = (row: any, department?: string) => {
   }
   const applicant = row.applicant || ''
   const destination = row.destination || ''
-  const tripType = row.tripType || ''
   const purpose = row.purpose || row.reason || ''
   const days = row.days || ''
   const startDate = row.startDate || ''

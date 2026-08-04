@@ -13,11 +13,6 @@
             <el-option label="已批准" value="已批准" />
             <el-option label="已拒绝" value="已拒绝" />
           </el-select>
-          <el-select v-model="businessTripTypeFilter" placeholder="筛选类型" size="default" style="width: 140px; margin-right: 8px;" clearable filterable>
-            <el-option label="全部类型" value="all" />
-            <el-option label="国内出差" value="国内出差" />
-            <el-option label="国外出差" value="国外出差" />
-          </el-select>
         </template>
         <el-button type="danger" @click="exportBusinessTripData" class="export-btn-small">
           导出
@@ -173,10 +168,6 @@
             <span class="card-value highlight">{{ row.destination }}</span>
           </div>
           <div class="card-row">
-            <span class="card-label">出差类型</span>
-            <span class="type-tag" :class="getTripTypeClass(row.tripType)">{{ row.tripType }}</span>
-          </div>
-          <div class="card-row">
             <span class="card-label">出差天数</span>
             <span class="days-badge">{{ Number(row.days) === Math.floor(Number(row.days)) ? Math.floor(Number(row.days)) + '天' : row.days + '天' }}</span>
           </div>
@@ -269,7 +260,6 @@ const emit = defineEmits<{
 }>()
 
 const businessTripFilter = ref('all')
-const businessTripTypeFilter = ref('all')
 const businessTripRecords = ref<any[]>([])
 const allBusinessTripRecords = ref<any[]>([])
 
@@ -284,7 +274,6 @@ const filteredBusinessTripRecords = computed(() => {
     const keyword = props.searchKeyword.toLowerCase()
     records = records.filter((r: any) =>
       r.destination?.toLowerCase().includes(keyword) ||
-      r.tripType?.toLowerCase().includes(keyword) ||
       r.applicant?.toLowerCase().includes(keyword)
     )
   }
@@ -297,10 +286,6 @@ const filteredBusinessTripRecords = computed(() => {
     }
     const statusValues = statusMap[businessTripFilter.value] || [businessTripFilter.value]
     records = records.filter((r: any) => statusValues.includes(r.status))
-  }
-
-  if (props.isAdmin && businessTripTypeFilter.value !== 'all' && businessTripTypeFilter.value) {
-    records = records.filter((r: any) => r.tripType === businessTripTypeFilter.value)
   }
 
   return records
@@ -328,13 +313,9 @@ const loadBusinessTripRecords = async () => {
       })
       businessTripRecords.value = filteredData.map((item: any) => {
         let destination = item.destination ? String(item.destination) : ''
-        let tripType = item.trip_type ? String(item.trip_type) : ''
         try {
           if (destination.includes('?') && destination.length > 1) {
             destination = decodeURIComponent(escape(destination))
-          }
-          if (tripType.includes('?') && tripType.length > 1) {
-            tripType = decodeURIComponent(escape(tripType))
           }
         } catch (e) {
           console.error('编码转换失败:', e)
@@ -342,14 +323,10 @@ const loadBusinessTripRecords = async () => {
         if (destination.includes('????') || /^\?+$/.test(destination)) {
           destination = '未知目的地'
         }
-        if (tripType.includes('????') || /^\?+$/.test(tripType)) {
-          tripType = '未知出差类型'
-        }
         return {
           ...item,
           applicant: item.applicant_name,
           destination: destination,
-          tripType: tripType,
           companion: (() => { try { const d = item.accompany_persons || item.accompanyPersons || ''; const p = typeof d === 'string' ? JSON.parse(d) : d; if (Array.isArray(p)) return p.map((id: any) => { const e = props.allEmployees.find((x: any) => String(x.id) === String(id)); return e ? extractRealName(e.name) : String(id) }).join('、'); return String(d) } catch { return '' } })(),
           purpose: item.purpose || item.reason || '',
           startDate: item.start_date || item.startDate || '',
@@ -358,7 +335,7 @@ const loadBusinessTripRecords = async () => {
           estimatedCost: item.estimated_cost || item.estimatedCost || 0,
           approver: item.approver || ''
         }
-      })
+      }).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
     }
   } catch (error) {
     console.error('获取出差记录失败:', error)
@@ -371,13 +348,9 @@ const loadAllBusinessTripRecords = async () => {
     if (response.success && response.data && response.data.list) {
       allBusinessTripRecords.value = response.data.list.map((item: any) => {
         let destination = item.destination ? String(item.destination) : ''
-        let tripType = item.trip_type ? String(item.trip_type) : ''
         try {
           if (destination.includes('?') && destination.length > 1) {
             destination = decodeURIComponent(escape(destination))
-          }
-          if (tripType.includes('?') && tripType.length > 1) {
-            tripType = decodeURIComponent(escape(tripType))
           }
         } catch (e) {
           console.error('编码转换失败:', e)
@@ -385,14 +358,10 @@ const loadAllBusinessTripRecords = async () => {
         if (destination.includes('????') || /^\?+$/.test(destination)) {
           destination = '未知目的地'
         }
-        if (tripType.includes('????') || /^\?+$/.test(tripType)) {
-          tripType = '未知出差类型'
-        }
         return {
           ...item,
           applicant: item.applicant_name,
           destination: destination,
-          tripType: tripType,
           companion: (() => { try { const d = item.accompany_persons || item.accompanyPersons || ''; const p = typeof d === 'string' ? JSON.parse(d) : d; if (Array.isArray(p)) return p.map((id: any) => { const e = props.allEmployees.find((x: any) => String(x.id) === String(id)); return e ? extractRealName(e.name) : String(id) }).join('、'); return String(d) } catch { return '' } })(),
           purpose: item.purpose || item.reason || '',
           startDate: item.start_date || item.startDate || '',
@@ -402,7 +371,7 @@ const loadAllBusinessTripRecords = async () => {
           distributedUsers: [],
           approver: item.approver || ''
         }
-      })
+      }).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
       allBusinessTripRecords.value = allBusinessTripRecords.value.map((item: any) => ({
         ...item,
         distributedUsers: getDistributedUsersForApplication(item.id, 'businessTrip')
@@ -464,14 +433,11 @@ const exportBusinessTripData = () => {
   if (businessTripFilter.value !== 'all') {
     fileName += `_${businessTripFilter.value}`
   }
-  if (businessTripTypeFilter.value !== 'all' && businessTripTypeFilter.value) {
-    fileName += `_${businessTripTypeFilter.value}`
-  }
   exportToCSV(
     data,
     fileName,
-    ['申请编号', '申请人', '目的地', '出差类型', '出差天数', '预估费用', '审批状态', '提交时间'],
-    ['id', 'applicant', 'destination', 'tripType', 'days', 'estimatedCost', 'status', 'submitDate']
+    ['申请编号', '申请人', '目的地', '出差天数', '预估费用', '审批状态', '提交时间'],
+    ['id', 'applicant', 'destination', 'days', 'estimatedCost', 'status', 'submitDate']
   )
 }
 

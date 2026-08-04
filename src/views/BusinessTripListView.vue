@@ -24,12 +24,6 @@
             <el-option label="已拒绝" value="rejected" />
           </el-select>
         </el-form-item>
-        <el-form-item label="出差类型">
-          <el-select v-model="filterForm.tripType" placeholder="全部类型" clearable style="width: 120px">
-            <el-option label="国内出差" value="domestic" />
-            <el-option label="国外出差" value="international" />
-          </el-select>
-        </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleFilter">查询</el-button>
           <el-button @click="resetFilter">重置</el-button>
@@ -43,13 +37,6 @@
         <el-table-column prop="destination" label="目的地" min-width="150" show-overflow-tooltip />
         <el-table-column prop="applicant_name" label="申请人" width="100" />
         <el-table-column prop="department" label="所属部门" width="120" />
-        <el-table-column prop="trip_type" label="类型" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.trip_type === 'international' ? 'warning' : 'info'">
-              {{ row.trip_type === 'international' ? '国外' : '国内' }}
-            </el-tag>
-          </template>
-        </el-table-column>
         <el-table-column prop="days" label="天数" width="80">
           <template #default="{ row }">
             {{ row.days }}天
@@ -136,11 +123,6 @@
         <el-descriptions-item label="出差编号">{{ detailData.trip_code }}</el-descriptions-item>
         <el-descriptions-item label="申请人">{{ detailData.applicant_name }}</el-descriptions-item>
         <el-descriptions-item label="所属部门">{{ detailData.department }}</el-descriptions-item>
-        <el-descriptions-item label="出差类型">
-          <el-tag :type="detailData.trip_type === 'international' ? 'warning' : 'info'">
-            {{ detailData.trip_type === 'international' ? '国外出差' : '国内出差' }}
-          </el-tag>
-        </el-descriptions-item>
         <el-descriptions-item label="目的地">{{ detailData.destination }}</el-descriptions-item>
         <el-descriptions-item label="出差天数">{{ detailData.days }}天</el-descriptions-item>
         <el-descriptions-item label="开始日期">{{ detailData.start_date }}</el-descriptions-item>
@@ -217,8 +199,7 @@ const approveDialogVisible = ref(false);
 const currentRow = ref<any>(null);
 
 const filterForm = reactive({
-  status: '',
-  tripType: ''
+  status: ''
 });
 
 const pagination = reactive({
@@ -325,7 +306,6 @@ const handleFilter = () => {
 // 重置筛选
 const resetFilter = () => {
   filterForm.status = '';
-  filterForm.tripType = '';
   handleFilter();
 };
 

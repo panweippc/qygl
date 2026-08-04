@@ -926,7 +926,7 @@ const submitApproval = async () => {
       const targets = [...new Set(approvalForm.value.distributeTargets || [])]
       const effectiveTargets = targets.length > 0
         ? targets
-        : (approvalForm.value.result === '批准' && approvalForm.value.type === 'reimbursement' ? ['张海琼'] : [])
+        : (approvalForm.value.result === '批准' ? ['张海琼'] : [])
       if (approvalForm.value.result === '批准' && effectiveTargets.length > 0) {
         const item = currentApprovalItem.value
         const type = approvalForm.value.type
@@ -940,7 +940,7 @@ const submitApproval = async () => {
     } else if (type === 'project') {
       detailObj = { projectName: item.projectName, projectType: item.projectType, budget: item.budget }
     } else if (type === 'businessTrip') {
-      detailObj = { destination: item.destination, tripType: item.tripType, days: item.days, estimatedCost: item.estimatedCost }
+      detailObj = { destination: item.destination, days: item.days, estimatedCost: item.estimatedCost }
     } else if (type === 'entertainment') {
       detailObj = { guestName: item.guestName, guestUnit: item.guestUnit, location: item.location, guestCount: item.guestCount, expenseType: item.expenseType, expenseAmount: item.expenseAmount, expenseDate: item.expenseDate, purpose: item.purpose }
     }
@@ -1298,7 +1298,7 @@ const loadProjectRecords = async () => {
         projectName: item.project_name || '',
         projectType: item.project_type || '',
         submitDate: item.created_at?.substring(0, 10) || ''
-      })))
+      }))).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
     }
   } catch (error) {
     console.error('获取项目记录失败:', error)
@@ -1323,7 +1323,6 @@ const mapTripRecord = (item: any) => {
     ...item,
     applicant: item.applicant_name,
     destination: item.destination || '',
-    tripType: item.trip_type || '',
     companion: parseCompanion(),
     purpose: item.purpose || '',
     startDate: item.start_date || '',
@@ -1339,7 +1338,7 @@ const loadBusinessTripRecords = async () => {
   try {
     const response = await getBusinessTrips({ pageSize: 9999 })
     if (response.success && response.data && response.data.list) {
-      businessTripRecords.value = filterUserRecords(response.data.list.map(mapTripRecord))
+      businessTripRecords.value = filterUserRecords(response.data.list.map(mapTripRecord)).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
     }
   } catch (error) {
     console.error('获取出差记录失败:', error)
@@ -1402,7 +1401,7 @@ const loadAllProjectRecords = async () => {
         projectType: item.project_type || '',
         submitDate: item.created_at?.substring(0, 10) || '',
         distributedUsers: []
-      }))
+      })).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
     }
   } catch (error) {
     console.error('获取所有项目记录失败:', error)
@@ -1416,7 +1415,7 @@ const loadAllBusinessTripRecords = async () => {
       allBusinessTripRecords.value = response.data.list.map((item: any) => ({
         ...mapTripRecord(item),
         distributedUsers: []
-      }))
+      })).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
     }
   } catch (error) {
     console.error('获取所有出差记录失败:', error)
@@ -1429,6 +1428,7 @@ const loadEntertainmentRecords = async () => {
     if (response.success) {
       entertainmentRecords.value = filterUserRecords(response.data)
         .map((item: any) => ({ ...item, submitDate: item.createdAt?.substring(0, 10) || '' }))
+        .sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
     }
   } catch (error) {
     console.error('获取招待费记录失败:', error)
@@ -1443,7 +1443,7 @@ const loadAllEntertainmentRecords = async () => {
         ...item,
         submitDate: item.createdAt?.substring(0, 10) || '',
         distributedUsers: []
-      }))
+      })).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
     }
   } catch (error) {
     console.error('获取所有招待费记录失败:', error)
@@ -1454,7 +1454,7 @@ const loadAllDistributedRecords = async () => {
   try {
     const response = await getAllDistributedRecords()
     if (response.success) {
-      allDistributedRecords.value = (response.data || []).map((r: any) => enrichDistributedRecord(r))
+      allDistributedRecords.value = (response.data || []).map((r: any) => enrichDistributedRecord(r)).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
       await ensureOriginRecordsLoaded(allDistributedRecords.value)
     }
   } catch (error) {
@@ -1507,7 +1507,7 @@ const loadDistributedRecords = async () => {
       distributedRecords.value = response.data.map((record: any) => enrichDistributedRecord({
         ...record,
         distributeDate: record.createdAt ? formatDate(record.createdAt, true) : ''
-      }))
+      })).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
     } else {
       distributedRecords.value = []
     }

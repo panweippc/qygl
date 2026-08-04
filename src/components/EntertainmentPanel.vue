@@ -313,6 +313,7 @@ const loadEntertainmentRecords = async () => {
       entertainmentRecords.value = response.data
         .filter((item: any) => extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')))
         .map((item: any) => ({ ...item, submitDate: item.createdAt?.substring(0, 10) || '' }))
+        .sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
     }
   } catch (error) {
     console.error('获取业务招待费记录失败:', error)
