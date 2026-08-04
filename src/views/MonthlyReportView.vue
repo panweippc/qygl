@@ -50,8 +50,36 @@
                 <tbody>
                   <tr>
                     <td class="table-label">月报标题</td>
+                    <td class="auto-title">{{ autoTitle || '请先选择月份' }}</td>
+                  </tr>
+                  <tr>
+                    <td class="table-label">一、本月工作总结</td>
                     <td>
-                      <el-input v-model="currentReport.title" placeholder="请输入标题" />
+                      <el-input v-model="currentReport.summary" type="textarea" :rows="4" placeholder="本月完成的主要工作、任务及进展" />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="table-label">二、工作亮点与成果</td>
+                    <td>
+                      <el-input v-model="currentReport.highlights" type="textarea" :rows="3" placeholder="重点成果、关键数据、里程碑（可留空）" />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="table-label">三、遇到的问题及处理</td>
+                    <td>
+                      <el-input v-model="currentReport.problems" type="textarea" :rows="3" placeholder="遇到的困难、风险及处理办法（可留空）" />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="table-label">四、下月工作计划</td>
+                    <td>
+                      <el-input v-model="currentReport.nextPlan" type="textarea" :rows="4" placeholder="下月计划开展的重点工作" />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="table-label">五、需协调支持事项</td>
+                    <td>
+                      <el-input v-model="currentReport.coordination" type="textarea" :rows="2" placeholder="需上级或相关部门配合的事项（可留空）" />
                     </td>
                   </tr>
                   <tr>
@@ -127,11 +155,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Delete, Document, Picture } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getMonthlyReports, addMonthlyReport, getEmployees } from '../services/api'
+import { buildContent, buildPlan, emptySections, autoReportTitle } from '../utils/monthlyReport'
 
 const router = useRouter()
 
@@ -164,9 +193,11 @@ interface Employee {
 }
 
 interface EmployeeReport {
-  title: string
-  content: string
-  plan: string
+  summary: string
+  highlights: string
+  problems: string
+  nextPlan: string
+  coordination: string
   files: any[]
 }
 
@@ -198,11 +229,12 @@ window.addEventListener('storage', (event) => {
 
 // 当前报告
 const currentReport = ref<EmployeeReport>({
-  title: '',
-  content: '',
-  plan: '',
+  ...emptySections(),
   files: []
 })
+
+// 计算属性：自动生成的月报标题
+const autoTitle = computed(() => autoReportTitle(selectedMonth.value))
 
 // 计算属性：可用的月份选项
 const availableMonths = computed(() => {
@@ -311,10 +343,10 @@ const loadReports = async () => {
   }
 }
 
-watch(selectedMonth, (newMonth) => {
-  if (newMonth) {
-    currentReport.value.title = newMonth
-  }
+// 组件挂载时加载数据
+onMounted(async () => {
+  await loadEmployees()
+  await loadReports()
 })
 
 // 组件挂载时加载数�?
@@ -372,24 +404,34 @@ const submitReports = async () => {
   loading.value = true
   try {
     const currentUserId = getCurrentUserId()
-    
-    if (currentReport.value.title || currentReport.value.files.length > 0) {
+    const content = buildContent(currentReport.value)
+    const plan = buildPlan(currentReport.value)
+    const hasContent = !!(content || plan || currentReport.value.files.length > 0)
+
+    if (!selectedMonth.value) {
+      ElMessage.warning('请先选择月份')
+      return
+    }
+
+    if (hasContent) {
       try {
         // 先上传所有文件到服务器，获取永久 URL
         const uploadPromises = currentReport.value.files.map(file => uploadFile(file))
         const processedFiles = await Promise.all(uploadPromises)
         
         console.log('提交月报数据:', {
-          title: currentReport.value.title,
+          title: autoTitle.value,
+          content,
+          plan,
           files: processedFiles,
           userId: currentUserId,
           date: selectedMonth.value
         });
         
         const response = await addMonthlyReport({
-          title: currentReport.value.title,
-          content: '',
-          plan: '',
+          title: autoTitle.value,
+          content,
+          plan,
           files: processedFiles,
           userId: currentUserId,
           date: selectedMonth.value
@@ -399,22 +441,22 @@ const submitReports = async () => {
         
         if (response.success) {
           await loadReports()
-          currentReport.value = { title: '', content: '', plan: '', files: [] };
+          currentReport.value = { ...emptySections(), files: [] };
           selectedMonth.value = ''
-          ElMessage.success('成功上传月报')
+          ElMessage.success('月报提交成功')
         } else {
-          ElMessage.error('上传月报失败')
+          ElMessage.error('提交月报失败')
         }
       } catch (error) {
-        console.error('上传月报失败:', error)
-        ElMessage.error('上传月报失败')
+        console.error('提交月报失败:', error)
+        ElMessage.error('提交月报失败')
       }
     } else {
-      ElMessage.warning('没有需要上传的月报')
+      ElMessage.warning('请至少填写一个段落或上传附件')
     }
   } catch (error) {
-    console.error('上传月报失败:', error)
-    ElMessage.error('上传月报失败')
+    console.error('提交月报失败:', error)
+    ElMessage.error('提交月报失败')
   } finally {
     loading.value = false
   }
@@ -662,6 +704,12 @@ const navigateToHistory = () => {
 
 .month-select {
   width: 200px;
+}
+
+.auto-title {
+  color: #6495ED;
+  font-weight: 600;
+  font-size: 15px;
 }
 
 .table-actions {

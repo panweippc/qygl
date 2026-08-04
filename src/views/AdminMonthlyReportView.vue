@@ -60,6 +60,13 @@
                   <span class="report-employee">{{ getEmployeeName(report.userId) }}</span>
                 </div>
               </div>
+              <!-- 显示月报内容段落 -->
+              <div v-if="report.sections && report.sections.length > 0" class="report-sections">
+                <div v-for="sec in report.sections" :key="sec.key" class="report-section">
+                  <div class="report-section-title">{{ sec.title }}</div>
+                  <div class="report-section-content">{{ sec.content }}</div>
+                </div>
+              </div>
               <!-- 显示附件 -->
               <div v-if="report.files && report.files.length > 0" class="report-files">
                 <h5 class="files-title">附件:</h5>
@@ -166,6 +173,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElImage } from 'element-plus'
 import { Document, Download, View } from '@element-plus/icons-vue'
 import { getMonthlyReports, getEmployees } from '../services/api'
+import { sectionsFromReport, nonEmptySections } from '../utils/monthlyReport'
 
 const router = useRouter()
 
@@ -252,7 +260,8 @@ const loadReports = async () => {
           ...report,
           date: date,
           files: report.files || [],
-          plan: report.plan || ''
+          plan: report.plan || '',
+          sections: nonEmptySections(sectionsFromReport(report.content, report.plan))
         }
       }).filter(report => {
         const reportDate = new Date(report.createdAt)
@@ -726,6 +735,35 @@ const previewFile = (file: any) => {
   line-height: 1.5;
   margin-bottom: 1rem;
   font-size: 0.95rem;
+}
+
+.report-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.report-section {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(100, 149, 237, 0.2);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.report-section-title {
+  font-weight: 600;
+  color: #6495ED;
+  font-size: 0.85rem;
+  margin-bottom: 0.35rem;
+}
+
+.report-section-content {
+  color: rgba(51, 51, 51, 0.75);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .report-footer {

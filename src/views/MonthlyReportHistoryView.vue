@@ -63,8 +63,12 @@
                     <span v-if="isAdmin || isGeneralManager" class="report-employee">{{ report.username || getEmployeeName(report.userId) }}</span>
                     <span class="report-time">{{ report.createdAt || '' }}</span>
                   </div>
-                  <div v-if="report.content" class="report-content">{{ report.content }}</div>
-                  <div v-if="report.plan" class="report-plan">计划: {{ report.plan }}</div>
+                  <div v-if="report.sections && report.sections.length > 0" class="report-sections">
+                    <div v-for="sec in report.sections" :key="sec.key" class="report-section">
+                      <div class="report-section-title">{{ sec.title }}</div>
+                      <div class="report-section-content">{{ sec.content }}</div>
+                    </div>
+                  </div>
                   <!-- 显示附件 -->
                   <div v-if="report.files && report.files.length > 0" class="report-files">
                     <h5 class="files-title">附件:</h5>
@@ -142,11 +146,20 @@
             <el-form-item label="月报标题">
               <el-input v-model="editForm.title" placeholder="请输入标题" />
             </el-form-item>
-            <el-form-item label="本月内容">
-              <el-input v-model="editForm.content" type="textarea" :rows="3" placeholder="请输入本月工作内容" />
+            <el-form-item label="一、本月工作总结">
+              <el-input v-model="editForm.summary" type="textarea" :rows="4" placeholder="本月完成的主要工作、任务及进展" />
             </el-form-item>
-            <el-form-item label="下月计划">
-              <el-input v-model="editForm.plan" type="textarea" :rows="3" placeholder="请输入下月工作计划" />
+            <el-form-item label="二、工作亮点与成果">
+              <el-input v-model="editForm.highlights" type="textarea" :rows="3" placeholder="重点成果、关键数据、里程碑（可留空）" />
+            </el-form-item>
+            <el-form-item label="三、遇到的问题及处理">
+              <el-input v-model="editForm.problems" type="textarea" :rows="3" placeholder="遇到的困难、风险及处理办法（可留空）" />
+            </el-form-item>
+            <el-form-item label="四、下月工作计划">
+              <el-input v-model="editForm.nextPlan" type="textarea" :rows="4" placeholder="下月计划开展的重点工作" />
+            </el-form-item>
+            <el-form-item label="五、需协调支持事项">
+              <el-input v-model="editForm.coordination" type="textarea" :rows="2" placeholder="需上级或相关部门配合的事项（可留空）" />
             </el-form-item>
             <el-form-item label="上传附件">
               <el-upload
@@ -255,6 +268,7 @@ import { ElMessage, ElMessageBox, ElImage } from 'element-plus'
 import { Plus, Delete, Document, Download, View } from '@element-plus/icons-vue'
 import { useButtonPermission } from '@/composables/usePermission'
 import { getMonthlyReports, getEmployees, updateMonthlyReport } from '../services/api'
+import { sectionsFromReport, buildContent, buildPlan, emptySections, nonEmptySections, autoReportTitle } from '../utils/monthlyReport'
 import * as mammoth from 'mammoth'
 
 const router = useRouter()
@@ -330,16 +344,18 @@ const dialogVisible = ref(false)
 const editForm = ref<{
   id: number
   title: string
-  content: string
-  plan: string
+  summary: string
+  highlights: string
+  problems: string
+  nextPlan: string
+  coordination: string
   files: any[]
   userId: number
   date: string
 }>({
   id: 0,
   title: '',
-  content: '',
-  plan: '',
+  ...emptySections(),
   files: [],
   userId: 0,
   date: ''
@@ -562,7 +578,8 @@ const loadReports = async () => {
           ...report,
           date: date,
           files: report.files || [],
-          plan: report.plan || '' // 使用API返回的plan字段
+          plan: report.plan || '', // 使用API返回的plan字段
+          sections: nonEmptySections(sectionsFromReport(report.content, report.plan))
         }
       }).filter(report => {
         const reportDate = new Date(report.createdAt)
@@ -590,9 +607,8 @@ const editReport = (report: Report) => {
   
   editForm.value = {
     id: report.id,
-    title: report.title,
-    content: report.content || '',
-    plan: report.plan || '',
+    title: report.title || autoReportTitle(report.date || ''),
+    ...sectionsFromReport(report.content, report.plan),
     files: formattedFiles,
     userId: report.userId,
     date: report.date
@@ -767,8 +783,8 @@ const saveEdit = async () => {
     const updateData = {
       id: editForm.value.id,
       title: editForm.value.title,
-      content: editForm.value.content,
-      plan: editForm.value.plan,
+      content: buildContent(editForm.value),
+      plan: buildPlan(editForm.value),
       files: uploadedFiles,
       userId: editForm.value.userId,
       date: editForm.value.date
@@ -1107,6 +1123,35 @@ onMounted(async () => {
   line-height: 1.5;
   margin-bottom: 1rem;
   font-size: 0.95rem;
+}
+
+.report-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.report-section {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(100, 149, 237, 0.2);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.report-section-title {
+  font-weight: 600;
+  color: #6495ED;
+  font-size: 0.85rem;
+  margin-bottom: 0.35rem;
+}
+
+.report-section-content {
+  color: rgba(51, 51, 51, 0.75);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .report-footer {
