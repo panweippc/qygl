@@ -265,7 +265,7 @@
                         </span>
                       </template>
                     </el-table-column>
-                    <el-table-column label="申请详情" min-width="180" v-if="distributedActiveSubTab !== 'all'">
+                    <el-table-column label="申请详情" min-width="180">
                       <template #default="{ row }">
                         <span class="distributed-detail-text">{{ getDistributedDetail(row) }}</span>
                       </template>
