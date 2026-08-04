@@ -205,8 +205,9 @@ const employees = ref<Employee[]>([])
 const reports = ref<Report[]>([])
 const loading = ref(false)
 
-// 月份选择相关
-const selectedMonth = ref<string>('')
+// 月份选择相关，默认选中当前月份，可切换其他月份补交
+const currentMonth = `${new Date().getFullYear()}年${new Date().getMonth() + 1}月`
+const selectedMonth = ref<string>(currentMonth)
 
 // 当前用户信息
 const currentUser = ref<{
