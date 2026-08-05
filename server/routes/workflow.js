@@ -471,9 +471,9 @@ router.post("/business-trips", async (req, res) => {
         transport || '',
         typeof accompanyPersons === 'object' ? JSON.stringify(accompanyPersons) : (accompany_persons || ''),
         typeof customerInfo === 'object' ? JSON.stringify(customerInfo) : (customer_info || ''),
+        approverNameVal || null,
         now,
-        now,
-        approverNameVal || null
+        now
       ]
     );
 

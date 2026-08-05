@@ -51,7 +51,17 @@ router.post('/upload', upload.array('file', 10), async (req, res) => {
     for (const f of files) {
       const url = '/uploads/' + f.filename;
       const ext = f.originalname?.includes('.') ? f.originalname.split('.').pop().toLowerCase() : '';
-      const originalName = Buffer.from(f.originalname || '', 'latin1').toString('utf8');
+      const rawName = f.originalname || '';
+      let originalName;
+      if (rawName.includes('%')) {
+        try {
+          originalName = decodeURIComponent(rawName);
+        } catch (e) {
+          originalName = Buffer.from(rawName, 'latin1').toString('utf8');
+        }
+      } else {
+        originalName = Buffer.from(rawName, 'latin1').toString('utf8');
+      }
       await pool.execute(
         'INSERT INTO files (name, size, type, url, uploaderId, categoryId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [originalName, f.size, ext, url, uploaderId, categoryId, now]

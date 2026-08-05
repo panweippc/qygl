@@ -66,10 +66,10 @@ router.post('/distributed-records', async (req, res) => {
       });
     }
 
-    // 检查是否已下发给该用户
+    // 检查是否已下发给该用户（需同时匹配类型，避免不同业务表 id 撞车误判重复）
     const [existing] = await pool.execute(
-      'SELECT id FROM distributed_records WHERE applicationId = ? AND targetUser = ?',
-      [applicationId, targetUser]
+      'SELECT id FROM distributed_records WHERE applicationId = ? AND applicationType = ? AND targetUser = ?',
+      [applicationId, applicationType, targetUser]
     );
     if (existing.length > 0) {
       return res.status(409).json({

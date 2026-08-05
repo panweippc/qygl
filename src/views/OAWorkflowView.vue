@@ -1019,9 +1019,9 @@ const handleDistribute = async () => {
   try {
     const uniqueTargets = [...new Set(distributeTarget.value)]
 
-    // 过滤掉已下发过的对象
+    // 过滤掉已下发过的对象（需同时匹配类型，避免不同业务表 id 撞车误判）
     const alreadyDistributed = allDistributedRecords.value
-      .filter(r => r.applicationId === currentDistributeItem.value.id)
+      .filter(r => r.applicationId === currentDistributeItem.value.id && r.applicationType === currentDistributeType.value)
       .map(r => r.targetUser)
     const validTargets = uniqueTargets.filter(t => !alreadyDistributed.includes(t))
 

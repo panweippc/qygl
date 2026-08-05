@@ -14,9 +14,15 @@ router.get('/monthly-reports', async (req, res) => {
     const [reports] = await pool.execute(
       'SELECT w.*, u.username FROM weeklyReports w LEFT JOIN users u ON w.userId = u.id'
     );
+    const decodeName = (s) => {
+      if (typeof s !== 'string' || !s.includes('%')) return s;
+      try { return decodeURIComponent(s); } catch (e) { return s; }
+    };
     const reportsWithFiles = reports.map((report) => ({
       ...report,
-      files: report.files ? JSON.parse(report.files) : []
+      files: report.files
+        ? JSON.parse(report.files).map((f) => ({ ...f, name: decodeName(f.name) }))
+        : []
     }));
     res.json({ success: true, data: reportsWithFiles });
   } catch (error) {
