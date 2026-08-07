@@ -133,6 +133,7 @@ export const updateProject = async (id: number, data: any): Promise<ApiResponse>
     action: data.result === '批准' ? 'agree' : 'reject',
     comment: data.comment,
     approverId,
+    operator: data.operator || null,
     forwardTo: data.forwardTo || null
   });
   return response.data;
@@ -166,6 +167,7 @@ export const updateBusinessTrip = async (id: number, data: any): Promise<ApiResp
     action: data.result === '批准' ? 'agree' : 'reject',
     comment: data.comment,
     approverId,
+    operator: data.operator || null,
     forwardTo: data.forwardTo || null
   });
   return response.data;

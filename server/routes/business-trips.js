@@ -186,7 +186,7 @@ router.post('/business-trips/:id/approve', async (req, res) => {
   const { pool } = req.app.locals;
   try {
     const { id } = req.params;
-    const { action, comment, approverId, forwardTo } = req.body;
+    const { action, comment, approverId, forwardTo, operator } = req.body;
 
     const [trips] = await pool.execute(
       'SELECT * FROM business_trip_applications WHERE id = ?',
@@ -200,15 +200,32 @@ router.post('/business-trips/:id/approve', async (req, res) => {
     const trip = trips[0];
 
     if (forwardTo) {
-      const currentApprover = trip.approver || '';
+      // 确定实际审批人姓名：优先用 operator（前端传入的操作人），其次 approverId 反查，最后 trip.approver
+      let currentApprover = operator || trip.approver || '';
+      if ((!currentApprover || !String(currentApprover).trim()) && approverId) {
+        try {
+          const [approverRows] = await pool.execute('SELECT name FROM employees WHERE id = ?', [approverId]);
+          if (approverRows.length > 0) currentApprover = approverRows[0].name;
+        } catch (e) { /* ignore */ }
+      }
       const resultText = action === 'agree' ? '批准' : action === 'reject' ? '拒绝' : '';
-      const intermediateResult = resultText ? `${currentApprover}:${resultText}` : null;
       const newComment = trip.comment
         ? `${trip.comment}\n---\n${currentApprover}: ${comment || ''}`
         : `${currentApprover}: ${comment || ''}`;
+      const forwardHistory = JSON.parse(trip.approval_history || '[]');
+      forwardHistory.push({
+        step: trip.current_step,
+        nodeName: '转交审批',
+        approverId: approverId || null,
+        approverName: currentApprover || '',
+        approverRole: '',
+        action: resultText ? 'forward' : 'forward',
+        comment: comment || '',
+        createdAt: new Date()
+      });
       await pool.execute(
-        'UPDATE business_trip_applications SET comment = ?, result = ?, approver = ?, updated_at = NOW() WHERE id = ?',
-        [newComment, intermediateResult, forwardTo, id]
+        'UPDATE business_trip_applications SET comment = ?, approver = ?, approval_history = ?, updated_at = NOW() WHERE id = ?',
+        [newComment, forwardTo, JSON.stringify(forwardHistory), id]
       );
       await createNotification(pool, {
         userId: trip.applicant_name,
@@ -218,19 +235,40 @@ router.post('/business-trips/:id/approve', async (req, res) => {
         relatedId: parseInt(id),
         relatedType: 'business_trip'
       });
+      await createNotification(pool, {
+        userId: forwardTo,
+        title: '出差审批提醒',
+        content: `${trip.applicant_name} 的${trip.destination}出差申请(${trip.trip_code})已转发给您，请审批`,
+        type: 'approval',
+        relatedId: parseInt(id),
+        relatedType: 'business_trip'
+      });
       return res.json({ success: true, message: '已转发至总经理' });
     }
 
-    const [approvers] = await pool.execute(
-      'SELECT * FROM employees WHERE id = ?',
-      [approverId]
-    );
-
-    if (approvers.length === 0) {
+    // approverId 可能为空或无效，用 operator 姓名反查员工，确保能拿到审批人
+    let approver = null;
+    if (approverId) {
+      const [approvers] = await pool.execute('SELECT * FROM employees WHERE id = ?', [approverId]);
+      if (approvers.length > 0) approver = approvers[0];
+    }
+    if (!approver && operator) {
+      const name = String(operator).replace(/^emp_/, '').replace(/_\d+$/, '');
+      const [byName] = await pool.execute('SELECT * FROM employees WHERE name = ?', [name]);
+      if (byName.length > 0) approver = byName[0];
+    }
+    if (!approver) {
+      // 仍找不到：尝试从 current_approvers 或 trip.approver 反查
+      let name = String(trip.approver || '').replace(/^emp_/, '').replace(/_\d+$/, '');
+      if (name) {
+        const [byName] = await pool.execute('SELECT * FROM employees WHERE name = ?', [name]);
+        if (byName.length > 0) approver = byName[0];
+      }
+    }
+    if (!approver) {
+      console.log('[出差审批调试] id:', id, 'approverId:', approverId, 'operator:', operator, 'trip.approver:', trip.approver, 'trip.current_approvers:', trip.current_approvers);
       return res.status(400).json({ success: false, message: '审批人不存在' });
     }
-
-    const approver = approvers[0];
 
     const historyRecord = {
       step: trip.current_step,

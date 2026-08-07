@@ -358,27 +358,53 @@
         </div>
         <div class="info-row">
           <span class="info-label">申请时间：</span>
-          <span class="info-value">{{ currentApprovalItem.submitDate }}</span>
+<span class="info-value">{{ currentApprovalItem.submitDate }}</span>
         </div>
       </div>
       <el-form :model="approvalForm" ref="approvalFormRef" label-width="100px" class="custom-form">
         <el-form-item label="审批结果" prop="result">
-          <el-radio-group v-model="approvalForm.result" size="large">
-            <el-radio-button label="批准">
-              <span class="radio-icon">✓</span> 批准
-            </el-radio-button>
-            <el-radio-button label="拒绝">
-              <span class="radio-icon">✗</span> 拒绝
-            </el-radio-button>
-          </el-radio-group>
-          <el-checkbox v-if="!isAdminComputed && !isCurrentUserGM" v-model="approvalForm.forwardToGM" style="margin-top: 10px;">
-            ↗ 转发至总经理
-          </el-checkbox>
+          <template v-if="!approvalForm.forward">
+            <el-radio-group v-model="approvalForm.result" size="large">
+              <el-radio-button label="批准">
+                <span class="radio-icon">✓</span> 批准
+              </el-radio-button>
+              <el-radio-button label="拒绝">
+                <span class="radio-icon">✗</span> 拒绝
+              </el-radio-button>
+            </el-radio-group>
+          </template>
+          <template v-else>
+            <div style="font-size: 13px; color: #E6A23C; line-height: 1.6;">转发代表同意本次审批，并将申请转交下一步审批人处理</div>
+          </template>
+        </el-form-item>
+        <el-form-item v-if="!isAdminComputed && !isCurrentUserGM" label="转交审批">
+          <div style="width: 100%;">
+            <el-switch
+              v-model="approvalForm.forward"
+              active-text="转交下一步审批人"
+              inactive-text="直接审批"
+              style="margin-bottom: 8px;"
+            />
+            <el-select
+              v-if="approvalForm.forward"
+              v-model="approvalForm.forwardTo"
+              placeholder="请选择转交的审批人"
+              style="width: 100%"
+              filterable
+            >
+              <el-option
+                v-for="emp in forwardTargetEmployees"
+                :key="emp.id"
+                :label="extractRealName(emp.name) + ' (' + emp.department + ')'"
+                :value="extractRealName(emp.name)"
+              />
+            </el-select>
+          </div>
         </el-form-item>
         <el-form-item label="审批意见">
           <el-input v-model="approvalForm.comment" type="textarea" :rows="3" placeholder="请输入审批意见（可选）"></el-input>
         </el-form-item>
-        <el-form-item label="下发对象">
+        <el-form-item v-if="!approvalForm.forward" label="下发对象">
           <el-select v-model="approvalForm.distributeTargets" multiple filterable placeholder="请选择下发对象（审批通过后自动下发）" style="width: 100%" collapse-tags collapse-tags-tooltip :max-collapse-tags="3">
             <el-option v-for="emp in allEmployees" :key="emp.id" :label="extractRealName(emp.name) + ' (' + emp.department + ')'" :value="extractRealName(emp.name)" />
           </el-select>
@@ -602,6 +628,13 @@ const approverEmployees = computed(() => {
   })
 })
 
+const forwardTargetEmployees = computed(() => {
+  const currentName = extractRealName(currentUsername.value)
+  return approverEmployees.value.filter((emp: any) =>
+    extractRealName(emp.name) !== currentName
+  )
+})
+
 const currentUsername = computed(() => {
   return localStorage.getItem('username') || '当前用户'
 })
@@ -609,7 +642,7 @@ const currentUsername = computed(() => {
 const isAdminComputed = computed(() => {
   const role = localStorage.getItem('role')
   const username = localStorage.getItem('username')
-  const adminRoles = ['admin', 'gm', 'ceo', 'general_manager', '系统管理员', '总经理']
+  const adminRoles = ['admin', 'gm', 'ceo', 'general_manager', '系统管理员']
   const isAdminRole = adminRoles.includes(role?.toLowerCase() || '')
   const isAdminName = username === '总经理' || username?.includes('admin')
   return isAdminRole || isAdminName
@@ -619,6 +652,8 @@ const isCurrentUserGM = computed(() => {
   const gm = allEmployees.value.find((emp: any) => (emp.position || '').includes('总经理'))
   return gm && extractRealName(currentUsername.value) === extractRealName(gm.name)
 })
+
+const isCurrentUserZhang = computed(() => extractRealName(currentUsername.value) === '张海琼')
 
 const isBusinessCenterManager = computed(() => {
   const currentName = extractRealName(currentUsername.value)
@@ -770,8 +805,8 @@ const exportDistributedRow = async (row: any) => {
 
   const typeActions: Record<string, (r: any, d: string) => void> = {
     leave:         (r, d) => exportLeaveFormHTML(r, d),
-    reimbursement: (r, d) => exportReimbursementFormHTML(r, d),
-    businessTrip:  (r, d) => exportBusinessTripFormHTML(r, d),
+    reimbursement: (r, d) => exportReimbursementFormHTML(r, d, allEmployees.value),
+    businessTrip:  (r, d) => exportBusinessTripFormHTML(r, d, allEmployees.value),
     entertainment: (r, d) => exportEntertainmentFormHTML(r, d, allEmployees.value),
     meeting:       (r, d) => exportMeetingFormHTML(r, d),
     project:       (r, d) => exportProjectFormHTML(r, d)
@@ -806,7 +841,7 @@ const tabs = computed(() => {
     { name: 'entertainment', label: '业务招待费', icon: '🍽️', badge: pendingEntertainmentCount.value }
   ]
 
-  if (!isAdminComputed.value) {
+  if (isCurrentUserZhang.value) {
     baseTabs.push({ name: 'distributed', label: '下发管理', icon: '📨', badge: pendingDistributedCount.value })
   }
 
@@ -881,26 +916,31 @@ const openStatDetail = (statKey: string) => {
 
 const approvalDialogVisible = ref(false)
 const currentApprovalItem = ref<any>(null)
-const approvalForm = ref({ id: '', type: '', comment: '', result: '', forwardToGM: false, distributeTargets: [] as string[] })
+const approvalForm = ref({ id: '', type: '', comment: '', result: '', forward: false, forwardTo: '', distributeTargets: [] as string[] })
 const approvalFormRef = ref()
 
 const openApprovalDialog = (row: any, type: string) => {
   currentApprovalItem.value = { ...row, type }
-  approvalForm.value = { id: row.id, type, comment: '', result: '', forwardToGM: false, distributeTargets: ['张海琼'] }
+  approvalForm.value = { id: row.id, type, comment: '', result: '', forward: false, forwardTo: '', distributeTargets: ['张海琼'] }
   approvalDialogVisible.value = true
 }
 
 const submitApproval = async () => {
-  if (!approvalForm.value.result) {
+  if (approvalForm.value.forward) {
+    if (!approvalForm.value.forwardTo) {
+      ElMessage.warning('请选择转交的审批人')
+      return
+    }
+    approvalForm.value.result = '批准'
+  } else if (!approvalForm.value.result) {
     ElMessage.warning('请选择审批结果')
     return
   }
   try {
     let response: any
     const data: any = { comment: approvalForm.value.comment, result: approvalForm.value.result, operator: currentUsername.value }
-    if (approvalForm.value.forwardToGM) {
-      const gm = allEmployees.value.find((emp: any) => (emp.position || '').includes('总经理'))
-      data.forwardTo = gm?.name || '总经理'
+    if (approvalForm.value.forward) {
+      data.forwardTo = approvalForm.value.forwardTo
     }
     switch (approvalForm.value.type) {
       case 'leave':
@@ -927,7 +967,7 @@ const submitApproval = async () => {
       const effectiveTargets = targets.length > 0
         ? targets
         : (approvalForm.value.result === '批准' ? ['张海琼'] : [])
-      if (approvalForm.value.result === '批准' && effectiveTargets.length > 0) {
+      if (approvalForm.value.result === '批准' && !approvalForm.value.forward && effectiveTargets.length > 0) {
         const item = currentApprovalItem.value
         const type = approvalForm.value.type
         let detailObj: any = {}
@@ -966,7 +1006,7 @@ const submitApproval = async () => {
           }
         }
       }
-      ElMessage.success(approvalForm.value.forwardToGM ? '审批完成，已转发至总经理' : '审批已完成')
+      ElMessage.success(approvalForm.value.forward ? '已同意并转交给 ' + approvalForm.value.forwardTo : '审批已完成')
       approvalDialogVisible.value = false
       await loadAllDistributedRecords()
       await refreshAllData()
@@ -1245,11 +1285,36 @@ const loadEmployees = async () => {
 
 const filterUserRecords = (records: any[]) => {
   const currentName = extractRealName(currentUsername.value)
-  return records.filter((item: any) =>
-    extractRealName(item.applicant || item.organizer || item.applicant_name) === currentName ||
-    extractRealName(item.approver) === currentName ||
-    (item.result && item.result.includes(currentName + ':'))
-  )
+  return records.filter((item: any) => {
+    // 审批历史中是否出现过当前用户（审批/转发过都算）
+    let inHistory = false
+    try {
+      const ah = item.approval_history
+      if (ah) {
+        const list = typeof ah === 'string' ? JSON.parse(ah) : ah
+        if (Array.isArray(list)) {
+          inHistory = list.some((h: any) => extractRealName(h.approverName || h.approver_name || h.approver || '') === currentName)
+        }
+      }
+    } catch {}
+    // comment 字段格式："陈东: 意见\n---\n李智鑫: 意见"，包含操作过的审批人
+    let inComment = false
+    try {
+      if (item.comment) {
+        inComment = String(item.comment).split('\n---\n').some((seg: string) => {
+          const idx = seg.indexOf(':')
+          return idx > 0 && extractRealName(seg.substring(0, idx).trim()) === currentName
+        })
+      }
+    } catch {}
+    return (
+      extractRealName(item.applicant || item.organizer || item.applicant_name) === currentName ||
+      extractRealName(item.approver) === currentName ||
+      (item.result && item.result.includes(currentName + ':')) ||
+      inHistory ||
+      inComment
+    )
+  })
 }
 
 const loadLeaveRecords = async () => {
@@ -1338,7 +1403,8 @@ const loadBusinessTripRecords = async () => {
   try {
     const response = await getBusinessTrips({ pageSize: 9999 })
     if (response.success && response.data && response.data.list) {
-      businessTripRecords.value = filterUserRecords(response.data.list.map(mapTripRecord)).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
+      const all = response.data.list.map(mapTripRecord)
+      businessTripRecords.value = filterUserRecords(all).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
     }
   } catch (error) {
     console.error('获取出差记录失败:', error)
@@ -1448,6 +1514,43 @@ const loadAllEntertainmentRecords = async () => {
   } catch (error) {
     console.error('获取所有招待费记录失败:', error)
   }
+}
+
+const originRecordMap = ref<Record<string, any>>({})
+
+const apiOriginPaths: Record<string, string> = {
+  leave:         '/api/leave-applications',
+  reimbursement: '/api/reimbursements',
+  businessTrip:  '/api/business-trips',
+  entertainment: '/api/entertainment-expenses',
+  meeting:       '/api/meetings',
+  project:       '/api/projects'
+}
+
+const fetchOriginRecord = async (type: string, id: any) => {
+  const key = `${type}_${id}`
+  if (originRecordMap.value[key]) return originRecordMap.value[key]
+  const path = apiOriginPaths[type]
+  if (!path) return null
+  try {
+    const res = await fetch(`${path}/${id}`)
+    if (!res.ok) return null
+    const json = await res.json()
+    if (json.success && json.data) {
+      let rec = json.data
+      if (typeof rec.approval_history === 'string') {
+        try { rec.approval_history = JSON.parse(rec.approval_history) } catch {}
+      }
+      originRecordMap.value[key] = rec
+      return rec
+    }
+  } catch {}
+  return null
+}
+
+const ensureOriginRecordsLoaded = async (records: any[]) => {
+  const missing = records.filter((r: any) => !originRecordMap.value[`${r.applicationType}_${r.applicationId}`] && apiOriginPaths[r.applicationType])
+  await Promise.all(missing.map((r: any) => fetchOriginRecord(r.applicationType, r.applicationId)))
 }
 
 const loadAllDistributedRecords = async () => {

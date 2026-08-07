@@ -128,7 +128,7 @@ router.post('/projects/:id/approve', async (req, res) => {
   const { pool } = req.app.locals;
   try {
     const { id } = req.params;
-    const { action, comment, approverId, forwardTo } = req.body;
+    const { action, comment, approverId, forwardTo, operator } = req.body;
 
     const [projects] = await pool.execute(
       'SELECT * FROM project_applications WHERE id = ?',
@@ -144,13 +144,23 @@ router.post('/projects/:id/approve', async (req, res) => {
     if (forwardTo) {
       const currentApprover = project.approver || '';
       const resultText = action === 'agree' ? '批准' : action === 'reject' ? '拒绝' : '';
-      const intermediateResult = resultText ? `${currentApprover}:${resultText}` : null;
       const newComment = project.comment
         ? `${project.comment}\n---\n${currentApprover}: ${comment || ''}`
         : `${currentApprover}: ${comment || ''}`;
+      const forwardHistory = JSON.parse(project.approval_history || '[]');
+      forwardHistory.push({
+        step: project.current_step,
+        nodeName: '转交审批',
+        approverId: (project.applicant_id) || null,
+        approverName: currentApprover || '',
+        approverRole: '',
+        action: resultText ? 'forward' : 'forward',
+        comment: comment || '',
+        createdAt: new Date()
+      });
       await pool.execute(
-        'UPDATE project_applications SET comment = ?, result = ?, approver = ?, updated_at = NOW() WHERE id = ?',
-        [newComment, intermediateResult, forwardTo, id]
+        'UPDATE project_applications SET comment = ?, approver = ?, approval_history = ?, updated_at = NOW() WHERE id = ?',
+        [newComment, forwardTo, JSON.stringify(forwardHistory), id]
       );
       await createNotification(pool, {
         userId: project.applicant_name,
@@ -160,24 +170,36 @@ router.post('/projects/:id/approve', async (req, res) => {
         relatedId: parseInt(id),
         relatedType: 'project'
       });
+      await createNotification(pool, {
+        userId: forwardTo,
+        title: '项目审批提醒',
+        content: `${project.applicant_name} 的${project.project_name}项目申请(${project.project_code})已转发给您，请审批`,
+        type: 'approval',
+        relatedId: parseInt(id),
+        relatedType: 'project'
+      });
       return res.json({ success: true, message: '已转发至总经理' });
     }
 
-    const [approvers] = await pool.execute(
-      'SELECT * FROM employees WHERE id = ?',
-      [approverId]
-    );
-
-    if (approvers.length === 0) {
+    // approverId 可能为空或无效（前端传的可能是 users 表 id），用 operator 姓名反查员工
+    let approver = null;
+    if (approverId) {
+      const [approvers] = await pool.execute('SELECT * FROM employees WHERE id = ?', [approverId]);
+      if (approvers.length > 0) approver = approvers[0];
+    }
+    if (!approver && operator) {
+      const name = String(operator).replace(/^emp_/, '').replace(/_\d+$/, '');
+      const [byName] = await pool.execute('SELECT * FROM employees WHERE name = ?', [name]);
+      if (byName.length > 0) approver = byName[0];
+    }
+    if (!approver) {
       return res.status(400).json({ success: false, message: '审批人不存在' });
     }
-
-    const approver = approvers[0];
 
     const historyRecord = {
       step: project.current_step,
       nodeName: '审批节点',
-      approverId,
+      approverId: approver.id,
       approverName: approver.name,
       approverRole: approver.position,
       action,

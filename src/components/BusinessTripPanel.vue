@@ -308,8 +308,34 @@ const loadBusinessTripRecords = async () => {
   try {
     const response = await getBusinessTrips({ pageSize: 9999 })
     if (response.success && response.data && response.data.list) {
+      const me = extractRealName(currentUsername.value)
       const filteredData = response.data.list.filter((item: any) => {
-        return extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':'))
+        // comment 字段："陈东: 意见\n---\n李智鑫: 意见" 中包含操作过的审批人
+        let inComment = false
+        try {
+          if (item.comment) {
+            inComment = String(item.comment).split('\n---\n').some((seg: string) => {
+              const idx = seg.indexOf(':')
+              return idx > 0 && extractRealName(seg.substring(0, idx).trim()) === me
+            })
+          }
+        } catch {}
+        // 审批历史中包含当前用户
+        let inHistory = false
+        try {
+          const ah = item.approval_history
+          if (ah) {
+            const list = typeof ah === 'string' ? JSON.parse(ah) : ah
+            if (Array.isArray(list)) {
+              inHistory = list.some((h: any) => extractRealName(h.approverName || h.approver_name || h.approver || '') === me)
+            }
+          }
+        } catch {}
+        return extractRealName(item.applicant_name || item.applicant) === me ||
+          extractRealName(item.approver) === me ||
+          (item.result && item.result.includes(me + ':')) ||
+          inComment ||
+          inHistory
       })
       businessTripRecords.value = filteredData.map((item: any) => {
         let destination = item.destination ? String(item.destination) : ''
@@ -443,7 +469,7 @@ const exportBusinessTripData = () => {
 
 const exportBusinessTripRow = (row: any) => {
   const dept = props.allEmployees.find((e: any) => extractRealName(e.name) === extractRealName(row.applicant))?.department || ''
-  exportBusinessTripFormHTML(row, dept)
+  exportBusinessTripFormHTML(row, dept, props.allEmployees)
 }
 
 onMounted(() => {

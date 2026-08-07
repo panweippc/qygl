@@ -73,6 +73,7 @@ router.put('/reimbursements/:id', async (req, res) => {
       const [[app]] = await pool.query('SELECT applicant, reimburseType, amount FROM reimbursements WHERE id = ?', [id]);
       if (app) {
         await createNotification(pool, { userId: app.applicant, title: '报销已转发', content: `您的${app.reimburseType}报销(${app.amount}元)已转发至总经理审批`, type: 'approval' });
+        await createNotification(pool, { userId: forwardTo, title: '报销审批提醒', content: `${app.applicant} 的${app.reimburseType}报销(${app.amount}元)已转发给您，请审批`, type: 'approval' });
         await createOperationLog(pool, { username: req.body.operator || '系统', action: 'forward', module: 'reimbursement', targetName: `${app.applicant}的${app.reimburseType}报销`, detail: comment || '' });
       }
     } else {

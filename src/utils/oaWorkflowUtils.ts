@@ -390,7 +390,7 @@ const buildApproveRows = (row: any, resultColspan: number = 1, commentColspan: n
   return html
 }
 
-export const exportBusinessTripFormHTML = (row: any, department?: string) => {
+export const exportBusinessTripFormHTML = (row: any, department?: string, employees?: any[]) => {
   const formatDateCN = (d: any) => {
     if (!d) return ''
     const dt = new Date(d)
@@ -471,56 +471,79 @@ export const exportBusinessTripFormHTML = (row: any, department?: string) => {
     <td colspan="3">${transports.map(t => `<span class="chk ${t === transport ? 'chk-on' : ''}"><span class="chk-box"></span>${t}</span>`).join('')}${transport && !transports.includes(transport) ? `<span class="chk chk-on"><span class="chk-box"></span>${transport}</span>` : ''}</td>
   </tr>
   ${(() => {
-    let entries: { name: string; action: string }[] = []
-    // 1) approval_history（解析后的数组或JSON字符串）
+    // 判断员工是否为总经理角色
+    const isGM = (name: string) => {
+      if (!name) return false
+      const emp = (employees || []).find((e: any) => extractRealName(e.name) === extractRealName(name))
+      if (emp && /总经理/.test(String(emp.position || ''))) return true
+      return false
+    }
+    // 审批结果条目：name + 结果 + 是否总经理（转发即视为批准）
+    type Entry = { name: string; action: string; isGM: boolean }
+    let entries: Entry[] = []
+    // 1) approval_history（结构化，action 含 agree/reject，可能有 approverRole）
     const ah = row.approval_history
-    if (ah && (Array.isArray(ah) ? ah.length > 0 : true)) {
+    if (ah) {
       try {
         const list = typeof ah === 'string' ? JSON.parse(ah) : ah
         if (Array.isArray(list) && list.length > 0) {
-          entries = list.map((h: any) => ({
-            name: extractRealName(String(h.approverName || h.approver_name || h.approver || '')) || (h.approverName || h.approver_name || ''),
-            action: h.action === 'agree' || h.action === 'approved' ? '批准' : h.action === 'reject' || h.action === 'rejected' ? '拒绝' : (h.action === undefined || h.action === null ? '' : h.action)
-          }))
+          entries = list.map((h: any) => {
+            const name = extractRealName(String(h.approverName || h.approver_name || h.approver || '')) || (h.approverName || h.approver_name || '')
+            const role = String(h.approverRole || '')
+            return {
+              name,
+              action: (h.action === 'reject' || h.action === 'rejected') ? '拒绝' : '批准',
+              isGM: /总经理/.test(role) || isGM(name)
+            }
+          }).filter((e: Entry) => e.name && e.action)
         }
       } catch {}
     }
-    // 2) comment 字段（"李智鑫: 同意出差" 格式）
+    // 2) result 字段（"姓名:批准" 格式）
+    if (entries.length === 0 && row.result) {
+      entries = String(row.result).split(';').filter(Boolean).map((s: string) => {
+        const idx = s.indexOf(':')
+        const name = idx > 0 ? s.substring(0, idx).trim() : ''
+        const actText = idx > 0 ? s.substring(idx + 1).trim() : ''
+        const act = (/拒绝|驳回|reject|rejected|不同意/.test(actText)) ? '拒绝' : '批准'
+        return name ? { name, action: act, isGM: isGM(name) } : null
+      }).filter(Boolean) as any
+    }
+    // 3) comment 字段（"姓名: 意见"），转发即批准
     if (entries.length === 0 && row.comment) {
+      const s = String(row.status || '')
+      const statusReject = /rejected|已拒绝/.test(s)
+      const act = statusReject ? '拒绝' : '批准'
       entries = String(row.comment).split('\n---\n').filter(Boolean).map((e: string) => {
         const idx = e.indexOf(':')
-        if (idx > 0) {
-          const txt = e.substring(idx + 1).trim()
-          return { name: e.substring(0, idx).trim(), action: txt }
-        }
-        return { name: '', action: '' }
-      })
+        const name = idx > 0 ? e.substring(0, idx).trim() : ''
+        return name ? { name, action: act, isGM: isGM(name) } : null
+      }).filter(Boolean) as any
     }
-    // 归一化动作：批准/拒绝/空
-    const normalize = (a: string) => {
-      if (!a || a === '批准' || a === '同意' || a === 'agree' || a === 'approved' || a === '通过') return '批准'
-      if (a === '拒绝' || a === '驳回' || a === '不同意' || a === 'reject' || a === 'rejected') return '拒绝'
-      return a
+
+    // 按角色区分：总经理 -> 负责人意见；非总经理 -> 部门意见
+    const gmEntry = entries.find((e: Entry) => e.isGM)
+    const deptEntry = entries.find((e: Entry) => !e.isGM)
+    // 没有明确角色时：多个审批人 -> 最后一个为负责人，第一个为部门；单审批人 -> 若当前审批人(approver)是总经理则归负责人，否则归部门
+    const deptFinal = deptEntry || (entries.length > 0 ? entries[0] : null)
+    let leaderFinal = gmEntry || null
+    if (!leaderFinal && entries.length > 0) {
+      if (entries.length > 1) {
+        leaderFinal = entries[entries.length - 1]
+      } else {
+        // 单个审批人：默认归部门意见（转发后的下一审批人未参与，负责人留空）
+        leaderFinal = null
+      }
     }
-    const getDefaultAction = () => {
-      const s = String(row.status || '')
-      return /approved|已批准/.test(s) ? '批准' : /rejected|已拒绝/.test(s) ? '拒绝' : ''
-    }
-    const deptEntry = entries.length > 0 ? entries[0] : null
-    const finalEntry = entries.length > 0 ? entries[entries.length - 1] : null
-    const deptAction = entries.length > 0 ? normalize(entries[0].action) : getDefaultAction()
-    const finalAction = entries.length > 0 ? normalize(entries[entries.length - 1].action) : getDefaultAction()
-    const deptName = deptEntry ? deptEntry.name : ''
-    const finalName = finalEntry ? finalEntry.name : ''
-    const fmt = (name: string, v: string) => v ? `${name ? `${name}：` : ''}<span style="color:#c00;font-weight:bold;">${v}</span>` : '　'
+    const fmt = (name: string, v: string) => v ? `<div style="display:flex;align-items:baseline;justify-content:space-between;min-height:34px;padding-top:2px;"><span style="color:#c00;font-weight:bold;font-size:15px;">${v}</span>${name ? `<span style="font-size:12px;color:#666;margin-left:6px;">${name}</span>` : ''}</div>` : '　'
     return `
   <tr>
     <td class="label">部门意见</td>
-    <td colspan="3" style="min-height:30px;">${fmt(deptName, deptAction)}</td>
+    <td colspan="3" style="min-height:30px;">${fmt(deptFinal ? deptFinal.name : '', deptFinal ? deptFinal.action : '')}</td>
   </tr>
   <tr>
     <td class="label">负责人意见</td>
-    <td colspan="3" style="min-height:30px;">${fmt(finalName, finalAction)}</td>
+    <td colspan="3" style="min-height:30px;">${fmt(leaderFinal ? leaderFinal.name : '', leaderFinal ? leaderFinal.action : '')}</td>
   </tr>`
   })()}
 </table>
@@ -752,19 +775,19 @@ export const exportEntertainmentFormHTML = (row: any, department?: string, emplo
   </tr>
   <tr>
     <td class="label" style="color:#c00;">部门负责人意见</td>
-    <td style="height:36px;color:#c00;font-weight:bold;">${deptOpinionAct ? `${deptOpinionName ? `${deptOpinionName}：` : ''}${deptOpinionAct}` : '　'}</td>
+    <td style="height:36px;color:#c00;font-weight:bold;position:relative;">${deptOpinionAct ? `<div style="position:relative;min-height:34px;"><span style="color:#c00;font-weight:bold;position:absolute;top:0;left:2px;">${deptOpinionAct}</span>${deptOpinionName ? `<span style="position:absolute;bottom:0;right:2px;font-size:12px;color:#666;">${deptOpinionName}</span>` : ''}</div>` : '　'}</td>
     <td class="label">部门负责人签字</td>
     <td style="height:36px;">${deptOpinionName || '　'}</td>
   </tr>
   <tr>
     <td class="label" style="color:#c00;">财务负责人意见</td>
-    <td style="height:36px;color:#c00;font-weight:bold;">${financeOpinionAct ? `${financeOpinionName ? `${financeOpinionName}：` : ''}${financeOpinionAct}` : '　'}</td>
+    <td style="height:36px;color:#c00;font-weight:bold;position:relative;">${financeOpinionAct ? `<div style="position:relative;min-height:34px;"><span style="color:#c00;font-weight:bold;position:absolute;top:0;left:2px;">${financeOpinionAct}</span>${financeOpinionName ? `<span style="position:absolute;bottom:0;right:2px;font-size:12px;color:#666;">${financeOpinionName}</span>` : ''}</div>` : '　'}</td>
     <td class="label">财务负责人签字</td>
     <td style="height:36px;">${financeOpinionName || '　'}</td>
   </tr>
   <tr>
     <td class="label" style="color:#c00;">总经理意见</td>
-    <td style="height:36px;color:#c00;font-weight:bold;">${gmOpinionAct ? `${gmOpinionName ? `${gmOpinionName}：` : ''}${gmOpinionAct}` : '　'}</td>
+    <td style="height:36px;color:#c00;font-weight:bold;position:relative;">${gmOpinionAct ? `<div style="position:relative;min-height:34px;"><span style="color:#c00;font-weight:bold;position:absolute;top:0;left:2px;">${gmOpinionAct}</span>${gmOpinionName ? `<span style="position:absolute;bottom:0;right:2px;font-size:12px;color:#666;">${gmOpinionName}</span>` : ''}</div>` : '　'}</td>
     <td class="label">总经理签字</td>
     <td style="height:36px;">${gmOpinionName || '　'}</td>
   </tr>
@@ -792,7 +815,7 @@ export const exportEntertainmentFormHTML = (row: any, department?: string, emplo
   setTimeout(() => URL.revokeObjectURL(url), 60000)
 }
 
-export const exportReimbursementFormHTML = (row: any, department?: string) => {
+export const exportReimbursementFormHTML = (row: any, department?: string, employees?: any[]) => {
   const formatDateCN = (d: any) => {
     if (!d) return ''
     const dt = new Date(d)
@@ -826,9 +849,21 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     if (idx <= 0) return null
     return { name: extractRealName(s.substring(0, idx).trim()), action: normalizeAct(s.substring(idx + 1).trim()) }
   }).filter(Boolean)
-  // 领导批示 = 最终审批人；部门主管 = 第一个审批人（多级审批转发场景）
-  const leaderItem = resultItems.length > 0 ? resultItems[resultItems.length - 1] : null
-  const deptItem = resultItems.length > 1 ? resultItems[0] : null
+  // 按职位分类审批意见：
+  // 部门意见 = 第一个非总经理、非财务总监角色的审批人；
+  // 财务意见 = 财务总监；领导批示 = 总经理
+  const positionMap = new Map<string, string>()
+  ;(employees || []).forEach((e: any) => {
+    const n = extractRealName(e.name || '')
+    if (n) positionMap.set(n, String(e.position || ''))
+  })
+  const posOf = (name: string) => positionMap.get(name) || ''
+  const isGM = (name: string) => posOf(name).includes('总经理')
+  const isFinanceHead = (name: string) => posOf(name).includes('财务总监')
+  const deptItem = resultItems.find(i => i && !isGM(i.name) && !isFinanceHead(i.name)) || null
+  const financeItem = resultItems.find(i => i && isFinanceHead(i.name)) || null
+  const gmItem = resultItems.find(i => i && isGM(i.name)) || null
+  const leaderItem = gmItem || (resultItems.length > 0 ? resultItems[resultItems.length - 1] : null)
   const fmtApprover = (item: any) => item && item.name
     ? `${item.name}<br/><span style="color:#c00;font-weight:bold;">${item.action}</span>`
     : '　'
@@ -1060,7 +1095,7 @@ export const exportReimbursementFormHTML = (row: any, department?: string) => {
     <td colspan="2" class="label" style="background:#fafafa;">部门主管</td>
     <td>${fmtApprover(deptItem)}</td>
     <td colspan="2" class="label" style="background:#fafafa;">财务主管</td>
-    <td></td>
+    <td>${fmtApprover(financeItem)}</td>
     <td colspan="2" class="label" style="background:#fafafa;">会　计</td>
     <td></td>
     <td class="label" style="background:#fafafa;">出　纳</td>
@@ -1269,9 +1304,9 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
   </tr>
   <tr>
     <td class="label">部门意见</td>
-    <td class="approval-area" colspan="2">${deptOpinion ? `${deptName ? `${deptName}：` : ''}<span class="approval-result">${deptOpinion}</span>` : ''}</td>
+    <td class="approval-area" colspan="2">${deptOpinion ? `<div style="position:relative;min-height:34px;"><span class="approval-result" style="position:absolute;top:0;left:2px;">${deptOpinion}</span>${deptName ? `<span style="position:absolute;bottom:0;right:2px;font-size:12px;color:#666;">${deptName}</span>` : ''}</div>` : ''}</td>
     <td class="label">负责人<br>审批</td>
-    <td class="approval-area" colspan="2">${leaderOpinion ? `${leaderName ? `${leaderName}：` : ''}<span class="approval-result">${leaderOpinion}</span>` : ''}</td>
+    <td class="approval-area" colspan="2">${leaderOpinion ? `<div style="position:relative;min-height:34px;"><span class="approval-result" style="position:absolute;top:0;left:2px;">${leaderOpinion}</span>${leaderName ? `<span style="position:absolute;bottom:0;right:2px;font-size:12px;color:#666;">${leaderName}</span>` : ''}</div>` : ''}</td>
   </tr>
   <tr>
     <td style="text-align:center;font-weight:bold;width:70px;">备注：</td>

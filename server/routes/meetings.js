@@ -67,6 +67,7 @@ router.put('/meetings/:id', async (req, res) => {
       const [[app]] = await pool.query('SELECT title, organizer FROM meetings WHERE id = ?', [id]);
       if (app) {
         await createNotification(pool, { userId: app.organizer, title: '会议已转发', content: `您发起的会议"${app.title}"已转发至总经理审批`, type: 'approval' });
+        await createNotification(pool, { userId: forwardTo, title: '会议审批提醒', content: `${app.organizer} 发起的会议"${app.title}"已转发给您，请审批`, type: 'approval' });
         await createOperationLog(pool, { username: req.body.operator || '系统', action: 'forward', module: 'meeting', targetName: `会议"${app.title}"`, detail: comment || '' });
       }
     } else {

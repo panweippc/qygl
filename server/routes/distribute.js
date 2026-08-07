@@ -1,5 +1,5 @@
 import express from 'express';
-import { createOperationLog } from '../utils/audit.js';
+import { createNotification, createOperationLog } from '../utils/audit.js';
 const router = express.Router();
 
 // 获取所有下发记录列表（管理员用）
@@ -86,6 +86,19 @@ router.post('/distributed-records', async (req, res) => {
     );
 
     console.log('下发记录添加成功, ID:', result.insertId);
+
+    try {
+      await createNotification(pool, {
+        userId: targetUser,
+        title: '新任务下发',
+        content: `${distributedBy} 给您下发了一条${applicationType}申请，请查看处理`,
+        type: 'approval',
+        relatedId: parseInt(applicationId),
+        relatedType: applicationType
+      });
+    } catch (e) {
+      console.error('下发通知创建失败:', e.message);
+    }
 
     await createOperationLog(pool, {
       username,

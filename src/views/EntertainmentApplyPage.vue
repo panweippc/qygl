@@ -237,7 +237,7 @@ const form = reactive({
   location: '',
   guestCount: 1,
   expenseType: '',
-  expenseAmount: 0,
+  expenseAmount: null,
   expenseDate: '',
   approver: '',
   purpose: ''

@@ -725,7 +725,7 @@ const exportReimbursementData = () => {
 
 const exportReimbursementRow = (row: any) => {
   const dept = props.allEmployees.find((e: any) => extractRealName(e.name) === extractRealName(row.applicant))?.department || ''
-  exportReimbursementFormHTML(row, dept)
+  exportReimbursementFormHTML(row, dept, props.allEmployees)
 }
 
 onMounted(() => {

@@ -3,8 +3,27 @@
  */
 
 import express from 'express';
+import { createNotification, createOperationLog } from '../utils/audit.js';
 
 const router = express.Router();
+
+/**
+ * 根据审批人id或用户名解析员工记录。
+ * 前端传的 approverId 来自 users 表 id，与 employees 表 id 可能不一致，
+ * 故查不到时回退按用户名查询。
+ */
+const resolveApprover = async (pool, { approverId, operator }) => {
+  if (approverId) {
+    const [byId] = await pool.execute('SELECT * FROM employees WHERE id = ?', [approverId]);
+    if (byId.length > 0) return byId[0];
+  }
+  let operatorName = String(operator || '').replace(/^emp_/, '').replace(/_\d+$/, '');
+  if (operatorName) {
+    const [byName] = await pool.execute('SELECT * FROM employees WHERE name = ?', [operatorName]);
+    if (byName.length > 0) return byName[0];
+  }
+  return null;
+};
 
 /**
  * 项目申请API
@@ -214,15 +233,111 @@ router.post('/projects/:id/approve', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const { id } = req.params;
-    const { action, comment: commentText, approver } = req.body;
+    const { action, comment, approverId, forwardTo } = req.body;
 
-    const newStatus = action === 'agree' ? 'approved' : 'rejected';
-    await pool.query(
-      `UPDATE project_applications
-       SET status = ?, comment = ?, updated_at = ?
-       WHERE id = ?`,
-      [newStatus, commentText || '', new Date(), id]
+    const [projects] = await pool.execute(
+      'SELECT * FROM project_applications WHERE id = ?',
+      [id]
     );
+
+    if (projects.length === 0) {
+      return res.status(404).json({ success: false, message: '项目不存在' });
+    }
+
+    const project = projects[0];
+
+    if (forwardTo) {
+      const currentApprover = project.approver || '';
+      const newComment = project.comment
+        ? `${project.comment}\n---\n${currentApprover}: ${comment || '已同意并转交'}`
+        : `${currentApprover}: ${comment || '已同意并转交'}`;
+      await pool.execute(
+        'UPDATE project_applications SET comment = ?, approver = ?, updated_at = NOW() WHERE id = ?',
+        [newComment, forwardTo, id]
+      );
+      await createNotification(pool, {
+        userId: project.applicant_name,
+        title: '项目申请已转交',
+        content: `您的${project.project_name}项目申请(${project.project_code})已转交给 ${forwardTo} 审批`,
+        type: 'approval',
+        relatedId: parseInt(id),
+        relatedType: 'project'
+      });
+      await createNotification(pool, {
+        userId: forwardTo,
+        title: '项目审批提醒',
+        content: `${project.applicant_name} 的${project.project_name}项目申请(${project.project_code})已转交给您，请审批`,
+        type: 'approval',
+        relatedId: parseInt(id),
+        relatedType: 'project'
+      });
+      await createOperationLog(pool, {
+        username: currentApprover || req.body.operator || '系统',
+        action: 'forward',
+        module: 'project',
+        targetName: `${project.project_name}项目(${project.project_code})`,
+        detail: comment || '',
+        ipAddress: req.ip
+      });
+      return res.json({ success: true, message: '已转交审批' });
+    }
+
+    const approver = await resolveApprover(pool, { approverId, operator: req.body.operator });
+
+    if (!approver) {
+      return res.status(400).json({ success: false, message: '审批人不存在' });
+    }
+
+    const historyRecord = {
+      step: project.current_step,
+      nodeName: '审批节点',
+      approverId: approver.id,
+      approverName: approver.name,
+      approverRole: approver.position,
+      action,
+      comment,
+      createdAt: new Date()
+    };
+
+    const currentHistory = JSON.parse(project.approval_history || '[]');
+    currentHistory.push(historyRecord);
+
+    let newStatus = project.status;
+    let newStep = project.current_step + 1;
+
+    if (action === 'reject') {
+      newStatus = 'rejected';
+    } else if (action === 'agree') {
+      newStatus = 'approved';
+    }
+
+    const accumComment = project.comment
+      ? `${project.comment}\n---\n${approver.name}: ${comment || ''}`
+      : `${approver.name}: ${comment || ''}`;
+    await pool.execute(
+      `UPDATE project_applications 
+       SET status = ?, current_step = ?, approval_history = ?, comment = ?, updated_at = NOW() 
+       WHERE id = ?`,
+      [newStatus, newStep, JSON.stringify(currentHistory), accumComment, id]
+    );
+
+    const actionLabel = action === 'agree' ? '已通过' : '已驳回';
+    await createNotification(pool, {
+      userId: project.applicant_name,
+      title: `项目申请${actionLabel}`,
+      content: `您的${project.project_name}项目申请(${project.project_code})${actionLabel}`,
+      type: 'approval',
+      relatedId: parseInt(id),
+      relatedType: 'project'
+    });
+    await createOperationLog(pool, {
+      username: approver.name,
+      action: action === 'agree' ? 'approve' : 'reject',
+      module: 'project',
+      targetName: `${project.project_name}项目(${project.project_code})`,
+      detail: comment || '',
+      ipAddress: req.ip
+    });
 
     res.json({ success: true });
   } catch (error) {
@@ -344,9 +459,12 @@ router.get('/business-trips', async (req, res) => {
       transport: trip.transport || '',
       accompany_persons: trip.accompany_persons || '',
       customer_info: trip.customer_info || '',
-      status: trip.status || 'pending',
+status: trip.status || 'pending',
       current_step: trip.current_step || 1,
       current_approvers: trip.current_approvers || '',
+      approver: trip.approver || '',
+      approval_history: trip.approval_history || '',
+      result: trip.result || '',
       comment: trip.comment || '',
       created_at: trip.created_at || new Date(),
       updated_at: trip.updated_at || new Date()
@@ -517,15 +635,111 @@ router.post('/business-trips/:id/approve', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const { id } = req.params;
-    const { action, comment: commentText, approver } = req.body;
+    const { action, comment, approverId, forwardTo } = req.body;
 
-    const newStatus = action === 'agree' ? 'approved' : 'rejected';
-    await pool.query(
-      `UPDATE business_trip_applications
-       SET status = ?, comment = ?, updated_at = ?
-       WHERE id = ?`,
-      [newStatus, commentText || '', new Date(), id]
+    const [trips] = await pool.execute(
+      'SELECT * FROM business_trip_applications WHERE id = ?',
+      [id]
     );
+
+    if (trips.length === 0) {
+      return res.status(404).json({ success: false, message: '出差申请不存在' });
+    }
+
+    const trip = trips[0];
+
+    if (forwardTo) {
+      const currentApprover = trip.approver || '';
+      const newComment = trip.comment
+        ? `${trip.comment}\n---\n${currentApprover}: ${comment || '已同意并转交'}`
+        : `${currentApprover}: ${comment || '已同意并转交'}`;
+      await pool.execute(
+        'UPDATE business_trip_applications SET comment = ?, approver = ?, updated_at = NOW() WHERE id = ?',
+        [newComment, forwardTo, id]
+      );
+      await createNotification(pool, {
+        userId: trip.applicant_name,
+        title: '出差申请已转交',
+        content: `您的${trip.destination}出差申请(${trip.trip_code})已转交给 ${forwardTo} 审批`,
+        type: 'approval',
+        relatedId: parseInt(id),
+        relatedType: 'business_trip'
+      });
+      await createNotification(pool, {
+        userId: forwardTo,
+        title: '出差审批提醒',
+        content: `${trip.applicant_name} 的${trip.destination}出差申请(${trip.trip_code})已转交给您，请审批`,
+        type: 'approval',
+        relatedId: parseInt(id),
+        relatedType: 'business_trip'
+      });
+      await createOperationLog(pool, {
+        username: currentApprover || req.body.operator || '系统',
+        action: 'forward',
+        module: 'business_trip',
+        targetName: `${trip.destination}出差(${trip.trip_code})`,
+        detail: comment || '',
+        ipAddress: req.ip
+      });
+      return res.json({ success: true, message: '已转交审批' });
+    }
+
+    const approver = await resolveApprover(pool, { approverId, operator: req.body.operator });
+
+    if (!approver) {
+      return res.status(400).json({ success: false, message: '审批人不存在' });
+    }
+
+    const historyRecord = {
+      step: trip.current_step,
+      nodeName: '审批节点',
+      approverId: approver.id,
+      approverName: approver.name,
+      approverRole: approver.position,
+      action,
+      comment,
+      createdAt: new Date()
+    };
+
+    const currentHistory = JSON.parse(trip.approval_history || '[]');
+    currentHistory.push(historyRecord);
+
+    let newStatus = trip.status;
+    let newStep = trip.current_step + 1;
+
+    if (action === 'reject') {
+      newStatus = 'rejected';
+    } else if (action === 'agree') {
+      newStatus = 'approved';
+    }
+
+    const accumComment = trip.comment
+      ? `${trip.comment}\n---\n${approver.name}: ${comment || ''}`
+      : `${approver.name}: ${comment || ''}`;
+    await pool.execute(
+      `UPDATE business_trip_applications 
+       SET status = ?, current_step = ?, approval_history = ?, comment = ?, updated_at = NOW() 
+       WHERE id = ?`,
+      [newStatus, newStep, JSON.stringify(currentHistory), accumComment, id]
+    );
+
+    const actionLabel = action === 'agree' ? '已通过' : '已驳回';
+    await createNotification(pool, {
+      userId: trip.applicant_name,
+      title: `出差申请${actionLabel}`,
+      content: `您的${trip.destination}出差申请(${trip.trip_code})${actionLabel}`,
+      type: 'approval',
+      relatedId: parseInt(id),
+      relatedType: 'business_trip'
+    });
+    await createOperationLog(pool, {
+      username: approver.name,
+      action: action === 'agree' ? 'approve' : 'reject',
+      module: 'business_trip',
+      targetName: `${trip.destination}出差(${trip.trip_code})`,
+      detail: comment || '',
+      ipAddress: req.ip
+    });
 
     res.json({ success: true });
   } catch (error) {

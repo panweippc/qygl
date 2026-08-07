@@ -97,6 +97,12 @@ router.put('/leave-applications/:id', async (req, res) => {
           content: `您的${app.leaveType}申请(${app.days}天)已转发至总经理审批`,
           type: 'approval',
         });
+        await createNotification(pool, {
+          userId: forwardTo,
+          title: '请假审批提醒',
+          content: `${app.applicant} 的${app.leaveType}申请(${app.days}天)已转发给您，请审批`,
+          type: 'approval',
+        });
         await createOperationLog(pool, {
           username: req.body.operator || '系统',
           action: 'forward',

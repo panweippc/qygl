@@ -33,12 +33,15 @@ router.post('/entertainment-expenses', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    // 金额处理：null/空/非数字一律为0，避免数据库超出范围
+    const safeAmount = expenseAmount === null || expenseAmount === undefined || expenseAmount === '' || isNaN(Number(expenseAmount))
+      ? 0 : Number(expenseAmount);
     await pool.execute(
       'INSERT INTO entertainment_expenses (applicant, guestName, guestUnit, location, guestCount, expenseType, expenseAmount, expenseDate, purpose, approver, attachments, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [applicant, guestName, guestUnit || '', location || '', guestCount || 1, expenseType, expenseAmount, expenseDate, purpose, approver, attachments || null, '审批中', now]
+      [applicant, guestName, guestUnit || '', location || '', guestCount || 1, expenseType, safeAmount, expenseDate, purpose, approver, attachments || null, '审批中', now]
     );
-    await createNotification(pool, { userId: approver, title: '业务招待费审批提醒', content: `${applicant} 提交了${expenseAmount}元的${expenseType}招待申请，请审批`, type: 'approval' });
-    await createOperationLog(pool, { username: applicant, action: 'submit', module: 'entertainment', targetName: `${expenseType}招待(${expenseAmount}元)`, detail: `提交给${approver}审批` });
+    await createNotification(pool, { userId: approver, title: '业务招待费审批提醒', content: `${applicant} 提交了${safeAmount}元的${expenseType}招待申请，请审批`, type: 'approval' });
+    await createOperationLog(pool, { username: applicant, action: 'submit', module: 'entertainment', targetName: `${expenseType}招待(${safeAmount}元)`, detail: `提交给${approver}审批` });
     res.json({ success: true, message: '业务招待费申请提交成功' });
   } catch (error) {
     console.error('提交业务招待费申请失败:', error);
@@ -52,19 +55,23 @@ router.put('/entertainment-expenses/:id', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     if (forwardTo) {
-      const [[current]] = await pool.query('SELECT approver, comment as oldComment FROM entertainment_expenses WHERE id = ?', [id]);
+      const [[current]] = await pool.query('SELECT approver, comment as oldComment, result as oldResult FROM entertainment_expenses WHERE id = ?', [id]);
       const currentApprover = current?.approver || '';
       const intermediateResult = result ? `${currentApprover}:${result}` : null;
+      const accumulatedResult = current?.oldResult && current.oldResult.includes(':')
+        ? `${current.oldResult};${intermediateResult}`
+        : (intermediateResult || current?.oldResult || null);
       const newComment = current?.oldComment
         ? `${current.oldComment}\n---\n${currentApprover}: ${comment || ''}`
         : `${currentApprover}: ${comment || ''}`;
       await pool.execute(
         'UPDATE entertainment_expenses SET comment = ?, result = ?, approver = ? WHERE id = ?',
-        [newComment, intermediateResult, forwardTo, id]
+        [newComment, accumulatedResult, forwardTo, id]
       );
       const [[app]] = await pool.query('SELECT applicant FROM entertainment_expenses WHERE id = ?', [id]);
       if (app) {
         await createNotification(pool, { userId: app.applicant, title: '招待费已转发', content: `您的业务招待费申请已转发至总经理审批`, type: 'approval' });
+        await createNotification(pool, { userId: forwardTo, title: '招待费审批提醒', content: `${app.applicant} 的业务招待费申请已转发给您，请审批`, type: 'approval' });
         await createOperationLog(pool, { username: req.body.operator || '系统', action: 'forward', module: 'entertainment', targetName: `${app.applicant}的业务招待费`, detail: comment || '' });
       }
     } else {

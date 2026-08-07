@@ -42,7 +42,7 @@
           <el-select v-if="isAdmin || isGeneralManager" v-model="selectedEmployee" placeholder="选择员工" class="employee-select">
             <el-option label="全部" :value="0" />
             <el-option
-              v-for="employee in employees"
+              v-for="employee in filteredEmployees"
               :key="employee.id"
               :label="employee.name"
               :value="employee.id"
@@ -304,6 +304,10 @@ interface Employee {
 }
 
 const employees = ref<Employee[]>([])
+const filteredEmployees = computed(() => employees.value.filter(e => {
+  const name = e.name || ''
+  return !name.includes('李智鑫') && !name.includes('张海琼')
+}))
 const reports = ref<Report[]>([])
 const selectedMonth = ref<string>('')
 const loading = ref(false)
