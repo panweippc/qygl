@@ -89,58 +89,67 @@ router.put('/employees/:name', async (req, res) => {
     await connection.execute('SET NAMES utf8mb4');
     await connection.execute('SET CHARACTER SET utf8mb4');
 
-    const formattedEntryDate = entryDate ? new Date(entryDate).toISOString().slice(0, 19).replace('T', ' ') : new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const formattedBirthDate = birthDate ? new Date(birthDate).toISOString().slice(0, 19).replace('T', ' ') : null;
-
     const oldName = req.params.name;
-    const newName = req.body.name;
+    const newName = req.body.name || oldName;
 
-    let roleId = directRoleId || null;
-    if (!roleId && role) {
-      const [roles] = await connection.execute('SELECT id FROM roles WHERE name = ?', [role]);
-      if (roles.length > 0) {
-        roleId = roles[0].id;
+    // 用户管理"重置密码"仅传 password：此时只更新登录密码，不触碰员工信息
+    const hasEmployeeFields = id || department || position || email || phone || entryDate || role || directRoleId || status || employeeType || education || birthDate || idCard || address || emergencyContact || emergencyPhone;
+
+    if (hasEmployeeFields) {
+      const formattedEntryDate = entryDate ? new Date(entryDate).toISOString().slice(0, 19).replace('T', ' ') : new Date().toISOString().slice(0, 19).replace('T', ' ');
+      const formattedBirthDate = birthDate ? new Date(birthDate).toISOString().slice(0, 19).replace('T', ' ') : null;
+
+      let roleId = directRoleId || null;
+      if (!roleId && role) {
+        const [roles] = await connection.execute('SELECT id FROM roles WHERE name = ?', [role]);
+        if (roles.length > 0) {
+          roleId = roles[0].id;
+        }
       }
-    }
 
-    if (id) {
-      await connection.execute(
-        'UPDATE employees SET name = ?, department = ?, position = ?, email = ?, phone = ?, entryDate = ?, roleId = ?, status = ?, employeeType = ?, education = ?, birthDate = ?, idCard = ?, address = ?, emergencyContact = ?, emergencyPhone = ? WHERE id = ?',
-        [newName, department, position, email, phone, formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', id]
-      );
-    } else {
-      await connection.execute(
-        'UPDATE employees SET department = ?, position = ?, email = ?, phone = ?, entryDate = ?, roleId = ?, status = ?, employeeType = ?, education = ?, birthDate = ?, idCard = ?, address = ?, emergencyContact = ?, emergencyPhone = ? WHERE name = ?',
-        [department, position, email, phone, formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', oldName]
-      );
-    }
+      if (id) {
+        await connection.execute(
+          'UPDATE employees SET name = ?, department = ?, position = ?, email = ?, phone = ?, entryDate = ?, roleId = ?, status = ?, employeeType = ?, education = ?, birthDate = ?, idCard = ?, address = ?, emergencyContact = ?, emergencyPhone = ? WHERE id = ?',
+          [newName, department, position, email, phone, formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', id]
+        );
+      } else {
+        await connection.execute(
+          'UPDATE employees SET department = ?, position = ?, email = ?, phone = ?, entryDate = ?, roleId = ?, status = ?, employeeType = ?, education = ?, birthDate = ?, idCard = ?, address = ?, emergencyContact = ?, emergencyPhone = ? WHERE name = ?',
+          [department, position, email, phone, formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', oldName]
+        );
+      }
 
-    // 如果姓名变更，级联更新所有 OA 表中的审批人/申请人字段
-    if (oldName !== newName) {
-      const tableUpdates = [
-        { sql: "UPDATE leave_applications SET applicant = REPLACE(applicant, ?, ?), approver = REPLACE(approver, ?, ?) WHERE applicant = ? OR approver = ?", params: [oldName, newName, oldName, newName, oldName, newName] },
-        { sql: "UPDATE reimbursements SET applicant = REPLACE(applicant, ?, ?), approver = REPLACE(approver, ?, ?) WHERE applicant = ? OR approver = ?", params: [oldName, newName, oldName, newName, oldName, newName] },
-        { sql: "UPDATE office_supplies_applications SET applicant = REPLACE(applicant, ?, ?), approver = REPLACE(approver, ?, ?) WHERE applicant = ? OR approver = ?", params: [oldName, newName, oldName, newName, oldName, newName] },
-        { sql: "UPDATE entertainment_expenses SET applicant = REPLACE(applicant, ?, ?), approver = REPLACE(approver, ?, ?) WHERE applicant = ? OR approver = ?", params: [oldName, newName, oldName, newName, oldName, newName] },
-        { sql: "UPDATE business_trip_applications SET approver = REPLACE(approver, ?, ?), current_approvers = REPLACE(current_approvers, ?, ?), approval_history = REPLACE(approval_history, ?, ?) WHERE approver LIKE ? OR current_approvers LIKE ? OR approval_history LIKE ?", params: [oldName, newName, oldName, newName, oldName, newName, oldName, newName, oldName] },
-        { sql: "UPDATE project_applications SET approver = REPLACE(approver, ?, ?), current_approvers = REPLACE(current_approvers, ?, ?), approval_history = REPLACE(approval_history, ?, ?) WHERE approver LIKE ? OR current_approvers LIKE ? OR approval_history LIKE ?", params: [oldName, newName, oldName, newName, oldName, newName, oldName, newName, oldName] },
-        { sql: "UPDATE meetings SET approver = REPLACE(approver, ?, ?) WHERE approver = ?", params: [oldName, newName, oldName] },
-        { sql: "UPDATE closing_projects SET applicant = REPLACE(applicant, ?, ?) WHERE applicant = ?", params: [oldName, newName, oldName] },
-        { sql: "UPDATE notifications SET userId = ? WHERE userId = ?", params: [newName, oldName] }
-      ];
-      for (const { sql, params } of tableUpdates) {
-        try {
-          await connection.execute(sql, params);
-        } catch (syncErr) {
-          console.error('级联更新失败:', syncErr.message);
+      // 如果姓名变更，级联更新所有 OA 表中的审批人/申请人字段
+      if (oldName !== newName) {
+        const tableUpdates = [
+          { sql: "UPDATE leave_applications SET applicant = REPLACE(applicant, ?, ?), approver = REPLACE(approver, ?, ?) WHERE applicant = ? OR approver = ?", params: [oldName, newName, oldName, newName, oldName, newName] },
+          { sql: "UPDATE reimbursements SET applicant = REPLACE(applicant, ?, ?), approver = REPLACE(approver, ?, ?) WHERE applicant = ? OR approver = ?", params: [oldName, newName, oldName, newName, oldName, newName] },
+          { sql: "UPDATE office_supplies_applications SET applicant = REPLACE(applicant, ?, ?), approver = REPLACE(approver, ?, ?) WHERE applicant = ? OR approver = ?", params: [oldName, newName, oldName, newName, oldName, newName] },
+          { sql: "UPDATE entertainment_expenses SET applicant = REPLACE(applicant, ?, ?), approver = REPLACE(approver, ?, ?) WHERE applicant = ? OR approver = ?", params: [oldName, newName, oldName, newName, oldName, newName] },
+          { sql: "UPDATE business_trip_applications SET approver = REPLACE(approver, ?, ?), current_approvers = REPLACE(current_approvers, ?, ?), approval_history = REPLACE(approval_history, ?, ?) WHERE approver LIKE ? OR current_approvers LIKE ? OR approval_history LIKE ?", params: [oldName, newName, oldName, newName, oldName, newName, oldName, newName, oldName] },
+          { sql: "UPDATE project_applications SET approver = REPLACE(approver, ?, ?), current_approvers = REPLACE(current_approvers, ?, ?), approval_history = REPLACE(approval_history, ?, ?) WHERE approver LIKE ? OR current_approvers LIKE ? OR approval_history LIKE ?", params: [oldName, newName, oldName, newName, oldName, newName, oldName, newName, oldName] },
+          { sql: "UPDATE meetings SET approver = REPLACE(approver, ?, ?) WHERE approver = ?", params: [oldName, newName, oldName] },
+          { sql: "UPDATE closing_projects SET applicant = REPLACE(applicant, ?, ?) WHERE applicant = ?", params: [oldName, newName, oldName] },
+          { sql: "UPDATE notifications SET userId = ? WHERE userId = ?", params: [newName, oldName] }
+        ];
+        for (const { sql, params } of tableUpdates) {
+          try {
+            await connection.execute(sql, params);
+          } catch (syncErr) {
+            console.error('级联更新失败:', syncErr.message);
+          }
         }
       }
     }
 
+    // 密码更新：账号存在则改密，不存在则创建（保证重置后能登录）
     if (password) {
       const [users] = await connection.execute('SELECT * FROM users WHERE username = ?', [oldName]);
       if (users.length > 0) {
         await connection.execute('UPDATE users SET username = ?, password = ? WHERE username = ?', [newName, password, oldName]);
+      } else {
+        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        await connection.execute('INSERT INTO users (username, password, createdAt) VALUES (?, ?, ?)', [newName, password, now]);
       }
     }
 
