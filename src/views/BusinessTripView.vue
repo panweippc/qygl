@@ -44,21 +44,6 @@
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="预估费用" prop="estimatedCost">
-                  <el-input-number
-                    v-model="form.estimatedCost"
-                    :min="0"
-                    :precision="2"
-                    :step="100"
-                    style="width: 100%"
-                    placeholder="请输入预估费用"
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <el-row :gutter="20">
-              <el-col :span="12">
                 <el-form-item label="审批人" prop="approver">
                   <el-select v-model="form.approver" placeholder="请选择审批人" style="width: 100%">
                     <el-option
@@ -68,11 +53,6 @@
                       :value="emp.id"
                     />
                   </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="审批角色">
-                  <el-tag type="success" size="small">总经理</el-tag>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -465,10 +445,6 @@ const rules = {
   destination: [
     { required: true, message: '请输入出差目的地', trigger: 'blur' }
   ],
-  estimatedCost: [
-      { required: true, message: '请输入预估费用', trigger: 'blur' },
-      { type: 'number', min: 0, message: '费用不能为负数', trigger: 'blur' }
-    ],
   approver: [
     { required: true, message: '请选择审批人', trigger: 'change' }
   ],

@@ -520,6 +520,25 @@ export const exportBusinessTripFormHTML = (row: any, department?: string, employ
         return name ? { name, action: act, isGM: isGM(name) } : null
       }).filter(Boolean) as any
     }
+    // 4) 审批链补全：comment 中可能包含审批链中遗漏的部门审批人（如转发时仅写入 comment）
+    //    approval_history/result 已存在时，把 comment 中出现但缺失的审批人补充进来
+    if (entries.length > 0 && row.comment) {
+      const s = String(row.status || '')
+      const statusReject = /rejected|已拒绝/.test(s)
+      const act = statusReject ? '拒绝' : '批准'
+      const existingNames = new Set(entries.map((e: Entry) => e.name))
+      const commentExtra = String(row.comment).split('\n---\n').filter(Boolean).map((e: string) => {
+        const idx = e.indexOf(':')
+        const name = idx > 0 ? e.substring(0, idx).trim() : ''
+        return name ? { name, action: act, isGM: isGM(name) } : null
+      }).filter(Boolean) as Entry[]
+      commentExtra.forEach((ce: Entry) => {
+        if (!existingNames.has(ce.name)) {
+          entries.push(ce)
+          existingNames.add(ce.name)
+        }
+      })
+    }
 
     // 按角色区分：总经理 -> 负责人意见；非总经理 -> 部门意见
     const gmEntry = entries.find((e: Entry) => e.isGM)
@@ -848,7 +867,22 @@ export const exportReimbursementFormHTML = (row: any, department?: string, emplo
     const idx = s.indexOf(':')
     if (idx <= 0) return null
     return { name: extractRealName(s.substring(0, idx).trim()), action: normalizeAct(s.substring(idx + 1).trim()) }
-  }).filter(Boolean)
+  }).filter(Boolean) as { name: string; action: string }[]
+  // 从 comment 补充审批链中遗漏的审批人（如部门主管转发后未写入 result，转发即视为批准）
+  try {
+    const rawComment = String(row.comment || '')
+    if (rawComment) {
+      const existingNames = new Set(resultItems.map((i: any) => i.name))
+      rawComment.split('\n---\n').filter(Boolean).forEach((e: string) => {
+        const idx = e.indexOf(':')
+        const name = idx > 0 ? extractRealName(e.substring(0, idx).trim()) : ''
+        if (name && !existingNames.has(name)) {
+          resultItems.push({ name, action: '批准' })
+          existingNames.add(name)
+        }
+      })
+    }
+  } catch {}
   // 按职位分类审批意见：
   // 部门意见 = 第一个非总经理、非财务总监角色的审批人；
   // 财务意见 = 财务总监；领导批示 = 总经理

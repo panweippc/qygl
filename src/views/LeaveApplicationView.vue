@@ -26,7 +26,7 @@
         </h2>
 
         <!-- 发起申请按钮 - 仅非管理员可�?-->
-        <div v-if="!isAdmin" class="action-container">
+        <div v-if="!isAdmin && !isLiZhiXin" class="action-container">
           <el-button type="primary" size="large" @click="openApplyDialog" class="apply-btn">
             发起申请
           </el-button>
@@ -422,6 +422,11 @@ const allLeaveRecords = ref([])
 // 当前用户
   const currentUsername = computed(() => {
   return localStorage.getItem('username') || '当前用户'
+})
+
+// 李智鑫不显示发起申请按钮
+const isLiZhiXin = computed(() => {
+  return extractRealName(currentUsername.value) === '李智鑫'
 })
 
 // 计算用户角色

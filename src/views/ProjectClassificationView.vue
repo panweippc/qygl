@@ -35,7 +35,7 @@
           <el-button v-if="hasPerm('btn_add') && currentLevel === 2" type="primary" @click="openAddCountyDialog" class="add-btn">
             <span class="btn-icon">+</span>添加旗县
           </el-button>
-          <el-button v-if="hasPerm('btn_add') && currentLevel === 3" type="primary" @click="openAddProjectDialog" class="add-btn">
+          <el-button v-if="hasPerm('btn_add') && currentLevel === 3 && !isLiZhiXin" type="primary" @click="openAddProjectDialog" class="add-btn">
             <span class="btn-icon">+</span>添加项目
           </el-button>
         </div>
@@ -144,6 +144,17 @@ import RegionDialogs from '../components/RegionDialogs.vue'
 
 const router = useRouter()
 const { hasPerm } = useButtonPermission()
+
+// 李智鑫不显示添加项目按钮
+const extractRealName = (name: string): string => {
+  if (!name) return ''
+  const match = name.match(/^emp_(.+?)_\d+$/)
+  if (match) return match[1]
+  return name
+}
+const isLiZhiXin = computed(() => {
+  return extractRealName(localStorage.getItem('username') || '') === '李智鑫'
+})
 
 const currentLevel = ref(0)
 const currentProvinceId = ref<number | null>(null)

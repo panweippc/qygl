@@ -501,7 +501,7 @@ onMounted(async () => {
   gap: 2rem;
 }
 
-/* 鏍囬 */
+/* 标题 */
 .section-title {
   font-size: 1.5rem;
   font-weight: 600;

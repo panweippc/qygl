@@ -1,13 +1,13 @@
 ﻿<template>
   <div class="town-detail-container">
-    <!-- 椤堕儴瀵艰埅 -->
+    <!-- 顶部导航 -->
     <header class="header">
       <div class="logo">
-        <span class="logo-text">瀹忓弸鏅烘収鍔炲叕骞冲彴</span>
+        <span class="logo-text">宏友智慧办公平台</span>
         <div class="logo-glow"></div>
       </div>
       <nav class="nav">
-        <router-link to="/" class="nav-item">棣栭〉</router-link>
+        <router-link to="/" class="nav-item">首页</router-link>
         <router-link to="/sales-funnel" class="nav-item">销售漏斗</router-link>
         <router-link :to="`/city-sales/${encodeURIComponent(cityName)}`" class="nav-item">返回盟市</router-link>
         <router-link :to="`/county-detail/${encodeURIComponent(cityName)}/${encodeURIComponent(countyName)}`" class="nav-item">返回旗县</router-link>
@@ -101,7 +101,7 @@
     <div v-if="showModal" class="modal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>{{ isEditMode ? '编辑鎷滆' : '添加拜访' }}</h3>
+          <h3>{{ isEditMode ? '编辑拜访' : '添加拜访' }}</h3>
           <button class="close-btn" @click="showModal = false">&times;</button>
         </div>
         <div class="modal-body">
@@ -142,7 +142,7 @@
     <!-- 页脚 -->
     <footer class="footer">
       <div class="footer-content">
-        <p>漏 2026 浼佷笟绠＄悊绯荤粺 | 绉戞妧璧嬭兘鏈潵</p>
+        <p>© 2026 企业管理系统 | 科技赋能未来</p>
       </div>
     </footer>
   </div>
@@ -155,12 +155,12 @@ import { useRouter, useRoute } from 'vue-router'
 const router = useRouter()
 const route = useRoute()
 
-// 获取璺敱鍙傛暟
-const cityName = computed(() => route.params.cityName as string || '鏈煡鍩庡競')
-const countyName = computed(() => route.params.countyName as string || '鏈煡鏃楀幙')
-const townName = computed(() => route.params.townName as string || '鏈煡涔￠晣')
+// 获取路由参数
+const cityName = computed(() => route.params.cityName as string || '未知城市')
+const countyName = computed(() => route.params.countyName as string || '未知旗县')
+const townName = computed(() => route.params.townName as string || '未知乡镇')
 
-// 涔￠晣数据
+// 乡镇数据
 const townData = ref({
   id: '',
   name: '',
@@ -170,14 +170,14 @@ const townData = ref({
   intention: 0
 })
 
-// 鎷滆数据
+// 拜访数据
 const visitData = ref([])
 
 // 模态框鐘舵€?
 const showModal = ref(false)
 const isEditMode = ref(false)
 
-// 琛ㄥ崟数据
+// 表单数据
 const formData = ref({
   id: '',
   customerName: '',
@@ -188,7 +188,7 @@ const formData = ref({
   nextPlan: ''
 })
 
-// 鎰忓悜绋嬪害鏂囨湰
+// 意向程度文本
 const getIntentionText = (intention: number) => {
   if (intention === 90) return '很有意向'
   if (intention === 70) return '有一定意向'
@@ -198,7 +198,7 @@ const getIntentionText = (intention: number) => {
 
 // 获取拜访次数文本
 const getVisitNumber = (index: number) => {
-  const numberMap = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
+  const numberMap = ['һ', '二', '三', '四', '五', '六', '七', '八', '九', 'ʮ']
   if (index < 10) {
     return `${numberMap[index]}次拜访`
   } else {
@@ -209,21 +209,21 @@ const getVisitNumber = (index: number) => {
 // 加载涔￠晣数据
 const loadTownData = async () => {
   try {
-    // 获取鐩熷競閿€鍞暟鎹?
+    // 获取盟市销售数据
     const cityResponse = await fetch('/api/city-sales')
     const cityData = await cityResponse.json()
     
     if (cityData.success) {
           const city = cityData.data.find((item: any) => item.name === cityName.value)
           if (city) {
-            // 获取鏃楀幙閿€鍞暟鎹?
+            // 获取旗县销售数据
             const countyResponse = await fetch(`/api/county-sales/${city.id}`)
             const countyDataList = await countyResponse.json()
         
         if (countyDataList.success) {
           const county = countyDataList.data.find((item: any) => item.name === countyName.value)
           if (county) {
-            // 获取涔￠晣閿€鍞暟鎹?
+            // 获取乡镇销售数据
             const townResponse = await fetch(`/api/town-sales/${county.id}`)
             const townDataList = await townResponse.json()
             
@@ -231,7 +231,7 @@ const loadTownData = async () => {
               const town = townDataList.data.find((item: any) => item.name === townName.value)
               if (town) {
                 townData.value = town
-                // 浠嶢PI获取拜访记录
+                // 从API获取拜访记录
                 await loadVisitRecords(town.id)
               }
             }
@@ -292,11 +292,11 @@ const openEditModal = (visit: any) => {
   showModal.value = true
 }
 
-// 提交琛ㄥ崟
+// 提交表单
 const submitForm = async () => {
   try {
     if (isEditMode.value) {
-      // 更新鎷滆数据
+      // 更新拜访数据
       const response = await fetch(`/api/visit-records/${formData.value.id}`, {
         method: 'PUT',
         headers: {
@@ -344,7 +344,7 @@ const submitForm = async () => {
   }
 }
 
-// 删除鎷滆
+// 删除拜访
 const deleteVisit = async (visitId: string) => {
   if (confirm('确定要删除这个拜访记录吗？')) {
     try {
@@ -519,7 +519,7 @@ onMounted(async () => {
   gap: 2rem;
 }
 
-/* 鏍囬 */
+/* 标题 */
 .section-title {
   font-size: 1.5rem;
   font-weight: 600;
@@ -556,7 +556,7 @@ onMounted(async () => {
   text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
 }
 
-/* 涔￠晣淇℃伅鍗＄墖 */
+/* 乡镇信息卡片 */
 .town-info-card {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(100, 149, 237, 0.4);
@@ -601,7 +601,7 @@ onMounted(async () => {
   line-height: 1.4;
 }
 
-/* 瀹㈡埛鍒楄〃 */
+/* 客户列表 */
 .customer-section {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(100, 149, 237, 0.4);

@@ -38,13 +38,11 @@
             <el-button type="success" size="small" @click="showImportDialog = true">
               导入销售记录
             </el-button>
-            <el-button size="small" @click="router.push('/customer-management')">客户管理</el-button>
-            <el-button size="small" @click="router.push('/sales-opportunity')">机会跟进</el-button>
+            <el-button v-if="!isLiZhiXin" size="small" @click="router.push('/customer-management')">客户管理</el-button>
+            <el-button v-if="!isLiZhiXin" size="small" @click="router.push('/sales-opportunity')">机会跟进</el-button>
           </div>
           <div ref="mapRef" class="map-container"></div>
         </div>
-
-        <FunnelChart />
 
         <!-- 盟市数据列表 -->
         <div class="data-section">
@@ -131,11 +129,19 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
-import FunnelChart from '../components/FunnelChart.vue'
 
 const router = useRouter()
 const mapRef = ref<HTMLElement | null>(null)
 let mapChart: echarts.ECharts | null = null
+
+// 李智鑫不显示客户管理、机会跟进按钮
+const extractRealName = (name: string): string => {
+  if (!name) return ''
+  const match = name.match(/^emp_(.+?)_\d+$/)
+  if (match) return match[1]
+  return name
+}
+const isLiZhiXin = ref(extractRealName(localStorage.getItem('username') || '') === '李智鑫')
 
 const showAddCityDialog = ref(false)
 const submittingCity = ref(false)

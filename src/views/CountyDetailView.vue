@@ -209,7 +209,7 @@ const countyData = ref({
   dealCustomers: 0
 })
 
-// 鏃楀幙ID
+// 旗县ID
 const countyId = ref('')
 
 // 乡镇数据
@@ -605,7 +605,7 @@ onMounted(async () => {
   gap: 2rem;
 }
 
-/* 鏍囬 */
+/* 标题 */
 .section-title {
   font-size: 1.5rem;
   font-weight: 600;

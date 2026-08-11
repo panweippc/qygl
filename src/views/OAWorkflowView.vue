@@ -455,10 +455,6 @@
               </span>
             </div>
           </div>
-          <div class="comment-box" v-if="currentDetailItem.comment">
-            <span class="comment-label">审批意见：</span>
-            <span class="comment-content" style="white-space: pre-line;">{{ currentDetailItem.comment }}</span>
-          </div>
         </div>
       </div>
     </el-dialog>
