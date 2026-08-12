@@ -70,7 +70,7 @@
         <el-button type="danger" @click="exportMeetingData" class="export-btn-small">
           导出
         </el-button>
-        <el-button v-if="!isAdmin" type="primary" @click="goToMeetingApply" class="action-btn">
+        <el-button v-if="!isAdmin && !isLiZhiXin" type="primary" @click="goToMeetingApply" class="action-btn">
           <span class="btn-icon">+</span>
           创建会议
         </el-button>
@@ -379,6 +379,8 @@ const router = useRouter()
 const currentUsername = computed(() => {
   return localStorage.getItem('username') || '当前用户'
 })
+
+const isLiZhiXin = computed(() => extractRealName(currentUsername.value) === '李智鑫')
 
 const meetingOrganizers = computed(() => {
   const organizers = new Set(

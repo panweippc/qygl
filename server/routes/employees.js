@@ -3,6 +3,17 @@ import { createOperationLog } from '../utils/audit.js';
 import xlsx from 'xlsx';
 const router = express.Router();
 
+// 统一按东八区将日期/时间转换为 'YYYY-MM-DD HH:MM:SS'，避免 UTC 解析导致日期偏移一天
+const toLocalDateTime = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value + ' 00:00:00';
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return String(value);
+  const local = new Date(d.getTime() + 8 * 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())} ${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}:${pad(local.getUTCSeconds())}`;
+};
+
 router.get('/employees', async (req, res) => {
   try {
     const { pool } = req.app.locals;
@@ -32,8 +43,8 @@ router.post('/employees', async (req, res) => {
 
     const now = new Date();
     const formattedDate = now.toISOString().slice(0, 19).replace('T', ' ');
-    const formattedEntryDate = entryDate ? new Date(entryDate).toISOString().slice(0, 19).replace('T', ' ') : formattedDate;
-    const formattedBirthDate = birthDate ? new Date(birthDate).toISOString().slice(0, 19).replace('T', ' ') : null;
+    const formattedEntryDate = entryDate ? toLocalDateTime(entryDate) : formattedDate;
+    const formattedBirthDate = birthDate ? toLocalDateTime(birthDate) : null;
 
     let roleId = directRoleId || null;
     if (!roleId && role) {
@@ -96,8 +107,8 @@ router.put('/employees/:name', async (req, res) => {
     const hasEmployeeFields = id || department || position || email || phone || entryDate || role || directRoleId || status || employeeType || education || birthDate || idCard || address || emergencyContact || emergencyPhone;
 
     if (hasEmployeeFields) {
-      const formattedEntryDate = entryDate ? new Date(entryDate).toISOString().slice(0, 19).replace('T', ' ') : new Date().toISOString().slice(0, 19).replace('T', ' ');
-      const formattedBirthDate = birthDate ? new Date(birthDate).toISOString().slice(0, 19).replace('T', ' ') : null;
+      const formattedEntryDate = entryDate ? toLocalDateTime(entryDate) : new Date().toISOString().slice(0, 19).replace('T', ' ');
+      const formattedBirthDate = birthDate ? toLocalDateTime(birthDate) : null;
 
       let roleId = directRoleId || null;
       if (!roleId && role) {

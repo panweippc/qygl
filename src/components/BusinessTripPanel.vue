@@ -17,7 +17,7 @@
         <el-button type="danger" @click="exportBusinessTripData" class="export-btn-small">
           导出
         </el-button>
-        <el-button v-if="!isAdmin" type="primary" @click="goToBusinessTripApply" class="action-btn">
+        <el-button v-if="!isAdmin && !isLiZhiXin" type="primary" @click="goToBusinessTripApply" class="action-btn">
           <span class="btn-icon">+</span>
           发起出差申请
         </el-button>
@@ -266,6 +266,8 @@ const allBusinessTripRecords = ref<any[]>([])
 const currentUsername = computed(() => {
   return localStorage.getItem('username') || '当前用户'
 })
+
+const isLiZhiXin = computed(() => extractRealName(currentUsername.value) === '李智鑫')
 
 const filteredBusinessTripRecords = computed(() => {
   let records = props.isAdmin ? allBusinessTripRecords.value : businessTripRecords.value

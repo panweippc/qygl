@@ -173,7 +173,7 @@ const townData = ref({
 // 拜访数据
 const visitData = ref([])
 
-// 模态框鐘舵€?
+// 模态框状态
 const showModal = ref(false)
 const isEditMode = ref(false)
 
@@ -198,7 +198,7 @@ const getIntentionText = (intention: number) => {
 
 // 获取拜访次数文本
 const getVisitNumber = (index: number) => {
-  const numberMap = ['һ', '二', '三', '四', '五', '六', '七', '八', '九', 'ʮ']
+  const numberMap = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
   if (index < 10) {
     return `${numberMap[index]}次拜访`
   } else {
@@ -206,7 +206,7 @@ const getVisitNumber = (index: number) => {
   }
 }
 
-// 加载涔￠晣数据
+// 加载乡镇数据
 const loadTownData = async () => {
   try {
     // 获取盟市销售数据
@@ -240,7 +240,7 @@ const loadTownData = async () => {
       }
     }
   } catch (error) {
-    console.error('获取涔￠晣数据失败:', error)
+    console.error('获取乡镇数据失败:', error)
   }
 }
 
@@ -258,11 +258,11 @@ const loadVisitRecords = async (townId: number) => {
 }
 
 const handleBack = () => {
-  // 返回涓婁竴椤?
+  // 返回上一页
   router.back()
 }
 
-// 鎵撳紑添加模态框
+// 打开添加模态框
 const openAddModal = () => {
   isEditMode.value = false
   formData.value = {
@@ -277,7 +277,7 @@ const openAddModal = () => {
   showModal.value = true
 }
 
-// 鎵撳紑编辑模态框
+// 打开编辑模态框
 const openEditModal = (visit: any) => {
   isEditMode.value = true
   formData.value = {

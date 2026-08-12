@@ -434,7 +434,13 @@
           </div>
         </div>
         <div class="detail-footer">
-          <div class="detail-section" v-if="currentDetailItem.result">
+          <div class="detail-section" v-if="currentDetailType === 'businessTrip' && getBusinessTripApprovalChain(currentDetailItem)">
+            <div class="detail-row">
+              <span class="detail-label">审批流程</span>
+              <span class="detail-value result-chain">{{ getBusinessTripApprovalChain(currentDetailItem) }}</span>
+            </div>
+          </div>
+          <div class="detail-section" v-if="currentDetailType !== 'businessTrip' && currentDetailItem.result">
             <div class="detail-row">
               <span class="detail-label">审批流程</span>
               <span class="detail-value result-chain">{{ currentDetailItem.result }}</span>
@@ -1031,6 +1037,43 @@ const viewDetail = (row: any, type: string) => {
   currentDetailItem.value = row
   currentDetailType.value = type
   detailDialogVisible.value = true
+}
+
+const getBusinessTripApprovalChain = (item: any) => {
+  if (!item) return ''
+  const parts: string[] = []
+  try {
+    const ah = item.approval_history
+    if (ah) {
+      const list = typeof ah === 'string' ? JSON.parse(ah) : ah
+      if (Array.isArray(list) && list.length > 0) {
+        for (const h of list) {
+          const name = extractRealName(String(h.approverName || h.approver_name || h.approver || ''))
+          if (!name) continue
+          const act = String(h.action || '')
+          const label = act.toLowerCase() === 'agree' ? '批准'
+            : act.toLowerCase() === 'reject' ? '拒绝'
+            : act.toLowerCase() === 'forward' ? '转交'
+            : act || ''
+          parts.push(`${name}:${label}`)
+        }
+        if (parts.length > 0) return parts.join('; ')
+      }
+    }
+  } catch {}
+  if (item.comment) {
+    const segments = String(item.comment).split('\n---\n').map((s: string) => s.trim()).filter(Boolean)
+    if (segments.length > 0) {
+      return segments.map((s: string) => {
+        const idx = s.indexOf(':')
+        return idx > 0 ? s.substring(0, idx).trim() : s
+      }).join('; ')
+    }
+  }
+  if (item.approver) {
+    return `当前审批人:${extractRealName(item.approver)}`
+  }
+  return ''
 }
 
 const distributeDialogVisible = ref(false)

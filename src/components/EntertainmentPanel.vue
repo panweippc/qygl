@@ -38,7 +38,7 @@
           </template>
         </template>
         <el-button type="danger" @click="exportEntertainmentData" class="export-btn-small">导出</el-button>
-        <el-button v-if="!isAdmin" type="primary" @click="goToEntertainmentApply" class="action-btn">
+        <el-button v-if="!isAdmin && !isLiZhiXin" type="primary" @click="goToEntertainmentApply" class="action-btn">
           <span class="btn-icon">+</span> 发起招待申请
         </el-button>
       </div>
@@ -257,6 +257,8 @@ const entertainmentRules = {
 
 const entertainmentFormRef = ref()
 const currentUsername = computed(() => localStorage.getItem('username') || '当前用户')
+
+const isLiZhiXin = computed(() => extractRealName(currentUsername.value) === '李智鑫')
 
 const router = useRouter()
 
