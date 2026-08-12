@@ -8,9 +8,8 @@ SET NAMES utf8mb4;
 ALTER TABLE `visit_records` ADD COLUMN `visitNo` INT NULL DEFAULT NULL AFTER `townId`;
 
 -- 2. 回填已有记录序号（按乡镇分组、按 id 添加顺序从 1 开始）
+--    使用变量写法，兼容 MySQL 5.7（不支持窗口函数）
+SET @rn := 0, @town := 0;
 UPDATE visit_records vr
-JOIN (
-  SELECT id, ROW_NUMBER() OVER (PARTITION BY townId ORDER BY id) AS rn
-  FROM visit_records
-) x ON vr.id = x.id
-SET vr.visitNo = x.rn;
+SET vr.visitNo = (@rn := IF(@town = vr.townId, @rn + 1, IF(@town := vr.townId, 1, 1)))
+ORDER BY vr.townId, vr.id;
