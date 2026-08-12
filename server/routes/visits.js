@@ -31,9 +31,11 @@ router.post('/visit-records', async (req, res) => {
   const { townId, customerName, address, visitDate, visitPerson, visitContent, nextPlan } = req.body;
   try {
     const { pool } = req.app.locals;
+    const [[maxRow]] = await pool.execute('SELECT COALESCE(MAX(visitNo), 0) AS maxNo FROM visit_records WHERE townId = ?', [townId]);
+    const visitNo = Number(maxRow.maxNo) + 1;
     await pool.execute(
-      'INSERT INTO visit_records (townId, customerName, address, visitDate, visitPerson, visitContent, nextPlan, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [townId, customerName, address, visitDate, visitPerson, visitContent, nextPlan || null, new Date().toISOString().replace('T', ' ').replace('Z', '')]
+      'INSERT INTO visit_records (townId, customerName, address, visitDate, visitPerson, visitContent, nextPlan, visitNo, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [townId, customerName, address, visitDate, visitPerson, visitContent, nextPlan || null, visitNo, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
     await createOperationLog(pool, {
       username: req.body.operator || req.body.visitPerson || '系统',

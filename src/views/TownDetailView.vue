@@ -59,7 +59,7 @@
           <div class="customer-list">
             <div v-for="(visit, index) in visitData" :key="visit.id" class="customer-card">
               <div class="customer-header">
-                <h4 class="customer-name">{{ getVisitNumber(index) }}</h4>
+                <h4 class="customer-name">{{ getVisitTitle(visit, index) }}</h4>
                 <div class="customer-actions">
                   <button class="action-btn edit-btn" @click="openEditModal(visit)">编辑</button>
                   <button class="action-btn delete-btn" @click="deleteVisit(visit.id)">删除</button>
@@ -204,6 +204,12 @@ const getVisitNumber = (index: number) => {
   } else {
     return `${index + 1}次拜访`
   }
+}
+
+// 拜访标题基于固定序号(visitNo)，删除记录后不重排
+const getVisitTitle = (visit: any, index: number) => {
+  const no = Number(visit.visitNo) || index + 1
+  return getVisitNumber(no - 1)
 }
 
 // 加载乡镇数据

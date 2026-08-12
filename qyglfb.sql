@@ -1959,6 +1959,7 @@ DROP TABLE IF EXISTS `visit_records`;
 CREATE TABLE `visit_records`  (
   `id` int NOT NULL AUTO_INCREMENT,
   `townId` int NOT NULL,
+  `visitNo` int NULL DEFAULT NULL,
   `customerName` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `address` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `visitDate` date NOT NULL,

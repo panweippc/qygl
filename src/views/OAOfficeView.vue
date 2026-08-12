@@ -127,15 +127,15 @@
         <div class="quick-actions">
           <h3 class="quick-title">快捷操作</h3>
           <div class="quick-buttons">
-            <button class="quick-btn" @click="quickAction('leave')">
+            <button v-if="!isLiZhiXin" class="quick-btn" @click="quickAction('leave')">
               <span class="quick-icon">📝</span>
               <span>发起请假</span>
             </button>
-            <button class="quick-btn" @click="quickAction('reimbursement')">
+            <button v-if="!isLiZhiXin" class="quick-btn" @click="quickAction('reimbursement')">
               <span class="quick-icon">💰</span>
               <span>提交报销</span>
             </button>
-            <button class="quick-btn" @click="quickAction('meeting')">
+            <button v-if="!isLiZhiXin" class="quick-btn" @click="quickAction('meeting')">
               <span class="quick-icon">📅</span>
               <span>创建会议</span>
             </button>
@@ -161,6 +161,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { getPendingLeaveApplications, getPendingReimbursements, getPendingMeetings } from '../services/api'
+import { extractRealName } from '../utils/oaWorkflowUtils'
 
 const router = useRouter()
 
@@ -176,9 +177,12 @@ const statistics = ref([
   return statistics.value.find(s => s.key === 'pending')?.value || 0
 })
 
-// 当前用户�?const currentUsername = computed(() => {
+// 当前用户名
+const currentUsername = computed(() => {
   return localStorage.getItem('username') || '当前用户'
 })
+
+const isLiZhiXin = computed(() => extractRealName(currentUsername.value) === '李智鑫')
 
 // 计算用户角色
 const isAdmin = computed(() => {
