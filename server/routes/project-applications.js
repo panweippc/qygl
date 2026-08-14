@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 
-import { createNotification, createOperationLog } from '../utils/audit.js';
+import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
 
 // 创建项目申请
 router.post('/projects', async (req, res) => {
@@ -272,6 +272,8 @@ router.delete('/projects/:id', async (req, res) => {
       [id]
     );
 
+    // 删除项目申请审计
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'delete', module: 'project', targetId: id, targetName: `${projects[0].project_name}项目`, detail: `删除项目申请: ${projects[0].project_name}`, ipAddress: req.ip });
     res.json({ success: true, message: '项目删除成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -291,7 +293,7 @@ router.put('/projects/update-manager', async (req, res) => {
       [manager, projectType]
     );
     await createOperationLog(pool, {
-      username: req.body.operator || '系统',
+      username: getOperator(req),
       action: 'update',
       module: 'project',
       targetName: `产品分类"${projectType}"负责人变更为${manager}`,
@@ -330,6 +332,19 @@ router.put('/projects/:id', async (req, res) => {
       [project_name, description, project_link, name || projects[0].applicant_name, id]
     );
 
+    // 更新项目申请审计
+    createOperationLog(pool, {
+      userId: String(req.user?.id || ''),
+      username: getOperator(req),
+      action: 'update',
+      module: 'project',
+      targetId: id,
+      targetName: `${project_name || projects[0].project_name}项目`,
+      detail: `更新项目申请: ${project_name || projects[0].project_name}`,
+      ipAddress: req.ip,
+      beforeValue: { project_name: projects[0].project_name, description: projects[0].description, project_link: projects[0].project_link, applicant_name: projects[0].applicant_name },
+      afterValue: { project_name: project_name, description, project_link, applicant_name: name || projects[0].applicant_name }
+    });
     res.json({ success: true, message: '项目更新成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

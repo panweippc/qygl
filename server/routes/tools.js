@@ -1,5 +1,5 @@
 import express from 'express';
-import { createOperationLog } from '../utils/audit.js';
+import { createOperationLog, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
 router.get('/tools', async (req, res) => {
@@ -20,7 +20,7 @@ router.post('/tools', async (req, res) => {
       'INSERT INTO tools (name, category, quantity, price, supplier, location, status, entryDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [name, category, quantity, price, supplier, location, status, (entryDate || new Date().toISOString()).replace('T', ' ').replace('Z', '')]
     );
-    const operator = req.body.operator || req.body.username || '系统';
+    const operator = getOperator(req);
     createOperationLog(pool, { userId: null, username: operator, action: 'create', module: 'tool', targetId: result.insertId, targetName: name, detail: `添加工具: ${name}`, ipAddress: req.ip });
     res.json({ success: true, message: '工具添加成功' });
   } catch (error) {
@@ -33,7 +33,7 @@ router.delete('/tools/:id', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     await pool.execute('DELETE FROM tools WHERE id = ?', [id]);
-    const operator = req.body.operator || req.body.username || '系统';
+    const operator = getOperator(req);
     createOperationLog(pool, { userId: null, username: operator, action: 'delete', module: 'tool', targetId: id, targetName: `工具ID: ${id}`, detail: `删除工具 ID: ${id}`, ipAddress: req.ip });
     res.json({ success: true, message: '工具删除成功' });
   } catch (error) {
@@ -50,7 +50,7 @@ router.put('/tools/:id', async (req, res) => {
       'UPDATE tools SET name = ?, category = ?, quantity = ?, price = ?, supplier = ?, location = ?, status = ?, entryDate = ? WHERE id = ?',
       [name, category, quantity, price, supplier, location, status, (entryDate || new Date().toISOString()).replace('T', ' ').replace('Z', ''), id]
     );
-    const operator = req.body.operator || req.body.username || '系统';
+    const operator = getOperator(req);
     createOperationLog(pool, { userId: null, username: operator, action: 'update', module: 'tool', targetId: id, targetName: name, detail: `更新工具: ${name}`, ipAddress: req.ip });
     res.json({ success: true, message: '工具更新成功' });
   } catch (error) {

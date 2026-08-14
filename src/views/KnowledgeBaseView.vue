@@ -194,7 +194,7 @@
             <span class="doc-name">{{ previewFileData.name }}</span>
             <el-button size="small" @click="downloadFile(previewFileData)">⬇️ 下载</el-button>
           </div>
-          <div class="doc-content" v-html="previewDocContent"></div>
+          <div class="doc-content" v-html="DOMPurify.sanitize(previewDocContent)"></div>
         </div>
         <div v-else class="other-preview">
           <div class="file-icon"><el-icon><Document /></el-icon></div>
@@ -233,12 +233,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useButtonPermission } from '@/composables/usePermission'
 import { Plus, Delete, Document, Download } from '@element-plus/icons-vue'
 import * as mammoth from 'mammoth'
 import { QuillEditor } from '@vueup/vue-quill'
 import '@vueup/vue-quill/dist/vue-quill.snow.css'
+import DOMPurify from 'dompurify'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -290,6 +291,10 @@ const defaultEmptyContent = '<p style="color:#ccc">暂无内容</p>'
 const detailArticle = ref<any>({})
 const articleForm = ref({ title: '', categoryId: null, author: '', tags: [] as string[], summary: '', content: '', files: [] as any[], permission_type: 'public', permission_targets: [] as string[] })
 const newCategoryName = ref('')
+
+const sanitizedDetailContent = computed(() => {
+  return DOMPurify.sanitize(detailArticle.value.content || defaultEmptyContent)
+})
 
 const detailFiles = computed(() => {
   try {
@@ -496,6 +501,9 @@ const saveArticle = async () => {
 
 const deleteArticle = async (id: number) => {
   try {
+    await ElMessageBox.confirm('确定要删除这篇文章吗？此操作不可恢复', '删除文章', {
+      confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
+    })
     const res = await fetch('/api/knowledge/articles/' + id + '?username=' + getUsername(), { method: 'DELETE' }).then(r => r.json())
     if (res.success) {
       ElMessage.success('删除成功')
@@ -524,6 +532,9 @@ const addCategory = async () => {
 
 const deleteCategory = async (id: number) => {
   try {
+    await ElMessageBox.confirm('确定要删除该分类吗？该分类下的文章将一并删除', '删除分类', {
+      confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
+    })
     const res = await fetch('/api/knowledge/categories/' + id + '?username=' + getUsername(), { method: 'DELETE' }).then(r => r.json())
     if (res.success) {
       ElMessage.success('分类已删除')

@@ -1,5 +1,6 @@
 import express from 'express';
 import { requireRole } from '../middleware/auth.js';
+import { getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
 const MANAGER_ROLES = ['系统管理员', '总经理', '技术部经理', '销售部经理', '财务总监'];
@@ -70,11 +71,16 @@ router.put('/knowledge/categories/:id', requireRole(...MANAGER_ROLES), async (re
   const { id } = req.params;
   const { name, description, sort } = req.body;
   try {
+    const beforeValue = await getRecordBefore(pool, 'knowledge_categories', id, { name: 1, description: 1, sort: 1 });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await pool.execute(
       'UPDATE knowledge_categories SET name = ?, description = ?, sort = ?, updatedAt = ? WHERE id = ?',
       [name, description || '', sort || 0, now, id]
     );
+    await logDataChange(pool, {
+      module: 'knowledge', username: getOperator(req), targetId: id, targetName: `分类: ${name}`,
+      beforeValue, afterValue: { name, description: description || '', sort: sort || 0 }, ipAddress: req.ip
+    });
     res.json({ success: true, message: '分类更新成功' });
   } catch (error) {
     console.error('更新分类失败:', error);
@@ -164,7 +170,7 @@ router.get('/knowledge/articles/:id', async (req, res) => {
 });
 
 // 创建文章
-router.post('/knowledge/articles', async (req, res) => {
+router.post('/knowledge/articles', requireRole(...MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { categoryId, title, content, summary, author, tags, sort, files, permission_type, permission_targets } = req.body;
   if (!title) return res.status(400).json({ success: false, message: '文章标题不能为空' });
@@ -187,11 +193,16 @@ router.put('/knowledge/articles/:id', requireRole(...MANAGER_ROLES), async (req,
   const { id } = req.params;
   const { categoryId, title, content, summary, author, tags, sort, files, permission_type, permission_targets } = req.body;
   try {
+    const beforeValue = await getRecordBefore(pool, 'knowledge_articles', id, { categoryId: 1, title: 1, content: 1, permission_type: 1, summary: 1, author: 1, tags: 1, sort: 1 });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await pool.execute(
       'UPDATE knowledge_articles SET categoryId = ?, title = ?, content = ?, files = ?, permission_type = ?, permission_targets = ?, summary = ?, author = ?, tags = ?, sort = ?, updatedAt = ? WHERE id = ?',
       [categoryId || null, title, content || '', JSON.stringify(files || []), permission_type || 'public', permission_targets || null, summary || '', author || '', tags || '', sort || 0, now, id]
     );
+    await logDataChange(pool, {
+      module: 'knowledge', username: getOperator(req), targetId: id, targetName: `文章: ${title}`,
+      beforeValue, afterValue: { categoryId: categoryId || null, title, content: content || '', permission_type: permission_type || 'public', summary: summary || '', author: author || '', tags: tags || '', sort: sort || 0 }, ipAddress: req.ip
+    });
     res.json({ success: true, message: '文章更新成功' });
   } catch (error) {
     console.error('更新文章失败:', error);
@@ -200,7 +211,7 @@ router.put('/knowledge/articles/:id', requireRole(...MANAGER_ROLES), async (req,
 });
 
 // 删除文章
-router.delete('/knowledge/articles/:id', async (req, res) => {
+router.delete('/knowledge/articles/:id', requireRole(...MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   try {

@@ -49,7 +49,16 @@
           <el-input :model-value="pwdForm.username" disabled />
         </el-form-item>
         <el-form-item label="新密码" prop="password">
-          <el-input v-model="pwdForm.password" type="password" placeholder="请输入新密码" show-password />
+          <el-input v-model="pwdForm.password" type="password" placeholder="至少10位，含大小写、数字和特殊字符" show-password />
+          <div v-if="pwdForm.password" class="pwd-strength-mini">
+            <div class="pwd-strength-mini-bar">
+              <div class="pwd-strength-mini-fill" :class="pwdStrength.class" :style="{ width: pwdStrength.percent + '%' }"></div>
+            </div>
+            <span class="pwd-strength-mini-label" :class="pwdStrength.class">强度：{{ pwdStrength.label }}</span>
+          </div>
+        </el-form-item>
+        <el-form-item label="当前登录密码" required>
+          <el-input v-model="pwdForm.adminPassword" type="password" placeholder="请输入您的当前登录密码以确认" show-password />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -65,16 +74,33 @@
       :title="isEditingUser ? '编辑用户' : '添加用户'"
       width="500px"
       class="dialog"
+      top="8vh"
+      :close-on-click-modal="false"
     >
+      <div class="dialog-scroll">
       <el-form :model="userForm" :rules="userRules" ref="userFormRef" label-position="top">
         <el-form-item label="姓名" prop="name">
           <el-input v-model="userForm.name" placeholder="请输入姓名" :disabled="isEditingUser" />
         </el-form-item>
         <el-form-item label="部门" prop="department">
-          <el-input v-model="userForm.department" placeholder="请输入部门" />
+          <el-select v-model="userForm.department" placeholder="请选择部门" style="width: 100%" filterable @change="handleDepartmentChange" :disabled="isEditingUser">
+            <el-option
+              v-for="dept in departments"
+              :key="dept.id"
+              :label="dept.name"
+              :value="dept.name"
+            />
+          </el-select>
         </el-form-item>
-        <el-form-item label="职位">
-          <el-input v-model="userForm.position" placeholder="请输入职位" />
+        <el-form-item label="职位" prop="position">
+          <el-select v-model="userForm.position" placeholder="请选择职位" style="width: 100%" filterable :disabled="isEditingUser">
+            <el-option
+              v-for="position in availablePositions"
+              :key="position"
+              :label="position"
+              :value="position"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="角色">
           <el-select v-model="userForm.roleId" placeholder="请选择角色" style="width: 100%" clearable>
@@ -99,6 +125,7 @@
           </el-radio-group>
         </el-form-item>
       </el-form>
+      </div>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="userDialogVisible = false">取消</el-button>
@@ -106,26 +133,130 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 初始密码展示对话框（纯文本显示，支持一键复制）-->
+    <el-dialog
+      v-model="initPwdDialogVisible"
+      title="用户初始密码"
+      width="460px"
+      class="dialog"
+      :close-on-click-modal="false"
+      :show-close="true"
+    >
+      <div style="padding: 10px 0;">
+        <p style="margin: 0 0 12px; color: #555; font-size: 14px;">
+          用户「<strong>{{ initPwdEmployeeName }}</strong>」的初始密码如下，请妥善告知用户：
+        </p>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+          <el-input
+            :model-value="initPwdValue"
+            readonly
+            :type="initPwdVisible ? 'text' : 'password'"
+            style="flex: 1; font-family: Consolas, monospace; font-size: 14px;"
+          >
+            <template #suffix>
+              <span style="cursor: pointer; color: #409EFF; font-size: 13px;" @click="initPwdVisible = !initPwdVisible">
+                {{ initPwdVisible ? '隐藏' : '显示' }}
+              </span>
+            </template>
+          </el-input>
+          <el-button type="primary" @click="copyInitPwd">复制</el-button>
+        </div>
+        <p style="margin: 0; color: #f56c6c; font-size: 13px;">
+          请将此密码告知用户，用户登录后请在【修改密码】中更改为自己的密码。
+        </p>
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="initPwdDialogVisible = false">我已复制</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const API_BASE = '/api'
 
 const users = ref<any[]>([])
 const roles = ref<any[]>([])
+const departments = ref<any[]>([])
 const userLoading = ref(false)
 const saving = ref(false)
+
+// 职位选项配置（与添加员工页面保持一致）
+const positionOptions: Record<string, string[]> = {
+  '销售部': ['销售部经理', '销售代表', '销售工程师', '区域销售经理', '大客户经理', '销售内勤'],
+  '技术部': ['技术部经理', '项目经理', '系统运维工程师', '软件研发工程师', '前端开发工程师', '后端开发工程师', '测试工程师', '技术支持工程师', '数据库管理员', '网络安全工程师'],
+  '财务部': ['财务总监', '财务经理', '会计', '出纳', '成本会计', '税务专员', '审计专员'],
+  '人力资源部': ['人事经理', '人事专员', '招聘专员', '培训专员', '薪酬福利专员', '绩效专员'],
+  '管理部门': ['总经理', '副总经理', '总经理助理', '办公室主任', '行政主管', '行政专员', '前台'],
+  '采购部': ['采购经理', '采购专员', '供应商管理专员'],
+  '市场部': ['市场经理', '市场专员', '品牌推广专员', '文案策划'],
+  '客服部': ['客服经理', '客服专员', '售后专员']
+}
+
+// 根据所选部门返回可用职位
+const availablePositions = computed(() => {
+  const department = userForm.value.department
+  return positionOptions[department] || []
+})
+
+// 处理部门变化时清空职位
+const handleDepartmentChange = () => {
+  userForm.value.position = ''
+}
 
 const userDialogVisible = ref(false)
 const isEditingUser = ref(false)
 const userFormRef = ref()
 const pwdDialogVisible = ref(false)
 const pwdSaving = ref(false)
-const pwdForm = ref({ username: '', password: '' })
+const pwdForm = ref({ username: '', password: '', adminPassword: '' })
+// 初始密码展示对话框状态
+const initPwdDialogVisible = ref(false)
+const initPwdValue = ref('')
+const initPwdEmployeeName = ref('')
+const initPwdVisible = ref(false)
+
+// 重置密码强度计算
+const pwdStrength = computed(() => {
+  const v = pwdForm.value.password || ''
+  const c = {
+    lengthOk: v.length >= 10,
+    lowerOk: /[a-z]/.test(v),
+    upperOk: /[A-Z]/.test(v),
+    digitOk: /\d/.test(v),
+    specialOk: /[^A-Za-z0-9]/.test(v)
+  }
+  const met = Object.values(c).filter(Boolean).length
+  if (!v) return { percent: 0, class: '', label: '' }
+  if (met <= 2) return { percent: 25, class: 'weak', label: '弱' }
+  if (met === 3) return { percent: 50, class: 'medium', label: '中' }
+  if (met === 4) return { percent: 75, class: 'good', label: '较强' }
+  return { percent: 100, class: 'strong', label: '强' }
+})
+
+// 复制初始密码到剪贴板
+const copyInitPwd = async () => {
+  try {
+    await navigator.clipboard.writeText(initPwdValue.value)
+    ElMessage.success('已复制到剪贴板')
+  } catch (e) {
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = initPwdValue.value
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      ElMessage.success('已复制到剪贴板')
+    } catch (err) {
+      ElMessage.error('复制失败，请手动复制')
+    }
+  }
+}
 const userForm = ref({
   id: null as number | null,
   name: '',
@@ -139,7 +270,8 @@ const userForm = ref({
 
 const userRules = {
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  department: [{ required: true, message: '请输入部门', trigger: 'blur' }]
+  department: [{ required: true, message: '请选择部门', trigger: 'change' }],
+  position: [{ required: true, message: '请选择职位', trigger: 'change' }]
 }
 
 const fetchApi = async (url: string, options?: RequestInit) => {
@@ -163,6 +295,17 @@ const loadRoles = async () => {
     }
   } catch (error) {
     console.error('加载角色失败:', error)
+  }
+}
+
+const loadDepartments = async () => {
+  try {
+    const data = await fetchApi(`${API_BASE}/departments`)
+    if (data.success) {
+      departments.value = data.data || []
+    }
+  } catch (error) {
+    console.error('加载部门列表失败:', error)
   }
 }
 
@@ -214,10 +357,16 @@ const saveUser = async () => {
         })
         ElMessage.success('更新成功')
       } else {
-        await fetchApi(`${API_BASE}/employees`, {
+        const result = await fetchApi(`${API_BASE}/employees`, {
           method: 'POST',
           body: JSON.stringify(userForm.value)
         })
+        if (result.initialPassword) {
+          initPwdValue.value = String(result.initialPassword)
+          initPwdEmployeeName.value = userForm.value.name || ''
+          initPwdVisible.value = true
+          initPwdDialogVisible.value = true
+        }
         ElMessage.success('添加成功')
       }
       userDialogVisible.value = false
@@ -232,8 +381,20 @@ const saveUser = async () => {
 
 const deleteUser = async (row: any) => {
   try {
-    await ElMessageBox.confirm(`确定要删除用户"${row.name}"吗？`, '确认删除', { type: 'warning' })
-    await fetchApi(`${API_BASE}/employees/${row.name}`, { method: 'DELETE' })
+    // 二次验证：输入当前登录密码
+    const { value } = await ElMessageBox.prompt(
+      `此操作将永久删除用户"${row.name}"（含其登录账号），请输入您的当前登录密码以确认：`,
+      '高危操作确认',
+      { inputType: 'password', confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' }
+    )
+    const result = await fetchApi(`${API_BASE}/employees/${row.name}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ adminPassword: value })
+    })
+    if (!result.success) {
+      ElMessage.error(result.message || '删除失败')
+      return
+    }
     ElMessage.success('删除成功')
     loadUsers()
   } catch (error) {
@@ -244,7 +405,7 @@ const deleteUser = async (row: any) => {
 }
 
 const resetPassword = (row: any) => {
-  pwdForm.value = { username: row.name, password: '' }
+  pwdForm.value = { username: row.name, password: '', adminPassword: '' }
   pwdDialogVisible.value = true
 }
 
@@ -253,12 +414,20 @@ const savePassword = async () => {
     ElMessage.warning('请输入新密码')
     return
   }
+  if (!pwdForm.value.adminPassword) {
+    ElMessage.warning('请输入当前登录密码进行二次验证')
+    return
+  }
   try {
     pwdSaving.value = true
-    await fetchApi(`${API_BASE}/employees/${pwdForm.value.username}`, {
+    const result = await fetchApi(`${API_BASE}/employees/${pwdForm.value.username}`, {
       method: 'PUT',
-      body: JSON.stringify({ password: pwdForm.value.password })
+      body: JSON.stringify({ password: pwdForm.value.password, adminPassword: pwdForm.value.adminPassword })
     })
+    if (!result.success) {
+      ElMessage.error(result.message || '密码重置失败')
+      return
+    }
     ElMessage.success('密码重置成功')
     pwdDialogVisible.value = false
   } catch (error) {
@@ -270,11 +439,47 @@ const savePassword = async () => {
 
 onMounted(() => {
   loadRoles()
+  loadDepartments()
   loadUsers()
 })
 </script>
 
 <style scoped>
+/* 对话框内容区可滚动，避免小屏幕下底部按钮被遮挡 */
+.dialog-scroll {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+.pwd-strength-mini {
+  width: 100%;
+  margin-top: 4px;
+}
+.pwd-strength-mini-bar {
+  height: 5px;
+  border-radius: 3px;
+  background: #ebeef5;
+  overflow: hidden;
+}
+.pwd-strength-mini-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s, background-color 0.3s;
+}
+.pwd-strength-mini-fill.weak { background: #f56c6c; }
+.pwd-strength-mini-fill.medium { background: #e6a23c; }
+.pwd-strength-mini-fill.good { background: #409eff; }
+.pwd-strength-mini-fill.strong { background: #67c23a; }
+.pwd-strength-mini-label {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+}
+.pwd-strength-mini-label.weak { color: #f56c6c; }
+.pwd-strength-mini-label.medium { color: #e6a23c; }
+.pwd-strength-mini-label.good { color: #409eff; }
+.pwd-strength-mini-label.strong { color: #67c23a; }
+
 .management-section {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(100, 149, 237, 0.2);

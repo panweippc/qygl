@@ -1,5 +1,5 @@
 import express from 'express';
-import { createOperationLog } from '../utils/audit.js';
+import { createOperationLog, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
 router.get('/chats', async (req, res) => {
@@ -48,7 +48,7 @@ router.get('/chats/:chatId/messages', async (req, res) => {
 router.post('/messages', async (req, res) => {
   const { pool } = req.app.locals;
   const { chatId, senderId, text, time, tempId } = req.body;
-  const username = req.body.operator || req.body.username || '系统';
+  const username = getOperator(req);
 
   if (!chatId || !senderId || !text) {
     return res.status(400).json({ success: false, message: '缺少必要参数' });
@@ -111,7 +111,7 @@ router.post('/messages', async (req, res) => {
 router.post('/chats', async (req, res) => {
   const { pool } = req.app.locals;
   const { name, lastMessage = '', time = '' } = req.body;
-  const username = req.body.operator || req.body.username || '系统';
+  const username = getOperator(req);
 
   if (!name) {
     return res.status(400).json({ success: false, message: '聊天室名称不能为空' });
@@ -147,7 +147,7 @@ router.post('/chats', async (req, res) => {
 router.delete('/chats/:id', async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
-  const username = req.body.operator || req.body.username || '系统';
+  const username = getOperator(req);
 
   try {
     await pool.execute('DELETE FROM messages WHERE chatId = ?', [id]);

@@ -605,6 +605,9 @@ import OfficeSuppliesPanel from '../components/OfficeSuppliesPanel.vue'
 import BusinessTripPanel from '../components/BusinessTripPanel.vue'
 import EntertainmentPanel from '../components/EntertainmentPanel.vue'
 
+// HTML 转义，防止 XSS（用户可控字段渲染前必须转义）
+const esc = (s: any) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
+
 const router = useRouter()
 const route = useRoute()
 
@@ -1030,6 +1033,7 @@ const currentAttachments = computed(() => {
 })
 
 const getAttachmentDownloadUrl = (file: { name: string; url: string }) => {
+  // token 由 axios 拦截器通过 Authorization header 携带，不在 URL 中传递
   return `/api/attachments/download?file=${encodeURIComponent(file.url)}&name=${encodeURIComponent(file.name)}`
 }
 
@@ -1195,26 +1199,22 @@ const getApplicationDetailHtml = (row: any) => {
   const type = row.applicationType
   let detailHtml = ''
   if (type === 'meeting') {
-    const meetingTitle = row.meetingTitle || row.title || ''
-    const meetingDate = row.meetingDate || ''
-    const meetingLocation = row.meetingLocation || row.location || ''
-    const meetingTime = row.meetingTime || ''
-    detailHtml = `<p><strong>会议主题：</strong>${meetingTitle}</p><p><strong>会议日期：</strong>${meetingDate}</p><p><strong>会议地点：</strong>${meetingLocation}</p><p><strong>会议时间：</strong>${meetingTime}</p>`
+    detailHtml = `<p><strong>会议主题：</strong>${esc(row.meetingTitle || row.title || '')}</p><p><strong>会议日期：</strong>${esc(row.meetingDate || '')}</p><p><strong>会议地点：</strong>${esc(row.meetingLocation || row.location || '')}</p><p><strong>会议时间：</strong>${esc(row.meetingTime || '')}</p>`
   } else if (type === 'leave') {
-    const startDate = row.startDate || ''
-    const endDate = row.endDate || ''
+    const startDate = esc(row.startDate || '')
+    const endDate = esc(row.endDate || '')
     const dateRange = startDate && endDate ? `<p><strong>请假时间：</strong>${startDate} 至 ${endDate}</p>` : ''
-    const reasonText = row.reason ? `<p><strong>请假原因：</strong>${row.reason}</p>` : ''
-    const resultText = row.result ? `<p><strong>审批记录：</strong><span style="white-space:pre-line">${row.result}</span></p>` : ''
-    detailHtml = `<p><strong>请假类型：</strong>${row.leaveType || '-'}</p><p><strong>请假天数：</strong>${formatDays(row.days)}</p>${dateRange}${reasonText}${resultText}`
+    const reasonText = row.reason ? `<p><strong>请假原因：</strong>${esc(row.reason)}</p>` : ''
+    const resultText = row.result ? `<p><strong>审批记录：</strong><span style="white-space:pre-line">${esc(row.result)}</span></p>` : ''
+    detailHtml = `<p><strong>请假类型：</strong>${esc(row.leaveType || '-')}</p><p><strong>请假天数：</strong>${formatDays(row.days)}</p>${dateRange}${reasonText}${resultText}`
   } else if (type === 'reimbursement') {
-    detailHtml = `<p><strong>报销类型：</strong>${row.reimburseType || '-'}</p><p><strong>合计金额：</strong>¥${row.amount || 0}</p>`
+    detailHtml = `<p><strong>报销类型：</strong>${esc(row.reimburseType || '-')}</p><p><strong>合计金额：</strong>¥${esc(row.amount || 0)}</p>`
   } else if (type === 'project') {
-    detailHtml = `<p><strong>项目名称：</strong>${row.projectName || '-'}</p><p><strong>项目类型：</strong>${row.projectType || '-'}</p>`
+    detailHtml = `<p><strong>项目名称：</strong>${esc(row.projectName || '-')}</p><p><strong>项目类型：</strong>${esc(row.projectType || '-')}</p>`
   } else if (type === 'businessTrip') {
-    detailHtml = `<p><strong>目的地：</strong>${row.destination || '-'}</p><p><strong>出差天数：</strong>${formatDays(row.days)}</p>`
+    detailHtml = `<p><strong>目的地：</strong>${esc(row.destination || '-')}</p><p><strong>出差天数：</strong>${formatDays(row.days)}</p>`
   } else if (type === 'entertainment') {
-    detailHtml = `<p><strong>客户名称：</strong>${row.guestName || '-'}</p><p><strong>招待单位：</strong>${row.guestUnit || '-'}</p><p><strong>场　所：</strong>${row.location || '-'}</p><p><strong>招待金额：</strong>¥${row.expenseAmount || 0}</p>`
+    detailHtml = `<p><strong>客户名称：</strong>${esc(row.guestName || '-')}</p><p><strong>招待单位：</strong>${esc(row.guestUnit || '-')}</p><p><strong>场　所：</strong>${esc(row.location || '-')}</p><p><strong>招待金额：</strong>¥${esc(row.expenseAmount || 0)}</p>`
   }
   return detailHtml
 }
@@ -1228,7 +1228,7 @@ const getDistributedAttachmentsHtml = (row: any) => {
     const links = files
       .map((f: any) => {
         const url = `/api/attachments/download?file=${encodeURIComponent(f.url || '')}&name=${encodeURIComponent(f.name || '')}`
-        return `<a href="${url}" style="color:#6495ED;font-weight:500;text-decoration:underline;word-break:break-all;">📎 ${f.name || '附件'}</a>`
+        return `<a href="${url}" style="color:#6495ED;font-weight:500;text-decoration:underline;word-break:break-all;">📎 ${esc(f.name || '附件')}</a>`
       })
       .join('<br/>')
     return `<p><strong>附件：</strong><br/>${links}</p>`
@@ -1242,14 +1242,14 @@ const viewDistributedDetail = (row: any) => {
   const attachmentsHtml = getDistributedAttachmentsHtml(row)
   ElMessageBox.alert(`
     <div style="text-align: left;">
-      <p><strong>下发编号：</strong>#${row.id}</p>
-      <p><strong>申请类型：</strong>${getApplicationTypeLabel(row.applicationType)}</p>
-      <p><strong>原申请编号：</strong>#${row.applicationId}</p>
-      <p><strong>原申请人：</strong>${row.applicant}</p>
-      <p><strong>审批人：</strong>${row.approver && row.approver !== '未指定' ? row.approver : row.distributedBy}</p>
-      <p><strong>下发人：</strong>${row.distributedBy}</p>
-      <p><strong>下发时间：</strong>${row.distributeDate}</p>
-      <p><strong>处理状态：</strong>${row.status}</p>
+      <p><strong>下发编号：</strong>#${esc(row.id)}</p>
+      <p><strong>申请类型：</strong>${esc(getApplicationTypeLabel(row.applicationType))}</p>
+      <p><strong>原申请编号：</strong>#${esc(row.applicationId)}</p>
+      <p><strong>原申请人：</strong>${esc(row.applicant)}</p>
+      <p><strong>审批人：</strong>${esc(row.approver && row.approver !== '未指定' ? row.approver : row.distributedBy)}</p>
+      <p><strong>下发人：</strong>${esc(row.distributedBy)}</p>
+      <p><strong>下发时间：</strong>${esc(row.distributeDate)}</p>
+      <p><strong>处理状态：</strong>${esc(row.status)}</p>
       ${appDetailHtml ? '<hr style="margin:8px 0;border-color:#eee"/>' + appDetailHtml : ''}
       ${attachmentsHtml ? '<hr style="margin:8px 0;border-color:#eee"/>' + attachmentsHtml : ''}
     </div>

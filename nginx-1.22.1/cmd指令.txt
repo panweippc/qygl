@@ -1,0 +1,2 @@
+开启服务：start Nginx
+关闭服务：Nginx -s quit /nginx -s stop

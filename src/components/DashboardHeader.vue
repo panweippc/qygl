@@ -45,6 +45,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowDown, User, Lock, SwitchButton } from '@element-plus/icons-vue'
+import { disconnectSocket } from '../services/socket'
 
 const router = useRouter()
 const currentUser = ref('用户')
@@ -117,6 +118,8 @@ const handleCommand = (command: string) => {
 }
 
 const handleLogout = () => {
+  // 断开 Socket 连接，释放单设备登录
+  disconnectSocket()
   localStorage.removeItem('token')
   localStorage.removeItem('userId')
   localStorage.removeItem('username')

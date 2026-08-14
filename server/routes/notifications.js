@@ -1,5 +1,5 @@
 import express from 'express';
-import { createOperationLog } from '../utils/audit.js';
+import { createOperationLog, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
 function escapeId(val) {
@@ -50,7 +50,7 @@ router.get('/notifications/unread-count', async (req, res) => {
 router.put('/notifications/:id/read', async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
-  const username = req.body.operator || req.body.username || '系统';
+  const username = getOperator(req);
   try {
     await pool.execute('UPDATE notifications SET isRead = 1 WHERE id = ?', [id]);
     await createOperationLog(pool, {
@@ -73,7 +73,7 @@ router.put('/notifications/:id/read', async (req, res) => {
 router.put('/notifications/read-all', async (req, res) => {
   const { pool } = req.app.locals;
   const { userId } = req.body;
-  const username = req.body.operator || req.body.username || '系统';
+  const username = getOperator(req);
   if (!userId) return res.fail('缺少用户ID');
   try {
     await pool.execute('UPDATE notifications SET isRead = 1 WHERE userId = ?', [userId]);
@@ -98,7 +98,7 @@ router.put('/notifications/read-all', async (req, res) => {
 router.delete('/notifications/:id', async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
-  const username = req.body.operator || req.body.username || '系统';
+  const username = getOperator(req);
   try {
     await pool.execute('DELETE FROM notifications WHERE id = ?', [id]);
     await createOperationLog(pool, {

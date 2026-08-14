@@ -1,5 +1,5 @@
 import express from 'express';
-import { createOperationLog } from '../utils/audit.js';
+import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
 router.get('/customers', async (req, res) => {
@@ -41,7 +41,7 @@ router.post('/customers', async (req, res) => {
       [name, contact, phone, email, address, tags, status, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
     await createOperationLog(pool, {
-      username: req.body.operator || req.body.applicant || '系统',
+      username: getOperator(req),
       action: 'create',
       module: 'customer',
       targetName: `客户: ${name}`,
@@ -58,16 +58,21 @@ router.put('/customers/:id', async (req, res) => {
   const { id } = req.params;
   const { name, contact, phone, email, address, tags, status } = req.body;
   try {
+    const beforeValue = await getRecordBefore(pool, 'customers', id, { name: 1, contact: 1, phone: 1, email: 1, address: 1, tags: 1, status: 1 });
     await pool.execute(
       'UPDATE customers SET name = ?, contact = ?, phone = ?, email = ?, address = ?, tags = ?, status = ? WHERE id = ?',
       [name, contact, phone, email, address, tags, status, id]
     );
     await createOperationLog(pool, {
-      username: req.body.operator || req.body.applicant || '系统',
+      username: getOperator(req),
       action: 'update',
       module: 'customer',
       targetName: `客户: ${name}`,
       detail: `更新客户: ${name} (ID: ${id})`
+    });
+    await logDataChange(pool, {
+      module: 'customer', username: getOperator(req), targetId: id, targetName: `客户: ${name}`,
+      beforeValue, afterValue: { name, contact, phone, email, address, tags, status }, ipAddress: req.ip
     });
     res.json({ success: true, message: '客户更新成功' });
   } catch (error) {
@@ -83,7 +88,7 @@ router.delete('/customers/:id', async (req, res) => {
     const customerName = rows.length > 0 ? rows[0].name : `ID: ${id}`;
     await pool.execute('DELETE FROM customers WHERE id = ?', [id]);
     await createOperationLog(pool, {
-      username: req.body.operator || req.body.applicant || '系统',
+      username: getOperator(req),
       action: 'delete',
       module: 'customer',
       targetName: `客户: ${customerName}`,

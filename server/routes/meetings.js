@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 
-import { createNotification, createOperationLog } from '../utils/audit.js';
+import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
 
 router.get('/meetings', async (req, res) => {
   try {
@@ -68,7 +68,7 @@ router.put('/meetings/:id', async (req, res) => {
       if (app) {
         await createNotification(pool, { userId: app.organizer, title: '会议已转发', content: `您发起的会议"${app.title}"已转发至总经理审批`, type: 'approval' });
         await createNotification(pool, { userId: forwardTo, title: '会议审批提醒', content: `${app.organizer} 发起的会议"${app.title}"已转发给您，请审批`, type: 'approval' });
-        await createOperationLog(pool, { username: req.body.operator || '系统', action: 'forward', module: 'meeting', targetName: `会议"${app.title}"`, detail: comment || '' });
+        await createOperationLog(pool, { username: getOperator(req), action: 'forward', module: 'meeting', targetName: `会议"${app.title}"`, detail: comment || '' });
       }
     } else {
       const status = result === '批准' ? '已批准' : result === '拒绝' ? '已拒绝' : '待审批';
@@ -88,7 +88,7 @@ router.put('/meetings/:id', async (req, res) => {
       if (app) {
         const actionLabel = result === '批准' ? '已通过' : result === '拒绝' ? '被拒绝' : '已更新';
         await createNotification(pool, { userId: app.organizer, title: `会议审批${actionLabel}`, content: `您发起的会议"${app.title}"${actionLabel}`, type: 'approval' });
-        await createOperationLog(pool, { username: req.body.operator || '系统', action: result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update', module: 'meeting', targetName: `会议"${app.title}"`, detail: comment || '' });
+        await createOperationLog(pool, { username: getOperator(req), action: result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update', module: 'meeting', targetName: `会议"${app.title}"`, detail: comment || '' });
       }
     }
 

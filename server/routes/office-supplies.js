@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 
-import { createNotification, createOperationLog } from '../utils/audit.js';
+import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
 
 router.get('/office-supplies', async (req, res) => {
   try {
@@ -57,7 +57,7 @@ router.put('/office-supplies/:id', async (req, res) => {
     if (app) {
       const actionLabel = result === '批准' ? '已通过' : result === '拒绝' ? '被拒绝' : '已更新';
       await createNotification(pool, { userId: app.applicant, title: `办公用品申请${actionLabel}`, content: `您申请的${app.itemName}x${app.quantity}${actionLabel}`, type: 'approval' });
-      await createOperationLog(pool, { username: req.body.operator || '系统', action: result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update', module: 'office_supplies', targetName: `${app.applicant}的${app.itemName}`, detail: comment || '' });
+      await createOperationLog(pool, { username: getOperator(req), action: result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update', module: 'office_supplies', targetName: `${app.applicant}的${app.itemName}`, detail: comment || '' });
     }
 
     res.json({ success: true, message: '办公用品申请更新成功' });

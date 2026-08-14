@@ -1,5 +1,5 @@
 import express from 'express';
-import { createOperationLog } from '../utils/audit.js';
+import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
 const localNow = () => {
@@ -41,7 +41,7 @@ router.post('/monthly-reports', async (req, res) => {
       [title, content, plan || '', filesJson, userId, date || null, localNow()]
     );
     await createOperationLog(pool, {
-      username: req.body.operator || req.body.applicant || '系统',
+      username: getOperator(req),
       action: 'create',
       module: 'monthly_report',
       targetName: `月报: ${title}`,
@@ -59,17 +59,28 @@ router.put('/monthly-reports/:id', async (req, res) => {
   const { title, content, plan, userId, files, date } = req.body;
   try {
     const { pool } = req.app.locals;
+    // 更新前取旧值，用于变更审计
+    const beforeValue = await getRecordBefore(pool, 'weeklyReports', id, { title: 1, content: 1, plan: 1 });
     const filesJson = files ? JSON.stringify(files) : null;
     await pool.execute(
       'UPDATE weeklyReports SET title = ?, content = ?, plan = ?, files = ?, date = ? WHERE id = ? AND userId = ?',
       [title, content, plan || '', filesJson, date || null, id, userId]
     );
     await createOperationLog(pool, {
-      username: req.body.operator || req.body.applicant || '系统',
+      username: getOperator(req),
       action: 'update',
       module: 'monthly_report',
       targetName: `月报: ${title}`,
       detail: `更新月报: ${title} (ID: ${id})`
+    });
+    await logDataChange(pool, {
+      module: 'monthly_report',
+      username: getOperator(req),
+      targetId: id,
+      targetName: `月报: ${title}`,
+      beforeValue,
+      afterValue: { title, content, plan: plan || '' },
+      ipAddress: req.ip
     });
     res.json({ success: true, message: '月报更新成功' });
   } catch (error) {

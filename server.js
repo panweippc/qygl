@@ -1,11 +1,15 @@
 import express from 'express';
 import mysql from 'mysql2/promise';
 import cors from 'cors';
+import helmet from 'helmet';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
+import { hashPassword, generateRandomPassword, verifyToken } from './server/utils/security.js';
+import { cleanupOldLogs } from './server/utils/audit.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,13 +52,43 @@ import entertainmentRouter from './server/routes/entertainment.js';
 import salesImportRouter from './server/routes/sales-import.js';
 import knowledgeRouter from './server/routes/knowledge.js';
 import userProfileRouter from './server/routes/user-profile.js';
+import backupRouter from './server/routes/backup.js';
+import { requireAuth } from './server/middleware/requireAuth.js';
 
-// 启用CORS
+// 启用CORS（内网白名单）
+// 默认内置开发端口(3003)与Nginx生产端口(8080)的来源，可再通过 .env 的 CORS_ORIGINS 追加
+const allowedOrigins = [
+  // 开发服务器 3003
+  'http://localhost:3003',
+  'http://127.0.0.1:3003',
+  'http://192.168.2.142:3003',
+  // Nginx 生产 8080
+  'http://localhost:8080',
+  'http://127.0.0.1:8080',
+  'http://192.168.2.142',
+  'http://192.168.2.142:8080',
+  ...(process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean) : [])
+];
 
 app.use(cors({
-  origin: '*',
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Charset']
+}));
+
+// 隐藏 Express 版本号，避免暴露服务器信息（L5）
+app.disable('x-powered-by');
+
+// M1: 安全响应头（helmet），防点击劫持、MIME嗅探等
+app.use(helmet({
+  contentSecurityPolicy: false, // 内网OA已自行处理XSS，禁用CSP避免影响现有功能
+  crossOriginEmbedderPolicy: false
 }));
 
 // 确保正确处理UTF-8编码
@@ -65,22 +99,135 @@ app.use((req, res, next) => {
   next();
 });
 
-// 解析JSON请求体，确保使用UTF-8编码
+// M2: 解析JSON请求体，限制大小防止DoS（10MB）
 app.use(express.json({ 
-  charset: 'utf-8'
+  charset: 'utf-8',
+  limit: '10mb'
 }));
 
-// 解析URL编码的请求体，确保使用UTF-8编码
+// M2: 解析URL编码的请求体，限制大小（10MB）
 app.use(express.urlencoded({ 
   extended: true, 
-  charset: 'utf-8'
+  charset: 'utf-8',
+  limit: '10mb'
 }));
 
-// API 统一响应辅助函数
+// API 统一响应辅助函数 + 生产环境错误脱敏
 app.use((req, res, next) => {
   res.success = (data = null, message = '成功') => res.json({ success: true, data, message });
   res.fail = (message = '失败', status = 400) => res.status(status).json({ success: false, message });
+  // 生产环境：统一对 500 错误响应脱敏，避免把 error.message（可能含 SQL/表名/路径）暴露给前端
+  const _json = res.json.bind(res);
+  res.json = (body) => {
+    if (process.env.NODE_ENV === 'production' && res.statusCode >= 500 && body && typeof body === 'object') {
+      // 只要 message 包含常见的内部错误标识，一律替换为通用提示
+      const msg = String(body.message || '');
+      if (/error|失败.*\d|ER_|at \/|\.js:|\.sql/i.test(msg)) {
+        body = { ...body, message: '服务器内部错误' };
+      }
+    }
+    return _json(body);
+  };
   next();
+});
+
+// 全局鉴权中间件（除 POST /login 外，所有 /api 接口均需有效 token）
+app.use('/api', requireAuth);
+
+// E3: 健康检查接口（公开，无需鉴权，用于运维监控探活）
+// 返回服务状态、数据库、磁盘、内存、CPU、连接池、版本等信息，便于全面监控
+app.get('/api/health', async (req, res) => {
+  // 1. 数据库连通性 + 延迟
+  let dbOk = false, dbLatency = 0;
+  try {
+    const t0 = Date.now();
+    await pool.query('SELECT 1');
+    dbLatency = Date.now() - t0;
+    dbOk = true;
+  } catch (e) { dbOk = false; }
+
+  // 2. 数据库连接池使用情况
+  const poolInfo = pool.pool ? pool.pool : {};
+  const poolStatus = {
+    active: poolInfo._connectionCount ?? poolInfo.length ?? null,
+    idle: poolInfo._freeConnections?.length ?? null,
+    pending: poolInfo._queue?.length ?? null,
+    connectionLimit: poolInfo.config?.connectionLimit ?? null
+  };
+
+  // 3. 磁盘空间（项目所在盘符）
+  let disk = null;
+  try {
+    const stats = await fs.promises.statfs(path.join(__dirname, '.'));
+    const total = stats.blocks * stats.bsize;
+    const free = stats.bavail * stats.bsize;
+    const used = total - free;
+    disk = {
+      totalMb: Math.round(total / 1024 / 1024),
+      freeMb: Math.round(free / 1024 / 1024),
+      usedMb: Math.round(used / 1024 / 1024),
+      usedPercent: total > 0 ? Math.round((used / total) * 100) : 0,
+      healthy: total > 0 && (free / total) > 0.05 // 剩余不足5%视为危险
+    };
+  } catch (e) { disk = null; }
+
+  // 4. 内存
+  const memUsed = process.memoryUsage();
+  const sysMem = {
+    totalMb: Math.round(os.totalmem() / 1024 / 1024),
+    freeMb: Math.round(os.freemem() / 1024 / 1024),
+    usedPercent: os.totalmem() > 0 ? Math.round(((os.totalmem() - os.freemem()) / os.totalmem()) * 100) : 0
+  };
+
+  // 5. CPU（当前使用率，取样计算）
+  let cpuPercent = 0;
+  try {
+    const cpus = os.cpus();
+    const t0 = Date.now();
+    const start = cpus.reduce((a, c) => a + (c.times.user + c.times.nice + c.times.sys + c.times.idle + c.times.irq), 0);
+    await new Promise(r => setTimeout(r, 100));
+    const end = os.cpus().reduce((a, c) => a + (c.times.user + c.times.nice + c.times.sys + c.times.idle + c.times.irq), 0);
+    const idleStart = cpus.reduce((a, c) => a + c.times.idle, 0);
+    const idleEnd = os.cpus().reduce((a, c) => a + c.times.idle, 0);
+    const totalDiff = end - start;
+    const idleDiff = idleEnd - idleStart;
+    cpuPercent = totalDiff > 0 ? Math.round((1 - idleDiff / totalDiff) * 100) : 0;
+    void t0;
+  } catch (e) { cpuPercent = -1; }
+
+  // 6. 综合状态
+  const diskHealthy = disk ? disk.healthy : true;
+  const memHealthy = sysMem.usedPercent < 90;
+  const cpuHealthy = cpuPercent < 90;
+  const status = (dbOk && diskHealthy && memHealthy && cpuHealthy) ? 'ok' : 'degraded';
+
+  res.json({
+    success: true,
+    status,
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    version: {
+      node: process.version,
+      platform: os.platform(),
+      arch: os.arch()
+    },
+    db: {
+      status: dbOk ? 'up' : 'down',
+      latencyMs: dbLatency
+    },
+    pool: poolStatus,
+    disk,
+    memory: {
+      processRssMb: Math.round(memUsed.rss / 1024 / 1024),
+      heapUsedMb: Math.round(memUsed.heapUsed / 1024 / 1024),
+      system: sysMem
+    },
+    cpu: {
+      usagePercent: cpuPercent,
+      cores: os.cpus().length,
+      loadAvg: os.loadavg().map(v => Math.round(v * 100) / 100)
+    }
+  });
 });
 
 // 挂载工作流路由
@@ -115,9 +262,20 @@ app.use('/api', entertainmentRouter);
 app.use('/api', salesImportRouter);
 app.use('/api', knowledgeRouter);
 app.use('/api', userProfileRouter);
-app.use('/uploads', express.static('uploads'));
+app.use('/api', backupRouter);
+// H3: 上传文件静态服务 - 危险类型（html/svg等）强制下载而非渲染，防存储型XSS
+const DANGEROUS_UPLOAD_EXT = /\.(html?|svg|xml|swf|js|mjs)$/i;
+app.use('/uploads', (req, res, next) => {
+  const urlPath = decodeURIComponent(req.path || '');
+  // 危险文件一律作为附件下载（不触发浏览器渲染）
+  if (DANGEROUS_UPLOAD_EXT.test(urlPath)) {
+    res.setHeader('Content-Disposition', 'attachment');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+  }
+  next();
+}, express.static('uploads'));
 
-// 创建数据库连接池
+// 创建数据库连接池（含超时与连接泄漏防护）
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
@@ -127,7 +285,12 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
   charset: 'utf8mb4',
-  dateStrings: true
+  dateStrings: true,
+  // A3: 连接池健壮性配置
+  connectTimeout: 10000,   // 建立连接超时 10s
+  idleTimeout: 60000,      // 空闲连接 60s 后回收
+  enableKeepAlive: true,   // 保持连接避免 mysql 断开
+  maxIdle: 5               // 最多保留 5 个空闲连接
 });
 
 // 将数据库连接池设置到app.locals，供路由使用
@@ -1748,9 +1911,14 @@ const initDatabase = async () => {
     // 只在admin用户不存在时添加
     const [existingUsers] = await connection.execute('SELECT * FROM users WHERE username = ?', ['管理员']);
     if (existingUsers.length === 0) {
+      // 管理员初始密码：优先从环境变量 ADMIN_INIT_PASSWORD 读取，否则随机生成（绝不使用固定弱密码）
+      const adminInitPwd = process.env.ADMIN_INIT_PASSWORD;
+      if (!adminInitPwd) {
+        console.warn('[安全] 未配置 ADMIN_INIT_PASSWORD，管理员初始密码随机生成，请查看日志或联系管理员重置');
+      }
       await connection.execute(
         'INSERT INTO users (username, password, createdAt) VALUES (?, ?, ?)',
-        ['管理员', '123456', new Date().toISOString().replace('T', ' ').replace('Z', '')]
+        ['管理员', hashPassword(String(adminInitPwd || Math.random().toString(36).slice(-10) + 'Aa1!')), new Date().toISOString().replace('T', ' ').replace('Z', '')]
       );
       console.log('默认admin用户添加成功');
     }
@@ -1877,11 +2045,17 @@ const initDatabase = async () => {
       const [existingUser] = await connection.execute('SELECT * FROM users WHERE username = ?', [employee.name]);
       console.log(`  users表中存在: ${existingUser.length > 0}`);
       if (existingUser.length === 0) {
+        // 员工初始密码：优先使用环境变量 EMPLOYEE_INIT_PASSWORD；未配置则自动生成唯一随机强密码
+        const initPwd = process.env.EMPLOYEE_INIT_PASSWORD || generateRandomPassword(14);
         await connection.execute(
           'INSERT INTO users (username, password, createdAt) VALUES (?, ?, ?)',
-          [employee.name, '123456', syncNow]
+          [employee.name, hashPassword(initPwd), syncNow]
         );
-        console.log(`  -> 为员工 ${employee.name} 创建登录账户`);
+        if (process.env.EMPLOYEE_INIT_PASSWORD) {
+          console.log(`  -> 为员工 ${employee.name} 创建登录账户（使用 EMPLOYEE_INIT_PASSWORD）`);
+        } else {
+          console.log(`  -> 为员工 ${employee.name} 创建登录账户，初始密码: ${initPwd}`);
+        }
       }
     }
     console.log('员工同步完成');
@@ -1953,16 +2127,26 @@ const initDatabase = async () => {
 
 // API路由
 
-
+// A1: 启动时清理 90 天前的操作日志，防止数据无限膨胀
+if (pool) {
+  cleanupOldLogs(pool, 90).catch(() => {});
+}
 
 // 创建HTTP服务器
 const server = createServer(app);
 
-// 创建Socket.io服务器
+// 创建Socket.io服务器（复用 HTTP 白名单，禁止全开放）
 const io = new Server(server, {
   cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+    },
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 });
 app.set('io', io);
@@ -1973,9 +2157,31 @@ const onlineEmployeeIds = new Set();
 
 // 监听Socket连接
 io.on('connection', (socket) => {
+  // P3: Socket.IO 连接鉴权——校验 handshake 携带的 token，无效则拒绝连接
+  const authToken = socket.handshake?.auth?.token || socket.handshake?.query?.token;
+  let authedUser = null;
+  if (authToken) {
+    try {
+      const decoded = verifyToken(String(authToken));
+      // 提取纯姓名
+      let uname = decoded?.username || '';
+      if (uname && /^emp_/.test(uname)) {
+        const parts = uname.split('_');
+        if (parts.length >= 2) uname = parts[1];
+      }
+      authedUser = { username: uname, id: decoded?.id };
+    } catch (e) {
+      authedUser = null;
+    }
+  }
+  if (!authedUser) {
+    console.log('Socket 连接被拒绝（token 无效）:', socket.id);
+    socket.disconnect(true);
+    return;
+  }
   // 增加在线用户数
   onlineUserCount++;
-  console.log('新用户连接:', socket.id);
+  console.log(`新用户连接: ${socket.id} (${authedUser.username})`);
   console.log('当前在线用户数:', onlineUserCount);
   
   // 广播在线用户数
@@ -2328,9 +2534,11 @@ const createWorkflowTables = async () => {
 // 全局错误处理中间件
 app.use((err, req, res, next) => {
   console.error('未捕获的错误:', err);
+  // 生产环境不泄露内部错误详情（堆栈/路径/表结构等），仅开发环境返回详细信息
+  const isProd = process.env.NODE_ENV === 'production';
   res.status(err.status || 500).json({
     success: false,
-    message: err.message || '服务器内部错误'
+    message: isProd ? '服务器内部错误' : (err.message || '服务器内部错误')
   });
 });
 

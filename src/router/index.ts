@@ -201,15 +201,31 @@ const router = createRouter({
   ]
 })
 
+// 本地解析 JWT，检查是否过期
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = token.split('.')[1]
+    if (!payload) return true
+    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
+    if (!decoded.exp) return false
+    return Date.now() >= decoded.exp * 1000
+  } catch {
+    return true // 无法解析视为无效
+  }
+}
+
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
-  console.log('Route guard - Token:', token);
-  console.log('Route guard - To:', to.path);
-  if (to.path !== '/login' && !token) {
-    console.log('Route guard - Redirecting to login');
+  const isPublic = to.path === '/login'
+  // 未登录或 token 已过期 → 跳转登录页
+  if (!isPublic && (!token || isTokenExpired(token))) {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    localStorage.removeItem('role')
+    localStorage.removeItem('username')
+    localStorage.removeItem('userId')
     next('/login')
   } else {
-    console.log('Route guard - Allowing navigation');
     next()
   }
 })

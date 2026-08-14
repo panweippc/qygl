@@ -1,48 +1,100 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 const router = express.Router();
 
 import { createOperationLog } from '../utils/audit.js';
+import { signToken, isHashed, hashPassword, verifyPassword } from '../utils/security.js';
 
-router.post('/login', async (req, res) => {
+// 登录接口 IP 级限流（防同一 IP 爆破不同账号）
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,   // 15分钟窗口
+  max: 30,                     // 每 IP 最多30次尝试
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true, // 成功登录不计入限流
+  message: { success: false, message: '登录尝试过于频繁，请稍后再试' }
+});
+
+// 登录失败锁定（内存记录，重启后重置）
+const FAILED_LIMIT = 5;
+const LOCK_MINUTES = 15;
+const loginFailures = new Map();
+
+const failKey = (username, ip) => `${String(username || '').toLowerCase()}|${ip || ''}`;
+
+const isLocked = (username, ip) => {
+  const rec = loginFailures.get(failKey(username, ip));
+  if (!rec) return false;
+  if (rec.lockedUntil && Date.now() < rec.lockedUntil) return true;
+  if (rec.lockedUntil && Date.now() >= rec.lockedUntil) loginFailures.delete(failKey(username, ip));
+  return false;
+};
+
+const recordFailure = (username, ip) => {
+  const key = failKey(username, ip);
+  const rec = loginFailures.get(key) || { count: 0 };
+  rec.count += 1;
+  if (rec.count >= FAILED_LIMIT) rec.lockedUntil = Date.now() + LOCK_MINUTES * 60 * 1000;
+  loginFailures.set(key, rec);
+};
+
+const clearFailures = (username, ip) => {
+  loginFailures.delete(failKey(username, ip));
+};
+
+// 校验密码（兼容存量明文密码，成功后自动升级为 bcrypt 哈希）
+const matchUser = (users, password) => {
+  if (!Array.isArray(users)) return null;
+  for (const u of users) {
+    if (verifyPassword(password, u.password)) return u;
+  }
+  return null;
+};
+
+router.post('/login', loginLimiter, async (req, res) => {
   let { username, password } = req.body;
   const { pool, userSessions } = req.app.locals;
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
   try {
-    let users = [];
+    if (!username || !password) {
+      return res.json({ success: false, message: '请输入用户名和密码' });
+    }
+    username = String(username).trim();
 
-    // 1. 直接查询
+    if (isLocked(username, ip)) {
+      return res.status(429).json({ success: false, message: `登录失败次数过多，请${LOCK_MINUTES}分钟后再试` });
+    }
+
+    let user = null;
+
+    // 1. 用户名精确匹配
     try {
-      [users] = await pool.execute('SELECT * FROM users WHERE username = ? AND password = ?', [username, password]);
+      const [users] = await pool.execute('SELECT * FROM users WHERE username = ?', [username]);
+      user = matchUser(users, password);
     } catch (error) {
       console.log('直接查询失败:', error.message);
     }
 
-    // 2. 如果直接查询失败，尝试使用LIKE查询
-    if (users.length === 0) {
+    // 2. 用户名模糊匹配（保留历史业务习惯）
+    if (!user) {
       try {
-        [users] = await pool.execute('SELECT * FROM users WHERE username LIKE ? AND password = ?', [`%${username}%`, password]);
+        const [users] = await pool.execute('SELECT * FROM users WHERE username LIKE ?', [`%${username}%`]);
+        user = matchUser(users, password);
       } catch (error) {
         console.log('LIKE查询失败:', error.message);
       }
     }
 
-    // 3. 如果仍然失败，尝试查询所有用户并在内存中匹配
-    if (users.length === 0) {
-      try {
-        const [allUsers] = await pool.execute('SELECT * FROM users');
-        users = allUsers.filter(user => user.username === username && user.password === password);
-      } catch (error) {
-        console.log('查询所有用户失败:', error.message);
-      }
-    }
-
-    // 4. 如果仍然失败，尝试通过员工姓名登录
-    if (users.length === 0) {
+    // 3. 通过员工姓名登录
+    if (!user) {
       try {
         const [employees] = await pool.execute('SELECT * FROM employees WHERE name = ?', [username]);
         if (employees.length > 0) {
-          [users] = await pool.execute('SELECT * FROM users WHERE username = ? AND password = ?', [username, password]);
-          if (users.length === 0) {
-            [users] = await pool.execute('SELECT * FROM users WHERE username LIKE ? AND password = ?', [`emp_${username}_%`, password]);
+          const [users] = await pool.execute('SELECT * FROM users WHERE username = ?', [username]);
+          user = matchUser(users, password);
+          if (!user) {
+            const [empUsers] = await pool.execute('SELECT * FROM users WHERE username LIKE ?', [`emp_${username}%`]);
+            user = matchUser(empUsers, password);
           }
         }
       } catch (error) {
@@ -50,123 +102,215 @@ router.post('/login', async (req, res) => {
       }
     }
 
-    if (users.length > 0) {
-      const user = users[0];
-
-      const io = req.app.get('io');
-      if (userSessions.has(user.username)) {
-        const oldSocketId = userSessions.get(user.username);
-        if (oldSocketId) {
-          io.to(oldSocketId).emit('kickedOut', { message: '您的账号在其他设备登录，已被强制退出' });
-        }
-      }
-      userSessions.set(user.username, null);
-
-      let permissions = [];
-      let department = '';
-      let position = '';
-      let roleName = '';
-      let avatar = '';
-      let employee = null;
+    if (!user) {
+      recordFailure(username, ip);
+      // A2: 记录登录失败审计日志（含尝试的账号名和IP，便于发现暴力破解）
       try {
-        let employeeName = user.username;
-        if (user.username.startsWith('emp_')) {
-          const parts = user.username.split('_');
-          if (parts.length >= 2) {
-            employeeName = parts[1];
+        await createOperationLog(pool, {
+          userId: null,
+          username: username || '未知',
+          action: 'login_fail',
+          module: 'auth',
+          targetId: null,
+          targetName: username || '',
+          detail: `登录失败（账号或密码错误），来源IP: ${ip}`,
+          ipAddress: ip
+        });
+      } catch (logErr) {
+        console.log('记录登录失败日志失败:', logErr.message);
+      }
+      return res.json({ success: false, message: '用户名或密码错误' });
+    }
+
+    clearFailures(username, ip);
+
+    // 存量明文密码自动升级为 bcrypt 哈希
+    if (!isHashed(user.password)) {
+      try {
+        const hashed = hashPassword(password);
+        await pool.execute('UPDATE users SET password = ? WHERE id = ?', [hashed, user.id]);
+        user.password = hashed;
+      } catch (error) {
+        console.log('密码升级失败:', error.message);
+      }
+    }
+
+    const io = req.app.get('io');
+    if (userSessions.has(user.username)) {
+      const oldSocketId = userSessions.get(user.username);
+      if (oldSocketId) {
+        io.to(oldSocketId).emit('kickedOut', { message: '您的账号在其他设备登录，已被强制退出' });
+      }
+    }
+    userSessions.set(user.username, null);
+
+    let permissions = [];
+    let department = '';
+    let position = '';
+    let roleName = '';
+    let avatar = '';
+    let employee = null;
+    let employeeName = user.username || '';
+    if (employeeName.startsWith('emp_')) {
+      const parts = employeeName.split('_');
+      if (parts.length >= 2) {
+        employeeName = parts[1];
+      }
+    }
+    try {
+      const [employees] = await pool.execute(
+        'SELECT e.*, r.name AS roleName FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
+        [employeeName]
+      );
+
+      if (employees.length > 0) {
+        employee = employees[0];
+        department = employee.department;
+        position = employee.position;
+        roleName = employee.roleName || '';
+        avatar = employee.avatar || '';
+
+        if (employee.roleId) {
+          const [rolePerms] = await pool.execute(
+            `SELECT m.id, m.name, m.path, m.component, m.icon
+             FROM role_permissions rp
+             JOIN menus m ON rp.menuId = m.id
+             WHERE rp.roleId = ?`,
+            [employee.roleId]
+          );
+          if (rolePerms.length > 0) {
+            permissions = rolePerms;
           }
         }
-        const [employees] = await pool.execute(
-          'SELECT e.*, r.name AS roleName FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
-          [employeeName]
-        );
 
-          if (employees.length > 0) {
-            employee = employees[0];
-            department = employee.department;
-            position = employee.position;
-            roleName = employee.roleName || '';
-            avatar = employee.avatar || '';
-
-          if (employee.roleId) {
-            const [rolePerms] = await pool.execute(
-              `SELECT m.id, m.name, m.path, m.component, m.icon
-               FROM role_permissions rp
-               JOIN menus m ON rp.menuId = m.id
-               WHERE rp.roleId = ?`,
-              [employee.roleId]
-            );
-            if (rolePerms.length > 0) {
-              permissions = rolePerms;
-            }
+        if (permissions.length === 0) {
+          let fallbackRoleName = '';
+          if (employee.department === '管理部门' && employee.position === '总经理') {
+            fallbackRoleName = '总经理';
+          } else if (employee.department === '技术部') {
+            fallbackRoleName = '技术部员工';
+          } else if (employee.department === '销售部') {
+            fallbackRoleName = '销售';
+          } else if (employee.department === '财务部') {
+            fallbackRoleName = employee.position === '财务总监' ? '财务总监' : '财务';
+          } else if (employee.department === '人力资源部') {
+            fallbackRoleName = '人事经理';
           }
 
-          if (permissions.length === 0) {
-            let roleName = '';
-            if (employee.department === '管理部门' && employee.position === '总经理') {
-              roleName = '总经理';
-            } else if (employee.department === '技术部') {
-              roleName = '技术部员工';
-            } else if (employee.department === '销售部') {
-              roleName = '销售';
-            } else if (employee.department === '财务部') {
-              roleName = employee.position === '财务总监' ? '财务总监' : '财务';
-            } else if (employee.department === '人力资源部') {
-              roleName = '人事经理';
-            }
-
-            if (roleName) {
-              const [roles] = await pool.execute('SELECT * FROM roles WHERE name = ?', [roleName]);
-              if (roles.length > 0) {
-                const [rolePerms] = await pool.execute(
-                  `SELECT m.id, m.name, m.path, m.component, m.icon
-                   FROM role_permissions rp
-                   JOIN menus m ON rp.menuId = m.id
-                   WHERE rp.roleId = ?`,
-                  [roles[0].id]
-                );
-                if (rolePerms.length > 0) {
-                  permissions = rolePerms;
-                }
+          if (fallbackRoleName) {
+            const [roles] = await pool.execute('SELECT * FROM roles WHERE name = ?', [fallbackRoleName]);
+            if (roles.length > 0) {
+              const [rolePerms] = await pool.execute(
+                `SELECT m.id, m.name, m.path, m.component, m.icon
+                 FROM role_permissions rp
+                 JOIN menus m ON rp.menuId = m.id
+                 WHERE rp.roleId = ?`,
+                [roles[0].id]
+              );
+              if (rolePerms.length > 0) {
+                permissions = rolePerms;
               }
             }
           }
         }
-      } catch (permError) {
-        console.error('获取用户权限失败:', permError.message);
       }
-
-      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-      await createOperationLog(pool, {
-        userId: String(user.id),
-        username: user.username,
-        action: 'login',
-        module: 'auth',
-        detail: '用户登录系统',
-        ipAddress: ip
-      });
-
-      let buttonPermissions = {};
-      const empRoleId = employee ? employee.roleId : null;
-      if (empRoleId) {
-        try {
-          const [btnPerms] = await pool.execute(
-            'SELECT menuId, buttonKey FROM role_button_permissions WHERE roleId = ?',
-            [empRoleId]
-          );
-          btnPerms.forEach(bp => {
-            if (!buttonPermissions[bp.menuId]) buttonPermissions[bp.menuId] = [];
-            buttonPermissions[bp.menuId].push(bp.buttonKey);
-          });
-        } catch (e) { /* ignore */ }
-      }
-      const extraUserFields = { ...user, permissions, department, position, roleName, avatar, buttonPermissions };
-      res.json({ success: true, user: extraUserFields });
-    } else {
-      res.json({ success: false, message: '用户名或密码错误' });
+    } catch (permError) {
+      console.error('获取用户权限失败:', permError.message);
     }
+
+    await createOperationLog(pool, {
+      userId: String(user.id),
+      username: user.username,
+      action: 'login',
+      module: 'auth',
+      detail: '用户登录系统',
+      ipAddress: ip
+    });
+
+    // E7: 登录 IP 异常检测——若当前 IP 不在该用户历史登录 IP 中，标记为"新设备/新IP登录"
+    let isNewIpLogin = false;
+    try {
+      const [histIpRows] = await pool.execute(
+        "SELECT DISTINCT ipAddress FROM operation_logs WHERE username = ? AND action = 'login' AND ipAddress IS NOT NULL AND ipAddress != '' AND ipAddress != ? ORDER BY id DESC LIMIT 20",
+        [user.username, ip]
+      );
+      // 若无历史登录记录或当前 IP 不在历史 IP 中，视为新 IP 登录
+      if (histIpRows.length === 0) {
+        isNewIpLogin = true;
+      }
+      if (isNewIpLogin) {
+        await createOperationLog(pool, {
+          userId: String(user.id),
+          username: user.username,
+          action: 'login_new_ip',
+          module: 'auth',
+          detail: `检测到新 IP 登录（异常登录提醒）: ${ip}`,
+          ipAddress: ip
+        });
+        console.warn(`[安全提醒] 用户 ${user.username} 从新 IP ${ip} 登录`);
+      }
+    } catch (ipErr) {
+      console.log('IP 异常检测失败:', ipErr.message);
+    }
+
+    let buttonPermissions = {};
+    const empRoleId = employee ? employee.roleId : null;
+    if (empRoleId) {
+      try {
+        const [btnPerms] = await pool.execute(
+          'SELECT menuId, buttonKey FROM role_button_permissions WHERE roleId = ?',
+          [empRoleId]
+        );
+        btnPerms.forEach(bp => {
+          if (!buttonPermissions[bp.menuId]) buttonPermissions[bp.menuId] = [];
+          buttonPermissions[bp.menuId].push(bp.buttonKey);
+        });
+      } catch (e) { /* ignore */ }
+    }
+
+    // 用真实姓名（纯姓名，不带 emp_ 前缀）签发 token，token 内 username 恒为姓名
+    const tokenUsername = employeeName || user.username;
+    const token = signToken({ id: user.id, username: tokenUsername, roleName: roleName || '', password: user.password });
+    const { password: _pw, ...userSafe } = user;
+    res.json({ success: true, user: { ...userSafe, username: tokenUsername, name: employeeName || user.username, permissions, department, position, roleName, avatar, buttonPermissions }, token });
   } catch (error) {
+    console.error('登录失败:', error);
     res.status(500).json({ success: false, message: '登录失败' });
+  }
+});
+
+// Token 自动刷新：用仍有效的登录态换取新 token（静默续期，避免频繁掉线）
+// 受全局 requireAuth 保护，改密后旧 token 会因密码指纹不一致而刷新失败，需重新登录
+router.post('/auth/refresh', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const username = req.user?.name || req.user?.username;
+    if (!username) {
+      return res.status(401).json({ success: false, message: '未登录' });
+    }
+    const [users] = await pool.execute('SELECT * FROM users WHERE username = ?', [username]);
+    if (users.length === 0) {
+      return res.status(401).json({ success: false, message: '用户不存在' });
+    }
+    const user = users[0];
+    // 查询员工的部门、职位、角色（与登录逻辑一致）
+    let department = '', position = '', roleName = '';
+    let roleId = null;
+    const [employees] = await pool.execute('SELECT * FROM employees WHERE name = ?', [username]);
+    if (employees.length > 0) {
+      department = employees[0].department || '';
+      position = employees[0].position || '';
+      roleId = employees[0].roleId || null;
+    }
+    if (roleId) {
+      const [roleRows] = await pool.execute('SELECT name FROM roles WHERE id = ?', [roleId]);
+      roleName = roleRows.length > 0 ? roleRows[0].name : '';
+    }
+    const newToken = signToken({ id: user.id, username, roleName: roleName || '', password: user.password });
+    res.json({ success: true, token: newToken, expiresIn: 12 * 60 * 60, message: 'token 已刷新' });
+  } catch (error) {
+    console.error('刷新 token 失败:', error);
+    res.status(500).json({ success: false, message: '刷新 token 失败' });
   }
 });
 

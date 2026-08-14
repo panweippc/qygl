@@ -187,7 +187,8 @@ const handleBack = () => {
 
 // 下载导入模板
 const downloadTemplate = () => {
-  window.open('/api/sales-import/template', '_blank')
+  const token = localStorage.getItem('token') || ''
+  window.open(`/api/sales-import/template?token=${encodeURIComponent(token)}`, '_blank')
 }
 
 // 导入销售记录

@@ -1,6 +1,10 @@
 import express from 'express';
-import { createOperationLog } from '../utils/audit.js';
+import { createOperationLog, getOperator } from '../utils/audit.js';
+import { requireRole } from '../middleware/auth.js';
 const router = express.Router();
+
+// 系统管理接口仅限管理员/总经理等管理角色
+const ADMIN_ROLES = ['系统管理员', '总经理'];
 
 // 获取所有角色
 router.get('/roles', async (req, res) => {
@@ -31,7 +35,7 @@ router.get('/roles/:id', async (req, res) => {
 });
 
 // 创建角色
-router.post('/roles', async (req, res) => {
+router.post('/roles', requireRole(...ADMIN_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { name, code, description, status } = req.body;
   try {
@@ -49,7 +53,7 @@ router.post('/roles', async (req, res) => {
       'INSERT INTO roles (name, code, description, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
       [name, code, description || '', status || '启用', now, now]
     );
-    const operator = req.body.operator || req.body.username || '系统';
+    const operator = getOperator(req);
     createOperationLog(pool, { userId: null, username: operator, action: 'create', module: 'system', targetId: result.insertId, targetName: name, detail: `创建角色: ${name}`, ipAddress: req.ip });
     res.json({ success: true, message: '角色创建成功', data: { id: result.insertId } });
   } catch (error) {
@@ -59,7 +63,7 @@ router.post('/roles', async (req, res) => {
 });
 
 // 更新角色
-router.put('/roles/:id', async (req, res) => {
+router.put('/roles/:id', requireRole(...ADMIN_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   const { name, code, description, status } = req.body;
@@ -69,7 +73,7 @@ router.put('/roles/:id', async (req, res) => {
       'UPDATE roles SET name = ?, code = ?, description = ?, status = ?, updatedAt = ? WHERE id = ?',
       [name, code, description || '', status || '启用', now, id]
     );
-    const operator = req.body.operator || req.body.username || '系统';
+    const operator = getOperator(req);
     createOperationLog(pool, { userId: null, username: operator, action: 'update', module: 'system', targetId: id, targetName: name, detail: `更新角色: ${name}`, ipAddress: req.ip });
     res.json({ success: true, message: '角色更新成功' });
   } catch (error) {
@@ -79,7 +83,7 @@ router.put('/roles/:id', async (req, res) => {
 });
 
 // 删除角色
-router.delete('/roles/:id', async (req, res) => {
+router.delete('/roles/:id', requireRole(...ADMIN_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   const connection = await pool.getConnection();
@@ -96,7 +100,7 @@ router.delete('/roles/:id', async (req, res) => {
 
     await connection.commit();
     console.log('事务提交成功');
-    const operator = req.body.operator || req.body.username || '系统';
+    const operator = getOperator(req);
     createOperationLog(pool, { userId: null, username: operator, action: 'delete', module: 'system', targetId: id, targetName: `角色ID: ${id}`, detail: `删除角色 ID: ${id}`, ipAddress: req.ip });
     res.json({ success: true, message: '角色删除成功' });
   } catch (error) {
@@ -151,7 +155,7 @@ router.get('/menus/:id', async (req, res) => {
 });
 
 // 创建菜单
-router.post('/menus', async (req, res) => {
+router.post('/menus', requireRole(...ADMIN_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { parentId, name, path, component, icon, sort, status } = req.body;
   try {
@@ -160,7 +164,7 @@ router.post('/menus', async (req, res) => {
       'INSERT INTO menus (parentId, name, path, component, icon, sort, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [parentId || 0, name, path, component || '', icon || '', sort || 0, status || '启用', now, now]
     );
-    const operator = req.body.operator || req.body.username || '系统';
+    const operator = getOperator(req);
     createOperationLog(pool, { userId: null, username: operator, action: 'create', module: 'system', targetId: result.insertId, targetName: name, detail: `创建菜单: ${name}`, ipAddress: req.ip });
     res.json({ success: true, message: '菜单创建成功', data: { id: result.insertId } });
   } catch (error) {
@@ -170,7 +174,7 @@ router.post('/menus', async (req, res) => {
 });
 
 // 更新菜单
-router.put('/menus/:id', async (req, res) => {
+router.put('/menus/:id', requireRole(...ADMIN_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   const { parentId, name, path, component, icon, sort, status } = req.body;
@@ -180,7 +184,7 @@ router.put('/menus/:id', async (req, res) => {
       'UPDATE menus SET parentId = ?, name = ?, path = ?, component = ?, icon = ?, sort = ?, status = ?, updatedAt = ? WHERE id = ?',
       [parentId || 0, name, path, component || '', icon || '', sort || 0, status || '启用', now, id]
     );
-    const operator = req.body.operator || req.body.username || '系统';
+    const operator = getOperator(req);
     createOperationLog(pool, { userId: null, username: operator, action: 'update', module: 'system', targetId: id, targetName: name, detail: `更新菜单: ${name}`, ipAddress: req.ip });
     res.json({ success: true, message: '菜单更新成功' });
   } catch (error) {
@@ -190,13 +194,13 @@ router.put('/menus/:id', async (req, res) => {
 });
 
 // 删除菜单
-router.delete('/menus/:id', async (req, res) => {
+router.delete('/menus/:id', requireRole(...ADMIN_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   try {
     await pool.execute('DELETE FROM menus WHERE parentId = ?', [id]);
     await pool.execute('DELETE FROM menus WHERE id = ?', [id]);
-    const operator = req.body.operator || req.body.username || '系统';
+    const operator = getOperator(req);
     createOperationLog(pool, { userId: null, username: operator, action: 'delete', module: 'system', targetId: id, targetName: `菜单ID: ${id}`, detail: `删除菜单 ID: ${id}`, ipAddress: req.ip });
     res.json({ success: true, message: '菜单删除成功' });
   } catch (error) {
@@ -243,7 +247,7 @@ router.get('/roles/:roleId/button-permissions', async (req, res) => {
 });
 
 // 分配角色按钮权限
-router.post('/roles/:roleId/button-permissions', async (req, res) => {
+router.post('/roles/:roleId/button-permissions', requireRole(...ADMIN_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { roleId } = req.params;
   const { permissions } = req.body; // { menuId: ['btn_add', 'btn_edit', ...] }
@@ -269,6 +273,8 @@ router.post('/roles/:roleId/button-permissions', async (req, res) => {
     }
 
     await connection.commit();
+    const btnOperator = getOperator(req);
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: btnOperator, action: 'update', module: 'system', targetId: roleId, targetName: `角色ID: ${roleId}`, detail: `分配按钮权限`, ipAddress: req.ip });
     res.json({ success: true, message: '按钮权限分配成功' });
   } catch (error) {
     await connection.rollback();
@@ -280,7 +286,7 @@ router.post('/roles/:roleId/button-permissions', async (req, res) => {
 });
 
 // 分配角色权限
-router.post('/roles/:roleId/permissions', async (req, res) => {
+router.post('/roles/:roleId/permissions', requireRole(...ADMIN_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { roleId } = req.params;
   const { menuIds } = req.body;
@@ -309,7 +315,7 @@ router.post('/roles/:roleId/permissions', async (req, res) => {
 
     await connection.commit();
     console.log('权限分配成功');
-    const operator = req.body.operator || req.body.username || '系统';
+    const operator = getOperator(req);
     createOperationLog(pool, { userId: null, username: operator, action: 'update', module: 'system', targetId: roleId, targetName: `角色ID: ${roleId}`, detail: `分配角色权限`, ipAddress: req.ip });
     res.json({ success: true, message: '权限分配成功' });
   } catch (error) {

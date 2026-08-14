@@ -1,5 +1,5 @@
 import express from 'express';
-import { createOperationLog } from '../utils/audit.js';
+import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
 router.get('/project-categories', async (req, res) => {
@@ -21,7 +21,7 @@ router.post('/project-categories', async (req, res) => {
       [name, category, description, manager || '', link || '', new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
     await createOperationLog(pool, {
-      username: req.body.operator || '系统',
+      username: getOperator(req),
       action: 'create',
       module: 'project',
       targetName: name,
@@ -39,7 +39,7 @@ router.delete('/project-categories/:category', async (req, res) => {
   try {
     await pool.execute('DELETE FROM project_applications WHERE project_type = ?', [category]);
     await createOperationLog(pool, {
-      username: req.body.operator || '系统',
+      username: getOperator(req),
       action: 'delete',
       module: 'project',
       targetName: category,
@@ -60,7 +60,7 @@ router.put('/project-categories/update-type', async (req, res) => {
       [newType, oldType]
     );
     await createOperationLog(pool, {
-      username: req.body.operator || '系统',
+      username: getOperator(req),
       action: 'update',
       module: 'project',
       targetName: newType,
@@ -81,7 +81,7 @@ router.delete('/:id', async (req, res) => {
     const projectName = rows.length > 0 ? rows[0].name : id;
     await pool.execute('DELETE FROM projects WHERE id = ?', [id]);
     await createOperationLog(pool, {
-      username: req.body.operator || '系统',
+      username: getOperator(req),
       action: 'delete',
       module: 'project',
       targetName: projectName,
@@ -100,17 +100,22 @@ router.put('/project-categories/:id', async (req, res) => {
   const { name, description, link } = req.body;
   console.log('更新项目请求:', { id, name, description, link });
   try {
+    const beforeValue = await getRecordBefore(pool, 'projects', id, { name: 1, description: 1, link: 1 });
     await pool.execute(
       'UPDATE projects SET name = ?, description = ?, link = ? WHERE id = ?',
       [name, description, link, id]
     );
     console.log('项目更新成功:', id);
     await createOperationLog(pool, {
-      username: req.body.operator || '系统',
+      username: getOperator(req),
       action: 'update',
       module: 'project',
       targetName: name,
       detail: `更新项目: ${name}`
+    });
+    await logDataChange(pool, {
+      module: 'project', username: getOperator(req), targetId: id, targetName: `项目: ${name}`,
+      beforeValue, afterValue: { name, description, link }, ipAddress: req.ip
     });
     res.json({ success: true, message: '项目更新成功' });
   } catch (error) {

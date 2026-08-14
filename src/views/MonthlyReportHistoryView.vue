@@ -230,7 +230,7 @@
                 <span class="doc-name">{{ previewFileData.name }}</span>
                 <el-button size="small" @click="downloadFile(previewFileData)" :icon="Download">下载</el-button>
               </div>
-              <div class="doc-content" v-html="previewDocContent"></div>
+              <div class="doc-content" v-html="DOMPurify.sanitize(previewDocContent)"></div>
             </div>
             <!-- 其他文件类型 -->
             <div v-else class="other-preview">
@@ -270,6 +270,7 @@ import { useButtonPermission } from '@/composables/usePermission'
 import { getMonthlyReports, getEmployees, updateMonthlyReport } from '../services/api'
 import { sectionsFromReport, buildContent, buildPlan, emptySections, nonEmptySections, autoReportTitle } from '../utils/monthlyReport'
 import * as mammoth from 'mammoth'
+import DOMPurify from 'dompurify'
 
 const router = useRouter()
 const { hasPerm } = useButtonPermission()

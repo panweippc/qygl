@@ -374,9 +374,9 @@ router.put('/projects/update-manager', async (req, res) => {
       "UPDATE project_applications SET applicant_name = ?, updated_at = NOW() WHERE project_type = ?",
       [manager, projectType]
     );
-    const { createOperationLog } = await import('../utils/audit.js');
+    const { createOperationLog, getOperator } = await import('../utils/audit.js');
     await createOperationLog(pool, {
-      username: req.body.operator || '系统',
+      username: getOperator(req),
       action: 'update',
       module: 'project',
       targetName: `产品分类"${projectType}"负责人变更为${manager}`,

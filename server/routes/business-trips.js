@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 
-import { createNotification, createOperationLog } from '../utils/audit.js';
+import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
 
 // 获取出差列表
 router.get('/business-trips', async (req, res) => {
@@ -346,6 +346,8 @@ router.delete('/business-trips/:id', async (req, res) => {
       [id]
     );
 
+    // 删除出差申请审计
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'delete', module: 'business_trip', targetId: id, targetName: `${trips[0].destination}出差(${trips[0].trip_code})`, detail: `删除出差申请: ${trips[0].destination}`, ipAddress: req.ip });
     res.json({ success: true, message: '出差申请删除成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

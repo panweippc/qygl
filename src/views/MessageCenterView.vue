@@ -45,7 +45,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const loading = ref(false)
 const notifications = ref<any[]>([])
@@ -124,6 +124,9 @@ async function markAllRead() {
 
 async function deleteNotif(id: number) {
   try {
+    await ElMessageBox.confirm('确定要删除这条消息吗？', '删除消息', {
+      confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
+    })
     const item = notifications.value.find(n => n.id === id)
     await fetch(`/api/notifications/${id}`, { method: 'DELETE' })
     if (item && !item.isRead) unreadCount.value = Math.max(0, unreadCount.value - 1)

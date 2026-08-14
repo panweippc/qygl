@@ -30,6 +30,23 @@
           </el-descriptions>
         </div>
       </div>
+      <el-divider />
+      <div class="login-records">
+        <h3>最近登录记录</h3>
+        <p class="record-hint">以下为您的账号最近登录/尝试登录记录，如发现异常请及时修改密码</p>
+        <el-table :data="loginRecords" size="small" border max-height="320">
+          <el-table-column label="时间" prop="time" width="180" />
+          <el-table-column label="IP 地址" prop="ip" width="150" />
+          <el-table-column label="结果" width="90">
+            <template #default="{ row }">
+              <el-tag :type="row.success ? 'success' : 'danger'" size="small">
+                {{ row.success ? '成功' : '失败' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="说明" prop="detail" />
+        </el-table>
+      </div>
       <div style="margin-top:20px">
         <el-button @click="$router.push('/')">返回首页</el-button>
       </div>
@@ -46,6 +63,7 @@ const currentUsername = ref('')
 const userRole = ref('')
 const avatarUrl = ref('')
 const uploading = ref(false)
+const loginRecords = ref<any[]>([])
 
 const avatarText = computed(() => currentUser.value.charAt(0).toUpperCase())
 
@@ -113,9 +131,18 @@ const beforeUpload = (file: File) => {
   return true
 }
 
+const loadLoginRecords = async () => {
+  try {
+    const res = await fetch('/api/user/login-records')
+    const json = await res.json()
+    if (json.success) loginRecords.value = json.data || []
+  } catch { /* ignore */ }
+}
+
 onMounted(() => {
   loadData()
   loadAvatar()
+  loadLoginRecords()
 })
 </script>
 
@@ -155,5 +182,18 @@ onMounted(() => {
 .info-section {
   width: 100%;
   max-width: 400px;
+}
+.login-records {
+  width: 100%;
+  text-align: left;
+}
+.login-records h3 {
+  margin: 0 0 4px 0;
+  color: #333;
+}
+.record-hint {
+  font-size: 12px;
+  color: #999;
+  margin: 0 0 12px 0;
 }
 </style>

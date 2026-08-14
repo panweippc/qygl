@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 
-import { createNotification, createOperationLog } from '../utils/audit.js';
+import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
 
 router.get('/entertainment-expenses', async (req, res) => {
   try {
@@ -72,7 +72,7 @@ router.put('/entertainment-expenses/:id', async (req, res) => {
       if (app) {
         await createNotification(pool, { userId: app.applicant, title: '招待费已转发', content: `您的业务招待费申请已转发至总经理审批`, type: 'approval' });
         await createNotification(pool, { userId: forwardTo, title: '招待费审批提醒', content: `${app.applicant} 的业务招待费申请已转发给您，请审批`, type: 'approval' });
-        await createOperationLog(pool, { username: req.body.operator || '系统', action: 'forward', module: 'entertainment', targetName: `${app.applicant}的业务招待费`, detail: comment || '' });
+        await createOperationLog(pool, { username: getOperator(req), action: 'forward', module: 'entertainment', targetName: `${app.applicant}的业务招待费`, detail: comment || '' });
       }
     } else {
       const status = result === '批准' ? '已批准' : result === '拒绝' ? '已拒绝' : '审批中';

@@ -1,5 +1,5 @@
 import express from 'express';
-import { createNotification, createOperationLog } from '../utils/audit.js';
+import { createNotification, createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
 // 获取所有下发记录列表（管理员用）
@@ -51,7 +51,7 @@ router.get('/distributed-records/user/:targetUser', async (req, res) => {
 // 添加下发记录
 router.post('/distributed-records', async (req, res) => {
   const { pool } = req.app.locals;
-  const username = req.body.operator || req.body.username || '系统';
+  const username = getOperator(req);
   try {
     const { applicationId, applicationType, applicant, distributedBy, targetUser, comment, status, detail } = req.body;
 
@@ -120,10 +120,11 @@ router.post('/distributed-records', async (req, res) => {
 // 更新下发记录
 router.put('/distributed-records/:id', async (req, res) => {
   const { pool } = req.app.locals;
-  const username = req.body.operator || req.body.username || '系统';
+  const username = getOperator(req);
   try {
     const { id } = req.params;
     const { status, comment, processComment } = req.body;
+    const beforeValue = await getRecordBefore(pool, 'distributed_records', id, { status: 1, comment: 1, processComment: 1 });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
     const updates = [];
@@ -157,6 +158,12 @@ router.put('/distributed-records/:id', async (req, res) => {
       targetId: id,
       targetName: `下发记录ID: ${id}`,
       detail: `更新下发记录 ID: ${id}, 状态: ${status || '无变化'}`,
+      ipAddress: req.ip
+    });
+
+    await logDataChange(pool, {
+      module: 'distribute', username, targetId: id, targetName: `下发记录ID: ${id}`,
+      beforeValue, afterValue: { status: status ?? beforeValue?.status ?? null, comment: comment ?? beforeValue?.comment ?? null, processComment: processComment ?? beforeValue?.processComment ?? null },
       ipAddress: req.ip
     });
 

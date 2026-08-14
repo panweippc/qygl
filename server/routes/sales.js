@@ -1,5 +1,5 @@
 import express from 'express';
-import { createOperationLog } from '../utils/audit.js';
+import { createOperationLog, getOperator, getRecordBefore, logDataChange } from '../utils/audit.js';
 const router = express.Router();
 
 // 获取销售漏斗阶段
@@ -73,7 +73,7 @@ router.post('/city-sales', async (req, res) => {
       [name, sales, customers, growthRate, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
     await createOperationLog(pool, {
-      username: req.body.operator || '系统',
+      username: getOperator(req),
       action: 'create',
       module: 'sales',
       targetName: `盟市销售数据"${name}"`,
@@ -97,7 +97,7 @@ router.put('/city-sales/:id', async (req, res) => {
       [name, sales, customers, growthRate, id]
     );
     await createOperationLog(pool, {
-      username: req.body.operator || '系统',
+      username: getOperator(req),
       action: 'update',
       module: 'sales',
       targetName: `盟市销售数据"${cityName}"`,
@@ -118,7 +118,7 @@ router.delete('/city-sales/:id', async (req, res) => {
     const cityName = rows.length > 0 ? rows[0].name : id;
     await pool.execute('DELETE FROM city_sales WHERE id = ?', [id]);
     await createOperationLog(pool, {
-      username: req.query.operator || '系统',
+      username: getOperator(req),
       action: 'delete',
       module: 'sales',
       targetName: `盟市销售数据"${cityName}"`,
@@ -156,7 +156,7 @@ router.post('/county-sales', async (req, res) => {
       [cityId, name, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
     await createOperationLog(pool, {
-      username: req.body.operator || '系统',
+      username: getOperator(req),
       action: 'create',
       module: 'sales',
       targetName: `旗县销售数据"${name}"`,
@@ -177,7 +177,7 @@ router.put('/county-sales/:id', async (req, res) => {
       await pool.execute('UPDATE county_sales SET name = ? WHERE id = ?', [name, id]);
     }
     await createOperationLog(pool, {
-      username: req.body.operator || '系统',
+      username: getOperator(req),
       action: 'update',
       module: 'sales',
       targetName: `旗县"${name || id}"`,
@@ -198,7 +198,7 @@ router.delete('/county-sales/:id', async (req, res) => {
     const countyName = rows.length > 0 ? rows[0].name : id;
     await pool.execute('DELETE FROM county_sales WHERE id = ?', [id]);
     await createOperationLog(pool, {
-      username: req.query.operator || '系统',
+      username: getOperator(req),
       action: 'delete',
       module: 'sales',
       targetName: `旗县销售数据"${countyName}"`,

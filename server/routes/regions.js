@@ -1,4 +1,5 @@
 import express from 'express';
+import { createOperationLog, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
 router.get('/provinces', async (req, res) => {
@@ -142,6 +143,8 @@ router.post('/provinces', async (req, res) => {
       'INSERT INTO provinces (name, code, createdAt) VALUES (?, ?, ?)',
       [name, code, now]
     );
+    // 创建省份审计
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'create', module: 'region', targetId: result.insertId, targetName: `省份: ${name}`, detail: `创建省份: ${name}`, ipAddress: req.ip });
     res.json({ success: true, message: '省份创建成功', data: { id: result.insertId, name, code } });
   } catch (error) {
     console.error('创建省份失败:', error);
@@ -174,6 +177,8 @@ router.put('/provinces/:id', async (req, res) => {
     }
 
     await pool.execute('UPDATE provinces SET name = ?, code = ? WHERE id = ?', [name, code, id]);
+    // 编辑省份审计
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'update', module: 'region', targetId: id, targetName: `省份: ${name}`, detail: `编辑省份: ${name}`, ipAddress: req.ip });
     res.json({ success: true, message: '省份编辑成功' });
   } catch (error) {
     console.error('编辑省份失败:', error);
@@ -189,6 +194,8 @@ router.delete('/provinces/:id', async (req, res) => {
     await connection.beginTransaction();
 
     try {
+      const [provRows] = await connection.execute('SELECT name FROM provinces WHERE id = ?', [id]);
+      const provName = provRows.length > 0 ? provRows[0].name : `省份#${id}`;
       const [cities] = await connection.execute('SELECT id FROM cities WHERE provinceId = ?', [id]);
       const cityIds = cities.map((city) => city.id);
 
@@ -220,6 +227,8 @@ router.delete('/provinces/:id', async (req, res) => {
       await connection.commit();
       connection.release();
 
+      // 删除省份审计
+      createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'delete', module: 'region', targetId: id, targetName: `省份: ${provName}`, detail: `删除省份: ${provName}（含其下城市/旗县/项目）`, ipAddress: req.ip });
       res.json({ success: true, message: '省份删除成功' });
     } catch (error) {
       await connection.rollback();
@@ -241,6 +250,8 @@ router.post('/cities', async (req, res) => {
       'INSERT INTO cities (name, code, provinceId, createdAt) VALUES (?, ?, ?, ?)',
       [name, code, provinceId, now]
     );
+    // 创建城市审计
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'create', module: 'region', targetId: result.insertId, targetName: `城市: ${name}`, detail: `创建城市: ${name}`, ipAddress: req.ip });
     res.json({ success: true, message: '城市创建成功', data: { id: result.insertId, name, code, provinceId } });
   } catch (error) {
     console.error('创建城市失败:', error);
@@ -284,6 +295,8 @@ router.put('/cities/:id', async (req, res) => {
     updateParams.push(id);
 
     await pool.execute(updateQuery, updateParams);
+    // 编辑城市审计
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'update', module: 'region', targetId: id, targetName: `城市: ${name}`, detail: `编辑城市: ${name}`, ipAddress: req.ip });
     res.json({ success: true, message: '城市编辑成功' });
   } catch (error) {
     console.error('编辑城市失败:', error);
@@ -299,6 +312,8 @@ router.delete('/cities/:id', async (req, res) => {
     await connection.beginTransaction();
 
     try {
+      const [cityRows] = await connection.execute('SELECT name FROM cities WHERE id = ?', [id]);
+      const cityName = cityRows.length > 0 ? cityRows[0].name : `城市#${id}`;
       const [counties] = await connection.execute('SELECT id FROM counties WHERE cityId = ?', [id]);
       const countyIds = counties.map((county) => county.id);
 
@@ -320,6 +335,8 @@ router.delete('/cities/:id', async (req, res) => {
       await connection.commit();
       connection.release();
 
+      // 删除城市审计
+      createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'delete', module: 'region', targetId: id, targetName: `城市: ${cityName}`, detail: `删除城市: ${cityName}（含其下旗县/项目）`, ipAddress: req.ip });
       res.json({ success: true, message: '城市删除成功' });
     } catch (error) {
       await connection.rollback();
@@ -341,6 +358,8 @@ router.post('/counties', async (req, res) => {
       'INSERT INTO counties (name, code, cityId, createdAt) VALUES (?, ?, ?, ?)',
       [name, code, cityId, now]
     );
+    // 创建旗县审计
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'create', module: 'region', targetId: result.insertId, targetName: `旗县: ${name}`, detail: `创建旗县: ${name}`, ipAddress: req.ip });
     res.json({ success: true, message: '旗县创建成功', data: { id: result.insertId, name, code, cityId } });
   } catch (error) {
     console.error('创建旗县失败:', error);
@@ -384,6 +403,8 @@ router.put('/counties/:id', async (req, res) => {
     updateParams.push(id);
 
     await pool.execute(updateQuery, updateParams);
+    // 编辑旗县审计
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'update', module: 'region', targetId: id, targetName: `旗县: ${name}`, detail: `编辑旗县: ${name}`, ipAddress: req.ip });
     res.json({ success: true, message: '旗县编辑成功' });
   } catch (error) {
     console.error('编辑旗县失败:', error);
@@ -395,12 +416,15 @@ router.delete('/counties/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const { pool } = req.app.locals;
-    const [existing] = await pool.execute('SELECT id FROM counties WHERE id = ?', [id]);
+    const [existing] = await pool.execute('SELECT id, name FROM counties WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.json({ success: false, message: '旗县不存在' });
     }
+    const coName = existing[0].name;
     await pool.execute('DELETE FROM closing_projects WHERE countyId = ?', [id]);
     await pool.execute('DELETE FROM counties WHERE id = ?', [id]);
+    // 删除旗县审计
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'delete', module: 'region', targetId: id, targetName: `旗县: ${coName}`, detail: `删除旗县: ${coName}（含其下项目）`, ipAddress: req.ip });
     res.json({ success: true, message: '旗县删除成功' });
   } catch (error) {
     console.error('删除旗县失败:', error);

@@ -1,5 +1,5 @@
 import express from 'express';
-import { createOperationLog } from '../utils/audit.js';
+import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
 // 获取乡镇的拜访记录
@@ -38,7 +38,7 @@ router.post('/visit-records', async (req, res) => {
       [townId, customerName, address, visitDate, visitPerson, visitContent, nextPlan || null, visitNo, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
     await createOperationLog(pool, {
-      username: req.body.operator || req.body.visitPerson || '系统',
+      username: getOperator(req),
       action: 'create',
       module: 'visit',
       targetName: `拜访记录"${customerName}"`,
@@ -57,16 +57,27 @@ router.put('/visit-records/:id', async (req, res) => {
     const { pool } = req.app.locals;
     const [old] = await pool.execute('SELECT customerName FROM visit_records WHERE id = ?', [id]);
     const name = customerName || (old.length > 0 ? old[0].customerName : id);
+    // 更新前取旧值，用于变更审计
+    const beforeValue = await getRecordBefore(pool, 'visit_records', id, { customerName: 1, address: 1, visitDate: 1, visitPerson: 1, visitContent: 1, nextPlan: 1 });
     await pool.execute(
       'UPDATE visit_records SET customerName = ?, address = ?, visitDate = ?, visitPerson = ?, visitContent = ?, nextPlan = ? WHERE id = ?',
       [customerName, address, visitDate, visitPerson, visitContent, nextPlan || null, id]
     );
     await createOperationLog(pool, {
-      username: req.body.operator || req.body.visitPerson || '系统',
+      username: getOperator(req),
       action: 'update',
       module: 'visit',
       targetName: `拜访记录"${name}"`,
       targetId: parseInt(id),
+    });
+    await logDataChange(pool, {
+      module: 'visit',
+      username: getOperator(req),
+      targetId: parseInt(id),
+      targetName: `拜访记录"${name}"`,
+      beforeValue,
+      afterValue: { customerName, address, visitDate, visitPerson, visitContent, nextPlan: nextPlan || null },
+      ipAddress: req.ip
     });
     res.json({ success: true, message: '拜访记录更新成功' });
   } catch (error) {
@@ -83,7 +94,7 @@ router.delete('/visit-records/:id', async (req, res) => {
     const name = rows.length > 0 ? rows[0].customerName : id;
     await pool.execute('DELETE FROM visit_records WHERE id = ?', [id]);
     await createOperationLog(pool, {
-      username: req.query.operator || '系统',
+      username: getOperator(req),
       action: 'delete',
       module: 'visit',
       targetName: `拜访记录"${name}"`,

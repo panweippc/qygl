@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 
-import { createNotification, createOperationLog } from '../utils/audit.js';
+import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
 
 // 获取报销记录列表
 router.get('/reimbursements', async (req, res) => {
@@ -74,7 +74,7 @@ router.put('/reimbursements/:id', async (req, res) => {
       if (app) {
         await createNotification(pool, { userId: app.applicant, title: '报销已转发', content: `您的${app.reimburseType}报销(${app.amount}元)已转发至总经理审批`, type: 'approval' });
         await createNotification(pool, { userId: forwardTo, title: '报销审批提醒', content: `${app.applicant} 的${app.reimburseType}报销(${app.amount}元)已转发给您，请审批`, type: 'approval' });
-        await createOperationLog(pool, { username: req.body.operator || '系统', action: 'forward', module: 'reimbursement', targetName: `${app.applicant}的${app.reimburseType}报销`, detail: comment || '' });
+        await createOperationLog(pool, { username: getOperator(req), action: 'forward', module: 'reimbursement', targetName: `${app.applicant}的${app.reimburseType}报销`, detail: comment || '' });
       }
     } else {
       const status = result === '批准' ? '已批准' : result === '拒绝' ? '已拒绝' : '审批中';
@@ -94,7 +94,7 @@ router.put('/reimbursements/:id', async (req, res) => {
       if (app) {
         const actionLabel = result === '批准' ? '已通过' : result === '拒绝' ? '被拒绝' : '已更新';
         await createNotification(pool, { userId: app.applicant, title: `报销${actionLabel}`, content: `您的${app.reimburseType}报销(${app.amount}元)${actionLabel}`, type: 'approval' });
-        await createOperationLog(pool, { username: req.body.operator || '系统', action: result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update', module: 'reimbursement', targetName: `${app.applicant}的${app.reimburseType}报销`, detail: comment || '' });
+        await createOperationLog(pool, { username: getOperator(req), action: result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update', module: 'reimbursement', targetName: `${app.applicant}的${app.reimburseType}报销`, detail: comment || '' });
       }
     }
 
@@ -110,7 +110,12 @@ router.delete('/reimbursements/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const { pool } = req.app.locals;
+    // 删除前获取记录用于审计
+    const [rows] = await pool.execute('SELECT applicant, reimburseType, amount FROM reimbursements WHERE id = ?', [id]);
+    const info = rows[0] || {};
     await pool.execute('DELETE FROM reimbursements WHERE id = ?', [id]);
+    // 删除报销申请审计
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'delete', module: 'reimbursement', targetId: id, targetName: `${info.applicant || ''}的${info.reimburseType || ''}报销`, detail: `删除报销申请: ${info.reimburseType || ''}报销`, ipAddress: req.ip });
     res.json({ success: true, message: '报销申请删除成功' });
   } catch (error) {
     console.error('删除报销申请失败:', error);

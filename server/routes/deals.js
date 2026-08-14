@@ -1,5 +1,5 @@
 import express from 'express';
-import { createOperationLog } from '../utils/audit.js';
+import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
 function calcServiceFeeStatus(serviceEndTime) {
@@ -55,7 +55,7 @@ router.post('/closing-projects', async (req, res) => {
 
     await pool.execute(query, values);
     await createOperationLog(pool, {
-      username: req.body.operator || req.body.applicant || '系统',
+      username: getOperator(req),
       action: 'create',
       module: 'deal',
       targetName: `成交项目"${name}"`,
@@ -80,16 +80,23 @@ router.put('/closing-projects/:id', async (req, res) => {
     };
 
     const computedFeeStatus = calcServiceFeeStatus(formatDate(serviceEndTime));
+    const beforeValue = await getRecordBefore(pool, 'closing_projects', id, { name: 1, description: 1, status: 1, price: 1, contractFeeStatus: 1, remainingAmount: 1 });
     await pool.execute(
       'UPDATE closing_projects SET name = ?, description = ?, status = ?, startDate = ?, dealTime = ?, price = ?, serviceEndTime = ?, nextYearFeeStatus = ?, contractFeeStatus = ?, remainingAmount = ?, provinceId = ?, cityId = ?, countyId = ?, applicant = ? WHERE id = ?',
       [name, description, status, formatDate(dealTime), formatDate(dealTime), price, formatDate(serviceEndTime), computedFeeStatus, contractFeeStatus || '未结', remainingAmount || 0, provinceId, cityId, countyId, applicant || '', id]
     );
+    const opUser = getOperator(req);
     await createOperationLog(pool, {
-      username: req.body.operator || req.body.applicant || '系统',
+      username: opUser,
       action: 'update',
       module: 'deal',
       targetName: `成交项目"${projectName}"`,
       targetId: parseInt(id),
+    });
+    await logDataChange(pool, {
+      module: 'deal', username: opUser, targetId: parseInt(id), targetName: `成交项目"${projectName}"`,
+      beforeValue, afterValue: { name, description, status, price, contractFeeStatus: contractFeeStatus || '未结', remainingAmount: remainingAmount || 0 },
+      ipAddress: req.ip
     });
     res.json({ success: true, message: '成交项目更新成功' });
   } catch (error) {
@@ -106,7 +113,7 @@ router.delete('/closing-projects/:id', async (req, res) => {
     const projectName = rows.length > 0 ? rows[0].name : id;
     await pool.execute('DELETE FROM closing_projects WHERE id = ?', [id]);
     await createOperationLog(pool, {
-      username: req.query.operator || '系统',
+      username: getOperator(req),
       action: 'delete',
       module: 'deal',
       targetName: `成交项目"${projectName}"`,

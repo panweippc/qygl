@@ -2,6 +2,7 @@ import express from 'express';
 const router = express.Router();
 
 import { createNotification, createOperationLog } from '../utils/audit.js';
+import { requireRole } from '../middleware/auth.js';
 
 const generateApprovalPath = async (connection, flowCode, applicantDept, applicantPosition) => {
   const approvalPath = [];
@@ -279,7 +280,8 @@ router.post('/oa/submit', async (req, res) => {
 router.get('/oa/todo/:userId', async (req, res) => {
   const { pool } = req.app.locals;
   try {
-    const { userId } = req.params;
+    // 用户身份统一从 JWT token 获取，忽略 URL 中的 userId（防越权）
+    const userId = req.user?.id !== undefined ? String(req.user.id) : req.params.userId;
 
     const [instances] = await pool.execute(
       'SELECT * FROM oa_approval_instances WHERE currentApproverId = ? AND status = ? ORDER BY createdAt DESC',
@@ -303,7 +305,8 @@ router.get('/oa/todo/:userId', async (req, res) => {
 router.get('/oa/done/:userId', async (req, res) => {
   const { pool } = req.app.locals;
   try {
-    const { userId } = req.params;
+    // 用户身份统一从 JWT token 获取，忽略 URL 中的 userId（防越权）
+    const userId = req.user?.id !== undefined ? String(req.user.id) : req.params.userId;
 
     const [histories] = await pool.execute(
       `SELECT h.*, i.flowCode, i.applicantName, i.applicantDept, i.businessType, i.businessData, i.status as instanceStatus 
@@ -394,7 +397,12 @@ router.post('/oa/process', async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const { instanceId, approverId, approverName, approverPosition, action, comment } = req.body;
+    const { instanceId, action, comment } = req.body;
+
+    // 审批人身份统一从 JWT token 解析，禁止信任请求体中的 approverId/approverName
+    const approverId = req.user?.id || null;
+    const approverName = req.user?.name || req.user?.username || '';
+    const approverPosition = req.body.approverPosition || '';
 
     const [instances] = await connection.execute(
       'SELECT * FROM oa_approval_instances WHERE id = ?',
@@ -408,7 +416,7 @@ router.post('/oa/process', async (req, res) => {
 
     const instance = instances[0];
 
-    if (instance.currentApproverId !== approverId) {
+    if (String(instance.currentApproverId) !== String(approverId)) {
       await connection.rollback();
       return res.status(403).json({ success: false, message: '您不是当前审批人，无权处理' });
     }
@@ -533,6 +541,10 @@ router.post('/oa/withdraw', async (req, res) => {
       ['已撤回', now, instanceId]
     );
 
+    // 撤回审批审计
+    const operator = req.user?.name || req.user?.username || '系统';
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: operator, action: 'withdraw', module: 'oa_approval', targetId: instanceId, targetName: `${instances[0].businessType}审批(${instances[0].flowCode})`, detail: '撤回审批', ipAddress: req.ip });
+
     res.json({ success: true, message: '申请撤回成功' });
   } catch (error) {
     console.error('撤回申请失败:', error);
@@ -553,7 +565,7 @@ router.get('/oa/approver-configs', async (req, res) => {
 });
 
 // 更新审批人配置
-router.put('/oa/approver-config/:id', async (req, res) => {
+router.put('/oa/approver-config/:id', requireRole('系统管理员', '总经理'), async (req, res) => {
   const { pool } = req.app.locals;
   try {
     const { id } = req.params;
@@ -563,6 +575,10 @@ router.put('/oa/approver-config/:id', async (req, res) => {
       'UPDATE oa_approver_configs SET superiorPosition = ?, isDeptManager = ?, isTopManager = ?, isFinanceDirector = ? WHERE id = ?',
       [superiorPosition, isDeptManager, isTopManager, isFinanceDirector, id]
     );
+
+    // 审批人配置修改审计（审批流程配置，高危）
+    const operator = req.user?.name || req.user?.username || '系统';
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: operator, action: 'update', module: 'oa_approval', targetId: id, targetName: `审批人配置#${id}`, detail: `更新审批人配置: 上级岗位=${superiorPosition||'无'}, 部门经理=${isDeptManager?1:0}, 总经理=${isTopManager?1:0}, 财务总监=${isFinanceDirector?1:0}`, ipAddress: req.ip });
 
     res.json({ success: true, message: '审批人配置更新成功' });
   } catch (error) {

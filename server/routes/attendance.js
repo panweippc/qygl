@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 
-import { createNotification, createOperationLog } from '../utils/audit.js';
+import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
 
 // 获取请假申请列表
 router.get('/leave-applications', async (req, res) => {
@@ -104,7 +104,7 @@ router.put('/leave-applications/:id', async (req, res) => {
           type: 'approval',
         });
         await createOperationLog(pool, {
-          username: req.body.operator || '系统',
+          username: getOperator(req),
           action: 'forward',
           module: 'attendance',
           targetName: `${app.applicant}的${app.leaveType}请假`,
@@ -134,7 +134,7 @@ router.put('/leave-applications/:id', async (req, res) => {
           type: 'approval',
         });
         await createOperationLog(pool, {
-          username: req.body.operator || '系统',
+          username: getOperator(req),
           action: result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update',
           module: 'attendance',
           targetName: `${app.applicant}的${app.leaveType}请假`,
@@ -155,7 +155,12 @@ router.delete('/leave-applications/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const { pool } = req.app.locals;
+    // 删除前获取记录用于审计
+    const [rows] = await pool.execute('SELECT applicant, leaveType FROM leave_applications WHERE id = ?', [id]);
+    const info = rows[0] || {};
     await pool.execute('DELETE FROM leave_applications WHERE id = ?', [id]);
+    // 删除请假申请审计
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'delete', module: 'attendance', targetId: id, targetName: `${info.applicant || ''}的${info.leaveType || ''}请假`, detail: `删除请假申请: ${info.leaveType || ''}请假`, ipAddress: req.ip });
     res.json({ success: true, message: '请假申请删除成功' });
   } catch (error) {
     console.error('删除请假申请失败:', error);

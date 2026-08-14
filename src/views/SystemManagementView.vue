@@ -39,6 +39,9 @@
             <button class="tab-btn" :class="{ active: activeTab === 'permissions' }" @click="activeTab = 'permissions'">
               <span class="tab-icon">🔐</span>权限管理
             </button>
+            <button class="tab-btn" :class="{ active: activeTab === 'backup' }" @click="activeTab = 'backup'">
+              <span class="tab-icon">💾</span>数据备份
+            </button>
           </div>
 
           <div class="tab-content">
@@ -46,6 +49,7 @@
             <UserManagementTab v-show="activeTab === 'users'" />
             <MenuManagementTab v-show="activeTab === 'menus'" />
             <PermissionManagementTab v-show="activeTab === 'permissions'" :selected-role-id="selectedRoleId" />
+            <BackupManagementTab v-show="activeTab === 'backup'" />
           </div>
         </div>
       </div>
@@ -66,6 +70,7 @@ import RoleManagementTab from '../components/RoleManagementTab.vue'
 import UserManagementTab from '../components/UserManagementTab.vue'
 import MenuManagementTab from '../components/MenuManagementTab.vue'
 import PermissionManagementTab from '../components/PermissionManagementTab.vue'
+import BackupManagementTab from '../components/BackupManagementTab.vue'
 
 const router = useRouter()
 const activeTab = ref('roles')

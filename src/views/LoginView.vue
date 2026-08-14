@@ -214,6 +214,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { login } from '../services/api'
 import { io, Socket } from 'socket.io-client'
+import { reinitSocket } from '../services/socket'
+import { startIdleDetector } from '../utils/idle-detector'
 
 const router = useRouter()
 const loginFormRef = ref()
@@ -314,7 +316,7 @@ const handleLogin = async () => {
     if (response.success && response.user) {
       const user = response.user;
       
-      localStorage.setItem('token', `session-${user.id}-${Date.now()}`)
+      localStorage.setItem('token', response.token || `session-${user.id}-${Date.now()}`)
       localStorage.setItem('userId', user.id.toString())
       localStorage.setItem('username', user.username)
       
@@ -359,15 +361,22 @@ const handleLogin = async () => {
         localStorage.setItem('buttonPermissions', JSON.stringify(user.buttonPermissions))
       }
       
+      // 建立 Socket 连接，维持单设备登录
+      reinitSocket()
+      // E8: 启用会话空闲超时检测
+      startIdleDetector()
+
       console.log('登录成功，跳转到首页');
       router.push('/');
     } else {
       // 登录失败
       ElMessage.error(response.message || '用户名或密码错误');
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('登录失败:', error)
-    ElMessage.error('登录失败，请重试')
+    // 提取后端返回的具体错误信息（如 429 限流提示），避免被统一文案掩盖
+    const msg = error?.response?.data?.message
+    ElMessage.error(msg || '登录失败，请重试')
   }
 }
 
@@ -375,6 +384,15 @@ const handleLogin = async () => {
 onMounted(() => {
   console.log('Login page mounted');
   generateCaptcha();
+  // E8: 若是因空闲超时被登出，提示用户
+  const urlParams = new URLSearchParams(window.location.search)
+  if (urlParams.get('reason') === 'idle') {
+    ElMessage.warning('长时间未操作，已自动退出登录，请重新登录')
+    // 清除 URL 中的原因参数
+    urlParams.delete('reason')
+    const qs = urlParams.toString()
+    window.history.replaceState({}, '', qs ? '/login?' + qs : '/login')
+  }
   // 检查是否已有token，如果有则跳转到首页
   const token = localStorage.getItem('token');
   if (token) {

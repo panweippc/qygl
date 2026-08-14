@@ -122,7 +122,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useButtonPermission } from '@/composables/usePermission'
 
 const loading = ref(false)
@@ -211,6 +211,9 @@ const saveCustomer = async () => {
 
 const deleteCustomer = async (id: number) => {
   try {
+    await ElMessageBox.confirm('确定要删除该客户吗？此操作不可恢复', '删除客户', {
+      confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
+    })
     const res = await fetch('/api/customers/' + id, { method: 'DELETE' }).then(r => r.json())
     if (res.success) {
       ElMessage.success('客户已删除')

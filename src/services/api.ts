@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import type {
   ApiResponse, Employee, MonthlyReport, FileItem, FileCategory,
   Project, Tool, Customer, CustomerActivity, ClosingProject,
@@ -14,6 +15,94 @@ const api = axios.create({
     'Accept': 'application/json'
   }
 });
+
+// 请求拦截器：自动携带 token
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// ==================== Token 自动刷新 ====================
+// 401 时尝试用 refresh 接口静默续期，成功则重放原请求，失败才跳登录页
+let refreshing: Promise<string | null> | null = null
+const pendingQueue: Array<(token: string | null) => void> = []
+
+// 获取当前 token（优先 localStorage，兼容前端存储）
+const getStoredToken = () => localStorage.getItem('token') || ''
+
+// 调用 refresh 接口获取新 token
+async function doRefresh(): Promise<string | null> {
+  const oldToken = getStoredToken()
+  if (!oldToken) return null
+  try {
+    const res = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${oldToken}` }
+    })
+    const json = await res.json()
+    if (json.success && json.token) {
+      localStorage.setItem('token', json.token)
+      return json.token
+    }
+    return null
+  } catch (e) {
+    return null
+  }
+}
+
+// 401 处理：先刷新，刷新成功重放，失败登出
+api.interceptors.response.use(
+  response => response,
+  (error: AxiosError) => {
+    const status = error.response ? error.response.status : null
+    const config = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined
+    const path = window.location.pathname
+
+    // 仅对非登录、未重试过、且需要认证的请求做刷新
+    const isLoginRequest = config?.url?.includes('/login') || config?.url?.includes('/auth/refresh')
+
+    if (status === 401 && config && !config._retry && !isLoginRequest && path !== '/login') {
+      // 同一时间只刷新一次，其余请求排队等待
+      if (!refreshing) {
+        refreshing = doRefresh().finally(() => { refreshing = null })
+      }
+      const retryPromise = new Promise((resolve, reject) => {
+        pendingQueue.push((token) => {
+          if (!token) {
+            // 刷新失败，登出
+            localStorage.clear()
+            window.location.href = '/login'
+            reject(error)
+            return
+          }
+          config.headers = config.headers || {}
+          config.headers.Authorization = `Bearer ${token}`
+          config._retry = true
+          resolve(api(config))
+        })
+      })
+      refreshing.then(token => {
+        // 分发 token 给所有排队的请求
+        while (pendingQueue.length) {
+          const cb = pendingQueue.shift()!
+          cb(token)
+        }
+      })
+      return retryPromise
+    }
+
+    // 其他 401（如 refresh 本身失败、登录失败）保持原逻辑
+    if (status === 401 && path !== '/login') {
+      localStorage.clear()
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
 
 // 认证相关
 export const login = async (username: string, password: string) => {
@@ -36,8 +125,8 @@ export const addEmployee = async (employee: Employee): Promise<ApiResponse> => {
   return response.data;
 };
 
-export const deleteEmployee = async (name: string): Promise<ApiResponse> => {
-  const response = await api.delete(`/employees/${name}`);
+export const deleteEmployee = async (name: string, adminPassword?: string): Promise<ApiResponse> => {
+  const response = await api.delete(`/employees/${name}`, { data: { adminPassword } });
   return response.data;
 };
 
