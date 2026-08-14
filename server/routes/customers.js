@@ -1,5 +1,6 @@
 import express from 'express';
 import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
+import { check, firstError, checkTextField } from '../utils/validate.js';
 const router = express.Router();
 
 router.get('/customers', async (req, res) => {
@@ -35,6 +36,18 @@ router.get('/customers', async (req, res) => {
 router.post('/customers', async (req, res) => {
   const { pool } = req.app.locals;
   const { name, contact, phone, email, address, tags, status } = req.body;
+  // 输入校验
+  const vErr = firstError(
+    check.str(name, '客户名称', { max: 100 }),
+    check.strOptional(contact, '联系人', 50),
+    check.phone(phone, '电话'),
+    check.email(email, '邮箱'),
+    check.strOptional(address, '地址', 255),
+    check.strOptional(tags, '标签', 200)
+  );
+  if (vErr) {
+    return res.status(400).json({ success: false, message: vErr });
+  }
   try {
     await pool.execute(
       'INSERT INTO customers (name, contact, phone, email, address, tags, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -57,6 +70,18 @@ router.put('/customers/:id', async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   const { name, contact, phone, email, address, tags, status } = req.body;
+  // 输入校验
+  const vErr = firstError(
+    check.strOptional(name, '客户名称', 100),
+    check.strOptional(contact, '联系人', 50),
+    check.phone(phone, '电话'),
+    check.email(email, '邮箱'),
+    check.strOptional(address, '地址', 255),
+    check.strOptional(tags, '标签', 200)
+  );
+  if (vErr) {
+    return res.status(400).json({ success: false, message: vErr });
+  }
   try {
     const beforeValue = await getRecordBefore(pool, 'customers', id, { name: 1, contact: 1, phone: 1, email: 1, address: 1, tags: 1, status: 1 });
     await pool.execute(

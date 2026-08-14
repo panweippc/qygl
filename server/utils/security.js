@@ -5,6 +5,8 @@ import crypto from 'crypto';
 import 'dotenv/config';
 
 let JWT_SECRET = process.env.JWT_SECRET;
+// 密钥轮换：可选的上一个密钥，用于在轮换后仍能验证旧 token（无感轮换）
+const JWT_SECRET_PREVIOUS = process.env.JWT_SECRET_PREVIOUS || null;
 const JWT_EXPIRES = process.env.JWT_EXPIRES || '12h';
 
 if (!JWT_SECRET) {
@@ -30,7 +32,26 @@ export const signToken = (user) => jwt.sign(
   { expiresIn: JWT_EXPIRES }
 );
 
-export const verifyToken = (token) => jwt.verify(token, JWT_SECRET);
+/**
+ * 验证 JWT token（支持密钥轮换）
+ * 优先使用当前密钥 JWT_SECRET 验证；若失败且配置了 JWT_SECRET_PREVIOUS，
+ * 再尝试用上一个密钥验证，从而让密钥轮换期间已签发的旧 token 仍有效（无感轮换）。
+ */
+export const verifyToken = (token) => {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    if (JWT_SECRET_PREVIOUS) {
+      // 旧密钥签发（轮换前）的 token，允许用上一个密钥验证
+      try {
+        return jwt.verify(token, JWT_SECRET_PREVIOUS);
+      } catch (_) {
+        // 上一个密钥也验证失败，抛出原始错误
+      }
+    }
+    throw err;
+  }
+};
 
 export const isHashed = (p) => typeof p === 'string' && (p.startsWith('$2a$') || p.startsWith('$2b$') || p.startsWith('$2y$'));
 

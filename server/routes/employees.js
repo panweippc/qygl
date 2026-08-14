@@ -1,6 +1,7 @@
 import express from 'express';
 import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 import { hashPassword, validatePassword, generateRandomPassword, verifyPassword } from '../utils/security.js';
+import { check, firstError } from '../utils/validate.js';
 import { requireRole } from '../middleware/auth.js';
 import xlsx from 'xlsx';
 const router = express.Router();
@@ -89,6 +90,24 @@ router.get('/employees', async (req, res) => {
 
 router.post('/employees', async (req, res) => {
   const { name, department, position, email, phone, entryDate, password, role, roleId: directRoleId, status, employeeType, education, birthDate, idCard, address, emergencyContact, emergencyPhone } = req.body;
+  // 输入校验：核心字段必填且限长，选填字段限长
+  const vErr = firstError(
+    check.str(name, '姓名', { max: 50 }),
+    check.str(department, '部门', { max: 50 }),
+    check.strOptional(position, '职位', 50),
+    check.email(email, '邮箱'),
+    check.phone(phone, '手机号'),
+    check.strOptional(status, '状态', 20),
+    check.strOptional(employeeType, '员工类型', 20),
+    check.strOptional(education, '学历', 20),
+    check.strOptional(idCard, '身份证号', 18),
+    check.strOptional(address, '地址', 255),
+    check.strOptional(emergencyContact, '紧急联系人', 50),
+    check.strOptional(emergencyPhone, '紧急联系电话', 20)
+  );
+  if (vErr) {
+    return res.status(400).json({ success: false, message: vErr });
+  }
   try {
     const { pool } = req.app.locals;
     const connection = await pool.getConnection();
@@ -170,6 +189,24 @@ router.delete('/employees/:name', requireRole('系统管理员', '总经理'), v
 router.put('/employees/:name', requireRole('系统管理员', '总经理'), async (req, res) => {
   const { name } = req.params;
   const { id, department, position, email, phone, entryDate, password, role, roleId: directRoleId, status, employeeType, education, birthDate, idCard, address, emergencyContact, emergencyPhone } = req.body;
+  // 输入校验（仅校验员工资料字段；密码由下方 validatePassword 单独校验）
+  const vErr = firstError(
+    check.strOptional(req.body.name, '姓名', 50),
+    check.strOptional(department, '部门', 50),
+    check.strOptional(position, '职位', 50),
+    check.email(email, '邮箱'),
+    check.phone(phone, '手机号'),
+    check.strOptional(status, '状态', 20),
+    check.strOptional(employeeType, '员工类型', 20),
+    check.strOptional(education, '学历', 20),
+    check.strOptional(idCard, '身份证号', 18),
+    check.strOptional(address, '地址', 255),
+    check.strOptional(emergencyContact, '紧急联系人', 50),
+    check.strOptional(emergencyPhone, '紧急联系电话', 20)
+  );
+  if (vErr) {
+    return res.status(400).json({ success: false, message: vErr });
+  }
   try {
     const { pool } = req.app.locals;
     const connection = await pool.getConnection();

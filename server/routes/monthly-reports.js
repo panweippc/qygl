@@ -1,5 +1,6 @@
 import express from 'express';
 import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
+import { check, firstError } from '../utils/validate.js';
 const router = express.Router();
 
 const localNow = () => {
@@ -33,6 +34,15 @@ router.get('/monthly-reports', async (req, res) => {
 
 router.post('/monthly-reports', async (req, res) => {
   const { title, content, plan, userId, files, date } = req.body;
+  // 输入校验
+  const vErr = firstError(
+    check.str(title, '标题', { max: 200 }),
+    check.strOptional(content, '内容', 20000),
+    check.strOptional(plan, '计划', 20000)
+  );
+  if (vErr) {
+    return res.status(400).json({ success: false, message: vErr });
+  }
   try {
     const { pool } = req.app.locals;
     const filesJson = files ? JSON.stringify(files) : null;
@@ -57,6 +67,15 @@ router.post('/monthly-reports', async (req, res) => {
 router.put('/monthly-reports/:id', async (req, res) => {
   const { id } = req.params;
   const { title, content, plan, userId, files, date } = req.body;
+  // 输入校验
+  const vErr = firstError(
+    check.strOptional(title, '标题', 200),
+    check.strOptional(content, '内容', 20000),
+    check.strOptional(plan, '计划', 20000)
+  );
+  if (vErr) {
+    return res.status(400).json({ success: false, message: vErr });
+  }
   try {
     const { pool } = req.app.locals;
     // 更新前取旧值，用于变更审计

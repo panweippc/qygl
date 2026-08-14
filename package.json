@@ -14,7 +14,9 @@
     "server:pm2:delete": "pm2 delete qygl-backend",
     "server:pm2:logs": "pm2 logs qygl-backend",
     "server:pm2:monit": "pm2 monit",
-    "dev:all": "start cmd /c \"vite\" && start cmd /c \"nodemon server.js\""
+    "dev:all": "start cmd /c \"vite\" && start cmd /c \"nodemon server.js\"",
+    "security:audit": "node scripts/security-audit.js",
+    "account:check": "node scripts/inactive-account-check.js"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",

@@ -4,6 +4,7 @@ const router = express.Router();
 
 import { createOperationLog } from '../utils/audit.js';
 import { signToken, isHashed, hashPassword, verifyPassword } from '../utils/security.js';
+import { writeSecurityAlert, notifyAdmins } from '../utils/security-alert.js';
 
 // 登录接口 IP 级限流（防同一 IP 爆破不同账号）
 const loginLimiter = rateLimit({
@@ -34,7 +35,17 @@ const recordFailure = (username, ip) => {
   const key = failKey(username, ip);
   const rec = loginFailures.get(key) || { count: 0 };
   rec.count += 1;
-  if (rec.count >= FAILED_LIMIT) rec.lockedUntil = Date.now() + LOCK_MINUTES * 60 * 1000;
+  if (rec.count >= FAILED_LIMIT && !rec.lockedUntil) {
+    rec.lockedUntil = Date.now() + LOCK_MINUTES * 60 * 1000;
+    // 达到锁定阈值：写入独立安全告警日志（暴力破解/异常登录检测）
+    writeSecurityAlert({
+      level: 'HIGH',
+      type: 'login_brute_force',
+      username,
+      ip,
+      detail: `账号 ${username || '未知'} 连续 ${FAILED_LIMIT} 次登录失败，已被锁定 ${LOCK_MINUTES} 分钟（来源IP: ${ip}）`
+    });
+  }
   loginFailures.set(key, rec);
 };
 
@@ -123,6 +134,19 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
 
     clearFailures(username, ip);
+
+    // 账号生命周期管理：检查账号是否被停用（长期未登录自动停用等）
+    // users.status: 1=正常, 0=停用
+    try {
+      const [urows] = await pool.execute('SELECT status FROM users WHERE id = ?', [user.id]);
+      if (urows.length > 0 && Number(urows[0].status) === 0) {
+        // 记录被拒登录（可选）
+        writeSecurityAlert({ level: 'WARN', type: 'account_disabled', username, ip, detail: `停用账号尝试登录被拒绝: ${username}` });
+        return res.status(403).json({ success: false, message: '账号已被停用，请联系管理员' });
+      }
+    } catch (e) {
+      console.log('账号状态检查失败:', e.message);
+    }
 
     // 存量明文密码自动升级为 bcrypt 哈希
     if (!isHashed(user.password)) {
@@ -218,6 +242,16 @@ router.post('/login', loginLimiter, async (req, res) => {
       console.error('获取用户权限失败:', permError.message);
     }
 
+    // 更新最后登录时间与 IP（账号生命周期管理基础数据）
+    try {
+      await pool.execute(
+        'UPDATE users SET lastLoginAt = NOW(), lastLoginIp = ? WHERE id = ?',
+        [ip, user.id]
+      );
+    } catch (e) {
+      console.log('更新最后登录信息失败:', e.message);
+    }
+
     await createOperationLog(pool, {
       userId: String(user.id),
       username: user.username,
@@ -247,6 +281,8 @@ router.post('/login', loginLimiter, async (req, res) => {
           detail: `检测到新 IP 登录（异常登录提醒）: ${ip}`,
           ipAddress: ip
         });
+        // 写入独立安全告警日志（取证层）
+        writeSecurityAlert({ level: 'HIGH', type: 'login_new_ip', username: user.username, ip, detail: `用户 ${user.username} 从新 IP ${ip} 登录（异常登录提醒）` });
         console.warn(`[安全提醒] 用户 ${user.username} 从新 IP ${ip} 登录`);
       }
     } catch (ipErr) {

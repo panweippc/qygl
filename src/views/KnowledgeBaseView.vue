@@ -166,7 +166,7 @@
         <div v-if="detailArticle.tags" class="detail-tags">
           <el-tag size="small" v-for="tag in (detailArticle.tags || '').split(',')" :key="tag" style="margin-right:6px">{{ tag.trim() }}</el-tag>
         </div>
-        <div class="detail-content" v-html="detailArticle.content || defaultEmptyContent"></div>
+        <div class="detail-content" v-html="sanitizedDetailContent"></div>
         <div v-if="detailFiles.length > 0" class="detail-files">
           <div class="detail-files-title">📎 附件 ({{ detailFiles.length }})</div>
           <div v-for="(f, i) in detailFiles" :key="i" class="detail-file-item">

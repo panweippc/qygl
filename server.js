@@ -10,6 +10,7 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 import { hashPassword, generateRandomPassword, verifyToken } from './server/utils/security.js';
 import { cleanupOldLogs } from './server/utils/audit.js';
+import { csrfProtection } from './server/middleware/csrf.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -80,13 +81,32 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Charset']
 }));
 
+// CSRF 防护：对写操作校验请求来源（Origin/Referer），白名单与 CORS 一致
+app.use('/api', csrfProtection);
+
 // 隐藏 Express 版本号，避免暴露服务器信息（L5）
 app.disable('x-powered-by');
 
 // M1: 安全响应头（helmet），防点击劫持、MIME嗅探等
+// 已补强 XSS 防护（DOMPurify + 输入校验），故启用 CSP 做纵深防御，白名单与 Nginx 层一致
 app.use(helmet({
-  contentSecurityPolicy: false, // 内网OA已自行处理XSS，禁用CSP避免影响现有功能
-  crossOriginEmbedderPolicy: false
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      fontSrc: ["'self'", "data:"],
+      connectSrc: ["'self'", "ws:", "wss:", "https://cdn.jsdelivr.net"],
+      frameAncestors: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 
 // 确保正确处理UTF-8编码
