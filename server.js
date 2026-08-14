@@ -56,17 +56,15 @@ import backupRouter from './server/routes/backup.js';
 import { requireAuth } from './server/middleware/requireAuth.js';
 
 // 启用CORS（内网白名单）
-// 默认内置开发端口(3003)与Nginx生产端口(8080)的来源，可再通过 .env 的 CORS_ORIGINS 追加
+// 设计：内置仅保留本机回环地址作为通用默认；
+// 局域网/服务器 IP 等其它来源一律通过 .env 的 CORS_ORIGINS 配置，便于多环境部署无需改代码
 const allowedOrigins = [
   // 开发服务器 3003
   'http://localhost:3003',
   'http://127.0.0.1:3003',
-  'http://192.168.2.142:3003',
   // Nginx 生产 8080
   'http://localhost:8080',
   'http://127.0.0.1:8080',
-  'http://192.168.2.142',
-  'http://192.168.2.142:8080',
   ...(process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean) : [])
 ];
 
