@@ -170,10 +170,9 @@ async function convert(mdPath, outPath) {
 
 (async () => {
   const base = path.join(__dirname, '..', 'docs');
+  // 仅转换实际存在的文档（操作手册 md 已不存在，避免 ENOENT 中断）
   const files = [
-    ['操作手册_普通员工.md', '操作手册_普通员工.docx'],
-    ['操作手册_财务总监.md', '操作手册_财务总监.docx'],
-    ['操作手册_总经理.md', '操作手册_总经理.docx'],
+    ['安全加固说明文档.md', '安全加固说明文档_v1.1.docx'],
   ];
   for (const [md, docx] of files) {
     await convert(path.join(base, md), path.join(base, docx));
