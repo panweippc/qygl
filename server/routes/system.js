@@ -70,12 +70,33 @@ router.put('/roles/:id', requireRole(...ADMIN_ROLES), async (req, res) => {
   const { name, code, description, status } = req.body;
   try {
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const newStatus = status || '启用';
+
+    // 联动：若角色从"启用"变为"禁用"，将该角色下所有用户的 tokenVersion+1，使其已登录会话立即失效
+    const [[oldRole]] = await pool.query('SELECT status FROM roles WHERE id = ?', [id]);
+    const wasEnabled = oldRole && oldRole.status !== '禁用';
+    const nowDisabled = newStatus === '禁用';
+    if (wasEnabled && nowDisabled) {
+      // 找出该角色下所有关联用户（通过 employees.roleId 关联 users.username），并使其 token 失效
+      await pool.execute(
+        `UPDATE users u
+         JOIN employees e ON u.username = e.name
+         SET u.tokenVersion = u.tokenVersion + 1
+         WHERE e.roleId = ?`,
+        [id]
+      );
+    }
+
     await pool.execute(
       'UPDATE roles SET name = ?, code = ?, description = ?, status = ?, updatedAt = ? WHERE id = ?',
-      [name, code, description || '', status || '启用', now, id]
+      [name, code, description || '', newStatus, now, id]
     );
     const operator = getOperator(req);
-    createOperationLog(pool, { userId: null, username: operator, action: 'update', module: 'system', targetId: id, targetName: name, detail: `更新角色: ${name}`, ipAddress: req.ip });
+    if (wasEnabled && nowDisabled) {
+      createOperationLog(pool, { userId: null, username: operator, action: 'disable_role', module: 'system', targetId: id, targetName: name, detail: `禁用角色「${name}」，该角色下所有用户的登录会话已强制失效`, ipAddress: req.ip });
+    } else {
+      createOperationLog(pool, { userId: null, username: operator, action: 'update', module: 'system', targetId: id, targetName: name, detail: `更新角色: ${name}`, ipAddress: req.ip });
+    }
     res.json({ success: true, message: '角色更新成功' });
   } catch (error) {
     console.error('更新角色失败:', error);
