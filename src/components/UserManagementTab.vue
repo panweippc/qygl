@@ -348,19 +348,35 @@ const saveUser = async () => {
   if (!userFormRef.value) return
   await userFormRef.value.validate(async (valid: boolean) => {
     if (!valid) return
+    // 高危操作二次验证：输入当前登录密码确认
+    let adminPassword: string
+    try {
+      const promptRes = await ElMessageBox.prompt(
+        '新增/编辑用户属于高危操作，请输入您的当前登录密码确认：',
+        '高危操作确认',
+        { inputType: 'password', confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+      )
+      adminPassword = promptRes.value
+    } catch (e: any) {
+      if (e !== 'cancel') ElMessage.error('操作失败: ' + (e?.message || e))
+      return
+    }
     try {
       saving.value = true
+      const body = { ...userForm.value, adminPassword }
       if (isEditingUser.value) {
-        await fetchApi(`${API_BASE}/employees/${userForm.value.name}`, {
+        const result = await fetchApi(`${API_BASE}/employees/${userForm.value.name}`, {
           method: 'PUT',
-          body: JSON.stringify(userForm.value)
+          body: JSON.stringify(body)
         })
+        if (!result.success) { ElMessage.error(result.message || '更新失败'); return }
         ElMessage.success('更新成功')
       } else {
         const result = await fetchApi(`${API_BASE}/employees`, {
           method: 'POST',
-          body: JSON.stringify(userForm.value)
+          body: JSON.stringify(body)
         })
+        if (!result.success) { ElMessage.error(result.message || '添加失败'); return }
         if (result.initialPassword) {
           initPwdValue.value = String(result.initialPassword)
           initPwdEmployeeName.value = userForm.value.name || ''

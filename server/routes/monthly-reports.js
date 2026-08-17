@@ -33,7 +33,9 @@ router.get('/monthly-reports', async (req, res) => {
 });
 
 router.post('/monthly-reports', async (req, res) => {
-  const { title, content, plan, userId, files, date } = req.body;
+  const { title, content, plan, files, date } = req.body;
+  // 安全加固：月报归属用户一律从 JWT token 解析，忽略请求体 userId，防伪造
+  const userId = req.user?.id || req.body.userId;
   // 输入校验
   const vErr = firstError(
     check.str(title, '标题', { max: 200 }),
@@ -66,7 +68,9 @@ router.post('/monthly-reports', async (req, res) => {
 
 router.put('/monthly-reports/:id', async (req, res) => {
   const { id } = req.params;
-  const { title, content, plan, userId, files, date } = req.body;
+  const { title, content, plan, files, date } = req.body;
+  // 安全加固：月报归属用户一律从 JWT token 解析，且只能编辑自己的月报
+  const userId = req.user?.id || req.body.userId;
   // 输入校验
   const vErr = firstError(
     check.strOptional(title, '标题', 200),

@@ -2,6 +2,26 @@ import express from 'express';
 const router = express.Router();
 
 import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
+import { getRealName } from '../utils/identity.js';
+
+// 请假审批：仅当前审批人或管理角色可操作
+const isManagerUser = async (req) => {
+  try {
+    const { pool } = req.app.locals;
+    const name = getRealName(req);
+    if (!name) return false;
+    if (name === '管理员' || name === '总经理' || /^admin$/i.test(name)) return true;
+    const [emp] = await pool.execute(
+      'SELECT e.position, r.name AS roleName FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
+      [name]
+    );
+    if (emp.length === 0) return false;
+    const roleName = emp[0].roleName || '';
+    const position = String(emp[0].position || '');
+    if (['系统管理员', '总经理', '人事经理', '人事专员', '部门经理'].includes(roleName) || /总经理/.test(position)) return true;
+    return false;
+  } catch (e) { return false; }
+};
 
 // 获取请假申请列表
 router.get('/leave-applications', async (req, res) => {
@@ -32,7 +52,15 @@ router.get('/leave-applications/:id', async (req, res) => {
 
 // 提交请假申请
 router.post('/leave-applications', async (req, res) => {
-  const { applicant, leaveType, startDate, endDate, days, reason, approver, attachments } = req.body;
+  const { leaveType, startDate, endDate, days, reason, approver, attachments } = req.body;
+  // 安全加固：申请人身份一律从 JWT token 解析，忽略请求体 applicant，防伪造
+  const applicant = getRealName(req);
+  if (!applicant) {
+    return res.status(401).json({ success: false, message: '未登录，无法提交申请' });
+  }
+  if (!leaveType || !startDate || !endDate) {
+    return res.status(400).json({ success: false, message: '请假类型和日期不能为空' });
+  }
   try {
     const { pool } = req.app.locals;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -68,6 +96,16 @@ router.put('/leave-applications/:id', async (req, res) => {
   const { comment, result, nextApprover, forwardTo } = req.body;
   try {
     const { pool } = req.app.locals;
+    // 安全加固：仅当前审批人或管理角色可操作
+    const operatorName = getRealName(req);
+    const isManager = await isManagerUser(req);
+    const [[permRecord]] = await pool.query('SELECT approver FROM leave_applications WHERE id = ?', [id]);
+    if (!permRecord) {
+      return res.status(404).json({ success: false, message: '请假申请不存在' });
+    }
+    if (!isManager && permRecord.approver !== operatorName) {
+      return res.status(403).json({ success: false, message: '您不是该请假的审批人，无权限操作' });
+    }
     let status;
     if (result === '批准') {
       status = '已批准';

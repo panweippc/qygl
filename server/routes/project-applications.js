@@ -2,6 +2,8 @@ import express from 'express';
 const router = express.Router();
 
 import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
+import { getRealName } from '../utils/identity.js';
+import { requireRole } from '../middleware/auth.js';
 
 // 创建项目申请
 router.post('/projects', async (req, res) => {
@@ -29,16 +31,21 @@ router.post('/projects', async (req, res) => {
       return res.status(400).json({ success: false, message: '缺少必填参数' });
     }
 
+    // 安全加固：申请人身份一律从 JWT token 解析，忽略请求体 applicantId/applicantName，防伪造
+    const tokenApplicantName = getRealName(req);
+    if (!tokenApplicantName) {
+      return res.status(401).json({ success: false, message: '未登录，无法提交申请' });
+    }
     const [employees] = await pool.execute(
-      'SELECT * FROM employees WHERE id = ?',
-      [applicantId]
+      'SELECT * FROM employees WHERE name = ?',
+      [String(tokenApplicantName).replace(/^emp_/, '').replace(/_\d+$/, '')]
     );
 
     if (employees.length === 0) {
-      return res.status(400).json({ success: false, message: '申请人不存在' });
+      return res.status(400).json({ success: false, message: '当前用户不是有效的员工，无法提交申请' });
     }
 
-    const applicant = applicantName ? { name: applicantName, department: '' } : employees[0];
+    const applicant = employees[0];
 
     let approverName = null;
     if (approverId) {
@@ -181,19 +188,24 @@ router.post('/projects/:id/approve', async (req, res) => {
       return res.json({ success: true, message: '已转发至总经理' });
     }
 
-    // approverId 可能为空或无效（前端传的可能是 users 表 id），用 operator 姓名反查员工
+    // 安全加固：审批人身份一律从 JWT token 解析，忽略请求体 approverId/operator，防伪造审批
+    const tokenName = getRealName(req);
+    if (!tokenName) {
+      return res.status(401).json({ success: false, message: '未登录' });
+    }
+    const cleanName = String(tokenName).replace(/^emp_/, '').replace(/_\d+$/, '');
     let approver = null;
-    if (approverId) {
-      const [approvers] = await pool.execute('SELECT * FROM employees WHERE id = ?', [approverId]);
-      if (approvers.length > 0) approver = approvers[0];
-    }
-    if (!approver && operator) {
-      const name = String(operator).replace(/^emp_/, '').replace(/_\d+$/, '');
-      const [byName] = await pool.execute('SELECT * FROM employees WHERE name = ?', [name]);
-      if (byName.length > 0) approver = byName[0];
-    }
+    const [byTokenName] = await pool.execute('SELECT * FROM employees WHERE name = ?', [cleanName]);
+    if (byTokenName.length > 0) approver = byTokenName[0];
     if (!approver) {
-      return res.status(400).json({ success: false, message: '审批人不存在' });
+      return res.status(400).json({ success: false, message: '当前用户不是有效的审批人' });
+    }
+
+    // 校验当前用户是否是该申请的当前审批人，防止越权审批
+    const currentApprovers = (project.current_approvers || '').split(',').map(s => s.trim()).filter(Boolean);
+    const isCurrentApprover = currentApprovers.includes(tokenName) || currentApprovers.includes(cleanName) || project.approver === tokenName || project.approver === cleanName;
+    if (!isCurrentApprover) {
+      return res.status(403).json({ success: false, message: '您不是该申请的当前审批人，无权限审批' });
     }
 
     const historyRecord = {
@@ -267,6 +279,23 @@ router.delete('/projects/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: '项目不存在' });
     }
 
+    // 安全加固：仅申请人本人（且待审批）或管理角色可删除，防越权删除
+    const operatorName = getRealName(req);
+    const [selfRoles] = await pool.execute(
+      'SELECT r.name AS roleName, e.position FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
+      [operatorName]
+    );
+    const isManager = operatorName === '管理员' || operatorName === '总经理' || /^admin$/i.test(operatorName)
+      || /总经理/.test(String(selfRoles[0]?.position || ''))
+      || ['系统管理员', '总经理', '业务中心经理', '技术部经理'].includes(String(selfRoles[0]?.roleName || ''));
+    const isOwner = projects[0].applicant_name === operatorName;
+    if (!isManager && !isOwner) {
+      return res.status(403).json({ success: false, message: '无权限删除他人的项目申请' });
+    }
+    if (!isManager && projects[0].status !== 'pending') {
+      return res.status(400).json({ success: false, message: '已审批的项目申请不可删除' });
+    }
+
     await pool.execute(
       'DELETE FROM project_applications WHERE id = ?',
       [id]
@@ -281,7 +310,7 @@ router.delete('/projects/:id', async (req, res) => {
 });
 
 // 批量更新项目负责人（按项目类型）-- 必须在 /:id 路由之前
-router.put('/projects/update-manager', async (req, res) => {
+router.put('/projects/update-manager', requireRole('系统管理员', '总经理', '业务中心经理', '技术部经理'), async (req, res) => {
   const { pool } = req.app.locals;
   try {
     const { projectType, manager } = req.body;
@@ -321,7 +350,8 @@ router.put('/projects/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: '项目不存在' });
     }
 
-    let name = applicant_name
+    // 安全加固：申请人身份一律从 JWT token 解析，忽略请求体 applicant_name/applicantId，防伪造
+    let name = getRealName(req) || projects[0].applicant_name
     if (applicantId && !name) {
       const [emps] = await pool.execute('SELECT name FROM employees WHERE id = ?', [applicantId])
       if (emps.length > 0) name = emps[0].name

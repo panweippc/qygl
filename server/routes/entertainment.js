@@ -3,10 +3,50 @@ const router = express.Router();
 
 import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
 
+// ---- 招待费数据访问控制：申请人本人 + 财务/总经理 可见 ----
+const FINANCE_ROLES = ['财务总监', '财务经理', '总经理', '系统管理员'];
+
+// 获取当前登录用户真实姓名（处理 emp_姓名_id 前缀）
+const getRealName = (req) => {
+  let username = req.user?.username || req.user?.name || '';
+  if (username && /^emp_/.test(username)) {
+    const parts = String(username).split('_');
+    if (parts.length >= 2) username = parts[1];
+  }
+  return username || '';
+};
+
+// 判断是否财务/管理角色（从数据库读取最新角色）
+const isFinanceManager = async (req) => {
+  try {
+    const { pool } = req.app.locals;
+    const name = getRealName(req);
+    if (!name) return false;
+    if (name === '管理员' || name === '总经理' || /^admin$/i.test(name)) return true;
+    const [emp] = await pool.execute(
+      'SELECT e.position, r.name AS roleName FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
+      [name]
+    );
+    if (emp.length === 0) return false;
+    const roleName = emp[0].roleName || '';
+    const position = String(emp[0].position || '');
+    if (FINANCE_ROLES.includes(roleName) || /总经理/.test(position)) return true;
+    return false;
+  } catch (e) {
+    return false;
+  }
+};
+
 router.get('/entertainment-expenses', async (req, res) => {
   try {
     const { pool } = req.app.locals;
-    const [records] = await pool.execute('SELECT * FROM entertainment_expenses ORDER BY createdAt DESC');
+    const isManager = await isFinanceManager(req);
+    if (isManager) {
+      const [records] = await pool.execute('SELECT * FROM entertainment_expenses ORDER BY createdAt DESC');
+      return res.json({ success: true, data: records });
+    }
+    const name = getRealName(req);
+    const [records] = await pool.execute('SELECT * FROM entertainment_expenses WHERE applicant = ? ORDER BY createdAt DESC', [name]);
     res.json({ success: true, data: records });
   } catch (error) {
     console.error('获取业务招待费记录失败:', error);
@@ -21,6 +61,11 @@ router.get('/entertainment-expenses/:id', async (req, res) => {
     if (records.length === 0) {
       return res.status(404).json({ success: false, message: '业务招待费记录不存在' });
     }
+    const isManager = await isFinanceManager(req);
+    const name = getRealName(req);
+    if (!isManager && records[0].applicant !== name) {
+      return res.status(403).json({ success: false, message: '无权限查看该招待费记录' });
+    }
     res.json({ success: true, data: records[0] });
   } catch (error) {
     console.error('获取业务招待费记录详情失败:', error);
@@ -29,7 +74,14 @@ router.get('/entertainment-expenses/:id', async (req, res) => {
 });
 
 router.post('/entertainment-expenses', async (req, res) => {
-  const { applicant, guestName, guestUnit, location, guestCount, expenseType, expenseAmount, expenseDate, purpose, approver, attachments } = req.body;
+  const { guestName, guestUnit, location, guestCount, expenseType, expenseAmount, expenseDate, purpose, approver, attachments } = req.body;
+  const applicant = getRealName(req);
+  if (!applicant) {
+    return res.status(401).json({ success: false, message: '未登录' });
+  }
+  if (!expenseType) {
+    return res.status(400).json({ success: false, message: '招待类型不能为空' });
+  }
   try {
     const { pool } = req.app.locals;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -54,6 +106,16 @@ router.put('/entertainment-expenses/:id', async (req, res) => {
   const { comment, result, forwardTo } = req.body;
   try {
     const { pool } = req.app.locals;
+    const operator = getRealName(req);
+    const isManager = await isFinanceManager(req);
+    const [[record]] = await pool.query('SELECT applicant, approver FROM entertainment_expenses WHERE id = ?', [id]);
+    if (!record) {
+      return res.status(404).json({ success: false, message: '招待费记录不存在' });
+    }
+    // 非管理角色：仅当是当前审批人时允许操作
+    if (!isManager && record.approver !== operator && record.applicant !== operator) {
+      return res.status(403).json({ success: false, message: '您不是该招待费的审批人，无权限操作' });
+    }
     if (forwardTo) {
       const [[current]] = await pool.query('SELECT approver, comment as oldComment, result as oldResult FROM entertainment_expenses WHERE id = ?', [id]);
       const currentApprover = current?.approver || '';

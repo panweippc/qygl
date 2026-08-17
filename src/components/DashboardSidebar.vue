@@ -171,6 +171,15 @@
               <span>操作日志</span>
               <div class="sidebar-item-indicator"></div>
             </router-link>
+            <router-link v-if="hasPermission('/security-alerts')" to="/security-alerts" class="sidebar-item">
+              <div class="sidebar-icon sidebar-icon-sm">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 6h2v2h-2V7zm0 4h2v6h-2v-6z"/>
+                </svg>
+              </div>
+              <span>安全事件监控</span>
+              <div class="sidebar-item-indicator"></div>
+            </router-link>
             <router-link v-if="hasPermission('/system')" to="/system" class="sidebar-item">
               <div class="sidebar-icon sidebar-icon-sm">
                 <svg viewBox="0 0 24 24" fill="currentColor">
@@ -257,11 +266,16 @@ loadUserPermissions()
 const fetchLatestPermissions = async () => {
   try {
     const username = localStorage.getItem('username')
+    const token = localStorage.getItem('token') || ''
     if (username) {
-      const response = await fetch('/api/user/permissions?username=' + encodeURIComponent(username)).then(r => r.json())
-      if (response.success && response.data && response.data.length > 0) {
+      const response = await fetch('/api/user/permissions?username=' + encodeURIComponent(username), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      }).then(r => r.json())
+      if (response.success && response.data) {
         permissions.value = response.data
         localStorage.setItem('permissions', JSON.stringify(response.data))
+      } else {
+        console.error('获取最新权限数据失败:', response.message || '接口返回失败')
       }
     }
   } catch (error) {

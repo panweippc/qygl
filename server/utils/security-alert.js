@@ -8,6 +8,8 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { pushWebhook } from './notify-webhook.js';
+import { pushAlertEmail } from './notify-email.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,6 +42,12 @@ export function writeSecurityAlert({ level = 'WARN', type = 'generic', username 
       detail
     });
     fs.appendFileSync(ALERT_FILE, line + '\n', 'utf8');
+    // 高危事件：推送企业微信/钉钉 webhook + 邮件（非阻塞；未配置时静默跳过）
+    if (level === 'HIGH' || level === 'CRITICAL') {
+      const content = `${detail || ''}${username ? `\n操作人: ${username}` : ''}${ip ? `\nIP: ${ip}` : ''}`;
+      pushWebhook({ title: `安全告警（${type}）`, content, level });
+      pushAlertEmail({ title: `安全告警（${type}）`, content, level });
+    }
   } catch (e) {
     console.log('写入安全告警日志失败:', e.message);
   }

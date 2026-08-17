@@ -524,7 +524,9 @@ router.post('/oa/process', async (req, res) => {
 router.post('/oa/withdraw', async (req, res) => {
   const { pool } = req.app.locals;
   try {
-    const { instanceId, applicantId } = req.body;
+    const { instanceId } = req.body;
+    // 安全加固：申请人身份一律从 JWT token 解析，禁止撤回他人申请
+    const applicantId = req.user?.id;
 
     const [instances] = await pool.execute(
       'SELECT * FROM oa_approval_instances WHERE id = ? AND applicantId = ? AND status = ?',

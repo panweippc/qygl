@@ -33,6 +33,7 @@
       </div>
       <el-button type="primary" size="small" @click="search">查询</el-button>
       <el-button size="small" @click="resetFilters">重置</el-button>
+      <el-button type="success" size="small" plain @click="exportLogs" :loading="exporting">导出</el-button>
     </div>
 
     <div class="log-table" v-loading="loading">
@@ -95,6 +96,7 @@ const modules = ref<{ value: string; label: string }[]>([])
 const actions = ref<{ value: string; label: string }[]>([])
 const currentPage = ref(1)
 const pageSize = 30
+const exporting = ref(false)
 
 const filters = ref({ module: '', action: '', startDate: '', endDate: '' })
 
@@ -187,6 +189,39 @@ function resetFilters() {
   filters.value = { module: '', action: '', startDate: '', endDate: '' }
   currentPage.value = 1
   fetchLogs()
+}
+
+// 导出操作日志（CSV）
+async function exportLogs() {
+  exporting.value = true
+  try {
+    const params = new URLSearchParams()
+    if (filters.value.module) params.set('module', filters.value.module)
+    if (filters.value.action) params.set('action', filters.value.action)
+    if (filters.value.startDate) params.set('startDate', filters.value.startDate)
+    if (filters.value.endDate) params.set('endDate', filters.value.endDate)
+    const qs = params.toString() ? '?' + params.toString() : ''
+    const token = localStorage.getItem('token') || ''
+    const resp = await fetch(`/api/operation-logs/export${qs}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
+    if (!resp.ok) {
+      ElMessage.error('导出失败')
+      return
+    }
+    const blob = await resp.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `operation_logs_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    console.error('导出操作日志失败:', e)
+    ElMessage.error('导出失败')
+  } finally {
+    exporting.value = false
+  }
 }
 
 onMounted(() => {

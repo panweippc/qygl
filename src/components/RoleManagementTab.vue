@@ -133,18 +133,25 @@ const saveRole = async () => {
   if (!roleFormRef.value) return
   await roleFormRef.value.validate(async (valid: boolean) => {
     if (!valid) return
-    saving.value = true
+    // 高危操作二次验证：输入当前登录密码确认
     try {
+      const { value: adminPassword } = await ElMessageBox.prompt(
+        '保存角色属于高危操作，请输入您的当前登录密码确认：',
+        '高危操作确认',
+        { inputType: 'password', confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+      )
+      saving.value = true
+      const body = { ...roleForm.value, adminPassword }
       let data
       if (isEditingRole.value && roleForm.value.id) {
         data = await fetchApi(`${API_BASE}/roles/${roleForm.value.id}`, {
           method: 'PUT',
-          body: JSON.stringify(roleForm.value)
+          body: JSON.stringify(body)
         })
       } else {
         data = await fetchApi(`${API_BASE}/roles`, {
           method: 'POST',
-          body: JSON.stringify(roleForm.value)
+          body: JSON.stringify(body)
         })
       }
       if (data.success) {
@@ -154,9 +161,11 @@ const saveRole = async () => {
       } else {
         ElMessage.error(data.message || '操作失败')
       }
-    } catch (error) {
-      console.error('保存角色失败:', error)
-      ElMessage.error('保存角色失败')
+    } catch (error: any) {
+      if (error !== 'cancel') {
+        console.error('保存角色失败:', error)
+        ElMessage.error('保存角色失败: ' + (error?.message || error))
+      }
     } finally {
       saving.value = false
     }
@@ -165,18 +174,18 @@ const saveRole = async () => {
 
 const deleteRole = async (id: number) => {
   try {
-    await ElMessageBox.confirm('确定要删除该角色吗？', '警告', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    const { value: adminPassword } = await ElMessageBox.prompt(
+      '确定要删除该角色吗？删除后不可恢复。请输入您的当前登录密码确认：',
+      '高危操作确认',
+      { inputType: 'password', confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' }
+    )
     loading.value = true
-    const data = await fetchApi(`${API_BASE}/roles/${id}`, { method: 'DELETE' })
+    const data = await fetchApi(`${API_BASE}/roles/${id}`, { method: 'DELETE', body: JSON.stringify({ adminPassword }) })
     if (data.success) {
       ElMessage.success('角色删除成功')
       await loadRoles()
     } else {
-      ElMessage.error('删除角色失败')
+      ElMessage.error(data.message || '删除角色失败')
     }
   } catch (error: any) {
     if (error !== 'cancel') {

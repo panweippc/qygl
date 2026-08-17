@@ -161,18 +161,30 @@ function addSubMenu(row: any) {
 async function saveMenu() {
   const valid = await menuFormRef.value.validate().catch(() => false)
   if (!valid) return
-  saving.value = true
+  // 高危操作二次验证：输入当前登录密码确认
   try {
-    const body: any = { name: menuForm.value.name, path: menuForm.value.path, component: menuForm.value.component, icon: menuForm.value.icon, sort: menuForm.value.sort, status: menuForm.value.status }
+    const { value: adminPassword } = await ElMessageBox.prompt(
+      '保存菜单属于高危操作，请输入您的当前登录密码确认：',
+      '高危操作确认',
+      { inputType: 'password', confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+    )
+    saving.value = true
+    const body: any = { name: menuForm.value.name, path: menuForm.value.path, component: menuForm.value.component, icon: menuForm.value.icon, sort: menuForm.value.sort, status: menuForm.value.status, adminPassword }
     if (menuForm.value.parentId) body.parentId = menuForm.value.parentId
     const url = '/api/menus' + (isEditingMenu.value ? '/' + menuForm.value.id : '')
     const method = isEditingMenu.value ? 'PUT' : 'POST'
-    await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    const json = await res.json()
+    if (!json.success) {
+      ElMessage.error(json.message || '操作失败')
+      return
+    }
     ElMessage.success(isEditingMenu.value ? '菜单更新成功' : '菜单添加成功')
     menuDialogVisible.value = false
     await fetchMenus()
   } catch (e: any) {
-    ElMessage.error('操作失败: ' + e.message)
+    if (e === 'cancel') return
+    ElMessage.error('操作失败: ' + (e?.message || e))
   } finally {
     saving.value = false
   }
@@ -180,11 +192,23 @@ async function saveMenu() {
 
 async function deleteMenu(id: number) {
   try {
-    await ElMessageBox.confirm('确定删除该菜单及其子菜单吗？', '提示', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
-    await fetch('/api/menus/' + id, { method: 'DELETE' })
+    const { value: adminPassword } = await ElMessageBox.prompt(
+      '确定删除该菜单及其子菜单吗？删除后不可恢复。请输入您的当前登录密码确认：',
+      '高危操作确认',
+      { inputType: 'password', confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' }
+    )
+    const res = await fetch('/api/menus/' + id, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminPassword }) })
+    const json = await res.json()
+    if (!json.success) {
+      ElMessage.error(json.message || '删除失败')
+      return
+    }
     ElMessage.success('菜单删除成功')
     await fetchMenus()
-  } catch {}
+  } catch (e: any) {
+    if (e === 'cancel') return
+    ElMessage.error('删除失败: ' + (e?.message || e))
+  }
 }
 
 onMounted(fetchMenus)

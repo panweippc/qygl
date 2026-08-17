@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { createOperationLog, getOperator } from '../utils/audit.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -112,6 +113,18 @@ router.post('/upload', upload.array('file', 10), async (req, res) => {
         [originalName, f.size, ext, url, uploaderId, categoryId, now]
       );
       fileList.push({ name: originalName, url, size: f.size });
+    }
+    // 审计：文件上传
+    if (fileList.length > 0) {
+      try {
+        await createOperationLog(pool, {
+          username: getOperator(req),
+          action: 'upload',
+          module: 'file',
+          targetName: fileList[0].name + (fileList.length > 1 ? ` 等${fileList.length}个文件` : ''),
+          detail: `上传文件${fileList.length}个`
+        });
+      } catch (e) { /* 日志失败不影响上传 */ }
     }
     res.json({ success: true, data: fileList });
   } catch (error) {

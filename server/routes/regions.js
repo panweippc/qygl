@@ -1,5 +1,6 @@
 import express from 'express';
 import { createOperationLog, getOperator } from '../utils/audit.js';
+import { requireRole } from '../middleware/auth.js';
 const router = express.Router();
 
 router.get('/provinces', async (req, res) => {
@@ -263,7 +264,7 @@ router.post('/cities', async (req, res) => {
   }
 });
 
-router.put('/cities/:id', async (req, res) => {
+router.put('/cities/:id', requireRole('系统管理员', '总经理'), async (req, res) => {
   const { id } = req.params;
   const { name, code, provinceId } = req.body;
   try {
@@ -371,7 +372,7 @@ router.post('/counties', async (req, res) => {
   }
 });
 
-router.put('/counties/:id', async (req, res) => {
+router.put('/counties/:id', requireRole('系统管理员', '总经理'), async (req, res) => {
   const { id } = req.params;
   const { name, code, cityId } = req.body;
   try {

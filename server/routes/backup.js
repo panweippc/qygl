@@ -187,6 +187,17 @@ router.get('/backups/:file/download', adminOnly, async (req, res) => {
   if (!full || !fs.existsSync(full)) {
     return res.status(404).json({ success: false, message: '备份文件不存在' });
   }
+  // 审计：备份文件下载
+  try {
+    await createOperationLog(req.app.locals.pool, {
+      userId: String(req.user.id || ''),
+      username: req.user.username || '',
+      action: 'backup_download',
+      module: 'system',
+      targetName: req.params.file,
+      detail: '下载数据库备份文件'
+    });
+  } catch (e) { /* 日志失败不影响下载 */ }
   res.download(full, req.params.file);
 });
 

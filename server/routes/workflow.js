@@ -4,8 +4,17 @@
 
 import express from 'express';
 import { createNotification, createOperationLog } from '../utils/audit.js';
+import { getRealName } from '../utils/identity.js';
+import { requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// 从数据库按申请人名解析申请人记录（token 身份优先，请求体仅作回退且不可覆盖真实身份）
+const resolveApplicantByName = async (pool, name) => {
+  if (!name) return null;
+  const [emp] = await pool.query('SELECT id, name FROM employees WHERE name = ?', [name]);
+  return emp.length > 0 ? emp[0] : null;
+};
 
 /**
  * 根据审批人id或用户名解析员工记录。
@@ -149,13 +158,13 @@ router.post("/projects", async (req, res) => {
       applicant_name
     } = req.body;
 
-    let applicantIdVal = applicantId || applicant_id;
-    let applicantNameVal = applicant || applicant_name || applicantName;
-
-    if (applicantIdVal && !applicantNameVal) {
-      const [employees] = await pool.query("SELECT name FROM employees WHERE id = ?", [applicantIdVal]);
-      applicantNameVal = employees.length > 0 ? employees[0].name : "未知申请人";
+    // 安全加固：申请人身份一律从 JWT token 解析，忽略请求体传入的 applicant/applicantId/applicantName，防伪造
+    const applicantNameVal = getRealName(req);
+    if (!applicantNameVal) {
+      return res.status(401).json({ success: false, message: '未登录，无法提交申请' });
     }
+    const applicantEmpRow = await resolveApplicantByName(pool, applicantNameVal);
+    const applicantIdVal = req.user?.id || applicantEmpRow?.id || applicantId || applicant_id;
 
     let approverIdVal = approverId || approver_id;
     let approverNameVal = approver;
@@ -193,6 +202,14 @@ router.post("/projects", async (req, res) => {
       ]
     );
 
+    // 审计：创建项目申请
+    await createOperationLog(pool, {
+      username: getRealName(req) || applicantNameVal || '系统',
+      action: 'create',
+      module: 'project',
+      targetName: projectName || project_name || `项目申请(${projectCode})`,
+      detail: `创建项目申请，提交给${approverNameVal || '未指定'}审批`
+    });
     res.json({
       success: true,
       data: {
@@ -272,7 +289,7 @@ router.post('/projects/:id/approve', async (req, res) => {
         relatedType: 'project'
       });
       await createOperationLog(pool, {
-        username: currentApprover || req.body.operator || '系统',
+        username: getRealName(req) || currentApprover || '系统',
         action: 'forward',
         module: 'project',
         targetName: `${project.project_name}项目(${project.project_code})`,
@@ -282,10 +299,22 @@ router.post('/projects/:id/approve', async (req, res) => {
       return res.json({ success: true, message: '已转交审批' });
     }
 
-    const approver = await resolveApprover(pool, { approverId, operator: req.body.operator });
+    // 安全加固：审批人身份一律从 JWT token 解析，忽略请求体传的 approverId/operator，防伪造审批
+    const currentUserName = getRealName(req);
+    if (!currentUserName) {
+      return res.status(401).json({ success: false, message: '未登录' });
+    }
+    const approver = await resolveApprover(pool, { operator: currentUserName });
 
     if (!approver) {
-      return res.status(400).json({ success: false, message: '审批人不存在' });
+      return res.status(400).json({ success: false, message: '当前用户不是有效的审批人' });
+    }
+
+    // 校验当前用户是否是该申请的当前审批人，防止越权审批
+    const currentApprovers = (project.current_approvers || '').split(',').map(s => s.trim()).filter(Boolean);
+    const isCurrentApprover = currentApprovers.includes(currentUserName) || project.approver === currentUserName;
+    if (!isCurrentApprover) {
+      return res.status(403).json({ success: false, message: '您不是该申请的当前审批人，无权限审批' });
     }
 
     const historyRecord = {
@@ -355,6 +384,23 @@ router.delete('/projects/:id', async (req, res) => {
     if (projects.length === 0) {
       return res.status(404).json({ success: false, message: '项目不存在' });
     }
+    // 安全加固：仅申请人本人（且待审批）或管理角色可删除，防越权删除他人申请
+    const operatorName = getRealName(req);
+    const [selfRoles] = await pool.query(
+      'SELECT r.name AS roleName, e.position FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
+      [operatorName]
+    );
+    const isManager = operatorName === '管理员' || operatorName === '总经理' || /^admin$/i.test(operatorName)
+      || /总经理/.test(String(selfRoles[0]?.position || ''))
+      || ['系统管理员', '总经理', '业务中心经理', '技术部经理'].includes(String(selfRoles[0]?.roleName || ''));
+    const project = projects[0];
+    const isOwner = project.applicant_name === operatorName;
+    if (!isManager && !isOwner) {
+      return res.status(403).json({ success: false, message: '无权限删除他人的项目申请' });
+    }
+    if (!isManager && project.status !== 'pending') {
+      return res.status(400).json({ success: false, message: '已审批的项目申请不可删除' });
+    }
     await pool.query('DELETE FROM project_applications WHERE id = ?', [id]);
     res.json({ success: true, message: '项目删除成功' });
   } catch (error) {
@@ -363,7 +409,7 @@ router.delete('/projects/:id', async (req, res) => {
 });
 
 // 批量更新项目负责人（按项目类型）-- 必须在 /:id 路由之前
-router.put('/projects/update-manager', async (req, res) => {
+router.put('/projects/update-manager', requireRole('系统管理员', '总经理', '业务中心经理', '技术部经理'), async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const { projectType, manager } = req.body;
@@ -537,13 +583,13 @@ router.post("/business-trips", async (req, res) => {
       applicant_name
     } = req.body;
 
-    let applicantIdVal = applicantId || applicant_id;
-    let applicantNameVal = applicant || applicant_name || applicantName;
-
-    if (applicantIdVal && !applicantNameVal) {
-      const [employees] = await pool.query("SELECT name FROM employees WHERE id = ?", [applicantIdVal]);
-      applicantNameVal = employees.length > 0 ? employees[0].name : "未知申请人";
+    // 安全加固：申请人身份一律从 JWT token 解析，忽略请求体传入的 applicant/applicantId/applicantName，防伪造
+    const applicantNameVal = getRealName(req);
+    if (!applicantNameVal) {
+      return res.status(401).json({ success: false, message: '未登录，无法提交申请' });
     }
+    const applicantEmpRow = await resolveApplicantByName(pool, applicantNameVal);
+    const applicantIdVal = req.user?.id || applicantEmpRow?.id || applicantId || applicant_id;
 
     let approverIdVal = approverId || approver_id;
     let approverNameVal = approver;
@@ -595,6 +641,14 @@ router.post("/business-trips", async (req, res) => {
       ]
     );
 
+    // 审计：创建出差申请
+    await createOperationLog(pool, {
+      username: getRealName(req) || applicantNameVal || '系统',
+      action: 'create',
+      module: 'business_trip',
+      targetName: `出差申请(${tripCode})`,
+      detail: `创建出差申请，目的地: ${destination || ''}, 天数: ${finalDays}, 提交给${approverNameVal || '未指定'}审批`
+    });
     res.json({
       success: true,
       data: {
@@ -674,7 +728,7 @@ router.post('/business-trips/:id/approve', async (req, res) => {
         relatedType: 'business_trip'
       });
       await createOperationLog(pool, {
-        username: currentApprover || req.body.operator || '系统',
+        username: getRealName(req) || currentApprover || '系统',
         action: 'forward',
         module: 'business_trip',
         targetName: `${trip.destination}出差(${trip.trip_code})`,
@@ -684,10 +738,22 @@ router.post('/business-trips/:id/approve', async (req, res) => {
       return res.json({ success: true, message: '已转交审批' });
     }
 
-    const approver = await resolveApprover(pool, { approverId, operator: req.body.operator });
+    // 安全加固：审批人身份一律从 JWT token 解析，忽略请求体传的 approverId/operator，防伪造审批
+    const currentUserName = getRealName(req);
+    if (!currentUserName) {
+      return res.status(401).json({ success: false, message: '未登录' });
+    }
+    const approver = await resolveApprover(pool, { operator: currentUserName });
 
     if (!approver) {
-      return res.status(400).json({ success: false, message: '审批人不存在' });
+      return res.status(400).json({ success: false, message: '当前用户不是有效的审批人' });
+    }
+
+    // 校验当前用户是否是该申请的当前审批人，防止越权审批
+    const currentApprovers = (trip.current_approvers || '').split(',').map(s => s.trim()).filter(Boolean);
+    const isCurrentApprover = currentApprovers.includes(currentUserName) || trip.approver === currentUserName;
+    if (!isCurrentApprover) {
+      return res.status(403).json({ success: false, message: '您不是该申请的当前审批人，无权限审批' });
     }
 
     const historyRecord = {

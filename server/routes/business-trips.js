@@ -2,6 +2,7 @@ import express from 'express';
 const router = express.Router();
 
 import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
+import { getRealName } from '../utils/identity.js';
 
 // 获取出差列表
 router.get('/business-trips', async (req, res) => {
@@ -75,19 +76,24 @@ router.post('/business-trips', async (req, res) => {
     const transport = req.body.transport;
     const accompanyPersons = req.body.accompanyPersons;
     const isUrgent = req.body.isUrgent;
-    const applicantId = req.body.applicantId;
+    // 安全加固：申请人身份一律从 JWT token 解析，忽略请求体 applicantId，防伪造
+    const tokenApplicantName = getRealName(req);
+    if (!tokenApplicantName) {
+      return res.status(401).json({ success: false, message: '未登录，无法提交申请' });
+    }
     const approverId = req.body.approverId;
     const approverName = req.body.approver || null;
     const [employees] = await pool.execute(
-      'SELECT * FROM employees WHERE id = ?',
-      [applicantId]
+      'SELECT * FROM employees WHERE name = ?',
+      [String(tokenApplicantName).replace(/^emp_/, '').replace(/_\d+$/, '')]
     );
 
     if (employees.length === 0) {
-      return res.status(400).json({ success: false, message: '申请人不存在' });
+      return res.status(400).json({ success: false, message: '当前用户不是有效的员工，无法提交申请' });
     }
 
     const applicant = employees[0];
+    const applicantId = applicant.id;
 
     let days;
     if (frontendDays) {
@@ -200,8 +206,9 @@ router.post('/business-trips/:id/approve', async (req, res) => {
     const trip = trips[0];
 
     if (forwardTo) {
-      // 确定实际审批人姓名：优先用 operator（前端传入的操作人），其次 approverId 反查，最后 trip.approver
-      let currentApprover = operator || trip.approver || '';
+      // 安全加固：审批人身份一律从 JWT token 解析，忽略请求体的 operator/approverId，防伪造
+      const tokenName = getRealName(req);
+      let currentApprover = tokenName || trip.approver || '';
       if ((!currentApprover || !String(currentApprover).trim()) && approverId) {
         try {
           const [approverRows] = await pool.execute('SELECT name FROM employees WHERE id = ?', [approverId]);
@@ -246,28 +253,26 @@ router.post('/business-trips/:id/approve', async (req, res) => {
       return res.json({ success: true, message: '已转发至总经理' });
     }
 
-    // approverId 可能为空或无效，用 operator 姓名反查员工，确保能拿到审批人
+    // 安全加固：审批人身份一律从 JWT token 解析，忽略请求体传的 approverId/operator，防伪造审批
+    const tokenName = getRealName(req);
+    if (!tokenName) {
+      return res.status(401).json({ success: false, message: '未登录' });
+    }
+    const cleanName = String(tokenName).replace(/^emp_/, '').replace(/_\d+$/, '');
     let approver = null;
-    if (approverId) {
-      const [approvers] = await pool.execute('SELECT * FROM employees WHERE id = ?', [approverId]);
-      if (approvers.length > 0) approver = approvers[0];
-    }
-    if (!approver && operator) {
-      const name = String(operator).replace(/^emp_/, '').replace(/_\d+$/, '');
-      const [byName] = await pool.execute('SELECT * FROM employees WHERE name = ?', [name]);
-      if (byName.length > 0) approver = byName[0];
-    }
+    const [byTokenName] = await pool.execute('SELECT * FROM employees WHERE name = ?', [cleanName]);
+    if (byTokenName.length > 0) approver = byTokenName[0];
+
     if (!approver) {
-      // 仍找不到：尝试从 current_approvers 或 trip.approver 反查
-      let name = String(trip.approver || '').replace(/^emp_/, '').replace(/_\d+$/, '');
-      if (name) {
-        const [byName] = await pool.execute('SELECT * FROM employees WHERE name = ?', [name]);
-        if (byName.length > 0) approver = byName[0];
-      }
+      console.log('[出差审批调试] id:', id, 'token用户:', tokenName, 'trip.approver:', trip.approver, 'trip.current_approvers:', trip.current_approvers);
+      return res.status(400).json({ success: false, message: '当前用户不是有效的审批人' });
     }
-    if (!approver) {
-      console.log('[出差审批调试] id:', id, 'approverId:', approverId, 'operator:', operator, 'trip.approver:', trip.approver, 'trip.current_approvers:', trip.current_approvers);
-      return res.status(400).json({ success: false, message: '审批人不存在' });
+
+    // 校验当前用户是否是该申请的当前审批人，防止越权审批
+    const currentApprovers = (trip.current_approvers || '').split(',').map(s => s.trim()).filter(Boolean);
+    const isCurrentApprover = currentApprovers.includes(tokenName) || currentApprovers.includes(cleanName) || trip.approver === tokenName || trip.approver === cleanName;
+    if (!isCurrentApprover) {
+      return res.status(403).json({ success: false, message: '您不是该申请的当前审批人，无权限审批' });
     }
 
     const historyRecord = {
@@ -339,6 +344,23 @@ router.delete('/business-trips/:id', async (req, res) => {
 
     if (trips.length === 0) {
       return res.status(404).json({ success: false, message: '出差申请不存在' });
+    }
+
+    // 安全加固：仅申请人本人（且待审批）或管理角色可删除，防越权删除
+    const operatorName = getRealName(req);
+    const [selfRoles] = await pool.execute(
+      'SELECT r.name AS roleName, e.position FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
+      [operatorName]
+    );
+    const isManager = operatorName === '管理员' || operatorName === '总经理' || /^admin$/i.test(operatorName)
+      || /总经理/.test(String(selfRoles[0]?.position || ''))
+      || ['系统管理员', '总经理', '业务中心经理', '技术部经理'].includes(String(selfRoles[0]?.roleName || ''));
+    const isOwner = trips[0].applicant_name === operatorName;
+    if (!isManager && !isOwner) {
+      return res.status(403).json({ success: false, message: '无权限删除他人的出差申请' });
+    }
+    if (!isManager && trips[0].status !== 'pending') {
+      return res.status(400).json({ success: false, message: '已审批的出差申请不可删除' });
     }
 
     await pool.execute(

@@ -2,6 +2,26 @@ import express from 'express';
 const router = express.Router();
 
 import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
+import { getRealName } from '../utils/identity.js';
+
+// 会议审批：仅当前审批人或管理角色可操作
+const isManagerUser = async (req) => {
+  try {
+    const { pool } = req.app.locals;
+    const name = getRealName(req);
+    if (!name) return false;
+    if (name === '管理员' || name === '总经理' || /^admin$/i.test(name)) return true;
+    const [emp] = await pool.execute(
+      'SELECT e.position, r.name AS roleName FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
+      [name]
+    );
+    if (emp.length === 0) return false;
+    const roleName = emp[0].roleName || '';
+    const position = String(emp[0].position || '');
+    if (['系统管理员', '总经理', '行政经理', '办公室主任'].includes(roleName) || /总经理/.test(position)) return true;
+    return false;
+  } catch (e) { return false; }
+};
 
 router.get('/meetings', async (req, res) => {
   try {
@@ -29,7 +49,15 @@ router.get('/meetings/:id', async (req, res) => {
 });
 
 router.post('/meetings', async (req, res) => {
-  const { title, organizer, meetingDate, meetingTime, location, participants, agenda, approver } = req.body;
+  const { title, meetingDate, meetingTime, location, participants, agenda, approver } = req.body;
+  // 安全加固：发起人身份一律从 JWT token 解析，忽略请求体 organizer，防伪造
+  const organizer = getRealName(req);
+  if (!organizer) {
+    return res.status(401).json({ success: false, message: '未登录，无法发起会议' });
+  }
+  if (!title) {
+    return res.status(400).json({ success: false, message: '会议标题不能为空' });
+  }
   try {
     const { pool } = req.app.locals;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -53,6 +81,16 @@ router.put('/meetings/:id', async (req, res) => {
   const { comment, result, forwardTo } = req.body;
   try {
     const { pool } = req.app.locals;
+    // 安全加固：仅当前审批人或管理角色可操作
+    const operatorName = getRealName(req);
+    const isManager = await isManagerUser(req);
+    const [[permRecord]] = await pool.query('SELECT approver FROM meetings WHERE id = ?', [id]);
+    if (!permRecord) {
+      return res.status(404).json({ success: false, message: '会议记录不存在' });
+    }
+    if (!isManager && permRecord.approver !== operatorName) {
+      return res.status(403).json({ success: false, message: '您不是该会议的审批人，无权限操作' });
+    }
     if (forwardTo) {
       const [[current]] = await pool.query('SELECT approver, comment as oldComment FROM meetings WHERE id = ?', [id]);
       const currentApprover = current?.approver || '';

@@ -31,12 +31,19 @@ export const requireAuth = async (req, res, next) => {
     if (decoded.pwd) {
       try {
         const { pool } = req.app.locals;
-        const [users] = await pool.execute('SELECT password FROM users WHERE username = ?', [realName]);
+        const [users] = await pool.execute('SELECT password, tokenVersion FROM users WHERE username = ?', [realName]);
         if (users.length > 0 && pwdFingerprint(users[0].password) !== decoded.pwd) {
           return res.status(401).json({ success: false, message: '密码已修改，请重新登录' });
         }
+        // 会话版本校验：管理员踢人（tokenVersion+1）后，旧 token 立即失效
+        // 兼容旧 token（无 ver 字段）及旧数据库（无 tokenVersion 列）
+        if (users.length > 0 && decoded.ver !== undefined && typeof users[0].tokenVersion === 'number') {
+          if (users[0].tokenVersion !== decoded.ver) {
+            return res.status(401).json({ success: false, message: '账号已在其他设备登录，请重新登录' });
+          }
+        }
       } catch (dbErr) {
-        console.error('密码指纹校验失败:', dbErr.message);
+        console.error('密码指纹/会话版本校验失败:', dbErr.message);
       }
     }
     req.user = { ...decoded, name: realName };

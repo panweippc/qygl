@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const props = defineProps<{ selectedRoleId: number | null }>()
 const roles = ref<any[]>([])
@@ -95,6 +95,20 @@ function handlePermissionChange() {}
 
 async function savePermissions() {
   if (!localRoleId.value) { ElMessage.warning('请先选择角色'); return }
+  // 高危操作二次验证：输入当前登录密码确认
+  let adminPassword: string
+  try {
+    const promptRes = await ElMessageBox.prompt(
+      '保存权限配置属于高危操作，请输入您的当前登录密码确认：',
+      '高危操作确认',
+      { inputType: 'password', confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+    )
+    adminPassword = promptRes.value
+  } catch (e: any) {
+    if (e === 'cancel') return
+    ElMessage.error('操作失败: ' + (e?.message || e))
+    return
+  }
   saving.value = true
   try {
     const checkedKeys = permissionTree.value?.getCheckedKeys() || []
@@ -103,13 +117,13 @@ async function savePermissions() {
     const menuRes = await fetch(`/api/roles/${localRoleId.value}/permissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ menuIds: allKeys })
+      body: JSON.stringify({ menuIds: allKeys, adminPassword })
     })
     const menuJson = await menuRes.json()
     if (menuJson.success) {
       ElMessage.success('权限配置保存成功')
     } else {
-      ElMessage.error('保存失败')
+      ElMessage.error(menuJson.message || '保存失败')
     }
   } catch { ElMessage.error('保存失败') }
   finally { saving.value = false }

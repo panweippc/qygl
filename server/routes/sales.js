@@ -2,6 +2,36 @@ import express from 'express';
 import { createOperationLog, getOperator, getRecordBefore, logDataChange } from '../utils/audit.js';
 const router = express.Router();
 
+// 销售数据写入/维护仅限销售/管理角色（总经理仅查看，不可写入）
+const SALES_ROLES = ['系统管理员', '销售部经理', '业务中心经理'];
+
+// 销售写入专用权限中间件：精确匹配 SALES_ROLES，不放行总经理（总经理仅查看销售数据）
+const requireSalesWriter = async (req, res, next) => {
+  try {
+    const { pool } = req.app.locals;
+    let username = req.user?.username || null;
+    if (username && /^emp_/.test(username)) {
+      const parts = String(username).split('_');
+      if (parts.length >= 2) username = parts[1];
+    }
+    if (!username) return res.status(401).json({ success: false, message: '未登录' });
+    const [employees] = await pool.execute(
+      'SELECT e.roleId, e.position, r.name AS roleName FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
+      [username]
+    );
+    if (employees.length === 0) {
+      // users 表内置账号：仅系统管理员/admin 可写销售，总经理不放行
+      if (username === '管理员' || /^admin$/i.test(username)) return next();
+      return res.status(403).json({ success: false, message: '无权限' });
+    }
+    const roleName = employees[0].roleName || '';
+    if (SALES_ROLES.includes(roleName)) return next();
+    return res.status(403).json({ success: false, message: '无权限' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: '权限验证失败' });
+  }
+};
+
 // 获取销售漏斗阶段
 router.get('/sales-funnel/stages', async (req, res) => {
   try {
@@ -25,7 +55,7 @@ router.get('/sales-funnel/data', async (req, res) => {
 });
 
 // 更新销售漏斗数据
-router.put('/sales-funnel/data/:id', async (req, res) => {
+router.put('/sales-funnel/data/:id', requireSalesWriter, async (req, res) => {
   const { id } = req.params;
   const { count, amount } = req.body;
   try {
@@ -34,6 +64,14 @@ router.put('/sales-funnel/data/:id', async (req, res) => {
       'UPDATE sales_funnel_data SET count = ?, amount = ? WHERE id = ?',
       [count, amount, id]
     );
+    // 审计：核心销售汇总数据修改
+    await createOperationLog(pool, {
+      username: getOperator(req),
+      action: 'update',
+      module: 'sales',
+      targetName: `销售漏斗数据(id=${id})`,
+      detail: `更新销售漏斗: count=${count}, amount=${amount}`
+    });
     res.json({ success: true, message: '销售漏斗数据更新成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '更新销售漏斗数据失败' });
@@ -64,7 +102,7 @@ router.get('/city-sales/:id', async (req, res) => {
 });
 
 // 添加盟市销售数据
-router.post('/city-sales', async (req, res) => {
+router.post('/city-sales', requireSalesWriter, async (req, res) => {
   const { name, sales, customers, growthRate } = req.body;
   try {
     const { pool } = req.app.locals;
@@ -110,7 +148,7 @@ router.put('/city-sales/:id', async (req, res) => {
 });
 
 // 删除盟市销售数据
-router.delete('/city-sales/:id', async (req, res) => {
+router.delete('/city-sales/:id', requireSalesWriter, async (req, res) => {
   const { id } = req.params;
   try {
     const { pool } = req.app.locals;
@@ -168,7 +206,7 @@ router.post('/county-sales', async (req, res) => {
 });
 
 // 更新旗县销售数据
-router.put('/county-sales/:id', async (req, res) => {
+router.put('/county-sales/:id', requireSalesWriter, async (req, res) => {
   const { id } = req.params;
   const { name } = req.body;
   try {
@@ -190,7 +228,7 @@ router.put('/county-sales/:id', async (req, res) => {
 });
 
 // 删除旗县销售数据
-router.delete('/county-sales/:id', async (req, res) => {
+router.delete('/county-sales/:id', requireSalesWriter, async (req, res) => {
   const { id } = req.params;
   try {
     const { pool } = req.app.locals;
@@ -232,6 +270,14 @@ router.post('/town-sales', async (req, res) => {
       'INSERT INTO town_sales (countyId, name, contactPerson, contactPhone, contactType, manager, customer_manager, our_manager, intention, requirement, isDealed, sales, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [countyId, name, contactPerson, contactPhone, contactType, manager, customer_manager, our_manager, intention, requirement, dealStatus, sales, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
+    // 审计：乡镇销售数据新增
+    await createOperationLog(pool, {
+      username: getOperator(req),
+      action: 'create',
+      module: 'sales',
+      targetName: `乡镇销售(${name || ''})`,
+      detail: `添加乡镇销售数据: ${name || ''}, 负责人: ${manager || ''}`
+    });
     res.json({ success: true, message: '乡镇销售数据添加成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '添加乡镇销售数据失败' });
@@ -263,6 +309,14 @@ router.put('/town-sales/:id', async (req, res) => {
     await pool.execute(
       `UPDATE town_sales SET ${updates.join(', ')} WHERE id = ?`, values
     );
+    // 审计：乡镇销售数据更新
+    await createOperationLog(pool, {
+      username: getOperator(req),
+      action: 'update',
+      module: 'sales',
+      targetName: `乡镇销售(id=${id})`,
+      detail: `更新乡镇销售数据: ${updates.join(', ')}`
+    });
     res.json({ success: true, message: '乡镇销售数据更新成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '更新乡镇销售数据失败' });
@@ -344,6 +398,14 @@ router.put('/town-sales/:id/stage', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     await pool.execute('UPDATE town_sales SET intention = ? WHERE id = ?', [intention, id]);
+    // 审计：销售机会阶段变更
+    await createOperationLog(pool, {
+      username: getOperator(req),
+      action: 'update',
+      module: 'sales',
+      targetName: `销售机会(id=${id})阶段`,
+      detail: `更新销售机会阶段为: ${intention}`
+    });
     res.json({ success: true, message: '阶段已更新' });
   } catch (error) {
     res.status(500).json({ success: false, message: '更新阶段失败' });
@@ -378,7 +440,7 @@ router.get('/sales-targets', async (req, res) => {
   }
 });
 
-router.put('/sales-targets', async (req, res) => {
+router.put('/sales-targets', requireSalesWriter, async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const { targets } = req.body;
@@ -393,6 +455,14 @@ router.put('/sales-targets', async (req, res) => {
         );
       }
     }
+    // 审计：批量销售目标变更
+    await createOperationLog(pool, {
+      username: getOperator(req),
+      action: 'update',
+      module: 'sales',
+      targetName: `销售目标批量更新(${targets.length}条)`,
+      detail: `批量保存销售目标共${targets.length}条`
+    });
     res.json({ success: true, message: '目标已保存' });
   } catch (error) {
     console.error('保存销售目标失败:', error);

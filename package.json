@@ -16,7 +16,11 @@
     "server:pm2:monit": "pm2 monit",
     "dev:all": "start cmd /c \"vite\" && start cmd /c \"nodemon server.js\"",
     "security:audit": "node scripts/security-audit.js",
-    "account:check": "node scripts/inactive-account-check.js"
+    "account:check": "node scripts/inactive-account-check.js",
+    "monitor:health": "node scripts/monitor-health.js",
+    "backup:crypto": "node scripts/backup-crypto.js",
+    "cleanup:logs": "node scripts/cleanup-logs.js",
+    "security:schedule": "node scripts/install-tasks.js"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
@@ -37,6 +41,7 @@
     "mammoth": "^1.12.0",
     "multer": "^2.2.0",
     "mysql2": "^3.23.3",
+    "nodemailer": "^9.0.5",
     "pinia": "2.0.14",
     "socket.io": "^4.5.4",
     "socket.io-client": "^4.5.4",

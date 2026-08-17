@@ -29,7 +29,9 @@ router.get('/closing-projects', async (req, res) => {
 router.post('/closing-projects', async (req, res) => {
   try {
     const { pool } = req.app.locals;
-    const { name, description, status, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId, applicant } = req.body;
+    const { name, description, status, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId } = req.body;
+    // 安全加固：申请人身份一律从 JWT token 解析，忽略请求体 applicant，防伪造
+    const applicant = getRealName(req) || '';
 
     console.log('接收到的请求数据:', req.body);
 

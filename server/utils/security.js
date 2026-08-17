@@ -26,7 +26,8 @@ export const signToken = (user) => jwt.sign(
     id: user.id,
     username: user.username,
     role: user.roleName || '',
-    pwd: pwdFingerprint(user.password) // 密码指纹，改密后旧 token 将失效
+    pwd: pwdFingerprint(user.password), // 密码指纹，改密后旧 token 将失效
+    ver: user.tokenVersion || 0          // 会话版本号，管理员踢人后该用户所有旧 token 立即失效
   },
   JWT_SECRET,
   { expiresIn: JWT_EXPIRES }

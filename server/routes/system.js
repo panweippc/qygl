@@ -1,13 +1,14 @@
 import express from 'express';
 import { createOperationLog, getOperator } from '../utils/audit.js';
 import { requireRole } from '../middleware/auth.js';
+import verifyAdminPassword from '../middleware/verifyAdminPassword.js';
 const router = express.Router();
 
 // 系统管理接口仅限管理员/总经理等管理角色
 const ADMIN_ROLES = ['系统管理员', '总经理'];
 
 // 获取所有角色
-router.get('/roles', async (req, res) => {
+router.get('/roles', requireRole(...ADMIN_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   try {
     const [roles] = await pool.execute('SELECT * FROM roles ORDER BY id');
@@ -35,7 +36,7 @@ router.get('/roles/:id', async (req, res) => {
 });
 
 // 创建角色
-router.post('/roles', requireRole(...ADMIN_ROLES), async (req, res) => {
+router.post('/roles', requireRole(...ADMIN_ROLES), verifyAdminPassword, async (req, res) => {
   const { pool } = req.app.locals;
   const { name, code, description, status } = req.body;
   try {
@@ -83,7 +84,7 @@ router.put('/roles/:id', requireRole(...ADMIN_ROLES), async (req, res) => {
 });
 
 // 删除角色
-router.delete('/roles/:id', requireRole(...ADMIN_ROLES), async (req, res) => {
+router.delete('/roles/:id', requireRole(...ADMIN_ROLES), verifyAdminPassword, async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   const connection = await pool.getConnection();
@@ -116,7 +117,7 @@ router.delete('/roles/:id', requireRole(...ADMIN_ROLES), async (req, res) => {
 });
 
 // 获取所有菜单（树形结构）
-router.get('/menus', async (req, res) => {
+router.get('/menus', requireRole(...ADMIN_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   try {
     const [menus] = await pool.execute('SELECT * FROM menus ORDER BY sort, id');
@@ -194,7 +195,7 @@ router.put('/menus/:id', requireRole(...ADMIN_ROLES), async (req, res) => {
 });
 
 // 删除菜单
-router.delete('/menus/:id', requireRole(...ADMIN_ROLES), async (req, res) => {
+router.delete('/menus/:id', requireRole(...ADMIN_ROLES), verifyAdminPassword, async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   try {
@@ -226,7 +227,7 @@ router.get('/roles/:roleId/permissions', async (req, res) => {
 });
 
 // 获取角色的按钮权限
-router.get('/roles/:roleId/button-permissions', async (req, res) => {
+router.get('/roles/:roleId/button-permissions', requireRole(...ADMIN_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { roleId } = req.params;
   try {
@@ -247,7 +248,7 @@ router.get('/roles/:roleId/button-permissions', async (req, res) => {
 });
 
 // 分配角色按钮权限
-router.post('/roles/:roleId/button-permissions', requireRole(...ADMIN_ROLES), async (req, res) => {
+router.post('/roles/:roleId/button-permissions', requireRole(...ADMIN_ROLES), verifyAdminPassword, async (req, res) => {
   const { pool } = req.app.locals;
   const { roleId } = req.params;
   const { permissions } = req.body; // { menuId: ['btn_add', 'btn_edit', ...] }

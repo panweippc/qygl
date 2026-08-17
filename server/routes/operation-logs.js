@@ -1,5 +1,6 @@
 import express from 'express';
 import { requireRole } from '../middleware/auth.js';
+import { createOperationLog, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
 function escapeId(val) {
@@ -115,6 +116,66 @@ router.get('/operation-logs/actions', requireRole('系统管理员', '总经理'
   } catch (error) {
     console.error('获取操作类型列表失败:', error);
     res.fail('获取操作类型列表失败');
+  }
+});
+
+// 导出操作日志（CSV 格式，管理员/总经理可用）
+router.get('/operation-logs/export', requireRole('系统管理员', '总经理'), async (req, res) => {
+  const { pool } = req.app.locals;
+  const { module: mod, action, userId: uid, startDate, endDate } = req.query;
+  try {
+    const conditions = [];
+    const params = [];
+    if (mod) { conditions.push('module = ?'); params.push(mod); }
+    if (action) { conditions.push('action = ?'); params.push(action); }
+    if (uid) { conditions.push('userId = ?'); params.push(uid); }
+    if (startDate) { conditions.push('createdAt >= ?'); params.push(startDate); }
+    if (endDate) { conditions.push('createdAt <= ?'); params.push(endDate); }
+    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    const [rows] = await pool.query(
+      `SELECT id, username, action, module, targetName, detail, ipAddress, createdAt FROM operation_logs ${where} ORDER BY createdAt DESC`,
+      params
+    );
+
+    // 生成 CSV（带 BOM 便于 Excel 正确识别中文）
+    const esc = (v) => {
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = ['ID', '操作人', '操作', '模块', '对象', '详情', 'IP', '时间'];
+    const lines = [header.join(',')];
+    for (const r of rows) {
+      lines.push([
+        r.id,
+        esc(r.username),
+        esc(ACTION_LABELS[r.action] || r.action),
+        esc(MODULE_LABELS[r.module] || r.module),
+        esc(r.targetName),
+        esc(r.detail),
+        esc(r.ipAddress),
+        esc(r.createdAt)
+      ].join(','));
+    }
+
+    const filename = `operation_logs_${new Date().toISOString().slice(0, 10)}.csv`;
+    // 审计：操作日志导出留痕
+    try {
+      await createOperationLog(pool, {
+        username: getOperator(req),
+        action: 'export',
+        module: 'operation_log',
+        targetName: `操作日志导出(${rows.length}条)`,
+        detail: `导出操作日志${rows.length}条，筛选: 模块=${mod || '全部'}, 动作=${action || '全部'}`
+      });
+    } catch (e) { /* 日志失败不影响导出 */ }
+    // 加 BOM 头 \uFEFF，Excel 打开中文不乱码
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send('\uFEFF' + lines.join('\n'));
+  } catch (error) {
+    console.error('导出操作日志失败:', error);
+    res.fail('导出操作日志失败');
   }
 });
 

@@ -165,6 +165,11 @@ const router = createRouter({
       component: () => import('../views/OperationLogView.vue')
     },
     {
+      path: '/security-alerts',
+      name: 'security-alerts',
+      component: () => import('../views/SecurityAlertView.vue')
+    },
+    {
       path: '/oa/leave-apply',
       name: 'leave-apply',
       component: () => import('../views/LeaveApplicationPage.vue'),

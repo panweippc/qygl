@@ -144,6 +144,13 @@ router.post('/login', loginLimiter, async (req, res) => {
         writeSecurityAlert({ level: 'WARN', type: 'account_disabled', username, ip, detail: `停用账号尝试登录被拒绝: ${username}` });
         return res.status(403).json({ success: false, message: '账号已被停用，请联系管理员' });
       }
+      // 离职员工账号自动禁用：关联员工若已离职则拒绝登录
+      const empName = String(username).startsWith('emp_') ? String(username).slice(4) : String(username);
+      const [erows] = await pool.execute('SELECT status FROM employees WHERE name = ?', [empName]);
+      if (erows.length > 0 && String(erows[0].status).includes('离职')) {
+        writeSecurityAlert({ level: 'WARN', type: 'account_disabled', username, ip, detail: `离职员工账号尝试登录被拒绝: ${username}` });
+        return res.status(403).json({ success: false, message: '该账号对应的员工已离职，登录被禁止，请联系管理员' });
+      }
     } catch (e) {
       console.log('账号状态检查失败:', e.message);
     }
@@ -183,7 +190,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
     try {
       const [employees] = await pool.execute(
-        'SELECT e.*, r.name AS roleName FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
+        'SELECT e.*, r.name AS roleName, r.status AS roleStatus FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
         [employeeName]
       );
 
@@ -193,6 +200,13 @@ router.post('/login', loginLimiter, async (req, res) => {
         position = employee.position;
         roleName = employee.roleName || '';
         avatar = employee.avatar || '';
+
+        // 角色被禁用：拒绝登录（系统管理员/总经理角色除外，防止误禁最高权限导致无法登录）
+        const roleStatus = String(employee.roleStatus || '').trim();
+        if (roleStatus === '禁用' && !['系统管理员', '总经理'].includes(roleName)) {
+          writeSecurityAlert({ level: 'WARN', type: 'role_disabled', username, ip, detail: `关联角色「${roleName}」被禁用，拒绝登录: ${username}` });
+          return res.status(403).json({ success: false, message: '您所属的角色已被禁用，请联系管理员' });
+        }
 
         if (employee.roleId) {
           const [rolePerms] = await pool.execute(

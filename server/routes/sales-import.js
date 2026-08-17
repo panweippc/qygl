@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import xlsx from 'xlsx';
+import { createOperationLog, getOperator } from '../utils/audit.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,6 +11,35 @@ const __dirname = path.dirname(__filename);
 const upload = multer({ dest: path.join(__dirname, '../../uploads/temp') });
 
 const router = express.Router();
+
+// 销售数据导入仅限销售/管理角色（总经理仅查看，不可导入）
+const SALES_ROLES = ['系统管理员', '销售部经理', '业务中心经理'];
+
+// 销售导入专用权限中间件：精确匹配 SALES_ROLES，不放行总经理
+const requireSalesWriter = async (req, res, next) => {
+  try {
+    const { pool } = req.app.locals;
+    let username = req.user?.username || null;
+    if (username && /^emp_/.test(username)) {
+      const parts = String(username).split('_');
+      if (parts.length >= 2) username = parts[1];
+    }
+    if (!username) return res.status(401).json({ success: false, message: '未登录' });
+    const [employees] = await pool.execute(
+      'SELECT e.roleId, e.position, r.name AS roleName FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
+      [username]
+    );
+    if (employees.length === 0) {
+      if (username === '管理员' || /^admin$/i.test(username)) return next();
+      return res.status(403).json({ success: false, message: '无权限' });
+    }
+    const roleName = employees[0].roleName || '';
+    if (SALES_ROLES.includes(roleName)) return next();
+    return res.status(403).json({ success: false, message: '无权限' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: '权限验证失败' });
+  }
+};
 
 // 下载导入模板
 router.get('/sales-import/template', (req, res) => {
@@ -71,7 +101,7 @@ function extractCounty(name) {
   return match ? match[1] : name;
 }
 
-router.post('/sales-import', upload.single('file'), async (req, res) => {
+router.post('/sales-import', requireSalesWriter, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: '请上传 Excel 文件' });
@@ -310,6 +340,15 @@ router.post('/sales-import', upload.single('file'), async (req, res) => {
     } finally {
       funnelConn.release();
     }
+
+    // 审计：销售数据批量导入
+    await createOperationLog(req.app.locals.pool, {
+      username: getOperator(req),
+      action: 'import',
+      module: 'sales',
+      targetName: `销售数据导入`,
+      detail: `导入销售数据: ${importedRows} 条, 新建盟市${createdCities}个, 旗县${createdCounties}个`
+    });
 
     res.json({
       success: true,

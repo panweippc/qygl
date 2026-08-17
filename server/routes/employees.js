@@ -3,6 +3,7 @@ import { createOperationLog, getRecordBefore, logDataChange, getOperator } from 
 import { hashPassword, validatePassword, generateRandomPassword, verifyPassword } from '../utils/security.js';
 import { check, firstError } from '../utils/validate.js';
 import { requireRole } from '../middleware/auth.js';
+import { checkManagePermission, getRealName } from '../utils/identity.js';
 import xlsx from 'xlsx';
 const router = express.Router();
 
@@ -88,7 +89,7 @@ router.get('/employees', async (req, res) => {
   }
 });
 
-router.post('/employees', async (req, res) => {
+router.post('/employees', requireRole('系统管理员', '总经理'), verifyAdminPassword, async (req, res) => {
   const { name, department, position, email, phone, entryDate, password, role, roleId: directRoleId, status, employeeType, education, birthDate, idCard, address, emergencyContact, emergencyPhone } = req.body;
   // 输入校验：核心字段必填且限长，选填字段限长
   const vErr = firstError(
@@ -175,6 +176,12 @@ router.delete('/employees/:name', requireRole('系统管理员', '总经理'), v
   const { name } = req.params;
   try {
     const { pool } = req.app.locals;
+    // 安全加固：不能删除系统管理员、不能删除自己、不能删除权限更高的用户
+    const operatorName = getOperator(req);
+    const permCheck = await checkManagePermission(pool, operatorName, name);
+    if (!permCheck.ok) {
+      return res.status(403).json({ success: false, message: permCheck.message });
+    }
     // 同时删除员工和对应登录账号（若存在）
     await pool.execute('DELETE FROM users WHERE username = ?', [name]);
     await pool.execute('DELETE FROM employees WHERE name = ?', [name]);
@@ -182,11 +189,12 @@ router.delete('/employees/:name', requireRole('系统管理员', '总经理'), v
     createOperationLog(pool, { userId: String(req.user?.id || ''), username: operator, action: 'delete', module: 'employee', targetId: null, targetName: name, detail: `删除员工: ${name}`, ipAddress: req.ip });
     res.json({ success: true, message: '员工删除成功' });
   } catch (error) {
+    console.error('删除员工失败:', error);
     res.status(500).json({ success: false, message: '删除员工失败' });
   }
 });
 
-router.put('/employees/:name', requireRole('系统管理员', '总经理'), async (req, res) => {
+router.put('/employees/:name', requireRole('系统管理员', '总经理'), verifyAdminPassword, async (req, res) => {
   const { name } = req.params;
   const { id, department, position, email, phone, entryDate, password, role, roleId: directRoleId, status, employeeType, education, birthDate, idCard, address, emergencyContact, emergencyPhone } = req.body;
   // 输入校验（仅校验员工资料字段；密码由下方 validatePassword 单独校验）
@@ -230,6 +238,18 @@ router.put('/employees/:name', requireRole('系统管理员', '总经理'), asyn
     } catch (e) { /* ignore */ }
 
     if (hasEmployeeFields) {
+      // 安全加固：若本次操作涉及"禁用账号"（将员工状态改为离职），需校验操作者权限
+      // 不能禁用系统管理员、不能禁用自己、不能禁用权限更高的用户
+      const isDisabling = String(status || '').includes('离职') || Number(status) === 0;
+      if (isDisabling && oldName) {
+        const opName = getOperator(req);
+        const permCheck = await checkManagePermission(connection, opName, oldName);
+        if (!permCheck.ok) {
+          connection.release();
+          return res.status(403).json({ success: false, message: permCheck.message });
+        }
+      }
+
       const formattedEntryDate = entryDate ? toLocalDateTime(entryDate) : new Date().toISOString().slice(0, 19).replace('T', ' ');
       const formattedBirthDate = birthDate ? toLocalDateTime(birthDate) : null;
 
@@ -322,7 +342,7 @@ router.put('/employees/:name', requireRole('系统管理员', '总经理'), asyn
   }
 });
 
-router.get('/employees/export', async (req, res) => {
+router.get('/employees/export', requireRole('系统管理员', '总经理', '财务总监', '财务经理', '人事经理', '人事专员', '业务中心经理', '技术部经理', '销售部经理'), async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const connection = await pool.getConnection();
@@ -357,6 +377,17 @@ router.get('/employees/export', async (req, res) => {
     ];
     xlsx.utils.book_append_sheet(workbook, worksheet, '员工数据');
     const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
+    // 审计：敏感员工数据导出（含身份证/电话/住址）
+    try {
+      await createOperationLog(pool, {
+        username: getOperator(req),
+        action: 'export',
+        module: 'employee',
+        targetName: `员工数据导出(${employees.length}人)`,
+        detail: `导出员工数据共${employees.length}人，包含身份证/电话/住址等敏感信息`
+      });
+    } catch (e) { /* 日志失败不影响导出 */ }
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     const safeDate = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -430,7 +461,7 @@ router.put('/departments/:id', async (req, res) => {
   }
 });
 
-router.delete('/departments/:id', async (req, res) => {
+router.delete('/departments/:id', requireRole('系统管理员', '总经理'), async (req, res) => {
   const { id } = req.params;
   try {
     const { pool } = req.app.locals;
@@ -453,6 +484,40 @@ router.delete('/departments/:id', async (req, res) => {
   } catch (error) {
     console.error('删除部门失败:', error);
     res.status(500).json({ success: false, message: '删除部门失败' });
+  }
+});
+
+// 强制下线指定用户（踢人）：更新 users.tokenVersion，使该用户所有已签发 token 立即失效
+// 仅系统管理员/总经理可操作，且需当前登录密码二次验证
+router.post('/employees/:id/kick', requireRole('系统管理员', '总经理'), verifyAdminPassword, async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const { id } = req.params;
+    // 通过员工名反查 users 账号（员工姓名与登录账号一致）
+    const [emps] = await pool.execute('SELECT name FROM employees WHERE id = ?', [id]);
+    if (emps.length === 0) {
+      return res.status(404).json({ success: false, message: '员工不存在' });
+    }
+    const empName = emps[0].name;
+    const [users] = await pool.execute('SELECT id, username, tokenVersion FROM users WHERE username = ?', [empName]);
+    if (users.length === 0) {
+      return res.status(404).json({ success: false, message: '该员工无登录账号' });
+    }
+    const u = users[0];
+    await pool.execute('UPDATE users SET tokenVersion = tokenVersion + 1 WHERE id = ?', [u.id]);
+    // 审计：强制下线
+    await createOperationLog(pool, {
+      userId: String(req.user?.id || ''),
+      username: getOperator(req),
+      action: 'kick',
+      module: 'user',
+      targetName: empName,
+      detail: `强制下线用户 ${empName}，其所有登录会话已失效`
+    });
+    res.json({ success: true, message: `已强制下线用户「${empName}」，其所有登录会话立即失效` });
+  } catch (error) {
+    console.error('强制下线失败:', error);
+    res.status(500).json({ success: false, message: '强制下线失败' });
   }
 });
 
