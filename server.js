@@ -1931,34 +1931,86 @@ const initDatabase = async () => {
       console.log('检查/添加OA办公菜单:', error.message);
     }
 
-    // 检查并添加系统监控菜单（顶级菜单）
+    // 检查并添加所有侧边栏菜单（确保菜单管理页面完整）
     try {
-      const [monitorMenu] = await connection.execute('SELECT * FROM menus WHERE path = ?', ['/monitor']);
-      if (monitorMenu.length === 0) {
-        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-        
-        const [result] = await connection.execute(
-          'INSERT INTO menus (parentId, name, path, component, icon, sort, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [0, '系统监控', '/monitor', 'MonitorDashboardView', '📊', 3, '启用', now, now]
-        );
-        const monitorMenuId = result.insertId;
-        console.log('系统监控菜单添加成功, ID:', monitorMenuId);
-        
-        // 为系统管理员角色添加监控权限
-        const [adminRoles] = await connection.execute(
-          'SELECT id FROM roles WHERE roleName = ? OR roleName = ?',
-          ['系统管理员', '总经理']
-        );
-        for (const role of adminRoles) {
-          await connection.execute(
-            'INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt, updatedAt) VALUES (?, ?, ?, ?)',
-            [role.id, monitorMenuId, now, now]
+      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+      // 所有侧边栏菜单定义（path → 菜单信息）
+      const allMenus = [
+        // 办公管理
+        { name: 'OA办公', path: '/oa-office', component: 'OAWorkflowView', icon: '📝', sort: 1 },
+        { name: '月报', path: '/monthly-report', component: 'MonthlyReportView', icon: '📅', sort: 2 },
+        { name: '工具入库', path: '/tool-inventory', component: 'ToolInventoryView', icon: '🔧', sort: 3 },
+        { name: '文件存储', path: '/file-storage', component: 'FileStorageView', icon: '📁', sort: 4 },
+        { name: '知识库', path: '/knowledge-base', component: 'KnowledgeBaseView', icon: '📚', sort: 5 },
+        { name: '消息中心', path: '/message-center', component: 'MessageCenterView', icon: '💬', sort: 6 },
+        // 业务管理
+        { name: '产品分类', path: '/project-category', component: 'ProjectCategoryView', icon: '📦', sort: 7 },
+        { name: '销售漏斗', path: '/sales-funnel', component: 'SalesFunnelView', icon: '🔻', sort: 8 },
+        { name: '销售目标', path: '/sales-target', component: 'SalesTargetView', icon: '🎯', sort: 9 },
+        { name: '客户管理', path: '/customer-management', component: 'CustomerManagementView', icon: '👥', sort: 10 },
+        { name: '机会跟进', path: '/sales-opportunity', component: 'SalesOpportunityView', icon: '💡', sort: 11 },
+        { name: '成交项目', path: '/closing-project', component: 'ClosingProjectView', icon: '✅', sort: 12 },
+        // 系统设置
+        { name: '员工管理', path: '/employee-management', component: 'EmployeeManagementView', icon: '👤', sort: 13 },
+        { name: '操作日志', path: '/operation-log', component: 'OperationLogView', icon: '📋', sort: 14 },
+        { name: '安全事件监控', path: '/security-alerts', component: 'SecurityAlertView', icon: '🛡️', sort: 15 },
+        { name: '系统监控', path: '/monitor', component: 'MonitorDashboardView', icon: '📊', sort: 16 },
+      ];
+
+      // 逐个检查并添加缺失的菜单
+      const menuIdMap = {};
+      for (const menu of allMenus) {
+        const [existing] = await connection.execute('SELECT id FROM menus WHERE path = ?', [menu.path]);
+        if (existing.length === 0) {
+          const [result] = await connection.execute(
+            'INSERT INTO menus (parentId, name, path, component, icon, sort, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [0, menu.name, menu.path, menu.component, menu.icon, menu.sort, '启用', now, now]
           );
-          console.log(`为角色 ${role.id} 添加监控权限`);
+          menuIdMap[menu.path] = result.insertId;
+          console.log(`菜单添加成功: ${menu.name} (${menu.path}), ID: ${result.insertId}`);
+        } else {
+          menuIdMap[menu.path] = existing[0].id;
         }
       }
+
+      // 为系统管理员和总经理角色分配所有菜单权限
+      // 注意：roles 表的字段是 name，不是 roleName
+      const [adminRoles] = await connection.execute(
+        'SELECT id FROM roles WHERE name IN (?, ?)',
+        ['系统管理员', '总经理']
+      );
+      const allMenuIds = Object.values(menuIdMap);
+      for (const role of adminRoles) {
+        for (const menuId of allMenuIds) {
+          await connection.execute(
+            'INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt, updatedAt) VALUES (?, ?, ?, ?)',
+            [role.id, menuId, now, now]
+          );
+        }
+        console.log(`为角色 ${role.id} 分配了全部菜单权限`);
+      }
+
+      // 为其他角色分配基础菜单权限（办公管理类）
+      const [otherRoles] = await connection.execute(
+        'SELECT id, name FROM roles WHERE name NOT IN (?, ?)',
+        ['系统管理员', '总经理']
+      );
+      const basicMenuPaths = ['/oa-office', '/monthly-report', '/tool-inventory', '/file-storage', '/knowledge-base', '/message-center'];
+      for (const role of otherRoles) {
+        for (const path of basicMenuPaths) {
+          const menuId = menuIdMap[path];
+          if (menuId) {
+            await connection.execute(
+              'INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt, updatedAt) VALUES (?, ?, ?, ?)',
+              [role.id, menuId, now, now]
+            );
+          }
+        }
+        console.log(`为角色 ${role.name}(${role.id}) 分配了基础菜单权限`);
+      }
     } catch (error) {
-      console.log('检查/添加系统监控菜单:', error.message);
+      console.log('检查/添加侧边栏菜单:', error.message);
     }
 
     // 只在admin用户不存在时添加
