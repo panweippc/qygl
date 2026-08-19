@@ -170,6 +170,11 @@ const router = createRouter({
       component: () => import('../views/SecurityAlertView.vue')
     },
     {
+      path: '/monitor',
+      name: 'monitor',
+      component: () => import('../views/MonitorDashboardView.vue')
+    },
+    {
       path: '/oa/leave-apply',
       name: 'leave-apply',
       component: () => import('../views/LeaveApplicationPage.vue'),

@@ -405,6 +405,27 @@ export const getPendingOfficeSupplies = async (approver: string): Promise<ApiRes
   return response.data;
 };
 
+// 系统监控
+export const getMonitorMetrics = async (hours: number = 24): Promise<ApiResponse<any[]>> => {
+  const response = await api.get('/monitor/metrics', { params: { hours } });
+  return response.data;
+};
+
+export const getMonitorLatest = async (): Promise<ApiResponse<any>> => {
+  const response = await api.get('/monitor/latest');
+  return response.data;
+};
+
+export const getMonitorHealth = async (): Promise<ApiResponse<any>> => {
+  const response = await api.get('/monitor/health');
+  return response.data;
+};
+
+export const getUptimeKumaStatus = async (): Promise<ApiResponse<any>> => {
+  const response = await api.get('/monitor/uptime-kuma-status');
+  return response.data;
+};
+
 // 角色管理
 export const getRoles = async (): Promise<ApiResponse<Role[]>> => {
   const response = await api.get('/roles');

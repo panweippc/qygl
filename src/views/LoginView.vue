@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="login-container">
     <!-- 科技背景 -->
     <div class="tech-bg">
@@ -344,19 +344,8 @@ const handleLogin = async () => {
       }
       localStorage.setItem('user', JSON.stringify(userInfo))
       
-      // 存储用户权限信息 - 如果没有权限数据，设置默认权限
-      const defaultPermissions = [
-        { path: '/tool-inventory' },
-        { path: '/oa-office' },
-        { path: '/monthly-report' },
-        { path: '/employee-management' },
-                { path: '/file-storage' },
-        { path: '/project-category' },
-        { path: '/closing-project' },
-        { path: '/sales-funnel' },
-        { path: '/system' }
-      ]
-      localStorage.setItem('permissions', JSON.stringify(user.permissions && user.permissions.length > 0 ? user.permissions : defaultPermissions))
+      // 存储用户权限信息 - 使用API返回的权限数据，无权限则为空数组
+      localStorage.setItem('permissions', JSON.stringify(user.permissions || []))
       if (user.buttonPermissions) {
         localStorage.setItem('buttonPermissions', JSON.stringify(user.buttonPermissions))
       }

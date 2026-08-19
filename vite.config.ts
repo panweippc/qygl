@@ -7,6 +7,17 @@ export default defineConfig({
   plugins: [
     vue(),
     {
+      name: 'no-cache',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+          res.setHeader('Pragma', 'no-cache')
+          res.setHeader('Expires', '0')
+          next()
+        })
+      }
+    },
+    {
       name: 'fallback-system',
       configureServer(server) {
         server.middlewares.use((req, res, next) => {
@@ -27,6 +38,9 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src')
     }
+  },
+  optimizeDeps: {
+    force: true
   },
   server: {
     host: '0.0.0.0',

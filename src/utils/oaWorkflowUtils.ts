@@ -1291,62 +1291,78 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
 <meta charset="UTF-8">
 <title>请假单 #${row.id}</title>
 <style>
-  @page { margin: 8mm; }
+  @page { margin: 10mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: "楷体", "SimSun", "宋体", serif; color: #000; font-size: 14px; }
-  .form-wrap { max-width: 680px; margin: 15px auto; border: 2px solid #000; padding: 0; }
-  table { width: 100%; border-collapse: collapse; }
-  td { border: 1px solid #000; padding: 2px 5px; vertical-align: middle; }
-  .title-row td { text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 12px; padding: 8px 0 6px; border-bottom: none; font-family: "SimHei","黑体",sans-serif; }
-  .date-row td { text-align: right; padding: 3px 14px 3px 0; font-size: 13px; letter-spacing: 1px; border-top: none; border-bottom: none; }
-  .subtitle-row td { text-align: left; padding: 2px 14px; font-size: 12px; color: #666; border-top: none; }
-  .label { text-align: center; white-space: nowrap; width: 70px; font-weight: bold; font-size: 14px; background: #fff; border-bottom: 1px solid #000; }
-  .field-value { font-weight: normal; padding-left: 8px; font-size: 14px; border-bottom: 1px solid #000; }
-  .content-area { min-height: 70px; line-height: 1.8; padding: 6px 10px; font-size: 14px; }
-  .approval-area { min-height: 40px; padding: 6px 10px; }
-  .approval-result { color: #c00; font-weight: bold; font-size: 15px; }
-  .print-hint { text-align: center; margin-top: 8px; font-size: 11px; color: #aaa; }
-  @media print { .print-hint { display: none; } body { padding: 0; } .form-wrap { margin: 0 auto; } }
+  body { font-family: "楷体", "SimSun", "宋体", serif; color: #000; font-size: 22px; background: #fff; }
+  .form-wrap { max-width: 1080px; margin: 16px auto; border: 3px solid #000; padding: 0; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  col.col-label { width: 16.66%; }
+  col.col-value { width: 16.67%; }
+  td { border: 2px solid #000; padding: 20px 24px; vertical-align: middle; min-height: 64px; }
+  .title-row td { text-align: center; font-size: 38px; font-weight: bold; letter-spacing: 20px; padding: 20px 24px; border-bottom: none; font-family: "SimHei","黑体",sans-serif; min-height: 0; }
+  .date-row td { text-align: right; padding: 20px 24px; font-size: 21px; letter-spacing: 2px; border-top: none; border-bottom: none; min-height: 0; }
+  .label { text-align: center; white-space: nowrap; font-weight: bold; font-size: 22px; padding: 20px 24px; }
+  .field-value { font-weight: normal; padding: 20px 24px; font-size: 22px; }
+  .content-area { line-height: 1.6; padding: 20px 24px; font-size: 22px; }
+  .approval-area { padding: 20px 24px; }
+  .approval-result { color: #c00; font-weight: bold; font-size: 24px; }
+  .approval-sign { text-align: right; font-size: 20px; color: #333; margin-top: 13px; }
+  .print-hint { text-align: center; margin-top: 13px; font-size: 18px; color: #999; }
+  @media print { .print-hint { display: none; } }
 </style>
 </head>
 <body>
 <div class="form-wrap">
-<table>
-  <tr class="title-row">
-    <td colspan="6">请 假 单</td>
-  </tr>
-  <tr class="date-row">
-    <td colspan="6">${formatDateCN(new Date()) || '　年　月　日'}</td>
-  </tr>
-  <tr>
-    <td class="label">姓名</td>
-    <td class="field-value" colspan="2">${row.applicant || ''}</td>
-    <td class="label">部门</td>
-    <td class="field-value" colspan="2">${department || ''}</td>
-  </tr>
-  <tr>
-    <td class="label">请假时间</td>
-    <td class="field-value" colspan="5">
-      ${yearS || '____'}年${monthS || '__'}月${dayS || '__'}日
-      至 ${yearE || '____'}年${monthE || '__'}月${dayE || '__'}日
-      ，共 <strong>${days}</strong> 天
-    </td>
-  </tr>
-  <tr>
-    <td class="label">请假原因</td>
-    <td colspan="5" class="content-area">${reason || ''}</td>
-  </tr>
-  <tr>
-    <td class="label">部门意见</td>
-    <td class="approval-area" colspan="2">${deptOpinion ? `<div style="position:relative;min-height:34px;"><span class="approval-result" style="position:absolute;top:0;left:2px;">${deptOpinion}</span>${deptName ? `<span style="position:absolute;bottom:0;right:2px;font-size:12px;color:#666;">${deptName}</span>` : ''}</div>` : ''}</td>
-    <td class="label">负责人<br>审批</td>
-    <td class="approval-area" colspan="2">${leaderOpinion ? `<div style="position:relative;min-height:34px;"><span class="approval-result" style="position:absolute;top:0;left:2px;">${leaderOpinion}</span>${leaderName ? `<span style="position:absolute;bottom:0;right:2px;font-size:12px;color:#666;">${leaderName}</span>` : ''}</div>` : ''}</td>
-  </tr>
-  <tr>
-    <td style="text-align:center;font-weight:bold;width:70px;">备注：</td>
-    <td colspan="5" class="approval-area" style="min-height:40px;padding:4px 10px;"></td>
-  </tr>
-</table>
+  <table>
+    <colgroup>
+      <col class="col-label">
+      <col class="col-value">
+      <col class="col-value">
+      <col class="col-label">
+      <col class="col-value">
+      <col class="col-value">
+    </colgroup>
+    <tr class="title-row">
+      <td colspan="6">请 假 单</td>
+    </tr>
+    <tr class="date-row">
+      <td colspan="6">${formatDateCN(new Date()) || '　年　月　日'}</td>
+    </tr>
+    <tr>
+      <td class="label">姓名</td>
+      <td class="field-value" colspan="2">${row.applicant || ''}</td>
+      <td class="label">部门</td>
+      <td class="field-value" colspan="2">${department || ''}</td>
+    </tr>
+    <tr>
+      <td class="label">请假时间</td>
+      <td class="field-value" colspan="5">
+        ${yearS || '____'}年${monthS || '__'}月${dayS || '__'}日
+        至 ${yearE || '____'}年${monthE || '__'}月${dayE || '__'}日
+        ，共 <strong>${days}</strong> 天
+      </td>
+    </tr>
+    <tr>
+      <td class="label">请假原因</td>
+      <td colspan="5" class="content-area">${reason || ''}</td>
+    </tr>
+    <tr>
+      <td class="label">部门意见</td>
+      <td class="approval-area" colspan="2">
+        ${deptOpinion ? `<div class="approval-result">${deptOpinion}</div>` : ''}
+        ${deptName ? `<div class="approval-sign">— ${deptName}</div>` : ''}
+      </td>
+      <td class="label">负责人<br>审批</td>
+      <td class="approval-area" colspan="2">
+        ${leaderOpinion ? `<div class="approval-result">${leaderOpinion}</div>` : ''}
+        ${leaderName ? `<div class="approval-sign">— ${leaderName}</div>` : ''}
+      </td>
+    </tr>
+    <tr>
+      <td class="label">备注</td>
+      <td colspan="5" class="approval-area"></td>
+    </tr>
+  </table>
 </div>
 <div class="print-hint">按 Ctrl+P 可导出为 PDF 打印</div>
 </body>

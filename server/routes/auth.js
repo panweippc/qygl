@@ -319,8 +319,10 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
 
     // 用真实姓名（纯姓名，不带 emp_ 前缀）签发 token，token 内 username 恒为姓名
+    // 必须携带当前 tokenVersion：否则被踢/角色禁用过的用户（tokenVersion>0）重新登录后
+    // token 内 ver 恒为 0，requireAuth 校验必然 401，表现为"登录成功即被弹回登录页"
     const tokenUsername = employeeName || user.username;
-    const token = signToken({ id: user.id, username: tokenUsername, roleName: roleName || '', password: user.password });
+    const token = signToken({ id: user.id, username: tokenUsername, roleName: roleName || '', password: user.password, tokenVersion: user.tokenVersion });
     const { password: _pw, ...userSafe } = user;
     res.json({ success: true, user: { ...userSafe, username: tokenUsername, name: employeeName || user.username, permissions, department, position, roleName, avatar, buttonPermissions }, token });
   } catch (error) {
@@ -356,7 +358,7 @@ router.post('/auth/refresh', async (req, res) => {
       const [roleRows] = await pool.execute('SELECT name FROM roles WHERE id = ?', [roleId]);
       roleName = roleRows.length > 0 ? roleRows[0].name : '';
     }
-    const newToken = signToken({ id: user.id, username, roleName: roleName || '', password: user.password });
+    const newToken = signToken({ id: user.id, username, roleName: roleName || '', password: user.password, tokenVersion: user.tokenVersion });
     res.json({ success: true, token: newToken, expiresIn: 12 * 60 * 60, message: 'token 已刷新' });
   } catch (error) {
     console.error('刷新 token 失败:', error);

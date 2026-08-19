@@ -55,7 +55,9 @@ import salesImportRouter from './server/routes/sales-import.js';
 import knowledgeRouter from './server/routes/knowledge.js';
 import userProfileRouter from './server/routes/user-profile.js';
 import backupRouter from './server/routes/backup.js';
+import monitorRouter from './server/routes/monitor.js';
 import { requireAuth } from './server/middleware/requireAuth.js';
+import { startMetricsCollector } from './server/utils/metrics-collector.js';
 
 // 启用CORS（内网白名单）
 // 设计：内置仅保留本机回环地址作为通用默认；
@@ -283,6 +285,7 @@ app.use('/api', salesImportRouter);
 app.use('/api', knowledgeRouter);
 app.use('/api', userProfileRouter);
 app.use('/api', backupRouter);
+app.use('/api', monitorRouter);
 // H3: 上传文件静态服务 - 危险类型（html/svg等）强制下载而非渲染，防存储型XSS
 const DANGEROUS_UPLOAD_EXT = /\.(html?|svg|xml|swf|js|mjs)$/i;
 app.use('/uploads', (req, res, next) => {
@@ -1928,6 +1931,36 @@ const initDatabase = async () => {
       console.log('检查/添加OA办公菜单:', error.message);
     }
 
+    // 检查并添加系统监控菜单（顶级菜单）
+    try {
+      const [monitorMenu] = await connection.execute('SELECT * FROM menus WHERE path = ?', ['/monitor']);
+      if (monitorMenu.length === 0) {
+        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        
+        const [result] = await connection.execute(
+          'INSERT INTO menus (parentId, name, path, component, icon, sort, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [0, '系统监控', '/monitor', 'MonitorDashboardView', '📊', 3, '启用', now, now]
+        );
+        const monitorMenuId = result.insertId;
+        console.log('系统监控菜单添加成功, ID:', monitorMenuId);
+        
+        // 为系统管理员角色添加监控权限
+        const [adminRoles] = await connection.execute(
+          'SELECT id FROM roles WHERE roleName = ? OR roleName = ?',
+          ['系统管理员', '总经理']
+        );
+        for (const role of adminRoles) {
+          await connection.execute(
+            'INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt, updatedAt) VALUES (?, ?, ?, ?)',
+            [role.id, monitorMenuId, now, now]
+          );
+          console.log(`为角色 ${role.id} 添加监控权限`);
+        }
+      }
+    } catch (error) {
+      console.log('检查/添加系统监控菜单:', error.message);
+    }
+
     // 只在admin用户不存在时添加
     const [existingUsers] = await connection.execute('SELECT * FROM users WHERE username = ?', ['管理员']);
     if (existingUsers.length === 0) {
@@ -2576,6 +2609,8 @@ server.listen(port, '0.0.0.0', async () => {
       initWorkflowEngine(pool);
       // 初始化数据库表结构
       await initDatabase();
+      // 启动监控指标采集器（进程内每60秒采集，写入 monitor_metrics 表）
+      startMetricsCollector(pool).catch(e => console.error('[监控] 指标采集器启动失败:', e.message));
     }
   }
 });
