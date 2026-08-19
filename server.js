@@ -1974,40 +1974,56 @@ const initDatabase = async () => {
         }
       }
 
-      // 为系统管理员和总经理角色分配所有菜单权限
-      // 注意：roles 表的字段是 name，不是 roleName
+      // 为系统管理员和总经理角色分配所有菜单权限（仅首次运行时）
+      // 如果 role_permissions 表中已有该角色的权限记录，说明已被手动配置过，跳过
       const [adminRoles] = await connection.execute(
         'SELECT id FROM roles WHERE name IN (?, ?)',
         ['系统管理员', '总经理']
       );
       const allMenuIds = Object.values(menuIdMap);
       for (const role of adminRoles) {
+        const [existingPerms] = await connection.execute(
+          'SELECT COUNT(*) as cnt FROM role_permissions WHERE roleId = ?',
+          [role.id]
+        );
+        if (existingPerms[0].cnt > 0) {
+          console.log(`角色 ${role.id} 已有 ${existingPerms[0].cnt} 条权限记录，跳过默认分配（如需重置请手动清除）`);
+          continue;
+        }
         for (const menuId of allMenuIds) {
           await connection.execute(
-            'INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt) VALUES (?, ?, ?)',
+            'INSERT INTO role_permissions (roleId, menuId, createdAt) VALUES (?, ?, ?)',
             [role.id, menuId, now]
           );
         }
-        console.log(`为角色 ${role.id} 分配了全部菜单权限`);
+        console.log(`为角色 ${role.id} 分配了全部菜单权限（首次初始化）`);
       }
 
-      // 为其他角色分配基础菜单权限（办公管理类）
+      // 为其他角色分配基础菜单权限（仅首次运行时）
       const [otherRoles] = await connection.execute(
         'SELECT id, name FROM roles WHERE name NOT IN (?, ?)',
         ['系统管理员', '总经理']
       );
       const basicMenuPaths = ['/oa-office', '/monthly-report', '/tool-inventory', '/file-storage', '/knowledge-base', '/message-center'];
       for (const role of otherRoles) {
+        const [existingPerms] = await connection.execute(
+          'SELECT COUNT(*) as cnt FROM role_permissions WHERE roleId = ?',
+          [role.id]
+        );
+        if (existingPerms[0].cnt > 0) {
+          console.log(`角色 ${role.name}(${role.id}) 已有 ${existingPerms[0].cnt} 条权限记录，跳过默认分配`);
+          continue;
+        }
         for (const path of basicMenuPaths) {
           const menuId = menuIdMap[path];
           if (menuId) {
             await connection.execute(
-              'INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt) VALUES (?, ?, ?)',
+              'INSERT INTO role_permissions (roleId, menuId, createdAt) VALUES (?, ?, ?)',
               [role.id, menuId, now]
             );
           }
         }
-        console.log(`为角色 ${role.name}(${role.id}) 分配了基础菜单权限`);
+        console.log(`为角色 ${role.name}(${role.id}) 分配了基础菜单权限（首次初始化）`);
       }
     } catch (error) {
       console.log('检查/添加侧边栏菜单:', error.message);
