@@ -226,13 +226,15 @@ router.post('/login', loginLimiter, async (req, res) => {
           if (employee.department === '管理部门' && employee.position === '总经理') {
             fallbackRoleName = '总经理';
           } else if (employee.department === '技术部') {
-            fallbackRoleName = '技术部员工';
+            fallbackRoleName = '技术部经理';
           } else if (employee.department === '销售部') {
-            fallbackRoleName = '销售';
+            fallbackRoleName = '销售部经理';
           } else if (employee.department === '财务部') {
-            fallbackRoleName = employee.position === '财务总监' ? '财务总监' : '财务';
+            fallbackRoleName = employee.position === '财务总监' ? '财务总监' : '普通员工';
           } else if (employee.department === '人力资源部') {
-            fallbackRoleName = '人事经理';
+            fallbackRoleName = '普通员工';
+          } else {
+            fallbackRoleName = '普通员工';
           }
 
           if (fallbackRoleName) {
@@ -386,6 +388,36 @@ router.get('/user/permissions', async (req, res) => {
           [employee.roleId]
         );
         permissions = rolePerms;
+      }
+
+      // fallback：按部门/职位推断角色
+      if (permissions.length === 0) {
+        let fallbackRoleName = '';
+        if (employee.department === '管理部门' && employee.position === '总经理') {
+          fallbackRoleName = '总经理';
+        } else if (employee.department === '技术部') {
+          fallbackRoleName = '技术部经理';
+        } else if (employee.department === '销售部') {
+          fallbackRoleName = '销售部经理';
+        } else if (employee.department === '财务部') {
+          fallbackRoleName = employee.position === '财务总监' ? '财务总监' : '普通员工';
+        } else {
+          fallbackRoleName = '普通员工';
+        }
+
+        if (fallbackRoleName) {
+          const [roles] = await pool.execute('SELECT id FROM roles WHERE name = ?', [fallbackRoleName]);
+          if (roles.length > 0) {
+            const [rolePerms] = await pool.execute(
+              `SELECT m.id, m.name, m.path, m.component, m.icon
+               FROM role_permissions rp
+               JOIN menus m ON rp.menuId = m.id
+               WHERE rp.roleId = ?`,
+              [roles[0].id]
+            );
+            permissions = rolePerms;
+          }
+        }
       }
     }
     res.json({ success: true, data: permissions });

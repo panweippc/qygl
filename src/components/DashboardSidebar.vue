@@ -259,13 +259,15 @@ const loadUserPermissions = () => {
   try {
     const storedPermissions = localStorage.getItem('permissions')
     if (storedPermissions) {
-      permissions.value = JSON.parse(storedPermissions)
-      if (permissions.value.length > 0) return
+      const parsed = JSON.parse(storedPermissions)
+      // 仅当有缓存且非空时使用缓存，否则等待 API 刷新
+      if (parsed && parsed.length > 0) {
+        permissions.value = parsed
+      }
     }
   } catch (error) {
     console.error('加载权限失败:', error)
   }
-  permissions.value = []
 }
 
 loadUserPermissions()
