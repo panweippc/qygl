@@ -1984,8 +1984,8 @@ const initDatabase = async () => {
       for (const role of adminRoles) {
         for (const menuId of allMenuIds) {
           await connection.execute(
-            'INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt, updatedAt) VALUES (?, ?, ?, ?)',
-            [role.id, menuId, now, now]
+            'INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt) VALUES (?, ?, ?)',
+            [role.id, menuId, now]
           );
         }
         console.log(`为角色 ${role.id} 分配了全部菜单权限`);
@@ -2002,8 +2002,8 @@ const initDatabase = async () => {
           const menuId = menuIdMap[path];
           if (menuId) {
             await connection.execute(
-              'INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt, updatedAt) VALUES (?, ?, ?, ?)',
-              [role.id, menuId, now, now]
+              'INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt) VALUES (?, ?, ?)',
+              [role.id, menuId, now]
             );
           }
         }
