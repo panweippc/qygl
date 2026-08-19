@@ -1,6 +1,7 @@
 -- =============================================
--- 菜单权限修复脚本 (v1.2.2)
+-- 菜单权限修复脚本 (v1.2.3)
 -- 修复所有角色的菜单权限，确保非管理员用户也能看到侧边栏
+-- 注意：role_permissions 表结构只有 id, roleId, menuId, createdAt 四列
 -- 在 MySQL 中执行此脚本
 -- =============================================
 
@@ -26,8 +27,8 @@ INSERT IGNORE INTO menus (parentId, name, path, component, icon, sort, status, c
 (0, '系统监控', '/monitor', 'MonitorDashboardView', '📊', 16, '启用', NOW(), NOW());
 
 -- 步骤2：为系统管理员和总经理分配全部菜单权限
-INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt, updatedAt)
-SELECT r.id, m.id, NOW(), NOW()
+INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt)
+SELECT r.id, m.id, NOW()
 FROM roles r
 CROSS JOIN menus m
 WHERE r.name IN ('系统管理员', '总经理')
@@ -38,40 +39,38 @@ WHERE r.name IN ('系统管理员', '总经理')
   );
 
 -- 步骤3：为其他所有角色分配基础菜单权限（办公管理）
-INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt, updatedAt)
-SELECT r.id, m.id, NOW(), NOW()
+INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt)
+SELECT r.id, m.id, NOW()
 FROM roles r
 CROSS JOIN menus m
 WHERE r.name NOT IN ('系统管理员', '总经理')
   AND m.path IN ('/oa-office', '/monthly-report', '/tool-inventory', '/file-storage', '/knowledge-base', '/message-center');
 
--- 步骤4：为各部门经理分配部门相关权限
--- 技术部经理 + 系统管理员 + 总经理：全部权限已在上面处理
--- 销售部经理：业务管理 + 基础
-INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt, updatedAt)
-SELECT r.id, m.id, NOW(), NOW()
+-- 步骤4：销售部经理额外分配业务管理权限
+INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt)
+SELECT r.id, m.id, NOW()
 FROM roles r
 CROSS JOIN menus m
 WHERE r.name = '销售部经理'
   AND m.path IN ('/project-category', '/sales-funnel', '/sales-target', '/customer-management', '/sales-opportunity', '/closing-project');
 
--- 财务总监：系统设置 + 基础
-INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt, updatedAt)
-SELECT r.id, m.id, NOW(), NOW()
+-- 步骤5：财务总监额外分配系统管理权限
+INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt)
+SELECT r.id, m.id, NOW()
 FROM roles r
 CROSS JOIN menus m
 WHERE r.name = '财务总监'
   AND m.path IN ('/employee-management', '/operation-log');
 
--- 部门经理：员工管理 + 业务管理
-INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt, updatedAt)
-SELECT r.id, m.id, NOW(), NOW()
+-- 步骤6：技术部经理额外分配系统和业务权限
+INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt)
+SELECT r.id, m.id, NOW()
 FROM roles r
 CROSS JOIN menus m
 WHERE r.name = '技术部经理'
   AND m.path IN ('/employee-management', '/operation-log', '/project-category', '/closing-project');
 
--- 步骤5：验证结果
+-- 步骤7：验证结果
 SELECT 
   r.name AS '角色',
   COUNT(rp.menuId) AS '菜单数量',
