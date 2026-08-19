@@ -312,31 +312,32 @@ router.post('/roles/:roleId/permissions', requireRole(...ADMIN_ROLES), async (re
   const { pool } = req.app.locals;
   const { roleId } = req.params;
   const { menuIds } = req.body;
+  console.log(`[权限保存] 收到请求: roleId=${roleId}, menuIds数量=${menuIds?.length || 0}, menuIds=${JSON.stringify(menuIds)}`);
   const connection = await pool.getConnection();
   try {
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
     await connection.beginTransaction();
 
-    await connection.execute('DELETE FROM role_permissions WHERE roleId = ?', [roleId]);
-    console.log(`删除角色 ${roleId} 的所有权限`);
+    const [delResult] = await connection.execute('DELETE FROM role_permissions WHERE roleId = ?', [roleId]);
+    console.log(`[权限保存] 删除角色 ${roleId} 的旧权限: ${delResult.affectedRows} 条`);
 
     if (menuIds && menuIds.length > 0) {
       for (const menuId of menuIds) {
-        try {
-          console.log(`插入权限: roleId=${roleId}, menuId=${menuId}`);
-          await connection.execute(
-            'INSERT INTO role_permissions (roleId, menuId, createdAt) VALUES (?, ?, ?)',
-            [roleId, menuId, now]
-          );
-        } catch (insertError) {
-          console.error('插入权限记录失败:', insertError.message);
-        }
+        await connection.execute(
+          'INSERT INTO role_permissions (roleId, menuId, createdAt) VALUES (?, ?, ?)',
+          [roleId, menuId, now]
+        );
       }
+      console.log(`[权限保存] 插入 ${menuIds.length} 条新权限`);
     }
 
     await connection.commit();
-    console.log('权限分配成功');
+    
+    // 验证保存结果
+    const [verify] = await connection.execute('SELECT COUNT(*) as cnt FROM role_permissions WHERE roleId = ?', [roleId]);
+    console.log(`[权限保存] 保存完成，角色 ${roleId} 现有 ${verify[0].cnt} 条权限`);
+    
     const operator = getOperator(req);
     createOperationLog(pool, { userId: null, username: operator, action: 'update', module: 'system', targetId: roleId, targetName: `角色ID: ${roleId}`, detail: `分配角色权限`, ipAddress: req.ip });
     res.json({ success: true, message: '权限分配成功' });
