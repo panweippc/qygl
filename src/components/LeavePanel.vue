@@ -67,7 +67,7 @@
             />
           </template>
         </template>
-        <el-button type="danger" @click="exportLeaveData" class="export-btn-small">
+        <el-button v-if="canExport" type="danger" @click="exportLeaveData" class="export-btn-small">
           导出
         </el-button>
         <el-button v-if="!isAdmin && !isLiZhiXin" type="primary" @click="goToLeaveApply" class="action-btn">
@@ -195,6 +195,7 @@
                 详情
               </el-button>
               <el-button
+                v-if="canExport"
                 size="small"
                 @click="exportLeaveRow(row)"
                 class="export-row-btn"
@@ -419,6 +420,9 @@ const currentUsername = computed(() => {
 })
 
 const isLiZhiXin = computed(() => extractRealName(currentUsername.value) === '李智鑫')
+
+// 导出按钮仅张海琼可见（财务总监负责导出 OA 办公各类申请表）
+const canExport = computed(() => extractRealName(currentUsername.value) === '张海琼')
 
 const leaveApplicants = computed(() => {
   const applicants = new Set(

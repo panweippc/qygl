@@ -37,7 +37,7 @@
             <el-date-picker v-model="entertainmentYearDate" type="year" placeholder="选择年份" size="default" style="width: 140px; margin-right: 8px;" @change="handleDateRangeChange" />
           </template>
         </template>
-        <el-button type="danger" @click="exportEntertainmentData" class="export-btn-small">导出</el-button>
+        <el-button v-if="canExport" type="danger" @click="exportEntertainmentData" class="export-btn-small">导出</el-button>
         <el-button v-if="!isAdmin && !isLiZhiXin" type="primary" @click="goToEntertainmentApply" class="action-btn">
           <span class="btn-icon">+</span> 发起招待申请
         </el-button>
@@ -92,7 +92,7 @@
               <el-button v-if="(row.status === '审批中' || row.status === 'pending') && !isAdmin" size="small" @click="cancelEntertainmentApplication(row)" class="cancel-btn">取消</el-button>
               <el-button v-if="row.status === '审批中' && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))" size="small" type="danger" @click="$emit('terminate', row, 'entertainment')" class="terminate-btn">终止</el-button>
               <el-button size="small" @click="$emit('view-detail', row, 'entertainment')" class="view-btn">详情</el-button>
-              <el-button size="small" @click="exportEntertainmentRow(row)" class="export-row-btn">导出</el-button>
+              <el-button v-if="canExport" size="small" @click="exportEntertainmentRow(row)" class="export-row-btn">导出</el-button>
             </div>
           </template>
         </el-table-column>
@@ -259,6 +259,9 @@ const entertainmentFormRef = ref()
 const currentUsername = computed(() => localStorage.getItem('username') || '当前用户')
 
 const isLiZhiXin = computed(() => extractRealName(currentUsername.value) === '李智鑫')
+
+// 导出按钮仅张海琼可见（财务总监负责导出 OA 办公各类申请表）
+const canExport = computed(() => extractRealName(currentUsername.value) === '张海琼')
 
 const router = useRouter()
 

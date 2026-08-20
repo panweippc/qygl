@@ -208,7 +208,7 @@
                   <span class="title-text">下发申请管理</span>
                 </div>
                 <div class="header-actions">
-                  <el-button type="danger" @click="exportDistributedData" class="export-btn-small">
+                  <el-button v-if="isCurrentUserZhang" type="danger" @click="exportDistributedData" class="export-btn-small">
                     导出
                   </el-button>
                   <el-button type="primary" @click="loadDistributedRecords" class="refresh-btn">
@@ -290,6 +290,7 @@
                             详情
                           </el-button>
                           <el-button
+                            v-if="isCurrentUserZhang"
                             size="small"
                             @click="exportDistributedRow(row)"
                             class="export-row-btn"

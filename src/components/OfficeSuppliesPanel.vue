@@ -22,7 +22,7 @@
             <el-option label="其他项目" value="其他项目" />
           </el-select>
         </template>
-        <el-button type="danger" @click="exportProjectData" class="export-btn-small">
+        <el-button v-if="canExport" type="danger" @click="exportProjectData" class="export-btn-small">
           导出
         </el-button>
         <el-button v-if="!isAdmin && !isLiZhiXin" type="primary" @click="goToProjectApply" class="action-btn">
@@ -161,6 +161,7 @@
                 删除
               </el-button>
               <el-button
+                v-if="canExport"
                 size="small"
                 @click="exportProjectRow(row)"
                 class="export-row-btn"
@@ -295,6 +296,9 @@ const currentUsername = computed(() => {
 })
 
 const isLiZhiXin = computed(() => extractRealName(currentUsername.value) === '李智鑫')
+
+// 导出按钮仅张海琼可见（财务总监负责导出 OA 办公各类申请表）
+const canExport = computed(() => extractRealName(currentUsername.value) === '张海琼')
 
 const filteredProjectRecords = computed(() => {
   let records = props.isAdmin ? allProjectRecords.value : projectRecords.value
