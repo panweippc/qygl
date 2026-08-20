@@ -2029,6 +2029,39 @@ const initDatabase = async () => {
       console.log('检查/添加侧边栏菜单:', error.message);
     }
 
+    // 同步 role_button_permissions 缺失的基础按钮权限
+    // 规则：对每一个 "角色+菜单" 的 role_permissions 组合，如果 role_button_permissions
+    // 中尚未有该 (roleId, menuId) 的任何按钮权限记录，则为其自动补充常用的 4 个基础按钮：
+    //   btn_add（新增）、btn_edit（编辑）、btn_delete（删除）、btn_export（导出）
+    // 目的：兼容旧数据库（只分配过菜单级权限，但没有按钮权限数据），避免前端按钮权限全为 false。
+    try {
+      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      const [roleMenuPairs] = await connection.execute(`
+        SELECT DISTINCT rp.roleId, rp.menuId
+        FROM role_permissions rp
+        WHERE NOT EXISTS (
+          SELECT 1 FROM role_button_permissions rbp
+          WHERE rbp.roleId = rp.roleId AND rbp.menuId = rp.menuId
+        )
+      `);
+      const baseButtons = ['btn_add', 'btn_edit', 'btn_delete', 'btn_export'];
+      let syncedCount = 0;
+      for (const pair of roleMenuPairs) {
+        for (const btn of baseButtons) {
+          await connection.execute(
+            'INSERT IGNORE INTO role_button_permissions (roleId, menuId, buttonKey, createdAt) VALUES (?, ?, ?, ?)',
+            [pair.roleId, pair.menuId, btn, now]
+          );
+          syncedCount++;
+        }
+      }
+      if (syncedCount > 0) {
+        console.log(`[按钮权限同步] 已为 ${roleMenuPairs.length} 个(角色×菜单)组合补齐 ${syncedCount} 条基础按钮权限记录`);
+      }
+    } catch (error) {
+      console.log('[按钮权限同步] 失败:', error.message);
+    }
+
     // 只在admin用户不存在时添加
     const [existingUsers] = await connection.execute('SELECT * FROM users WHERE username = ?', ['管理员']);
     if (existingUsers.length === 0) {

@@ -61,3 +61,10 @@ verify-security.js
 test-*.js
 test-multi.js
 test-health.js
+check-cols.mjs
+q.mjs
+test-monitor-api.mjs
+scripts/check-users.mjs
+
+# IDE 助手临时目录
+.workbuddy/

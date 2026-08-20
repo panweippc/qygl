@@ -1180,13 +1180,24 @@ export const stripApproverName = (text: string) => {
 
 export const hasButtonPermission = (buttonKey: string, menuPath?: string): boolean => {
   try {
-    const btnPermsStr = localStorage.getItem('buttonPermissions')
-    if (!btnPermsStr) return false
-    const btnPerms = JSON.parse(btnPermsStr)
+    // 高级角色（管理员 / 总经理等）始终放行
+    const role = String(localStorage.getItem('role') || '').toLowerCase()
+    const roleName = String(localStorage.getItem('roleName') || '').toLowerCase()
+    const username = String(localStorage.getItem('username') || '')
+    const privilegedRoles = ['admin', 'gm', 'ceo', 'general_manager', '系统管理员', '总经理']
+    const isPrivileged = privilegedRoles.some(r => role.includes(r) || roleName.includes(r))
+      || username === '李智鑫'
+      || username.includes('admin')
+    if (isPrivileged) return true
+
     const permsStr = localStorage.getItem('permissions')
     if (!permsStr) return false
     const perms = JSON.parse(permsStr)
-    let menuId = null
+
+    const btnPermsStr = localStorage.getItem('buttonPermissions')
+    const btnPerms = btnPermsStr ? JSON.parse(btnPermsStr) : {}
+
+    let menuId: any = null
     for (const perm of perms) {
       if (menuPath && perm.path === menuPath) { menuId = perm.id; break }
       if (!menuPath && perm.id) { menuId = perm.id; break }
@@ -1196,6 +1207,15 @@ export const hasButtonPermission = (buttonKey: string, menuPath?: string): boole
         if (perm.id) { menuId = perm.id; break }
       }
     }
+
+    // 导出类按钮做兼容兜底：只要用户能访问对应菜单，即使 role_button_permissions 表
+    // 中尚未配置，也允许按钮可见（避免老数据因按钮权限未同步导致导出按钮完全不可见）
+    const isExportLike = /export|导出/.test(buttonKey)
+    const isMenuAccessible = !!menuId
+    if (isExportLike && isMenuAccessible) {
+      if (!btnPerms[menuId]) return true
+    }
+
     if (!menuId || !btnPerms[menuId]) return false
     return btnPerms[menuId].includes(buttonKey)
   } catch { return false }
@@ -1237,6 +1257,7 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
   let leaderOpinion = ''
   let deptName = ''
   let leaderName = ''
+  const applicantName = extractRealName(String(row.applicant || ''))
   const getNameOf = (h: any) => extractRealName(String(h.approverName || h.approver_name || h.approver || ''))
   // 1) 尝试 approval_history（结构化数组）
   try {
@@ -1244,37 +1265,55 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
     if (ah) {
       const list = typeof ah === 'string' ? JSON.parse(ah) : ah
       if (Array.isArray(list) && list.length > 0) {
-        // 按角色区分：第一个非总经理→部门意见；总经理→负责人审批
-        const dept = list.find((h: any) => h.approverRole && !/总经理/.test(h.approverRole))
-        if (dept) { deptOpinion = normalize(dept.action); deptName = getNameOf(dept) }
+        // 总经理审批的 → 负责人审批
         const leader = list.find((h: any) => h.approverRole && /总经理/.test(h.approverRole))
         if (leader) { leaderOpinion = normalize(leader.action); leaderName = getNameOf(leader) }
-        // 如果没分出来，第一个→部门，最后一个→负责人
-        if (!deptOpinion && !leaderOpinion && list.length > 0) {
-          deptOpinion = normalize(list[0].action)
-          deptName = getNameOf(list[0])
-          if (list.length > 1) {
-            leaderOpinion = normalize(list[list.length - 1].action)
-            leaderName = getNameOf(list[list.length - 1])
+        // 非总经理审批的，且审批人≠申请人 → 部门意见（如果审批人=申请人自己，跳过，即部门意见留空）
+        const dept = list.find((h: any) => {
+          const approverName = getNameOf(h)
+          return h.approverRole
+            && !/总经理/.test(h.approverRole)
+            && approverName
+            && approverName !== applicantName
+        })
+        if (dept) { deptOpinion = normalize(dept.action); deptName = getNameOf(dept) }
+        // 如果没分出来，按顺序分配：第一个非申请人→部门意见；其他的如果含总经理→负责人审批
+        if (!deptOpinion && list.length > 0) {
+          const nonSelf = list.filter((h: any) => getNameOf(h) !== applicantName)
+          // 先取总经理（如果还没取到）
+          if (!leaderOpinion) {
+            const l = nonSelf.find((h: any) => /总经理/.test(String(h.approverName || h.approverRole || '')) || /李智鑫/.test(String(h.approverName || '')))
+            if (l) { leaderOpinion = normalize(l.action); leaderName = getNameOf(l) }
+          }
+          // 剩下的第一个非申请人、非总经理 → 部门意见
+          if (!deptOpinion) {
+            const d = nonSelf.find((h: any) => {
+              const n = getNameOf(h)
+              const isLeader = /总经理/.test(String(h.approverName || h.approverRole || '')) || n === leaderName
+              return !isLeader
+            })
+            if (d) { deptOpinion = normalize(d.action); deptName = getNameOf(d) }
           }
         }
       }
     }
   } catch {}
   // 2) 回退使用 result 字段（"name:批准;name:批准" 格式）
-  if (!deptOpinion && !leaderOpinion && row.result) {
+  if ((!deptOpinion || !leaderOpinion) && row.result) {
     try {
       const items = String(row.result).split(';').filter(Boolean).map((s: string) => {
         const idx = s.indexOf(':')
-        return idx > 0 ? { name: s.substring(0, idx).trim(), action: normalize(s.substring(idx + 1).trim()) } : null
+        return idx > 0 ? { name: extractRealName(s.substring(0, idx).trim()), action: normalize(s.substring(idx + 1).trim()) } : null
       }).filter(Boolean)
-      if (items.length > 0) {
-        deptOpinion = items[0].action
-        deptName = extractRealName(items[0].name)
+      // 总经理/李智鑫 → 负责人审批
+      if (!leaderOpinion) {
+        const l = items.find((it: any) => /总经理/.test(it.name) || it.name === '李智鑫')
+        if (l) { leaderOpinion = l.action; leaderName = l.name }
       }
-      if (items.length > 1) {
-        leaderOpinion = items[items.length - 1].action
-        leaderName = extractRealName(items[items.length - 1].name)
+      // 非申请人、非总经理 → 部门意见
+      if (!deptOpinion) {
+        const d = items.find((it: any) => it.name !== applicantName && it.name !== leaderName)
+        if (d) { deptOpinion = d.action; deptName = d.name }
       }
     } catch {}
   }

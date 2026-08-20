@@ -422,7 +422,7 @@
     <el-dialog v-model="detailDialogVisible" title="申请详情" width="600px" class="custom-dialog" :modal="false">
       <div class="detail-content" v-if="currentDetailItem">
         <div class="detail-header">
-          <span class="detail-id">申请编号：#{{ currentDetailItem.id }}</span>
+          <span class="detail-id">申请编号：#{{ currentDetailItem.seqNo || currentDetailItem.id }}</span>
           <span :class="['detail-status', getStatusClass(currentDetailItem.status)]">{{ getStatusText(currentDetailItem.status) }}</span>
         </div>
         <div class="detail-body">
@@ -468,7 +468,7 @@
     <el-dialog v-model="distributeDialogVisible" title="申请下发" width="500px" class="custom-dialog" :modal="false">
       <div class="distribute-content" v-if="currentDistributeItem">
         <div class="distribute-info">
-          <p><strong>申请编号：</strong>#{{ currentDistributeItem.id }}</p>
+          <p><strong>申请编号：</strong>#{{ currentDistributeItem.seqNo || currentDistributeItem.id }}</p>
           <p><strong>申请类型：</strong>
             <span v-if="currentDistributeType === 'leave'">请假申请</span>
             <span v-else-if="currentDistributeType === 'reimbursement'">报销申请</span>

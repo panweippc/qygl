@@ -263,12 +263,12 @@ router.put('/employees/:name', requireRole('系统管理员', '总经理'), veri
       if (id) {
         await connection.execute(
           'UPDATE employees SET name = ?, department = ?, position = ?, email = ?, phone = ?, entryDate = ?, roleId = ?, status = ?, employeeType = ?, education = ?, birthDate = ?, idCard = ?, address = ?, emergencyContact = ?, emergencyPhone = ? WHERE id = ?',
-          [newName, department, position, email, phone, formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', id]
+          [newName, department || '', position || '', email || '', phone || '', formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', id]
         );
       } else {
         await connection.execute(
           'UPDATE employees SET department = ?, position = ?, email = ?, phone = ?, entryDate = ?, roleId = ?, status = ?, employeeType = ?, education = ?, birthDate = ?, idCard = ?, address = ?, emergencyContact = ?, emergencyPhone = ? WHERE name = ?',
-          [department, position, email, phone, formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', oldName]
+          [department || '', position || '', email || '', phone || '', formattedEntryDate, roleId, status || '在职', employeeType || '正式员工', education || '', formattedBirthDate, idCard || '', address || '', emergencyContact || '', emergencyPhone || '', oldName]
         );
       }
 

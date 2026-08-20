@@ -85,9 +85,9 @@
         stripe
         fit
       >
-        <el-table-column prop="id" label="申请编号" width="100">
+        <el-table-column prop="seqNo" label="申请编号" width="100">
           <template #default="{ row }">
-            <span class="id-badge">#{{ row.id }}</span>
+            <span class="id-badge">#{{ row.seqNo }}</span>
           </template>
         </el-table-column>
         <el-table-column label="申请人">
@@ -489,7 +489,15 @@ const filteredLeaveRecords = computed(() => {
     }
   }
 
+  // 按提交时间排序后分配显示序号 seqNo（即使数据删除后也能从1开始连续）
   return records
+    .slice()
+    .sort((a, b) => {
+      const da = new Date(a.submitDate || a.createdAt || 0).getTime()
+      const db = new Date(b.submitDate || b.createdAt || 0).getTime()
+      return da - db
+    })
+    .map((r, idx) => ({ ...r, seqNo: idx + 1 }))
 })
 
 const getDistributedUsersForApplication = (applicationId: number, applicationType: string) => {
@@ -663,7 +671,7 @@ const exportLeaveData = () => {
     data,
     fileName,
     ['申请编号', '申请人', '请假类型', '开始日期', '结束日期', '请假天数', '请假原因', '审批状态', '审批人', '提交时间'],
-    ['id', 'applicant', 'leaveType', 'startDate', 'endDate', 'days', 'reason', 'status', 'approver', 'submitDate']
+    ['seqNo', 'applicant', 'leaveType', 'startDate', 'endDate', 'days', 'reason', 'status', 'approver', 'submitDate']
   )
 }
 

@@ -40,7 +40,19 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    force: true
+    include: [
+      'vue',
+      'vue-router',
+      'pinia',
+      'element-plus',
+      '@element-plus/icons-vue',
+      'axios',
+      'echarts',
+      '@vueup/vue-quill',
+      'socket.io-client',
+      'xlsx',
+      'dompurify'
+    ]
   },
   server: {
     host: '0.0.0.0',

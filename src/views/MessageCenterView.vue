@@ -24,7 +24,7 @@
         <span class="empty-icon">📭</span>
         <p>暂无消息</p>
       </div>
-      <div v-for="item in filteredList" :key="item.id" class="notification-item" :class="{ unread: !item.isRead }" @click="markRead(item)">
+      <div v-for="item in filteredList" :key="item.id" class="notification-item" :class="{ unread: !item.isRead }" @click="handleItemClick(item)">
         <div class="notif-dot" v-if="!item.isRead" />
         <div class="notif-icon" :class="'type-' + item.type">
           <span>{{ typeIcon(item.type) }}</span>
@@ -45,7 +45,38 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+
+const router = useRouter()
+
+/**
+ * 根据消息类型/内容计算跳转目标路由
+ * 规则：
+ *   - 标题或内容含 "请假" → /oa-office?tab=leave
+ *   - 标题或内容含 "报销" → /oa-office?tab=reimbursement
+ *   - 标题或内容含 "出差" → /oa-office?tab=businessTrip
+ *   - 标题或内容含 "招待" → /oa-office?tab=entertainment
+ *   - 标题或内容含 "项目" → /oa-office?tab=project
+ *   - 标题或内容含 "会议" → /oa-office?tab=meeting
+ *   - 标题或内容含 "下发"/"分派" → /oa-office?tab=distributed
+ *   - 默认 /（首页）
+ */
+function resolveJumpRoute(item: any): string {
+  const hay = `${item?.type || ''} ${item?.title || ''} ${item?.content || ''}`.toLowerCase()
+  if (/请假/.test(item?.title || '') || /请假/.test(item?.content || '')) return '/oa-office?tab=leave'
+  if (/报销/.test(item?.title || '') || /报销/.test(item?.content || '')) return '/oa-office?tab=reimbursement'
+  if (/出差/.test(item?.title || '') || /出差/.test(item?.content || '')) return '/oa-office?tab=businessTrip'
+  if (/招待/.test(item?.title || '') || /招待/.test(item?.content || '')) return '/oa-office?tab=entertainment'
+  if (/项目|工程|立项/.test(item?.title || '') || /项目|工程|立项/.test(item?.content || '')) return '/oa-office?tab=project'
+  if (/会议/.test(item?.title || '') || /会议/.test(item?.content || '')) return '/oa-office?tab=meeting'
+  if (/下发|分派|分发/.test(item?.title || '') || /下发|分派|分发/.test(item?.content || '')) return '/oa-office?tab=distributed'
+  // approval 审批类型兜底 → 进入 OA 办公
+  if (item?.type === 'approval') return '/oa-office'
+  // mention 提及类、task 任务类 → 返回首页
+  if (item?.type === 'mention' || item?.type === 'task') return '/'
+  return '/'
+}
 
 const loading = ref(false)
 const notifications = ref<any[]>([])
@@ -110,6 +141,23 @@ async function markRead(item: any) {
     item.isRead = 1
     unreadCount.value = Math.max(0, unreadCount.value - 1)
   } catch { /* ignore */ }
+}
+
+// 点击消息：标记已读 + 跳转对应模块
+async function handleItemClick(item: any) {
+  try {
+    // 未读先标记已读
+    if (!item.isRead) {
+      await markRead(item)
+    }
+    // 跳转到对应模块
+    const targetRoute = resolveJumpRoute(item)
+    if (targetRoute) {
+      router.push(targetRoute)
+    }
+  } catch (e: any) {
+    console.error('点击消息跳转失败:', e)
+  }
 }
 
 async function markAllRead() {
