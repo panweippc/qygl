@@ -66,7 +66,7 @@
               >
                 <span class="tab-icon">{{ tab.icon }}</span>
                 <span class="tab-label">{{ tab.label }}</span>
-                <span v-if="tab.badge > 0" class="tab-badge">{{ tab.badge }}</span>
+                <span v-if="tab.badge > 0" class="tab-badge" :class="tab.badgeType === 'gray' ? 'tab-badge-gray' : ''">{{ tab.badge }}</span>
               </div>
             </div>
             <div class="view-toggle">
@@ -226,7 +226,7 @@
                 >
                   <span class="sub-tab-icon">{{ st.icon }}</span>
                   <span class="sub-tab-label">{{ st.label }}</span>
-                  <span v-if="st.badge > 0" class="sub-tab-badge">{{ st.badge }}</span>
+                  <span v-if="st.badge > 0" class="sub-tab-badge" :class="st.badgeType === 'gray' ? 'sub-tab-badge-gray' : ''">{{ st.badge }}</span>
                 </div>
               </div>
               <div class="panel-content">
@@ -289,14 +289,7 @@
                           >
                             详情
                           </el-button>
-                          <el-button
-                            v-if="isCurrentUserZhang"
-                            size="small"
-                            @click="exportDistributedRow(row)"
-                            class="export-row-btn"
-                          >
-                            导出
-                          </el-button>
+                          <el-button size="small" @click="printRow(row)" class="print-row-btn">打印</el-button>
                         </div>
                       </template>
                     </el-table-column>
@@ -700,11 +693,55 @@ const entertainmentRecords = ref<any[]>([])
 const allEntertainmentRecords = ref<any[]>([])
 const distributedRecords = ref<any[]>([])
 
-const pendingLeaveCount = computed(() => (isAdminComputed.value ? allLeaveRecords.value : leaveRecords.value).length)
-const pendingReimbursementCount = computed(() => (isAdminComputed.value ? allReimbursementRecords.value : reimbursementRecords.value).length)
-const pendingBusinessTripCount = computed(() => (isAdminComputed.value ? allBusinessTripRecords.value : businessTripRecords.value).length)
-const pendingEntertainmentCount = computed(() => (isAdminComputed.value ? allEntertainmentRecords.value : entertainmentRecords.value).length)
-const pendingDistributedCount = computed(() => distributedRecords.value.length)
+// 判断审批状态是否为"未处理"（红色角标的判断依据）
+function isUnprocessedStatus(status) {
+  if (!status) return false
+  const s = String(status).trim()
+  return s === "审批中" || s === "pending" || s === "待审核" || s === "待审批" || s === "待处理"
+}
+
+const pendingLeaveCount = computed(() => {
+  const records = isAdminComputed.value ? allLeaveRecords.value : leaveRecords.value
+  return records.filter(r => isUnprocessedStatus(r.status)).length
+})
+const totalLeaveCount = computed(() => (isAdminComputed.value ? allLeaveRecords.value : leaveRecords.value).length)
+const pendingReimbursementCount = computed(() => {
+  const records = isAdminComputed.value ? allReimbursementRecords.value : reimbursementRecords.value
+  return records.filter(r => isUnprocessedStatus(r.status)).length
+})
+const totalReimbursementCount = computed(() => (isAdminComputed.value ? allReimbursementRecords.value : reimbursementRecords.value).length)
+const pendingBusinessTripCount = computed(() => {
+  const records = isAdminComputed.value ? allBusinessTripRecords.value : businessTripRecords.value
+  return records.filter(r => isUnprocessedStatus(r.status)).length
+})
+const totalBusinessTripCount = computed(() => (isAdminComputed.value ? allBusinessTripRecords.value : businessTripRecords.value).length)
+const pendingEntertainmentCount = computed(() => {
+  const records = isAdminComputed.value ? allEntertainmentRecords.value : entertainmentRecords.value
+  return records.filter(r => isUnprocessedStatus(r.status)).length
+})
+const totalEntertainmentCount = computed(() => (isAdminComputed.value ? allEntertainmentRecords.value : entertainmentRecords.value).length)
+const pendingDistributedCount = computed(() => distributedRecords.value.filter(r => r.status === "待处理").length)
+const totalDistributedCount = computed(() => distributedRecords.value.length)
+
+const pendingMeetingCount = computed(() => {
+  const allMeetings = [...meetingRecords.value, ...allMeetingRecords.value]
+  const uniqueMeetings = allMeetings.filter((item, index, self) => index === self.findIndex(t => t.id === item.id))
+  return uniqueMeetings.filter(r => isUnprocessedStatus(r.status)).length
+})
+const totalMeetingCount = computed(() => {
+  const allMeetings = [...meetingRecords.value, ...allMeetingRecords.value]
+  return allMeetings.filter((item, index, self) => index === self.findIndex(t => t.id === item.id)).length
+})
+
+const pendingProjectCount = computed(() => {
+  const allProjects = [...projectRecords.value, ...allProjectRecords.value]
+  const uniqueProjects = allProjects.filter((item, index, self) => index === self.findIndex(t => t.id === item.id))
+  return uniqueProjects.filter(r => isUnprocessedStatus(r.status)).length
+})
+const totalProjectCount = computed(() => {
+  const allProjects = [...projectRecords.value, ...allProjectRecords.value]
+  return allProjects.filter((item, index, self) => index === self.findIndex(t => t.id === item.id)).length
+})
 
 const distributedActiveSubTab = ref('all')
 
@@ -761,72 +798,14 @@ const exportDistributedData = () => {
   exportToCSV(data, filename, headers, fields)
 }
 
-const exportDistributedRow = async (row: any) => {
-  const getDept = (applicant: string) => {
-    const emp = allEmployees.value.find((e: any) => extractRealName(e.name) === extractRealName(applicant))
-    return emp?.department || ''
-  }
-  // 始终从API获取原始申请完整数据（解决财务等非申请人看不到审批结果的问题）
-  let appRecord: any = null
-  try {
-    const apiPaths: Record<string, { url: string; mapper?: (d: any) => any }> = {
-      leave:         { url: '/api/leave-applications' },
-      reimbursement: { url: '/api/reimbursements' },
-      businessTrip:  { url: '/api/business-trips', mapper: mapTripRecord },
-      entertainment: { url: '/api/entertainment-expenses' },
-      meeting:       { url: '/api/meetings' },
-      project:       { url: '/api/projects' }
-    }
-    const cfg = apiPaths[row.applicationType]
-    if (cfg) {
-      // 先尝试 GET /:id 单条获取
-      const singleRes = await fetch(`${cfg.url}/${row.applicationId}`)
-      if (singleRes.ok) {
-        const singleJson = await singleRes.json()
-        if (singleJson.success && singleJson.data) {
-          appRecord = cfg.mapper ? cfg.mapper(singleJson.data) : singleJson.data
-        }
-      }
-    }
-  } catch (e) { /* ignore */ }
-
-  // 单条未找到，回退：从列表API拉取全量找出匹配记录
-  if (!appRecord) {
-    try {
-      const cfg = apiPaths[row.applicationType]
-      if (cfg) {
-        const listRes = await fetch(`${cfg.url}?pageSize=9999`)
-        const listJson = await listRes.json()
-        if (listJson.success) {
-          const list = listJson.data?.list || listJson.data || []
-          const origin = list.find((item: any) => String(item.id) === String(row.applicationId))
-          appRecord = origin ? (cfg.mapper ? cfg.mapper(origin) : origin) : null
-        }
-      }
-    } catch (e) { /* ignore */ }
-  }
-
-  // 最终保底
-  appRecord = appRecord || { ...row, id: row.applicationId }
-
-  const typeActions: Record<string, (r: any, d: string) => void> = {
-    leave:         (r, d) => exportLeaveFormHTML(r, d),
-    reimbursement: (r, d) => exportReimbursementFormHTML(r, d, allEmployees.value),
-    businessTrip:  (r, d) => exportBusinessTripFormHTML(r, d, allEmployees.value),
-    entertainment: (r, d) => exportEntertainmentFormHTML(r, d, allEmployees.value),
-    meeting:       (r, d) => exportMeetingFormHTML(r, d),
-    project:       (r, d) => exportProjectFormHTML(r, d)
-  }
-  const action = typeActions[row.applicationType]
-  if (action) {
-    action(appRecord, getDept(appRecord.applicant || row.applicant))
+// 打印当前行记录（调用浏览器原生打印对话框）
+const printRow = (row: any) => {
+  if (!row) {
+    ElMessage.warning('没有数据可打印')
     return
   }
-  const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '处理状态', '处理说明']
-  const fields = ['id', 'applicationType', 'applicationId', 'applicant', 'distributedBy', 'distributeDate', 'status', 'processComment']
-  exportSingleRow(row, '下发记录', headers, fields)
+  window.print()
 }
-
 const tabs = computed(() => {
   const allMeetings = [...meetingRecords.value, ...allMeetingRecords.value]
   const uniqueMeetings = allMeetings.filter((item, index, self) =>
@@ -839,16 +818,16 @@ const tabs = computed(() => {
   )
 
   const baseTabs = [
-    { name: 'leave', label: '请假申请', icon: '📝', badge: pendingLeaveCount.value },
-    { name: 'reimbursement', label: '报销管理', icon: '💰', badge: pendingReimbursementCount.value },
-    { name: 'meeting', label: '会议管理', icon: '📅', badge: uniqueMeetings.length },
-    { name: 'project', label: '项目申请', icon: '📊', badge: uniqueProjects.length },
-    { name: 'businessTrip', label: '出差申请', icon: '✈️', badge: pendingBusinessTripCount.value },
-    { name: 'entertainment', label: '业务招待费', icon: '🍽️', badge: pendingEntertainmentCount.value }
+    { name: 'leave', label: '请假申请', icon: '📝', badge: pendingLeaveCount.value > 0 ? pendingLeaveCount.value : totalLeaveCount.value, badgeType: pendingLeaveCount.value > 0 ? 'red' : 'gray' },
+    { name: 'reimbursement', label: '报销管理', icon: '💰', badge: pendingReimbursementCount.value > 0 ? pendingReimbursementCount.value : totalReimbursementCount.value, badgeType: pendingReimbursementCount.value > 0 ? 'red' : 'gray' },
+    { name: 'meeting', label: '会议管理', icon: '📅', badge: pendingMeetingCount.value > 0 ? pendingMeetingCount.value : totalMeetingCount.value, badgeType: pendingMeetingCount.value > 0 ? 'red' : 'gray' },
+    { name: 'project', label: '项目申请', icon: '📊', badge: pendingProjectCount.value > 0 ? pendingProjectCount.value : totalProjectCount.value, badgeType: pendingProjectCount.value > 0 ? 'red' : 'gray' },
+    { name: 'businessTrip', label: '出差申请', icon: '✈️', badge: pendingBusinessTripCount.value > 0 ? pendingBusinessTripCount.value : totalBusinessTripCount.value, badgeType: pendingBusinessTripCount.value > 0 ? 'red' : 'gray' },
+    { name: 'entertainment', label: '业务招待费', icon: '🍽️', badge: pendingEntertainmentCount.value > 0 ? pendingEntertainmentCount.value : totalEntertainmentCount.value, badgeType: pendingEntertainmentCount.value > 0 ? 'red' : 'gray' }
   ]
 
   if (isCurrentUserZhang.value) {
-    baseTabs.push({ name: 'distributed', label: '下发管理', icon: '📨', badge: pendingDistributedCount.value })
+    baseTabs.push({ name: 'distributed', label: '下发管理', icon: '📨', badge: pendingDistributedCount.value > 0 ? pendingDistributedCount.value : totalDistributedCount.value, badgeType: pendingDistributedCount.value > 0 ? 'red' : 'gray' })
   }
 
   return baseTabs
@@ -1991,6 +1970,15 @@ onMounted(async () => {
 .tab-icon {
   font-size: 1.1rem;
 }
+.tab-badge-gray {
+  background: rgba(128, 128, 128, 0.6);
+  color: #fff;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
 .tab-badge {
   background: #FF5252;
   color: #fff;
@@ -2353,6 +2341,19 @@ onMounted(async () => {
   color: #6495ED;
   font-weight: 600;
 }
+.sub-tab-badge-gray {
+  background: rgba(128, 128, 128, 0.6);
+  color: #fff;
+  font-size: 10px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
 .sub-tab-badge {
   background: #6495ED;
   color: #fff;
@@ -2390,4 +2391,10 @@ onMounted(async () => {
     overflow-x: auto;
   }
 }
-</style>
+
+.print-row-btn {
+  background: linear-gradient(45deg, #6495ED, #87CEEB) !important;
+  border: none !important;
+  color: #fff !important;
+}
+  </style>

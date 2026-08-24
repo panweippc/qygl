@@ -194,14 +194,7 @@
               >
                 详情
               </el-button>
-              <el-button
-                v-if="canExport"
-                size="small"
-                @click="exportLeaveRow(row)"
-                class="export-row-btn"
-              >
-                导出
-              </el-button>
+              <el-button size="small" @click="printRow(row)" class="print-row-btn">打印</el-button>
             </div>
           </template>
         </el-table-column>
@@ -679,10 +672,13 @@ const exportLeaveData = () => {
   )
 }
 
-const exportLeaveRow = (row: any) => {
-  const emp = props.allEmployees.find((e: any) => extractRealName(e.name) === extractRealName(row.applicant))
-  const dept = emp?.department || ''
-  exportLeaveFormHTML(row, dept)
+// 打印当前行记录（调用浏览器原生打印对话框）
+const printRow = (row) => {
+  if (!row) {
+    ElMessage.warning('没有数据可打印')
+    return
+  }
+  window.print()
 }
 
 onMounted(() => {
@@ -1004,4 +1000,10 @@ defineExpose({ fetchData })
   padding: 12px 32px;
   font-size: 15px;
 }
-</style>
+
+.print-row-btn {
+  background: linear-gradient(45deg, #6495ED, #87CEEB) !important;
+  border: none !important;
+  color: #fff !important;
+}
+  </style>

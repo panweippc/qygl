@@ -154,14 +154,7 @@
               >
                 详情
               </el-button>
-              <el-button
-                v-if="canExport"
-                size="small"
-                @click="exportMeetingRow(row)"
-                class="export-row-btn"
-              >
-                导出
-              </el-button>
+              <el-button size="small" @click="printRow(row)" class="print-row-btn">打印</el-button>
             </div>
           </template>
         </el-table-column>
@@ -603,11 +596,13 @@ const exportMeetingData = () => {
   )
 }
 
-const exportMeetingRow = (row: any) => {
-  exportSingleRow(row, '会议申请_' + row.id,
-    ['会议编号', '组织者', '会议主题', '会议日期', '会议时间', '会议地点', '参会人员', '会议议程', '审批状态', '审批人', '创建时间'],
-    ['id', 'organizer', 'title', 'meetingDate', 'meetingTime', 'location', 'participants', 'agenda', 'status', 'approver', 'submitDate']
-  )
+// 打印当前行记录（调用浏览器原生打印对话框）
+const printRow = (row) => {
+  if (!row) {
+    ElMessage.warning('没有数据可打印')
+    return
+  }
+  window.print()
 }
 
 onMounted(() => {
@@ -870,4 +865,10 @@ defineExpose({ fetchData })
 .participants-input-wrap {
   width: 100%;
 }
-</style>
+
+.print-row-btn {
+  background: linear-gradient(45deg, #6495ED, #87CEEB) !important;
+  border: none !important;
+  color: #fff !important;
+}
+  </style>

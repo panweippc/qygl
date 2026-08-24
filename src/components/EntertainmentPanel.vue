@@ -92,7 +92,7 @@
               <el-button v-if="(row.status === '审批中' || row.status === 'pending') && !isAdmin" size="small" @click="cancelEntertainmentApplication(row)" class="cancel-btn">取消</el-button>
               <el-button v-if="row.status === '审批中' && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))" size="small" type="danger" @click="$emit('terminate', row, 'entertainment')" class="terminate-btn">终止</el-button>
               <el-button size="small" @click="$emit('view-detail', row, 'entertainment')" class="view-btn">详情</el-button>
-              <el-button v-if="canExport" size="small" @click="exportEntertainmentRow(row)" class="export-row-btn">导出</el-button>
+              <el-button size="small" @click="printRow(row)" class="print-row-btn">打印</el-button>
             </div>
           </template>
         </el-table-column>
@@ -408,9 +408,13 @@ const exportEntertainmentData = () => {
   )
 }
 
-const exportEntertainmentRow = (row: any) => {
-  const dept = props.allEmployees.find((e: any) => extractRealName(e.name) === extractRealName(row.applicant))?.department || ''
-  exportEntertainmentFormHTML(row, dept, props.allEmployees)
+// 打印当前行记录（调用浏览器原生打印对话框）
+const printRow = (row) => {
+  if (!row) {
+    ElMessage.warning('没有数据可打印')
+    return
+  }
+  window.print()
 }
 
 onMounted(() => { fetchData() })
@@ -471,4 +475,10 @@ defineExpose({ fetchData })
 .dialog-form .el-form-item { margin-bottom: 22px; }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 10px 0; }
 .intermediate-result { font-size: 0.75rem; color: #666; margin-left: 4px; }
-</style>
+
+.print-row-btn {
+  background: linear-gradient(45deg, #6495ED, #87CEEB) !important;
+  border: none !important;
+  color: #fff !important;
+}
+  </style>

@@ -139,14 +139,7 @@
               >
                 详情
               </el-button>
-              <el-button
-                v-if="canExport"
-                size="small"
-                @click="exportBusinessTripRow(row)"
-                class="export-row-btn"
-              >
-                导出
-              </el-button>
+              <el-button size="small" @click="printRow(row)" class="print-row-btn">打印</el-button>
             </div>
           </template>
         </el-table-column>
@@ -473,9 +466,13 @@ const exportBusinessTripData = () => {
   )
 }
 
-const exportBusinessTripRow = (row: any) => {
-  const dept = props.allEmployees.find((e: any) => extractRealName(e.name) === extractRealName(row.applicant))?.department || ''
-  exportBusinessTripFormHTML(row, dept, props.allEmployees)
+// 打印当前行记录（调用浏览器原生打印对话框）
+const printRow = (row) => {
+  if (!row) {
+    ElMessage.warning('没有数据可打印')
+    return
+  }
+  window.print()
 }
 
 onMounted(() => {
@@ -765,4 +762,10 @@ defineExpose({ fetchData })
   color: #333;
   font-weight: 500;
 }
-</style>
+
+.print-row-btn {
+  background: linear-gradient(45deg, #6495ED, #87CEEB) !important;
+  border: none !important;
+  color: #fff !important;
+}
+  </style>
