@@ -697,12 +697,18 @@ const distributedRecords = ref<any[]>([])
 function isUnprocessedStatus(status) {
   if (!status) return false
   const s = String(status).trim()
-  return s === "审批中" || s === "pending" || s === "待审核" || s === "待审批" || s === "待处理"
+  const result = s === "审批中" || s === "pending" || s === "待审核" || s === "待审批" || s === "待处理"
+  return result
 }
 
 const pendingLeaveCount = computed(() => {
   const records = isAdminComputed.value ? allLeaveRecords.value : leaveRecords.value
-  return records.filter(r => isUnprocessedStatus(r.status)).length
+  const unprocessed = records.filter(r => isUnprocessedStatus(r.status))
+  if (records.length > 0) {
+    console.log('[请假角标] 总记录数:', records.length, '未处理数:', unprocessed.length)
+    console.log('[请假角标] 记录状态:', records.map(r => r.status))
+  }
+  return unprocessed.length
 })
 const totalLeaveCount = computed(() => (isAdminComputed.value ? allLeaveRecords.value : leaveRecords.value).length)
 const pendingReimbursementCount = computed(() => {
@@ -794,17 +800,83 @@ const exportDistributedData = () => {
   const fields = ['id', 'applicationType', 'applicationId', 'applicant', 'distributedBy', 'distributeDate', 'status', 'detailText', 'processComment']
   const filename = '下发管理'
   const data = (filteredDistributedRecords.value.length > 0 ? filteredDistributedRecords.value : distributedRecords.value)
-    .map((r: any) => ({ ...r, detailText: getDistributedDetail(r) }))
+    .map((r: any) => ({
+      ...r,
+      detailText: getDistributedDetail(r),
+      // 导出时把英文类型转换为中文标签，与表格保持一致
+      applicationType: getApplicationTypeLabel(r.applicationType)
+    }))
   exportToCSV(data, filename, headers, fields)
 }
 
-// 打印当前行记录（调用浏览器原生打印对话框）
-const printRow = (row: any) => {
+// 打印当前行记录（获取原始申请数据并生成纸质表单打印）
+const printRow = async (row: any) => {
   if (!row) {
     ElMessage.warning('没有数据可打印')
     return
   }
-  window.print()
+  // 尝试从API获取原始申请完整数据
+  let appRecord: any = null
+  try {
+    const apiPaths: Record<string, { url: string; mapper?: (d: any) => any }> = {
+      leave:         { url: '/api/leave-applications' },
+      reimbursement: { url: '/api/reimbursements' },
+      businessTrip:  { url: '/api/business-trips', mapper: mapTripRecord },
+      entertainment: { url: '/api/entertainment-expenses' },
+      meeting:       { url: '/api/meetings' },
+      project:       { url: '/api/projects' }
+    }
+    const cfg = apiPaths[row.applicationType]
+    if (cfg) {
+      const singleRes = await fetch(`${cfg.url}/${row.applicationId}`)
+      if (singleRes.ok) {
+        const singleJson = await singleRes.json()
+        if (singleJson.success && singleJson.data) {
+          appRecord = cfg.mapper ? cfg.mapper(singleJson.data) : singleJson.data
+        }
+      }
+    }
+  } catch (e) { /* ignore */ }
+  if (!appRecord) {
+    try {
+      const cfg = apiPaths[row.applicationType]
+      if (cfg) {
+        const listRes = await fetch(`${cfg.url}?pageSize=9999`)
+        const listJson = await listRes.json()
+        if (listJson.success) {
+          const list = listJson.data?.list || listJson.data || []
+          const origin = list.find((item: any) => String(item.id) === String(row.applicationId))
+          appRecord = origin ? (cfg.mapper ? cfg.mapper(origin) : origin) : null
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+  appRecord = appRecord || { ...row, id: row.applicationId }
+  const applicantName = extractRealName(String(appRecord.applicant || row.applicant || ''))
+  const emp = allEmployees.value.find((e: any) => extractRealName(e.name) === applicantName)
+  const dept = emp?.department || ''
+  const typeActions: Record<string, (r: any, d: string) => void> = {
+    leave:         (r, d) => exportLeaveFormHTML(r, d, true),
+    reimbursement: (r, d) => exportReimbursementFormHTML(r, d, allEmployees.value, true),
+    businessTrip:  (r, d) => exportBusinessTripFormHTML(r, d, allEmployees.value, true),
+    entertainment: (r, d) => exportEntertainmentFormHTML(r, d, allEmployees.value, true),
+    meeting:       (r, d) => {
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>会议详情</title><style>@page{margin:10mm}body{font-family:"SimSun","宋体",serif;padding:20px;color:#000}.info-row{margin:10px 0}.info-label{font-weight:bold;display:inline-block;width:100px}</style></head><body><h2 style="text-align:center">会议详情</h2><div class="info-row"><span class="info-label">会议主题：</span>${r.meetingTitle || r.title || ''}</div><div class="info-row"><span class="info-label">会议时间：</span>${r.meetingDate || ''} ${r.meetingTime || ''}</div><div class="info-row"><span class="info-label">会议地点：</span>${r.meetingLocation || r.location || ''}</div><div class="info-row"><span class="info-label">组织者：</span>${r.organizer || ''}</div><div class="info-row"><span class="info-label">审批状态：</span>${r.status || ''}</div></body></html>`
+      const win = window.open('', '_blank'); if (win) { win.document.open(); win.document.write(html); win.document.close(); win.onload = () => win.print(); }
+    },
+    project:       (r, d) => {
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>项目申请详情</title><style>@page{margin:10mm}body{font-family:"SimSun","宋体",serif;padding:20px;color:#000}.info-row{margin:10px 0}.info-label{font-weight:bold;display:inline-block;width:100px}</style></head><body><h2 style="text-align:center">项目申请详情</h2><div class="info-row"><span class="info-label">项目名称：</span>${r.projectName || r.title || ''}</div><div class="info-row"><span class="info-label">申请人：</span>${r.applicant || ''}</div><div class="info-row"><span class="info-label">项目类型：</span>${r.projectType || ''}</div><div class="info-row"><span class="info-label">审批状态：</span>${r.status || ''}</div></body></html>`
+      const win = window.open('', '_blank'); if (win) { win.document.open(); win.document.write(html); win.document.close(); win.onload = () => win.print(); }
+    }
+  }
+  const action = typeActions[row.applicationType]
+  if (action) {
+    action(appRecord, dept)
+  } else {
+    // 通用打印
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>下发记录</title><style>@page{margin:10mm}body{font-family:"SimSun","宋体",serif;padding:20px;color:#000}</style></head><body><h2 style="text-align:center">下发记录 #${row.id}</h2><p>类型：${row.applicationType}</p><p>申请人：${row.applicant}</p><p>下发人：${row.distributedBy}</p><p>下发时间：${row.distributeDate}</p><p>处理状态：${row.status}</p></body></html>`
+    const win = window.open('', '_blank'); if (win) { win.document.open(); win.document.write(html); win.document.close(); win.onload = () => win.print(); }
+  }
 }
 const tabs = computed(() => {
   const allMeetings = [...meetingRecords.value, ...allMeetingRecords.value]
@@ -817,6 +889,7 @@ const tabs = computed(() => {
     index === self.findIndex(t => t.id === item.id)
   )
 
+  console.log('[tabs计算] 请假: pending=' + pendingLeaveCount.value + ', total=' + totalLeaveCount.value + ', badgeType=' + (pendingLeaveCount.value > 0 ? 'red' : 'gray'))
   const baseTabs = [
     { name: 'leave', label: '请假申请', icon: '📝', badge: pendingLeaveCount.value > 0 ? pendingLeaveCount.value : totalLeaveCount.value, badgeType: pendingLeaveCount.value > 0 ? 'red' : 'gray' },
     { name: 'reimbursement', label: '报销管理', icon: '💰', badge: pendingReimbursementCount.value > 0 ? pendingReimbursementCount.value : totalReimbursementCount.value, badgeType: pendingReimbursementCount.value > 0 ? 'red' : 'gray' },
@@ -1970,7 +2043,7 @@ onMounted(async () => {
 .tab-icon {
   font-size: 1.1rem;
 }
-.tab-badge-gray {
+.tab-badge.tab-badge-gray {
   background: rgba(128, 128, 128, 0.6);
   color: #fff;
   font-size: 0.7rem;
@@ -2341,7 +2414,7 @@ onMounted(async () => {
   color: #6495ED;
   font-weight: 600;
 }
-.sub-tab-badge-gray {
+.sub-tab-badge.sub-tab-badge-gray {
   background: rgba(128, 128, 128, 0.6);
   color: #fff;
   font-size: 10px;

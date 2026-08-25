@@ -154,7 +154,7 @@
               >
                 详情
               </el-button>
-              <el-button size="small" @click="printRow(row)" class="print-row-btn">打印</el-button>
+              <el-button v-if="canExport" size="small" @click="printRow(row)" class="print-row-btn">打印</el-button>
             </div>
           </template>
         </el-table-column>
@@ -299,6 +299,7 @@
 
 
 <script setup lang="ts">
+import { printForm } from '../utils/oaWorkflowUtils'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -596,13 +597,16 @@ const exportMeetingData = () => {
   )
 }
 
-// 打印当前行记录（调用浏览器原生打印对话框）
+// 打印当前行记录（生成纸质表单并自动触发打印对话框）
 const printRow = (row) => {
   if (!row) {
     ElMessage.warning('没有数据可打印')
     return
   }
-  window.print()
+  // 会议无专门纸质表单，使用通用打印
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>会议详情</title><style>@page{margin:10mm}body{font-family:"SimSun","宋体",serif;padding:20px;color:#000}.info-row{margin:10px 0}.info-label{font-weight:bold;display:inline-block;width:100px}</style></head><body><h2 style="text-align:center">会议详情</h2><div class="info-row"><span class="info-label">会议主题：</span>${row.meetingTitle || row.title || ''}</div><div class="info-row"><span class="info-label">会议时间：</span>${row.meetingDate || ''} ${row.meetingTime || ''}</div><div class="info-row"><span class="info-label">会议地点：</span>${row.meetingLocation || row.location || ''}</div><div class="info-row"><span class="info-label">组织者：</span>${row.organizer || ''}</div><div class="info-row"><span class="info-label">审批状态：</span>${row.status || ''}</div></body></html>`
+  const win = window.open('', '_blank')
+  if (win) { win.document.open(); win.document.write(html); win.document.close(); win.onload = () => win.print(); }
 }
 
 onMounted(() => {

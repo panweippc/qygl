@@ -139,7 +139,7 @@
               >
                 详情
               </el-button>
-              <el-button size="small" @click="printRow(row)" class="print-row-btn">打印</el-button>
+              <el-button v-if="canExport" size="small" @click="printRow(row)" class="print-row-btn">打印</el-button>
             </div>
           </template>
         </el-table-column>
@@ -466,13 +466,15 @@ const exportBusinessTripData = () => {
   )
 }
 
-// 打印当前行记录（调用浏览器原生打印对话框）
+// 打印当前行记录（生成纸质表单并自动触发打印对话框）
 const printRow = (row) => {
   if (!row) {
     ElMessage.warning('没有数据可打印')
     return
   }
-  window.print()
+  const emp = allEmployees.find((e: any) => extractRealName(e.name) === extractRealName(row.applicant))
+  const dept = emp?.department || ''
+  exportBusinessTripFormHTML(row, dept, allEmployees, true)
 }
 
 onMounted(() => {

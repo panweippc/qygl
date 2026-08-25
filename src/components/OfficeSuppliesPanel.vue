@@ -160,7 +160,7 @@
               >
                 删除
               </el-button>
-              <el-button size="small" @click="printRow(row)" class="print-row-btn">打印</el-button>
+              <el-button v-if="canExport" size="small" @click="printRow(row)" class="print-row-btn">打印</el-button>
             </div>
           </template>
         </el-table-column>
@@ -501,13 +501,16 @@ const exportProjectData = () => {
   )
 }
 
-// 打印当前行记录（调用浏览器原生打印对话框）
+// 打印当前行记录（生成纸质表单并自动触发打印对话框）
 const printRow = (row) => {
   if (!row) {
     ElMessage.warning('没有数据可打印')
     return
   }
-  window.print()
+  // 项目申请无专门纸质表单，使用通用打印
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>项目申请详情</title><style>@page{margin:10mm}body{font-family:"SimSun","宋体",serif;padding:20px;color:#000}.info-row{margin:10px 0}.info-label{font-weight:bold;display:inline-block;width:100px}</style></head><body><h2 style="text-align:center">项目申请详情</h2><div class="info-row"><span class="info-label">项目名称：</span>${row.projectName || row.title || ''}</div><div class="info-row"><span class="info-label">申请人：</span>${row.applicant || ''}</div><div class="info-row"><span class="info-label">项目类型：</span>${row.projectType || ''}</div><div class="info-row"><span class="info-label">审批状态：</span>${row.status || ''}</div></body></html>`
+  const win = window.open('', '_blank')
+  if (win) { win.document.open(); win.document.write(html); win.document.close(); win.onload = () => win.print(); }
 }
 
 onMounted(() => {

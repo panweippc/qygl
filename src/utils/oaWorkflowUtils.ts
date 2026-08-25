@@ -7,6 +7,65 @@ export const extractRealName = (name: string): string => {
   return name
 }
 
+
+/**
+ * 打印纸质表单（使用 iframe 隔离打印，避免弹窗拦截问题）
+ * @param html 纸质表单 HTML 内容
+ * @param title 打印窗口标题
+ */
+export const printForm = (html: string, title?: string) => {
+  // 创建隐藏的 iframe 用于打印（优先使用 iframe 方案，避免弹窗拦截）
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:absolute;width:0;height:0;visibility:hidden;border:0;';
+  iframe.name = 'print-frame';
+  document.body.appendChild(iframe);
+
+  const iDoc = iframe.contentWindow?.document;
+  if (!iDoc) {
+    console.error('无法创建打印 iframe');
+    alert('打印失败：无法初始化打印组件');
+    return;
+  }
+
+  // 写入表单内容到 iframe
+  iDoc.open();
+  iDoc.write(html);
+  iDoc.close();
+
+  if (title) {
+    try {
+      iDoc.title = title;
+    } catch {
+      // 某些浏览器可能不允许修改 iframe 文档标题
+    }
+  }
+
+  // 等待内容加载完成后触发打印
+  const triggerPrint = () => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      // 延迟移除 iframe，给打印对话框足够时间显示
+      setTimeout(() => {
+        if (iframe.parentNode) {
+          document.body.removeChild(iframe);
+        }
+      }, 5000);
+    } catch (e) {
+      console.error('触发打印失败:', e);
+    }
+  };
+
+  // 确保 iframe 加载完成后再打印
+  if (iframe.contentDocument?.readyState === 'complete') {
+    triggerPrint();
+  } else {
+    iframe.onload = triggerPrint;
+    // 设置超时保护
+    setTimeout(triggerPrint, 1000);
+  }
+};
+
 export const formatDate = (date: any, showTime: boolean = true) => {
   if (!date) return ''
   let dateObj: Date
@@ -390,7 +449,7 @@ const buildApproveRows = (row: any, resultColspan: number = 1, commentColspan: n
   return html
 }
 
-export const exportBusinessTripFormHTML = (row: any, department?: string, employees?: any[]) => {
+export const exportBusinessTripFormHTML = (row: any, department?: string, employees?: any[], autoPrint?: boolean) => {
   const formatDateCN = (d: any) => {
     if (!d) return ''
     const dt = new Date(d)
@@ -572,6 +631,10 @@ export const exportBusinessTripFormHTML = (row: any, department?: string, employ
 </body>
 </html>`
 
+  if (autoPrint) {
+    printForm(html, `出差登记表_${applicant}_${destination}`)
+    return
+  }
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const w = window.open(url, '_blank')
@@ -586,7 +649,7 @@ export const exportBusinessTripFormHTML = (row: any, department?: string, employ
   setTimeout(() => URL.revokeObjectURL(url), 60000)
 }
 
-export const exportEntertainmentFormHTML = (row: any, department?: string, employees?: any[]) => {
+export const exportEntertainmentFormHTML = (row: any, department?: string, employees?: any[], autoPrint?: boolean) => {
   const formatDateCN = (d: any) => {
     if (!d) return ''
     const dt = new Date(d)
@@ -820,6 +883,10 @@ export const exportEntertainmentFormHTML = (row: any, department?: string, emplo
 </body>
 </html>`
 
+  if (autoPrint) {
+    printForm(html, `业务招待费申请表_${applicant}_${guestName}`)
+    return
+  }
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const w = window.open(url, '_blank')
@@ -834,7 +901,7 @@ export const exportEntertainmentFormHTML = (row: any, department?: string, emplo
   setTimeout(() => URL.revokeObjectURL(url), 60000)
 }
 
-export const exportReimbursementFormHTML = (row: any, department?: string, employees?: any[]) => {
+export const exportReimbursementFormHTML = (row: any, department?: string, employees?: any[], autoPrint?: boolean) => {
   const formatDateCN = (d: any) => {
     if (!d) return ''
     const dt = new Date(d)
@@ -1143,6 +1210,10 @@ export const exportReimbursementFormHTML = (row: any, department?: string, emplo
 </body>
 </html>`
 
+  if (autoPrint) {
+    printForm(html, `${title}_${row.applicant}`)
+    return
+  }
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const w = window.open(url, '_blank')
@@ -1221,7 +1292,7 @@ export const hasButtonPermission = (buttonKey: string, menuPath?: string): boole
   } catch { return false }
 }
 
-export const exportLeaveFormHTML = (row: any, department?: string) => {
+export const exportLeaveFormHTML = (row: any, department?: string, autoPrint?: boolean) => {
   const getLeaveTypeCN = (t: string) => {
     const map: Record<string, string> = { 'sick': '病假', 'personal': '事假', 'annual': '年假', 'wedding': '婚假', 'maternity': '产假', 'funeral': '丧假', 'other': '其他' }
     return map[t] || t
@@ -1407,6 +1478,10 @@ export const exportLeaveFormHTML = (row: any, department?: string) => {
 </body>
 </html>`
 
+  if (autoPrint) {
+    printForm(html, `请假单_${row.applicant}_${formatDateCN(startDate)}`)
+    return
+  }
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const w = window.open(url, '_blank')
