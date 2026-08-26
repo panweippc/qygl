@@ -79,7 +79,8 @@ pipeline {
       when { environment name: 'SKIP_DEPLOY', value: '0' }
       steps {
         echo '=== 阶段3: 停止 Nginx ==='
-        bat "cd /d \"${NGINX_DIR}\" && \"${NGINX_EXE}\" -s stop || echo Nginx 未运行，跳过"
+        // 先探测是否运行：仅在运行时才 stop；无论结果如何强制 exit 0，避免"未运行"误判为失败
+        bat "tasklist | findstr /i nginx >nul 2>&1 && (cd /d \"${NGINX_DIR}\" && \"${NGINX_EXE}\" -s stop && echo 已停止 Nginx) || echo Nginx 未运行，跳过 & exit /b 0"
       }
     }
 
@@ -99,7 +100,7 @@ pipeline {
         echo '=== 阶段5: 启动 Nginx(8080) 并 reload ==='
         bat "tasklist | findstr /i nginx >nul 2>&1 && echo Nginx 已运行 || powershell -Command \"Start-Process -FilePath '${NGINX_EXE}' -WorkingDirectory '${NGINX_DIR}' -WindowStyle Hidden\""
         bat 'ping -n 3 127.0.0.1 >nul'
-        bat "cd /d \"${NGINX_DIR}\" && \"${NGINX_EXE}\" -s reload || echo reload 跳过"
+        bat "cd /d \"${NGINX_DIR}\" && \"${NGINX_EXE}\" -s reload || echo reload 跳过 & exit /b 0"
       }
     }
 
