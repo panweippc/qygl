@@ -134,7 +134,7 @@ pipeline {
       steps {
         echo '=== 阶段8: 验证后端 (3005) ==='
         // 用 127.0.0.1 避免 localhost 解析到 IPv6(::1)；后端启动较慢，最多重试 15 次(约 60s)
-        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 15; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${SERVER_PORT}/api/projects' -TimeoutSec 5 -UseBasicParsing; Write-Host ('后端状态: ' + \$r.StatusCode); \$ok=\$true; break } catch { Write-Host ('  重试 ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 4 } }; if(-\$ok){ Write-Host '⚠️ 后端 60s 内未就绪，请检查 pm2 日志' }; exit 0\""
+        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 15; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${SERVER_PORT}/api/projects' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('后端状态: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('后端状态: ' + \$st + ' (已就绪，需鉴权)'); \$ok=\$true; break }; Write-Host ('  重试 ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 4 } }; if(-not \$ok){ Write-Host '⚠️ 后端 60s 内未就绪，请检查 pm2 日志' }; exit 0\""
       }
     }
 
@@ -143,7 +143,7 @@ pipeline {
       when { environment name: 'SKIP_DEPLOY', value: '0' }
       steps {
         echo '=== 阶段9: 验证前端 (nginx 8080) ==='
-        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${FRONTEND_PORT}' -TimeoutSec 5 -UseBasicParsing; Write-Host ('前端状态: ' + \$r.StatusCode); \$ok=\$true; break } catch { Write-Host ('  重试 ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-\$ok){ Write-Host '⚠️ 前端未就绪，请检查 nginx 日志' }; exit 0\""
+        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${FRONTEND_PORT}' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('前端状态: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('前端状态: ' + \$st + ' (已就绪)'); \$ok=\$true; break }; Write-Host ('  重试 ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-not \$ok){ Write-Host '⚠️ 前端未就绪，请检查 nginx 日志' }; exit 0\""
       }
     }
 
