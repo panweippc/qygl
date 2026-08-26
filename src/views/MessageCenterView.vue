@@ -153,7 +153,9 @@ async function handleItemClick(item: any) {
     // 跳转到对应模块
     const targetRoute = resolveJumpRoute(item)
     if (targetRoute) {
-      router.push(targetRoute)
+      // 标记来自消息中心：目标页点击"返回"时应回到首页而非消息中心
+      const sep = targetRoute.includes('?') ? '&' : '?'
+      router.push(`${targetRoute}${sep}fromNotification=1`)
     }
   } catch (e: any) {
     console.error('点击消息跳转失败:', e)

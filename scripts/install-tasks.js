@@ -58,9 +58,14 @@ function run(scriptName) {
   console.log(`\n=== 注册计划任务: ${task.name} ===`);
   console.log(`  ${task.desc}`);
   const outFile = path.join(logDir, `${task.name}.log`);
-  // schtasks 的 /TR 参数：内层引号用 \" 转义，重定向放在 cmd /c 内部，避免 >> 被误判为参数
-  const cmdLine = `cmd /c "${task.cmd}" >> "${outFile}" 2>&1`;
-  const sch = `schtasks /Create /F /TN "${task.name}" ${task.trigger} /TR "${cmdLine.replace(/"/g, '\\"')}" /RL HIGHEST`;
+  // 修复说明（原版两个 bug）：
+  // 1) 先 cd /d 到项目根，确保 dotenv 能加载根目录的 .env，
+  //    否则 DB_PASSWORD 为空 → 'root'@'localhost' Access denied（备份静默失败）
+  // 2) 重定向 >> 必须放在 cmd /c 引号【外面】，否则 >> 被当成普通参数、日志写不出来
+  // 3) schtasks /TR 内层引号用 cmd 风格双写 "" 转义，不要用 \"
+  const inner = `cd /d "${root}" && ${task.cmd}`.trim();
+  const trValue = `cmd /c "${inner}" >> "${outFile}" 2>&1`;
+  const sch = `schtasks /Create /F /TN "${task.name}" ${task.trigger} /TR "${trValue.replace(/"/g, '""')}" /RL HIGHEST`;
   try {
     const out = execSync(sch, { stdio: ['pipe', 'pipe', 'pipe'] }).toString();
     console.log(`  ✓ ${out.trim()}`);

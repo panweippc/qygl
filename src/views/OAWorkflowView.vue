@@ -1757,7 +1757,14 @@ const refreshAllData = async () => {
 }
 
 const handleSearch = () => {}
-const handleBack = () => { router.back() }
+const handleBack = () => {
+  // 从消息中心点击进入时，返回直接回首页；否则按正常历史回退
+  if (route.query.fromNotification) {
+    router.push('/')
+  } else {
+    router.back()
+  }
+}
 
 watch(() => route.query, (query) => {
   if (query.tab) {
