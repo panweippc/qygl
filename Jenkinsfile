@@ -33,7 +33,8 @@ pipeline {
   }
 
   triggers {
-    cron('H/5 * * * *')                                                   // 每 5 分钟检测一次 git 更新
+    githubPush()                                                           // GitHub Webhook 推送即秒触发
+    cron('H/5 * * * *')                                                   // 兜底：每 5 分钟轮询（防止 webhook 漏触发）
   }
 
   options {
