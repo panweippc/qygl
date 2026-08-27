@@ -116,6 +116,16 @@ pipeline {
       }
     }
 
+    // 阶段6.5：验证 dev server（3003，弥补此前未检查导致"假绿"）
+    stage('Verify Dev Server (3003)') {
+      when { environment name: 'SKIP_DEPLOY', value: '0' }
+      steps {
+        echo '=== 阶段6.5: 验证前端 dev server (3003) ==='
+        bat "ping -n 6 127.0.0.1 >nul"
+        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${DEV_PORT}' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('dev server 状态: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('dev server 状态: ' + \$st + ' (已就绪)'); \$ok=\$true; break }; Write-Host ('  重试 ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-not \$ok){ Write-Host '⚠️ dev server 3003 未就绪，可能 npm run dev 启动失败或被占用' }; exit 0\""
+      }
+    }
+
     // 阶段7：重启后端（pm2 qygl）
     stage('Restart Backend (pm2)') {
       when { environment name: 'SKIP_DEPLOY', value: '0' }
