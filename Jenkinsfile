@@ -14,6 +14,13 @@
  *      否则改 NODE_HOME)、全局 pm2、nginx。
  *   3. 流水线用 `bat` 调用 `powershell -Command`，无需额外 Jenkins 插件（仅需默认 Git/Pipeline）。
  * ------------------------------------------------------------
+ *
+ * v1.2.13 修复：
+ *   - 阶段1 的"是否有新提交"判断改为只抽取 40 位 SHA 比较，避免 cmd 回显命令文本
+ *     导致 local/remote 永远不相等、从而每 5 分钟都误判为"有更新"重跑全部流程。
+ *   - Nginx(8080) 与 vite dev server(3003) 改为由 pm2 托管（qygl-nginx / qygl-dev），
+ *     不再用 Start-Process 直接拉起，避免 Jenkins 构建结束后把整棵进程树杀掉，
+ *     导致访问时 8080/3003 早已无进程监听（"假绿"）。
  */
 pipeline {
   agent any
@@ -29,12 +36,13 @@ pipeline {
     FRONTEND_PORT = '8080'                                                // 生产前端（nginx 托管 dist）
     DEV_PORT      = '3003'                                                // 开发前端（vite dev server）
     PM2_APP_NAME  = 'qygl'                                                // 后端 pm2 进程名
+    NGINX_PM2     = 'qygl-nginx'                                          // nginx 的 pm2 进程名
+    DEV_PM2       = 'qygl-dev'                                            // vite dev server 的 pm2 进程名
     SKIP_DEPLOY   = '0'                                                   // 1=无更新跳过部署
   }
 
   triggers {
-    githubPush()                                                           // GitHub Webhook 推送即秒触发
-    cron('H/5 * * * *')                                                   // 兜底：每 5 分钟轮询（防止 webhook 漏触发）
+    cron('H/5 * * * *')                                                   // 每 5 分钟轮询（防止 webhook 漏触发）；无提交会自动跳过
   }
 
   options {
@@ -51,9 +59,12 @@ pipeline {
         dir("${PROJECT_DIR}") {
           bat "git fetch origin ${GIT_BRANCH}"
           script {
-            def local  = bat(returnStdout: true, script: "git rev-parse ${GIT_BRANCH}").trim()
-            def remote = bat(returnStdout: true, script: "git rev-parse origin/${GIT_BRANCH}").trim()
-            if (local == remote) {
+            // 只抽取 40 位 SHA，排除 cmd 回显的命令文本，否则比较永远不相等 → 每次都误判为"有更新"
+            def rawLocal  = bat(returnStdout: true, script: "git rev-parse ${GIT_BRANCH}").trim()
+            def rawRemote = bat(returnStdout: true, script: "git rev-parse origin/${GIT_BRANCH}").trim()
+            def local  = (rawLocal  =~ /[0-9a-f]{40}/) ? (rawLocal  =~ /[0-9a-f]{40}/)[0] : ''
+            def remote = (rawRemote =~ /[0-9a-f]{40}/) ? (rawRemote =~ /[0-9a-f]{40}/)[0] : ''
+            if (local == remote && local != '') {
               echo '✅ 无新提交，跳过本次部署'
               env.SKIP_DEPLOY = '1'
             } else {
@@ -78,9 +89,9 @@ pipeline {
     stage('Stop Nginx') {
       when { environment name: 'SKIP_DEPLOY', value: '0' }
       steps {
-        echo '=== 阶段3: 停止 Nginx ==='
-        // 先探测是否运行：仅在运行时才 stop；无论结果如何强制 exit 0，避免"未运行"误判为失败
-        bat "tasklist | findstr /i nginx >nul 2>&1 && (cd /d \"${NGINX_DIR}\" && \"${NGINX_EXE}\" -s stop && echo 已停止 Nginx) || echo Nginx 未运行，跳过 & exit /b 0"
+        echo '=== 阶段3: 停止 Nginx（交由 pm2 托管前先清掉旧进程）==='
+        // pm2 stop/delete 失败时静默；再兜底 taskkill，确保 dist 不被占用；无论结果如何 exit 0
+        bat "pm2 stop ${NGINX_PM2} 2>nul & pm2 delete ${NGINX_PM2} 2>nul & taskkill /f /im nginx.exe 2>nul & echo Nginx 已停止/原本未运行 & exit /b 0"
       }
     }
 
@@ -93,26 +104,24 @@ pipeline {
       }
     }
 
-    // 阶段5：启动并 reload Nginx（生产 8080）
-    stage('Start & Reload Nginx') {
+    // 阶段5：启动 Nginx（生产 8080）—— 由 pm2 托管，构建结束不被 Jenkins 杀掉
+    stage('Start Nginx (pm2)') {
       when { environment name: 'SKIP_DEPLOY', value: '0' }
       steps {
-        echo '=== 阶段5: 启动 Nginx(8080) 并 reload ==='
-        bat "tasklist | findstr /i nginx >nul 2>&1 && echo Nginx 已运行 || powershell -Command \"Start-Process -FilePath '${NGINX_EXE}' -WorkingDirectory '${NGINX_DIR}' -WindowStyle Hidden\" & exit /b 0"
+        echo '=== 阶段5: 启动 Nginx(8080)，交由 pm2 常驻托管 ==='
+        bat "pm2 start \"${NGINX_EXE}\" --name ${NGINX_PM2} --cwd \"${NGINX_DIR}\""
         bat 'ping -n 3 127.0.0.1 >nul'
-        bat "cd /d \"${NGINX_DIR}\" && \"${NGINX_EXE}\" -s reload || echo reload 跳过 & exit /b 0"
       }
     }
 
-    // 阶段6：重启前端 dev server（3003，普通 npm run dev 进程）
+    // 阶段6：重启前端 dev server（3003，普通 npm run dev 进程）—— 同样交 pm2 托管
     stage('Restart Dev Server (3003)') {
       when { environment name: 'SKIP_DEPLOY', value: '0' }
       steps {
-        echo '=== 阶段6: 重启前端 dev server (3003) ==='
-        // 尽力而为：探测/停止旧进程 + 启动新进程，任意异常都吞掉并强制 exit 0，绝不中断流水线
-        bat "powershell -Command \"try { \$p=Get-NetTCPConnection -LocalPort ${DEV_PORT} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -ErrorAction SilentlyContinue; if(\$p){Stop-Process -Id \$p -Force -ErrorAction SilentlyContinue; Write-Host '已停止旧 dev server'} } catch { Write-Host ('dev 停止跳过: ' + \$_.Exception.Message) }; exit 0\""
-        bat "powershell -Command \"try { Start-Process -FilePath npm -ArgumentList 'run','dev' -WorkingDirectory '${PROJECT_DIR}' -WindowStyle Hidden; Write-Host '已启动新 dev server' } catch { Write-Host ('dev 启动跳过: ' + \$_.Exception.Message) }; exit 0\""
-        echo '✅ dev server 重启指令已下发 (3003)'
+        echo '=== 阶段6: 重启前端 dev server (3003)，交由 pm2 常驻托管 ==='
+        bat "pm2 delete ${DEV_PM2} 2>nul"
+        bat "pm2 start npm --name ${DEV_PM2} --cwd \"${PROJECT_DIR}\" -- run dev"
+        echo '✅ dev server 已交由 pm2 托管 (3003)'
       }
     }
 
