@@ -10,6 +10,7 @@
           <el-upload
             :action="'/api/user/avatar'"
             name="avatar"
+            :headers="uploadHeaders"
             :show-file-list="false"
             :data="{ username: currentUsername }"
             :on-success="handleSuccess"
@@ -64,6 +65,12 @@ const userRole = ref('')
 const avatarUrl = ref('')
 const uploading = ref(false)
 const loginRecords = ref<any[]>([])
+
+// 上传请求头：el-upload 使用自带 XHR，不会走 axios 拦截器，必须手动带 Authorization
+const uploadHeaders = computed(() => {
+  const token = localStorage.getItem('token') || ''
+  return token ? { Authorization: `Bearer ${token}` } : {}
+})
 
 const avatarText = computed(() => currentUser.value.charAt(0).toUpperCase())
 

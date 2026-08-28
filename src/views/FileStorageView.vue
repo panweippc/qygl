@@ -71,6 +71,7 @@
               class="upload-demo"
               :action="'/api/upload'"
               :auto-upload="true"
+              :headers="uploadHeaders"
               :data="{ categoryId: selectedCategory?.id, uploaderId: getUserId() }"
               :on-success="handleUploadSuccess"
               :on-error="handleUploadError"
@@ -463,6 +464,12 @@ const deleteFile = async (id: number) => {
 const getUserId = (): number => {
   try { return parseInt(localStorage.getItem('userId') || '1') } catch { return 1 }
 }
+
+// 上传请求头：el-upload 使用自带 XHR，不会走 axios 拦截器，必须手动带 Authorization
+const uploadHeaders = computed(() => {
+  const token = localStorage.getItem('token') || ''
+  return token ? { Authorization: `Bearer ${token}` } : {}
+})
 
 // 文件存储管理权限：
 // - 删除（文件/分类）：仅李智鑫（与后端 #260 策略一致）
