@@ -21,7 +21,7 @@ router.get('/file-categories', async (req, res) => {
   }
 });
 
-router.post('/file-categories', requireRole('系统管理员', '总经理'), async (req, res) => {
+router.post('/file-categories', requireRole(), async (req, res) => {
   const { pool } = req.app.locals;
   const { name, description } = req.body;
   const username = req.user?.name || req.user?.username || '系统';
