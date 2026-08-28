@@ -109,6 +109,8 @@ pipeline {
       when { environment name: 'SKIP_DEPLOY', value: '0' }
       steps {
         echo '=== 阶段5: 启动 Nginx(8080)，交由 pm2 常驻托管 ==='
+        // 先容忍式删除旧实例（不存在也返回 0），再干净启动，避免 pm2 报 "already exists" 导致阶段失败
+        bat "pm2 delete ${NGINX_PM2} 2>nul & exit /b 0"
         bat "pm2 start \"${NGINX_EXE}\" --name ${NGINX_PM2} --cwd \"${NGINX_DIR}\""
         bat 'ping -n 3 127.0.0.1 >nul'
       }
@@ -119,7 +121,8 @@ pipeline {
       when { environment name: 'SKIP_DEPLOY', value: '0' }
       steps {
         echo '=== 阶段6: 重启前端 dev server (3003)，交由 pm2 常驻托管 ==='
-        bat "pm2 delete ${DEV_PM2} 2>nul"
+        // 容忍式删除：qygl-dev 不存在时 pm2 delete 会返回 1，必须 & exit /b 0，否则阶段失败导致后续阶段全部 skip
+        bat "pm2 delete ${DEV_PM2} 2>nul & exit /b 0"
         bat "pm2 start npm --name ${DEV_PM2} --cwd \"${PROJECT_DIR}\" -- run dev"
         echo '✅ dev server 已交由 pm2 托管 (3003)'
       }
