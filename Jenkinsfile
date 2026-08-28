@@ -5,7 +5,7 @@
  * 模型：原地 git pull（不另 checkout 副本、不 xcopy 到别的目录）。
  * 流程：检测 git 更新 → npm install → 停止 Nginx → 构建前端 →
  *       启动/重载 Nginx(8080) → 重启 dev server(3003) → 重启后端 pm2(qygl) → 健康检查。
- * 触发：每 5 分钟轮询；无新提交则跳过部署。
+ * 触发：每 5 分钟轮询；无新提交则【跳过阶段2~10全部部署动作】。
  *
  * ⚠️ 关键运维前提（务必满足，否则 pm2/nginx 操作会失败）：
  *   1. Jenkins 服务/agent 必须运行在【与平时启动 pm2、nginx 相同的 Windows 用户】下，
@@ -15,13 +15,14 @@
  *   3. 流水线用 `bat` 调用 `powershell -Command`，无需额外 Jenkins 插件（仅需默认 Git/Pipeline）。
  * ------------------------------------------------------------
  *
- * v1.2.13 修复：
- *   - 阶段1 的"是否有新提交"判断改为只抽取 40 位 SHA 比较，避免 cmd 回显命令文本
- *     导致 local/remote 永远不相等、从而每 5 分钟都误判为"有更新"重跑全部流程。
- *   - Nginx(8080) 与 vite dev server(3003) 改为由 pm2 托管（qygl-nginx / qygl-dev），
- *     不再用 Start-Process 直接拉起，避免 Jenkins 构建结束后把整棵进程树杀掉，
- *     导致访问时 8080/3003 早已无进程监听（"假绿"）。
+ * v1.2.15 修复：
+ *   - 无新提交时跳过全部部署阶段：改用管道顶层 Groovy 变量 `skipDeploy` + `when { expression { !skipDeploy } }`。
+ *     之前用 `environment { SKIP_DEPLOY='0' }` + `when { environment name:'SKIP_DEPLOY', value:'0' }` 失效——
+ *     pipeline 级 environment 会在每个阶段开始前把 SKIP_DEPLOY 重新注入成 '0'，覆盖阶段1里的赋值，导致无提交也全量执行。
+ *   - 阶段6 启动 vite 前先清掉 3003 上的陈旧监听进程，避免新实例 EADDRINUSE 退出（此前 qygl-dev 一直 errored/stopped）。
  */
+boolean skipDeploy = false   // 顶层 Groovy 变量，供 when{expression} 实时读取（比 environment 条件可靠）
+
 pipeline {
   agent any
 
@@ -38,7 +39,6 @@ pipeline {
     PM2_APP_NAME  = 'qygl'                                                // 后端 pm2 进程名
     NGINX_PM2     = 'qygl-nginx'                                          // nginx 的 pm2 进程名
     DEV_PM2       = 'qygl-dev'                                            // vite dev server 的 pm2 进程名
-    SKIP_DEPLOY   = '0'                                                   // 1=无更新跳过部署
   }
 
   triggers {
@@ -52,7 +52,7 @@ pipeline {
   }
 
   stages {
-    // 阶段1：拉取代码并检测是否有新提交
+    // 阶段1：拉取代码并检测是否有新提交（始终执行）
     stage('Git Pull') {
       steps {
         echo "=== 阶段1: 检测/拉取最新代码 (${PROJECT_DIR}) ==="
@@ -65,10 +65,11 @@ pipeline {
             def local  = (rawLocal  =~ /[0-9a-f]{40}/) ? (rawLocal  =~ /[0-9a-f]{40}/)[0] : ''
             def remote = (rawRemote =~ /[0-9a-f]{40}/) ? (rawRemote =~ /[0-9a-f]{40}/)[0] : ''
             if (local == remote && local != '') {
-              echo '✅ 无新提交，跳过本次部署'
-              env.SKIP_DEPLOY = '1'
+              echo '✅ 无新提交，跳过本次部署（阶段2~10 全部跳过）'
+              skipDeploy = true
             } else {
               echo '🔄 检测到新提交，开始更新...'
+              skipDeploy = false
               bat "git reset --hard origin/${GIT_BRANCH}"
             }
           }
@@ -78,7 +79,7 @@ pipeline {
 
     // 阶段2：安装依赖（仅在有更新时）
     stage('Install Dependencies') {
-      when { environment name: 'SKIP_DEPLOY', value: '0' }
+      when { expression { return !skipDeploy } }
       steps {
         echo '=== 阶段2: 安装依赖 ==='
         dir("${PROJECT_DIR}") { bat 'npm install' }
@@ -87,7 +88,7 @@ pipeline {
 
     // 阶段3：停止 Nginx（必须在构建前，否则 nginx 占用 dist/index.html 导致 EPERM 写失败）
     stage('Stop Nginx') {
-      when { environment name: 'SKIP_DEPLOY', value: '0' }
+      when { expression { return !skipDeploy } }
       steps {
         echo '=== 阶段3: 停止 Nginx（交由 pm2 托管前先清掉旧进程）==='
         // pm2 stop/delete 失败时静默；再兜底 taskkill，确保 dist 不被占用；无论结果如何 exit 0
@@ -97,7 +98,7 @@ pipeline {
 
     // 阶段4：前端构建
     stage('Build') {
-      when { environment name: 'SKIP_DEPLOY', value: '0' }
+      when { expression { return !skipDeploy } }
       steps {
         echo '=== 阶段4: 前端构建 (npm run build) ==='
         dir("${PROJECT_DIR}") { bat 'npm run build' }
@@ -106,10 +107,10 @@ pipeline {
 
     // 阶段5：启动 Nginx（生产 8080）—— 由 pm2 托管，构建结束不被 Jenkins 杀掉
     stage('Start Nginx (pm2)') {
-      when { environment name: 'SKIP_DEPLOY', value: '0' }
+      when { expression { return !skipDeploy } }
       steps {
         echo '=== 阶段5: 启动 Nginx(8080)，交由 pm2 常驻托管 ==='
-        // 先容忍式删除旧实例（不存在也返回 0），再干净启动，避免 pm2 报 "already exists" 导致阶段失败
+        // 先容忍式删除旧实例（不存在也不报错），再干净启动，避免 pm2 报 "already exists"
         bat "pm2 delete ${NGINX_PM2} 2>nul & exit /b 0"
         bat "pm2 start \"${NGINX_EXE}\" --name ${NGINX_PM2} --cwd \"${NGINX_DIR}\""
         bat 'ping -n 3 127.0.0.1 >nul'
@@ -118,11 +119,13 @@ pipeline {
 
     // 阶段6：重启前端 dev server（3003，普通 npm run dev 进程）—— 同样交 pm2 托管
     stage('Restart Dev Server (3003)') {
-      when { environment name: 'SKIP_DEPLOY', value: '0' }
+      when { expression { return !skipDeploy } }
       steps {
         echo '=== 阶段6: 重启前端 dev server (3003)，交由 pm2 常驻托管 ==='
         // 容忍式删除：qygl-dev 不存在时 pm2 delete 会返回 1，必须 & exit /b 0，否则阶段失败导致后续阶段全部 skip
         bat "pm2 delete ${DEV_PM2} 2>nul & exit /b 0"
+        // 清掉 3003 上的陈旧监听，避免新 vite 因 EADDRINUSE 退出（此前 qygl-dev 一直 errored/stopped 的根因）
+        bat "for /f \"tokens=5\" %a in ('netstat -aon ^| findstr :${DEV_PORT} ^| findstr LISTENING') do taskkill /f /pid %a 2>nul"
         bat "pm2 start npm --name ${DEV_PM2} --cwd \"${PROJECT_DIR}\" -- run dev"
         echo '✅ dev server 已交由 pm2 托管 (3003)'
       }
@@ -130,17 +133,18 @@ pipeline {
 
     // 阶段6.5：验证 dev server（3003，弥补此前未检查导致"假绿"）
     stage('Verify Dev Server (3003)') {
-      when { environment name: 'SKIP_DEPLOY', value: '0' }
+      when { expression { return !skipDeploy } }
       steps {
         echo '=== 阶段6.5: 验证前端 dev server (3003) ==='
         bat "ping -n 6 127.0.0.1 >nul"
+        // dev server 正常应返回 200；返回任何 HTTP 状态（含 404）都说明进程已在 3003 监听，视为就绪
         bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${DEV_PORT}' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('dev server 状态: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('dev server 状态: ' + \$st + ' (已就绪)'); \$ok=\$true; break }; Write-Host ('  重试 ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-not \$ok){ Write-Host '⚠️ dev server 3003 未就绪，可能 npm run dev 启动失败或被占用' }; exit 0\""
       }
     }
 
     // 阶段7：重启后端（pm2 qygl）
     stage('Restart Backend (pm2)') {
-      when { environment name: 'SKIP_DEPLOY', value: '0' }
+      when { expression { return !skipDeploy } }
       steps {
         echo '=== 阶段7: 重启后端 (pm2 qygl) ==='
         dir("${PROJECT_DIR}") {
@@ -152,7 +156,7 @@ pipeline {
 
     // 阶段8：验证后端
     stage('Verify Backend') {
-      when { environment name: 'SKIP_DEPLOY', value: '0' }
+      when { expression { return !skipDeploy } }
       steps {
         echo '=== 阶段8: 验证后端 (3005) ==='
         // 用 127.0.0.1 避免 localhost 解析到 IPv6(::1)；后端启动较慢，最多重试 15 次(约 60s)
@@ -162,7 +166,7 @@ pipeline {
 
     // 阶段9：验证前端（nginx 8080）
     stage('Verify Frontend') {
-      when { environment name: 'SKIP_DEPLOY', value: '0' }
+      when { expression { return !skipDeploy } }
       steps {
         echo '=== 阶段9: 验证前端 (nginx 8080) ==='
         bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${FRONTEND_PORT}' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('前端状态: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('前端状态: ' + \$st + ' (已就绪)'); \$ok=\$true; break }; Write-Host ('  重试 ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-not \$ok){ Write-Host '⚠️ 前端未就绪，请检查 nginx 日志' }; exit 0\""
@@ -171,7 +175,7 @@ pipeline {
 
     // 阶段10：PM2 状态
     stage('PM2 Status') {
-      when { environment name: 'SKIP_DEPLOY', value: '0' }
+      when { expression { return !skipDeploy } }
       steps {
         echo '=== 阶段10: PM2 状态 ==='
         bat 'pm2 status'
@@ -182,7 +186,7 @@ pipeline {
   post {
     success {
       echo '🎉 流水线执行成功'
-      echo "部署目录: ${PROJECT_DIR}"
+      echo "部署目录: ${PROJECT_DIR} | skipDeploy=${skipDeploy}"
     }
     failure {
       echo '❌ 流水线执行失败'
