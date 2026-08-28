@@ -53,6 +53,7 @@ router.post('/monthly-reports', async (req, res) => {
       [title, content, plan || '', filesJson, userId, date || null, localNow()]
     );
     await createOperationLog(pool, {
+      userId: userId,
       username: getOperator(req),
       action: 'create',
       module: 'monthly_report',

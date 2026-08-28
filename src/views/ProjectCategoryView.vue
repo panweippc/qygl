@@ -213,7 +213,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Edit, Delete, Link, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getProjects, addProjectApplication, deleteProject, deleteProjectCategory, updateProjectCategory, updateProjectDetail, updateProjectManager, getEmployees } from '../services/api'
+import { getProjects, getProjectCategories, addProject, addProjectApplication, deleteProject, deleteProjectCategory, updateProjectCategory, updateProjectDetail, updateProjectManager, getEmployees } from '../services/api'
 
 const router = useRouter()
 
@@ -281,38 +281,33 @@ const addProjectForm = ref({
 const loadCategories = async () => {
   loading.value = true
   try {
-    const response = await getProjects();
-    if (!response.success || !response.data?.list) {
-      ElMessage.error('加载产品分类数据失败')
-      return
-    }
-    
-    const projects = response.data.list as Project[];
-    const categoryMap = new Map<string, Category>()
-    
-    projects.forEach(project => {
-      const key = project.project_type
-      if (!categoryMap.has(key)) {
-        categoryMap.set(key, {
-          id: categoryMap.size + 1,
-          name: project.project_type,
-          description: project.description,
-          manager: '',
-          projectCount: 0,
-          projects: []
-        })
+    // 真实分类来自 projects 表（/project-categories）
+    const catRes = await getProjectCategories();
+    const realCats = (catRes.success ? (catRes.data || []) : []) as any[];
+    // 关联项目来自 project_applications（按 project_type 分组），用于显示"相关项目"
+    const projRes = await getProjects();
+    const projects = (projRes.success ? (projRes.data?.list || []) : []) as any[];
+    const byType = new Map<string, any[]>();
+    projects.forEach((p: any) => {
+      const key = p.project_type;
+      if (!byType.has(key)) byType.set(key, []);
+      byType.get(key)!.push(p);
+    });
+    const seen = new Set<string>();
+    const list: any[] = [];
+    realCats.forEach((r: any) => {
+      seen.add(r.name);
+      const ps = byType.get(r.name) || [];
+      list.push({ id: r.id, name: r.name, description: r.description || '', manager: r.manager || '', projectCount: ps.length, projects: ps });
+    });
+    // 补充：从已有项目推导出来的分类（尚未在 projects 表中建记录）
+    byType.forEach((ps, type) => {
+      if (!seen.has(type)) {
+        seen.add(type);
+        list.push({ id: type, name: type, description: '', manager: '', projectCount: ps.length, projects: ps });
       }
-      
-      const category = categoryMap.get(key)!
-      category.projects.push(project)
-      category.projectCount = category.projects.length
-    })
-      
-    categories.value = Array.from(categoryMap.values()).sort((a, b) => {
-      const dateA = a.projects.length > 0 ? new Date(a.projects[0].created_at).getTime() : 0
-      const dateB = b.projects.length > 0 ? new Date(b.projects[0].created_at).getTime() : 0
-      return dateA - dateB
-    })
+    });
+    categories.value = list as Category[];
   } catch (error) {
     console.error('加载产品分类数据失败:', error)
     ElMessage.error('加载产品分类数据失败')
@@ -360,17 +355,29 @@ const addCategory = async () => {
     ElMessage.warning('请输入分类名称')
     return
   }
-  const newCategory: Category = {
-    id: Date.now(),
-    name: categoryForm.value.name,
-    description: categoryForm.value.detail || '',
-    manager: '',
-    projectCount: 0,
-    projects: []
+  loading.value = true
+  try {
+    // 持久化到 projects 表（/project-categories），刷新后仍然存在
+    const res = await addProject({
+      name: categoryForm.value.name,
+      category: categoryForm.value.name,
+      description: categoryForm.value.detail || '',
+      manager: '',
+      link: ''
+    })
+    if (!res.success) {
+      ElMessage.error('添加产品分类失败')
+      return
+    }
+    await loadCategories()
+    addDialogVisible.value = false
+    ElMessage.success('产品分类添加成功')
+  } catch (error) {
+    console.error('添加产品分类失败:', error)
+    ElMessage.error('添加产品分类失败')
+  } finally {
+    loading.value = false
   }
-  categories.value.unshift(newCategory)
-  addDialogVisible.value = false
-  ElMessage.success('产品分类添加成功')
 }
 
 const editCategory = (category: Category) => {

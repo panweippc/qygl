@@ -120,8 +120,11 @@ export const getEmployees = async (): Promise<ApiResponse<Employee[]>> => {
   return response.data;
 };
 
+// 修复 #256：adminPassword 已包含在 employee 对象中传入（前端统一通过 {...employee, adminPassword} 方式）。
+// 旧实现的第二参数 adminPassword?: string 在只传一个参数时为 undefined，
+// 会在展开时被覆盖为 undefined，JSON.stringify 后该字段被丢弃，导致后端永远收不到密码。
 export const addEmployee = async (employee: Employee): Promise<ApiResponse> => {
-  const response = await api.post('/employees', employee);
+  const response = await api.post('/employees', { ...employee });
   return response.data;
 };
 
@@ -131,7 +134,7 @@ export const deleteEmployee = async (name: string, adminPassword?: string): Prom
 };
 
 export const updateEmployee = async (employee: Employee): Promise<ApiResponse> => {
-  const response = await api.put(`/employees/${employee.name}`, employee);
+  const response = await api.put(`/employees/${employee.name}`, { ...employee });
   return response.data;
 };
 

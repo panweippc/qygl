@@ -89,10 +89,20 @@ router.post('/distributed-records', async (req, res) => {
     console.log('下发记录添加成功, ID:', result.insertId);
 
     try {
+      // 将英文申请类型映射为对应中文，避免消息中心出现 "leave申请" 等英文
+      const APP_TYPE_CN = {
+        leave: '请假',
+        reimbursement: '报销',
+        meeting: '会议',
+        project: '项目',
+        businessTrip: '出差',
+        entertainment: '业务招待'
+      };
+      const appTypeCn = APP_TYPE_CN[applicationType] || applicationType;
       await createNotification(pool, {
         userId: targetUser,
         title: '新任务下发',
-        content: `${distributedBy} 给您下发了一条${applicationType}申请，请查看处理`,
+        content: `${distributedBy} 给您下发了一条${appTypeCn}申请，请查看处理`,
         type: 'approval',
         relatedId: parseInt(applicationId),
         relatedType: applicationType

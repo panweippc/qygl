@@ -26,13 +26,13 @@
             </h2>
             <span class="project-total-count">{{ totalProjectCount }}个项目</span>
           </div>
-          <el-button v-if="hasPerm('btn_add') && currentLevel === 0" type="primary" @click="openAddProvinceDialog" class="add-btn">
+          <el-button v-if="hasPerm('btn_add') && currentLevel === 0 && !isLiZhiXin" type="primary" @click="openAddProvinceDialog" class="add-btn">
             <span class="btn-icon">+</span>添加省份
           </el-button>
-          <el-button v-if="hasPerm('btn_add') && currentLevel === 1" type="primary" @click="openAddCityDialog" class="add-btn">
+          <el-button v-if="hasPerm('btn_add') && currentLevel === 1 && !isLiZhiXin" type="primary" @click="openAddCityDialog" class="add-btn">
             <span class="btn-icon">+</span>添加城市
           </el-button>
-          <el-button v-if="hasPerm('btn_add') && currentLevel === 2" type="primary" @click="openAddCountyDialog" class="add-btn">
+          <el-button v-if="hasPerm('btn_add') && currentLevel === 2 && !isLiZhiXin" type="primary" @click="openAddCountyDialog" class="add-btn">
             <span class="btn-icon">+</span>添加旗县
           </el-button>
           <el-button v-if="hasPerm('btn_add') && currentLevel === 3 && !isLiZhiXin" type="primary" @click="openAddProjectDialog" class="add-btn">

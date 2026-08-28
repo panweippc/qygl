@@ -486,15 +486,16 @@ const filteredLeaveRecords = computed(() => {
     }
   }
 
-  // 按提交时间排序后分配显示序号 seqNo（即使数据删除后也能从1开始连续）
+  // 展示顺序：按提交时间倒序（最新申请排第一）；编号 seqNo：按申请先后自然编号
+  // （最早创建的申请编号最小=1，最新申请编号最大），与展示顺序相反（#263 体验优化）
   return records
     .slice()
     .sort((a, b) => {
       const da = new Date(a.submitDate || a.createdAt || 0).getTime()
       const db = new Date(b.submitDate || b.createdAt || 0).getTime()
-      return da - db
+      return db - da
     })
-    .map((r, idx) => ({ ...r, seqNo: idx + 1 }))
+    .map((r, idx, arr) => ({ ...r, seqNo: arr.length - idx }))
 })
 
 const getDistributedUsersForApplication = (applicationId: number, applicationType: string) => {

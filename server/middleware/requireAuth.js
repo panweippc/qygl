@@ -46,7 +46,8 @@ export const requireAuth = async (req, res, next) => {
         console.error('密码指纹/会话版本校验失败:', dbErr.message);
       }
     }
-    req.user = { ...decoded, name: realName };
+    // 归一化角色字段：JWT 仅携带 role（不含 roleName），下游多处依赖 req.user.roleName 判断 GM/管理员
+    req.user = { ...decoded, name: realName, roleName: decoded.role || decoded.roleName || '' };
     next();
   } catch (e) {
     return res.status(401).json({ success: false, message: '登录已过期，请重新登录' });

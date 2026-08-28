@@ -27,7 +27,7 @@ const isManagerUser = async (req) => {
 router.get('/leave-applications', async (req, res) => {
   try {
     const { pool } = req.app.locals;
-    const [applications] = await pool.execute('SELECT * FROM leave_applications');
+    const [applications] = await pool.execute('SELECT * FROM leave_applications ORDER BY createdAt DESC');
     res.json({ success: true, data: applications });
   } catch (error) {
     console.error('获取请假申请失败:', error);

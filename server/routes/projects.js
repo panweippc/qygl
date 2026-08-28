@@ -21,6 +21,7 @@ router.post('/project-categories', async (req, res) => {
       [name, category, description, manager || '', link || '', new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
     await createOperationLog(pool, {
+      userId: req.user?.id || '',
       username: getOperator(req),
       action: 'create',
       module: 'project',
@@ -37,6 +38,9 @@ router.delete('/project-categories/:category', async (req, res) => {
   const { pool } = req.app.locals;
   const { category } = req.params;
   try {
+    // 同步删除 projects 表中该分类本身（新增分类时以 name/category 落库），
+    // 否则分类会从 projects 表残留、刷新后“删除成功却仍存在”
+    await pool.execute('DELETE FROM projects WHERE category = ? OR name = ?', [category, category]);
     await pool.execute('DELETE FROM project_applications WHERE project_type = ?', [category]);
     await createOperationLog(pool, {
       username: getOperator(req),

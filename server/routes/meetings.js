@@ -26,7 +26,7 @@ const isManagerUser = async (req) => {
 router.get('/meetings', async (req, res) => {
   try {
     const { pool } = req.app.locals;
-    const [meetings] = await pool.execute('SELECT * FROM meetings');
+    const [meetings] = await pool.execute('SELECT * FROM meetings ORDER BY createdAt DESC');
     res.json({ success: true, data: meetings });
   } catch (error) {
     console.error('获取会议记录失败:', error);

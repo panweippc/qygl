@@ -1298,6 +1298,18 @@ const addEmployee = async () => {
     employeeFormRef.value.validate(async (valid: boolean) => {
 
       if (valid) {
+        // 高危操作二次验证：输入当前登录密码确认
+        let adminPassword: string
+        try {
+          const promptRes = await ElMessageBox.prompt(
+            '添加员工为高危操作，请输入您的当前登录密码以确认：',
+            '高危操作确认',
+            { inputType: 'password', confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning' }
+          )
+          adminPassword = promptRes.value
+        } catch {
+          return
+        }
 
         loading.value = true
 
@@ -1322,6 +1334,8 @@ const addEmployee = async () => {
             entryDate: employeeForm.value.entryDate || new Date().toISOString(),
 
             password: employeeForm.value.password,
+
+            adminPassword,
 
             // 扩展字段
 
@@ -1456,6 +1470,18 @@ const updateEmployee = async () => {
       console.log('表单验证结果:', valid)
 
       if (valid) {
+        // 高危操作二次验证：输入当前登录密码确认
+        let adminPassword: string
+        try {
+          const promptRes = await ElMessageBox.prompt(
+            '更新员工为高危操作，请输入您的当前登录密码以确认：',
+            '高危操作确认',
+            { inputType: 'password', confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning' }
+          )
+          adminPassword = promptRes.value
+        } catch {
+          return
+        }
 
         loading.value = true
 
@@ -1495,7 +1521,9 @@ const updateEmployee = async () => {
 
             emergencyContact: editForm.value.emergencyContact,
 
-            emergencyPhone: editForm.value.emergencyPhone
+            emergencyPhone: editForm.value.emergencyPhone,
+
+            adminPassword
 
           };
 

@@ -309,6 +309,9 @@ const pool = mysql.createPool({
   queueLimit: 0,
   charset: 'utf8mb4',
   dateStrings: true,
+  // 统一时区到东八区：让 MySQL NOW()/CURDATE() 与应用 CST 一致，
+  // 避免日志/申请 createdAt 在存储与显示之间出现 ±8h 偏差
+  timezone: '+08:00',
   // A3: 连接池健壮性配置
   connectTimeout: 10000,   // 建立连接超时 10s
   idleTimeout: 60000,      // 空闲连接 60s 后回收

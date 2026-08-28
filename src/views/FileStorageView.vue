@@ -19,7 +19,7 @@
         <div class="category-section">
           <div class="section-header">
             <h3 class="section-subtitle">文件分类</h3>
-            <el-button type="primary" @click="showAddCategoryDialog = true">
+            <el-button v-if="canCreateCategory" type="primary" @click="showAddCategoryDialog = true">
               <el-icon><Plus /></el-icon>
               添加分类
             </el-button>
@@ -39,7 +39,7 @@
                     <el-icon><Folder /></el-icon>
                     查看文件
                   </el-button>
-                  <el-button size="small" @click="deleteCategory(category.id)" class="action-btn delete">
+                  <el-button v-if="isLiZhiXin" size="small" @click="deleteCategory(category.id)" class="action-btn delete">
                     <el-icon><Delete /></el-icon>
                     删除
                   </el-button>
@@ -123,7 +123,7 @@
                     <el-icon><Download /></el-icon>
                     下载
                   </el-button>
-                  <el-button size="small" @click="deleteFile(file.id)" class="action-btn delete">
+                  <el-button v-if="canDelete(file)" size="small" @click="deleteFile(file.id)" class="action-btn delete">
                     <el-icon><Delete /></el-icon>
                     删除
                   </el-button>
@@ -321,6 +321,7 @@ const selectCategory = (category: Category) => {
 
 // 添加分类
 const addCategory = async () => {
+    if (!canCreateCategory.value) { ElMessage.error('无权操作'); return }
     if (!newCategory.value.name) {
       ElMessage.error('请输入分类名称')
       return
@@ -351,6 +352,7 @@ const addCategory = async () => {
 
 // 删除分类
 const deleteCategory = async (id: number) => {
+    if (!isLiZhiXin.value) { ElMessage.error('无权操作'); return }
     try {
       ElMessageBox.confirm('确定要删除该分类吗？删除后该分类下的文件也将被删除', '警告', {
       confirmButtonText: '确定',
@@ -461,6 +463,21 @@ const deleteFile = async (id: number) => {
 const getUserId = (): number => {
   try { return parseInt(localStorage.getItem('userId') || '1') } catch { return 1 }
 }
+
+// 文件存储管理权限：
+// - 删除（文件/分类）：仅李智鑫（与后端 #260 策略一致）
+// - 创建分类：除李智鑫外均可见（#265，按用户最新要求调整）
+const currentUserName = (): string => {
+  try {
+    const u = JSON.parse(localStorage.getItem('user') || '{}')
+    return u.name || u.username || localStorage.getItem('username') || ''
+  } catch { return localStorage.getItem('username') || '' }
+}
+const isLiZhiXin = computed<boolean>(() => currentUserName() === '李智鑫')
+const canCreateCategory = computed<boolean>(() => !isLiZhiXin.value)
+
+// 删除权限：仅李智鑫可删除文件（与后端 #260 策略一致）
+const canDelete = (file: File): boolean => isLiZhiXin.value
 
 const formatFileSize = (size: number): string => {
   if (size < 1024) return size + ' B'

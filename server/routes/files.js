@@ -119,12 +119,17 @@ router.delete('/files/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: '文件不存在' });
     }
     const file = fileRows[0];
-    const isAdmin = username === '管理员' || username === '总经理' || /^admin$/i.test(username);
-    if (!isAdmin && !isOwner(req, file.uploaderId, file.uploaderName)) {
+    // 总经理/系统管理员（取 token 中的 roleName，而非用户名）可删除任意文件；
+    // 其余用户仅能删除自己上传的文件。
+    const roleName = req.user?.roleName || '';
+    const isGM = roleName === '总经理' || roleName === '系统管理员' || username === '管理员' || username === '总经理' || /^admin$/i.test(username);
+    // 权限优化（#260）：除李智鑫(GM)外所有用户都不能删除文件，移除"上传者本人可删"逻辑
+    if (!isGM && username !== '李智鑫') {
       return res.status(403).json({ success: false, message: '无权删除该文件' });
     }
     await pool.execute('DELETE FROM files WHERE id = ?', [id]);
     await createOperationLog(pool, {
+      userId: req.user?.id || uploaderId,
       username,
       action: 'delete',
       module: 'file',

@@ -71,6 +71,7 @@ import PieChart from '../components/PieChart.vue'
 import RankingChart from '../components/RankingChart.vue'
 import ComparisonChart from '../components/ComparisonChart.vue'
 import { getFiles, getFileCategories, getProjects, getMonthlyReports, getTools } from '../services/api'
+import { useMenuPermission } from '../composables/useMenuPermission'
 
 echarts.registerTheme('default', {
   textStyle: {
@@ -97,40 +98,51 @@ const projectStats = ref({ total: 0, categories: 0 })
 const monthlyReportStats = ref({ total: 0, pending: 0 })
 const toolStats = ref({ total: 0, categories: 0 })
 
+const { hasMenu } = useMenuPermission()
+
 const loadDashboardData = async () => {
   try {
-    const [filesResponse, categoriesResponse] = await Promise.all([
-      getFiles(),
-      getFileCategories()
-    ])
-    if (filesResponse.success) {
-      fileStats.value = {
-        total: filesResponse.data.length,
-        categories: categoriesResponse.success ? categoriesResponse.data.length : 0
+    // 仅拉取当前用户有权访问的模块统计，避免越权看到无权限模块的数据
+    if (hasMenu('/file-storage')) {
+      const [filesResponse, categoriesResponse] = await Promise.all([
+        getFiles(),
+        getFileCategories()
+      ])
+      if (filesResponse.success) {
+        fileStats.value = {
+          total: filesResponse.data.length,
+          categories: categoriesResponse.success ? categoriesResponse.data.length : 0
+        }
       }
     }
 
-    const projectsResponse = await getProjects()
-    if (projectsResponse.success) {
-      projectStats.value = {
-        total: projectsResponse.data.list.length,
-        categories: new Set(projectsResponse.data.list.map((project: any) => project.project_type)).size
+    if (hasMenu('/project-category')) {
+      const projectsResponse = await getProjects()
+      if (projectsResponse.success) {
+        projectStats.value = {
+          total: projectsResponse.data.list.length,
+          categories: new Set(projectsResponse.data.list.map((project: any) => project.project_type)).size
+        }
       }
     }
 
-    const reportsResponse = await getMonthlyReports()
-    if (reportsResponse.success) {
-      monthlyReportStats.value = {
-        total: reportsResponse.data.length,
-        pending: 0
+    if (hasMenu('/monthly-report')) {
+      const reportsResponse = await getMonthlyReports()
+      if (reportsResponse.success) {
+        monthlyReportStats.value = {
+          total: reportsResponse.data.length,
+          pending: 0
+        }
       }
     }
 
-    const toolsResponse = await getTools()
-    if (toolsResponse.success) {
-      toolStats.value = {
-        total: toolsResponse.data.length,
-        categories: new Set(toolsResponse.data.map((tool: any) => tool.category)).size
+    if (hasMenu('/tool-inventory')) {
+      const toolsResponse = await getTools()
+      if (toolsResponse.success) {
+        toolStats.value = {
+          total: toolsResponse.data.length,
+          categories: new Set(toolsResponse.data.map((tool: any) => tool.category)).size
+        }
       }
     }
   } catch (error) {

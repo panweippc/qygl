@@ -34,8 +34,8 @@
         <div class="map-section">
           <div class="map-header">
             <h3 class="map-title">内蒙古地区销售分布</h3>
-            <el-button type="primary" size="small" @click="showAddCityDialog = true">+ 添加盟市</el-button>
-            <el-button type="success" size="small" @click="showImportDialog = true">
+            <el-button v-if="!isLiZhiXin" type="primary" size="small" @click="showAddCityDialog = true">+ 添加盟市</el-button>
+            <el-button v-if="!isLiZhiXin" type="success" size="small" @click="showImportDialog = true">
               导入销售记录
             </el-button>
             <el-button v-if="!isLiZhiXin" size="small" @click="router.push('/customer-management')">客户管理</el-button>

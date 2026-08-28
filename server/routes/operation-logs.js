@@ -57,18 +57,30 @@ const ACTION_LABELS = {
   change_password: '修改密码'
 };
 
-// 获取操作日志（分页 + 筛选）——仅管理员/总经理可查看审计日志
-router.get('/operation-logs', requireRole('系统管理员', '总经理'), async (req, res) => {
+// 获取操作日志（分页 + 筛选）
+// 普通用户：仅能查看自己的操作日志（按 userId 或 username 过滤）
+// 管理员/总经理：可查看全部，并支持按 userId 筛选
+router.get('/operation-logs', async (req, res) => {
   const { pool } = req.app.locals;
   const { page = 1, pageSize = 30, module: mod, action, userId: uid, startDate, endDate } = req.query;
+  const me = req.user || {};
+  const roleName = me.roleName || '';
+  const isGM = ['系统管理员', '总经理'].includes(roleName) ||
+    /^admin$/i.test(me.username || '') || me.username === '管理员' || me.username === '总经理';
   try {
     const conditions = [];
     const params = [];
     if (mod) { conditions.push('module = ?'); params.push(mod); }
     if (action) { conditions.push('action = ?'); params.push(action); }
-    if (uid) { conditions.push('userId = ?'); params.push(uid); }
     if (startDate) { conditions.push('createdAt >= ?'); params.push(startDate); }
     if (endDate) { conditions.push('createdAt <= ?'); params.push(endDate); }
+    // 普通用户只能查看自己的操作日志
+    if (!isGM) {
+      conditions.push('(userId = ? OR username = ?)');
+      params.push(me.id || '', me.name || me.username || '');
+    } else if (uid) {
+      conditions.push('userId = ?'); params.push(uid);
+    }
     const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
     const offset = escapeId((parseInt(page) - 1) * parseInt(pageSize));
     const limit = escapeId(parseInt(pageSize));

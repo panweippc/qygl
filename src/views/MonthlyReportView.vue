@@ -118,7 +118,7 @@
               </table>
             </div>
             <div class="table-actions">
-              <el-button type="primary" @click="submitReports" class="submit-btn">
+              <el-button type="primary" @click="submitReports" :loading="loading" :disabled="loading" class="submit-btn">
                 提交月报
               </el-button>
             </div>
