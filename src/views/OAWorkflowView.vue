@@ -676,6 +676,7 @@ const approvalStats = ref([
   { key: 'pending', label: '待审批', value: 0, gradient: 'linear-gradient(135deg, #FF9800, #FFC107)', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z' },
   { key: 'approved', label: '已批准', value: 0, gradient: 'linear-gradient(135deg, #4CAF50, #8BC34A)', icon: 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z' },
   { key: 'rejected', label: '已拒绝', value: 0, gradient: 'linear-gradient(135deg, #f44336, #ff5722)', icon: 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z' },
+  { key: 'cancelled', label: '已取消', value: 0, gradient: 'linear-gradient(135deg, #9E9E9E, #BDBDBD)', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 13.59L15.59 15 12 11.41 8.41 15 7 13.59 10.59 10 7 6.41 8.41 5 12 8.59 15.59 5 17 6.41 13.41 10 17 13.59z' },
   { key: 'total', label: '总申请', value: 0, gradient: 'linear-gradient(135deg, #2196F3, #03A9F4)', icon: 'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z' }
 ])
 
@@ -923,7 +924,10 @@ const updateStats = () => {
   if (approvedStat) approvedStat.value = allRecords.filter(r => r.status === '已批准' || r.status === 'approved').length
 
   const rejectedStat = approvalStats.value.find(s => s.key === 'rejected')
-  if (rejectedStat) rejectedStat.value = allRecords.filter(r => r.status === '已拒绝' || r.status === '拒绝' || r.status === 'rejected' || r.status === '已取消').length
+  if (rejectedStat) rejectedStat.value = allRecords.filter(r => r.status === '已拒绝' || r.status === '拒绝' || r.status === 'rejected').length
+
+  const cancelledStat = approvalStats.value.find(s => s.key === 'cancelled')
+  if (cancelledStat) cancelledStat.value = allRecords.filter(r => r.status === '已取消' || r.status === 'cancelled').length
 
   const totalStat = approvalStats.value.find(s => s.key === 'total')
   if (totalStat) totalStat.value = allRecords.length
@@ -959,6 +963,10 @@ const openStatDetail = (statKey: string) => {
     case 'rejected':
       statDetailTitle.value = '已拒绝列表'
       filteredRecords = allRecords.filter(r => r.status === '已拒绝' || r.status === '拒绝' || r.status === 'rejected')
+      break
+    case 'cancelled':
+      statDetailTitle.value = '已取消列表'
+      filteredRecords = allRecords.filter(r => r.status === '已取消' || r.status === 'cancelled')
       break
     case 'total':
       statDetailTitle.value = '所有申请列表'
@@ -1950,7 +1958,7 @@ onMounted(async () => {
 }
 .stats-bar {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 1rem;
 }
 .stat-item {
