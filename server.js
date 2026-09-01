@@ -617,6 +617,22 @@ const initDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     
+    // 创建category_projects表（产品分类下的项目，独立于 OA 审批流，不进 project_applications）
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS category_projects (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        category_id INT NOT NULL DEFAULT 0,
+        category_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+        project_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+        description TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        manager VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        project_link VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        applicant_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
     // 创建tools表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS tools (

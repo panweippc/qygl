@@ -204,12 +204,14 @@ router.post('/project-categories/projects', async (req, res) => {
 router.put('/project-categories/projects/:id', async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
-  const { projectName, description, link, manager } = req.body;
+  const { projectName, description, link } = req.body;
   try {
     await ensureCategoryProjectsTable(pool);
+    // 单负责人场景：负责人始终为当前登录用户，编辑时不可修改（前端不再提交 manager）
+    const manager = getRealName(req) || '';
     await pool.execute(
       'UPDATE category_projects SET project_name = ?, description = ?, manager = ?, project_link = ?, updated_at = NOW() WHERE id = ?',
-      [projectName, description || '', manager || '', link || '', id]
+      [projectName, description || '', manager, link || '', id]
     );
     res.json({ success: true, message: '分类项目更新成功' });
   } catch (error) {

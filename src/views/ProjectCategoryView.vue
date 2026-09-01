@@ -162,9 +162,7 @@
           <el-input v-model="editProjectForm.link" placeholder="请输入项目链接" />
         </el-form-item>
         <el-form-item label="负责人">
-          <el-select v-model="editProjectForm.manager" placeholder="请选择负责人" style="width:100%" filterable>
-            <el-option v-for="emp in allEmployees" :key="emp.id" :label="emp.name" :value="emp.name" />
-          </el-select>
+          <el-input :model-value="currentUsername" disabled />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -211,6 +209,10 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { getProjectCategories, addProject, deleteProjectCategory, updateProjectCategory, getEmployees, getCategoryProjects, addCategoryProject, updateCategoryProject, deleteCategoryProject } from '../services/api'
 
 const router = useRouter()
+
+const currentUsername = computed(() => {
+  return localStorage.getItem('username') || '当前用户'
+})
 
 const handleBack = () => {
   router.back()
@@ -476,13 +478,12 @@ const submitAddProject = async () => {
 }
 
 const editProject = (project: Project) => {
-  // 填充编辑表单
+  // 填充编辑表单（负责人始终为当前登录用户，编辑时不可修改）
   editProjectForm.value = {
     id: project.id,
     name: project.project_name,
     description: project.description,
-    link: project.project_link || '',
-    manager: project.applicant_name || ''
+    link: project.project_link || ''
   }
   // 打开编辑对话�?
   editProjectDialogVisible.value = true
@@ -491,12 +492,11 @@ const editProject = (project: Project) => {
 const updateProject = async () => {
   loading.value = true
   try {
-    // 使用独立分类项目接口更新（不再写 project_applications）
+    // 使用独立分类项目接口更新（不再写 project_applications；负责人由后端强制为当前登录用户）
     const response = await updateCategoryProject(editProjectForm.value.id, {
       projectName: editProjectForm.value.name,
       description: editProjectForm.value.description,
-      link: editProjectForm.value.link,
-      manager: editProjectForm.value.manager
+      link: editProjectForm.value.link
     });
 
     if (response.success) {
