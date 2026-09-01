@@ -125,7 +125,9 @@ pipeline {
         // 容忍式删除：qygl-dev 不存在时 pm2 delete 会返回 1，必须 & exit /b 0，否则阶段失败导致后续阶段全部 skip
         bat "pm2 delete ${DEV_PM2} 2>nul & exit /b 0"
         // 清掉 3003 上的陈旧监听，避免新 vite 因 EADDRINUSE 退出（此前 qygl-dev 一直 errored/stopped 的根因）
-        bat "for /f \"tokens=5\" %a in ('netstat -aon ^| findstr :${DEV_PORT} ^| findstr LISTENING') do taskkill /f /pid %a 2>nul"
+        // 注意：不能用 bat 的 for/f %a（临时.bat 里 %a 被当环境变量→语法错误退出255）；
+        //      也不能用 taskkill 直接清（失败即非零退出码→拖垮阶段）。统一用 powershell + try/catch + 强制 exit 0
+        bat "powershell -Command \"try { \$ps=(Get-NetTCPConnection -LocalPort ${DEV_PORT} -ErrorAction SilentlyContinue | Where-Object { \$_.State -eq 'Listen' }).OwningProcess; foreach(\$p in \$ps){ Stop-Process -Id \$p -Force -ErrorAction SilentlyContinue }; Write-Host ('端口 ${DEV_PORT} 陈旧监听已清理') } catch { Write-Host ('清理端口异常: ' + \$_.Exception.Message) }; exit 0\""
         bat "pm2 start npm --name ${DEV_PM2} --cwd \"${PROJECT_DIR}\" -- run dev"
         echo '✅ dev server 已交由 pm2 托管 (3003)'
       }
