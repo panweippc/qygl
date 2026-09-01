@@ -49,6 +49,25 @@ router.get('/distributed-records/user/:targetUser', async (req, res) => {
   }
 });
 
+// 获取"我收到的下发"：仅返回当前登录用户作为下发目标(targetUser)的记录，只读、不可伪造他人
+router.get('/distributed-records/mine', async (req, res) => {
+  const { pool } = req.app.locals;
+  try {
+    const me = getRealName(req);
+    if (!me) {
+      return res.status(401).json({ success: false, message: '无法识别当前用户' });
+    }
+    const [records] = await pool.execute(
+      'SELECT * FROM distributed_records WHERE targetUser = ? ORDER BY createdAt DESC',
+      [me]
+    );
+    res.json({ success: true, data: records });
+  } catch (error) {
+    console.error('获取我的下发记录失败:', error);
+    res.status(500).json({ success: false, message: '获取我的下发记录失败: ' + error.message });
+  }
+});
+
 // 添加下发记录
 router.post('/distributed-records', async (req, res) => {
   const { pool } = req.app.locals;

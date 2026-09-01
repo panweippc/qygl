@@ -128,8 +128,10 @@ pipeline {
         // 注意：不能用 bat 的 for/f %a（临时.bat 里 %a 被当环境变量→语法错误退出255）；
         //      也不能用 taskkill 直接清（失败即非零退出码→拖垮阶段）。统一用 powershell + try/catch + 强制 exit 0
         bat "powershell -Command \"try { \$ps=(Get-NetTCPConnection -LocalPort ${DEV_PORT} -ErrorAction SilentlyContinue | Where-Object { \$_.State -eq 'Listen' }).OwningProcess; foreach(\$p in \$ps){ Stop-Process -Id \$p -Force -ErrorAction SilentlyContinue }; Write-Host ('端口 ${DEV_PORT} 陈旧监听已清理') } catch { Write-Host ('清理端口异常: ' + \$_.Exception.Message) }; exit 0\""
-        bat "pm2 start npm --name ${DEV_PM2} --cwd \"${PROJECT_DIR}\" -- run dev"
-        echo '✅ dev server 已交由 pm2 托管 (3003)'
+        bat "ping -n 2 127.0.0.1 >nul"
+        // dev server 启动失败【不应】阻断后端重启：用 || 兜底并 exit 0，避免阶段6失败导致阶段7(重启后端)被整条流水线跳过
+        bat "pm2 start npm --name ${DEV_PM2} --cwd \"${PROJECT_DIR}\" -- run dev || echo [warn] dev server 启动失败，不影响后端部署（可稍后手动 pm2 start ${DEV_PM2}）"
+        echo '✅ dev server 阶段完成 (3003)'
       }
     }
 
@@ -150,8 +152,12 @@ pipeline {
       steps {
         echo '=== 阶段7: 重启后端 (pm2 qygl) ==='
         dir("${PROJECT_DIR}") {
-          bat "pm2 restart ${PM2_APP_NAME} || pm2 start server.js --name ${PM2_APP_NAME}"
+          // 采用 delete + start（而非 restart）确保完整重载新代码，避免 fork 进程残留旧模块；
+          // 进程不存在时 stop/delete 失败用 ; 继续，最终由 start 兜底拉起
+          bat "pm2 stop ${PM2_APP_NAME} 2>nul; pm2 delete ${PM2_APP_NAME} 2>nul; pm2 start server.js --name ${PM2_APP_NAME} --cwd \"${PROJECT_DIR}\""
           bat 'pm2 save'
+          // 诊断输出：确认后端进程确实已拉起（uptime/restart 数），便于排查"看似没重启"的问题
+          bat 'pm2 describe ${PM2_APP_NAME} || pm2 status'
         }
       }
     }

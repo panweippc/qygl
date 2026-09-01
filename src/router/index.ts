@@ -165,6 +165,12 @@ const router = createRouter({
       component: () => import('../views/OperationLogView.vue')
     },
     {
+      path: '/received-distributions',
+      name: 'received-distributions',
+      component: () => import('../views/ReceivedDistributionView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/security-alerts',
       name: 'security-alerts',
       component: () => import('../views/SecurityAlertView.vue')

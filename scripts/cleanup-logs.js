@@ -1,6 +1,6 @@
 /**
  * 日志维护脚本
- * 1. 清理数据库 operation_logs 表中 N 天前的记录（默认 180 天，可通过 LOG_RETENTION_DAYS 覆盖）
+ * 1. 清理数据库 operation_logs 表中 N 天前的记录（默认 90 天，可通过 LOG_RETENTION_DAYS 覆盖）
  * 2. 轮转 logs/ 目录下全部 *.log（统一规则：超过 ROTATE_BYTES 则压缩归档，保留 LOG_KEEP 份）
  * 3. 轮转 Nginx 访问/错误日志（nginx-1.22.1/logs/qygl-access.log、qygl-error.log），规则同上
  * 用法：node scripts/cleanup-logs.js
@@ -16,10 +16,11 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 
-const RETENTION_DAYS = parseInt(process.env.LOG_RETENTION_DAYS || '180', 10);
+const RETENTION_DAYS = parseInt(process.env.LOG_RETENTION_DAYS || '90', 10);
 const LOG_KEEP = parseInt(process.env.LOG_KEEP || '10', 10);       // 日志归档保留份数
 const ROTATE_BYTES = 10 * 1024 * 1024;                              // 单日志超过 10MB 触发轮转
 const NGINX_LOG_DIR = path.join(root, 'nginx-1.22.1', 'logs');
+const CLEANUP_LOG = path.join(root, 'logs', 'cleanup-logs.log'); // 自身执行日志（带时间戳，便于追溯每次轮转动作）
 
 const PAD = (n) => String(n).padStart(2, '0');
 const now = () => { const d = new Date(); return `${d.getFullYear()}${PAD(d.getMonth() + 1)}${PAD(d.getDate())}-${PAD(d.getHours())}${PAD(d.getMinutes())}${PAD(d.getSeconds())}`; };
@@ -93,6 +94,21 @@ async function main() {
   // 3. 轮转 Nginx 日志（与上方共用同一套轮转规则）
   rotateFile(path.join(NGINX_LOG_DIR, 'qygl-access.log'));
   rotateFile(path.join(NGINX_LOG_DIR, 'qygl-error.log'));
+
+  // 写执行日志到 logs/cleanup-logs.log（带时间戳，便于追溯每次轮转动作）
+  try {
+    const ts = new Date().toISOString();
+    const header = `\n===== [${ts}] 日志轮转执行 =====`;
+    const body = summary.length ? summary.map(l => `  - ${l}`).join('\n') : '  - 本次无需清理，一切正常';
+    fs.appendFileSync(CLEANUP_LOG, `${header}\n${body}\n`, 'utf8');
+    // 自我保护：超过 2MB 时仅保留末尾 500 行，避免无限增长
+    if (fs.existsSync(CLEANUP_LOG) && fs.statSync(CLEANUP_LOG).size > 2 * 1024 * 1024) {
+      const lines = fs.readFileSync(CLEANUP_LOG, 'utf8').split('\n');
+      fs.writeFileSync(CLEANUP_LOG, lines.slice(-500).join('\n'));
+    }
+  } catch (e) {
+    console.error('[cleanup] 写入 cleanup-logs.log 失败:', e.message);
+  }
 
   // 完成
   if (summary.length === 0) {

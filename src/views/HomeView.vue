@@ -39,6 +39,14 @@
                 </svg>
               </template>
             </DashboardCard>
+
+            <DashboardCard title="我收到的下发" to="/received-distributions" :requirePerm="false" :stats="[{ value: myDistStats.pending, label: '待处理' }, { value: myDistStats.total, label: '总数' }]">
+              <template #icon>
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6C22 4.9 21.1 4 20 4ZM20 18H4V8L12 13L20 8V18ZM4 6H20V6.7L12 11.35L4 6.7V6Z"/>
+                </svg>
+              </template>
+            </DashboardCard>
           </div>
 
           <div class="dashboard-visualization">
@@ -70,7 +78,7 @@ import TrendChart from '../components/TrendChart.vue'
 import PieChart from '../components/PieChart.vue'
 import RankingChart from '../components/RankingChart.vue'
 import ComparisonChart from '../components/ComparisonChart.vue'
-import { getFiles, getFileCategories, getProjects, getMonthlyReports, getTools } from '../services/api'
+import { getFiles, getFileCategories, getProjects, getMonthlyReports, getTools, getMyDistributedRecords } from '../services/api'
 import { useMenuPermission } from '../composables/useMenuPermission'
 
 echarts.registerTheme('default', {
@@ -97,6 +105,7 @@ const fileStats = ref({ total: 0, categories: 0 })
 const projectStats = ref({ total: 0, categories: 0 })
 const monthlyReportStats = ref({ total: 0, pending: 0 })
 const toolStats = ref({ total: 0, categories: 0 })
+const myDistStats = ref({ pending: 0, total: 0 })
 
 const { hasMenu } = useMenuPermission()
 
@@ -152,7 +161,20 @@ const loadDashboardData = async () => {
 
 onMounted(() => {
   loadDashboardData()
+  loadMyDistributions()
 })
+
+const loadMyDistributions = async () => {
+  try {
+    const res = await getMyDistributedRecords()
+    if (res.success && Array.isArray(res.data)) {
+      myDistStats.value = {
+        pending: res.data.filter((r: any) => (r.status || '待处理') === '待处理').length,
+        total: res.data.length
+      }
+    }
+  } catch { /* 忽略：不影响主面板 */ }
+}
 </script>
 
 <style scoped>

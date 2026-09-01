@@ -522,6 +522,12 @@ export const getDistributedRecords = async (targetUser: string): Promise<ApiResp
   return response.data;
 };
 
+// 我收到的下发（当前登录用户，只读，无需传用户名）
+export const getMyDistributedRecords = async (): Promise<ApiResponse<DistributedRecord[]>> => {
+  const response = await api.get('/distributed-records/mine');
+  return response.data;
+};
+
 export const getAllDistributedRecords = async (): Promise<ApiResponse<DistributedRecord[]>> => {
   const response = await api.get('/distributed-records');
   return response.data;

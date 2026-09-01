@@ -158,7 +158,6 @@
               >
                 详情
               </el-button>
-              <el-button v-if="canExport" size="small" @click="printRow(row)" class="print-row-btn">打印</el-button>
             </div>
           </template>
         </el-table-column>
