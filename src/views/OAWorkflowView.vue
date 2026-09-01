@@ -784,7 +784,7 @@ const getDistributedDetail = (row: any) => {
     return `类型:${row.reimburseType || '-'} 金额:¥${row.amount || 0}`
   }
   if (type === 'project') {
-    return `名称:${row.projectName || '-'} 类型:${row.projectType || '-'}`
+    return `名称:${row.projectName || '-'}`
   }
   if (type === 'businessTrip') {
     return `目的地:${row.destination || '-'} 天数:${formatDays(row.days)}`

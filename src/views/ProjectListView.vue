@@ -24,15 +24,6 @@
             <el-option label="已拒绝" value="rejected" />
           </el-select>
         </el-form-item>
-        <el-form-item label="项目类型">
-          <el-select v-model="filterForm.projectType" placeholder="全部类型" clearable style="width: 140px">
-            <el-option label="研发项目" value="研发项目" />
-            <el-option label="市场项目" value="市场项目" />
-            <el-option label="运营项目" value="运营项目" />
-            <el-option label="基建项目" value="基建项目" />
-            <el-option label="其他项目" value="其他项目" />
-          </el-select>
-        </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleFilter">查询</el-button>
           <el-button @click="resetFilter">重置</el-button>
@@ -46,7 +37,6 @@
         <el-table-column prop="project_name" label="项目名称" min-width="200" show-overflow-tooltip />
         <el-table-column prop="applicant_name" label="申请人" width="100" />
         <el-table-column prop="department" label="所属部门" width="120" />
-        <el-table-column prop="project_type" label="项目类型" width="100" />
         <el-table-column prop="priority" label="优先级" width="80">
           <template #default="{ row }">
             <el-tag :type="getPriorityType(row.priority)">{{ row.priority }}</el-tag>
@@ -145,8 +135,7 @@ const approveDialogVisible = ref(false);
 const currentRow = ref<any>(null);
 
 const filterForm = reactive({
-  status: '',
-  projectType: ''
+  status: ''
 });
 
 const pagination = reactive({
@@ -278,7 +267,6 @@ const handleFilter = () => {
 // 重置筛选
 const resetFilter = () => {
   filterForm.status = '';
-  filterForm.projectType = '';
   handleFilter();
 };
 

@@ -13,14 +13,6 @@
             <el-option label="已批准" value="已批准" />
             <el-option label="已拒绝" value="已拒绝" />
           </el-select>
-          <el-select v-model="projectTypeFilter" placeholder="筛选类型" size="default" style="width: 140px; margin-right: 8px;" clearable filterable>
-            <el-option label="全部类型" value="all" />
-            <el-option label="研发项目" value="研发项目" />
-            <el-option label="市场项目" value="市场项目" />
-            <el-option label="运营项目" value="运营项目" />
-            <el-option label="基建项目" value="基建项目" />
-            <el-option label="其他项目" value="其他项目" />
-          </el-select>
         </template>
         <el-button v-if="canExport" type="danger" @click="exportProjectData" class="export-btn-small">
           导出
@@ -53,13 +45,6 @@
         <el-table-column prop="projectName" label="项目名称" min-width="150">
           <template #default="{ row }">
             <span class="project-name">{{ row.projectName }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="projectType" label="项目类型">
-          <template #default="{ row }">
-            <span class="type-tag" :class="getProjectTypeClass(row.projectType)">
-              {{ row.projectType }}
-            </span>
           </template>
         </el-table-column>
         <el-table-column prop="budget" label="预算金额" width="120">
@@ -183,10 +168,6 @@
             <span class="card-value highlight">{{ row.projectName }}</span>
           </div>
           <div class="card-row">
-            <span class="card-label">项目类型</span>
-            <span class="type-tag" :class="getProjectTypeClass(row.projectType)">{{ row.projectType }}</span>
-          </div>
-          <div class="card-row">
             <span class="card-label">预算金额</span>
             <span class="amount-badge">¥{{ row.budget }}</span>
           </div>
@@ -280,7 +261,6 @@ const emit = defineEmits<{
 }>()
 
 const projectFilter = ref('all')
-const projectTypeFilter = ref('all')
 const projectRecords = ref<any[]>([])
 const allProjectRecords = ref<any[]>([])
 
@@ -313,10 +293,6 @@ const filteredProjectRecords = computed(() => {
     }
     const statusValues = statusMap[projectFilter.value] || [projectFilter.value]
     records = records.filter((r: any) => statusValues.includes(r.status))
-  }
-
-  if (props.isAdmin && projectTypeFilter.value !== 'all' && projectTypeFilter.value) {
-    records = records.filter((r: any) => r.projectType === projectTypeFilter.value)
   }
 
   return records
@@ -490,14 +466,11 @@ const exportProjectData = () => {
   if (projectFilter.value !== 'all') {
     fileName += `_${projectFilter.value}`
   }
-  if (projectTypeFilter.value !== 'all' && projectTypeFilter.value) {
-    fileName += `_${projectTypeFilter.value}`
-  }
   exportToCSV(
     data,
     fileName,
-    ['申请编号', '申请人', '项目名称', '项目类型', '预算金额', '优先级', '审批状态', '提交时间'],
-    ['id', 'applicant', 'projectName', 'projectType', 'budget', 'priority', 'status', 'submitDate']
+    ['申请编号', '申请人', '项目名称', '预算金额', '优先级', '审批状态', '提交时间'],
+    ['id', 'applicant', 'projectName', 'budget', 'priority', 'status', 'submitDate']
   )
 }
 
