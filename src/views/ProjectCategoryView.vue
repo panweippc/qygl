@@ -192,11 +192,6 @@
         <el-form-item label="项目链接">
           <el-input v-model="addProjectForm.link" placeholder="请输入项目链接" />
         </el-form-item>
-        <el-form-item label="负责人">
-          <el-select v-model="addProjectForm.manager" placeholder="请选择负责人" style="width:100%" filterable>
-            <el-option v-for="emp in allEmployees" :key="emp.id" :label="emp.name" :value="emp.name" />
-          </el-select>
-        </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
@@ -274,8 +269,7 @@ const addProjectForm = ref({
   categoryName: '',
   name: '',
   description: '',
-  link: '',
-  manager: ''
+  link: ''
 })
 
 const loadCategories = async () => {
@@ -487,8 +481,7 @@ const submitAddProject = async () => {
       objectives: `${addProjectForm.value.name}的目标`,
       teamMembers: [30, 31],
       resources: '资源描述',
-      applicantId: String(getCurrentUserId()),
-      applicantName: addProjectForm.value.manager || ''
+      applicantId: String(getCurrentUserId())
     });
     
     if (response.success) {
