@@ -99,7 +99,7 @@ router.put('/leave-applications/:id', async (req, res) => {
     // 安全加固：仅当前审批人或管理角色可操作
     const operatorName = getRealName(req);
     const isManager = await isManagerUser(req);
-    const [[permRecord]] = await pool.query('SELECT approver FROM leave_applications WHERE id = ?', [id]);
+    const [[permRecord]] = await pool.query('SELECT applicant, approver FROM leave_applications WHERE id = ?', [id]);
     if (!permRecord) {
       return res.status(404).json({ success: false, message: '请假申请不存在' });
     }
