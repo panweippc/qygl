@@ -543,6 +543,12 @@ export const updateDistributedRecord = async (id: number, data: Partial<Distribu
   return response.data;
 };
 
+// 接收人处理自己收到的下发记录
+export const processDistributedRecord = async (id: number, data: { processComment?: string }): Promise<ApiResponse> => {
+  const response = await api.post(`/distributed-records/${id}/process`, data);
+  return response.data;
+};
+
 // 业务招待费管理
 export const getEntertainmentExpenses = async (): Promise<ApiResponse<any[]>> => {
   const response = await api.get('/entertainment-expenses');

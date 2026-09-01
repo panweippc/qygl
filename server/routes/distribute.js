@@ -3,6 +3,38 @@ import { createNotification, createOperationLog, getRecordBefore, logDataChange,
 import { getRealName } from '../utils/identity.js';
 const router = express.Router();
 
+const APP_TYPE_CN = {
+  leave: '请假',
+  reimbursement: '报销',
+  meeting: '会议',
+  project: '项目',
+  businessTrip: '出差',
+  entertainment: '业务招待'
+};
+
+// 会议类下发记录，若 detail 缺参会人员/会议议程，则从 meetings 表补回（兼容早期下发的记录）
+async function enrichMeetingDetail(pool, record) {
+  if (record.applicationType !== 'meeting') return record;
+  let detail = {};
+  try { detail = record.detail ? JSON.parse(record.detail) : {}; } catch { detail = {}; }
+  if (detail.participants && detail.agenda) return record;
+  try {
+    const [[mtg]] = await pool.execute('SELECT participants, agenda FROM meetings WHERE id = ?', [record.applicationId]);
+    if (mtg) {
+      if (!detail.participants && mtg.participants) detail.participants = mtg.participants;
+      if (!detail.agenda && mtg.agenda) detail.agenda = mtg.agenda;
+      record.detail = JSON.stringify(detail);
+    }
+  } catch (e) { /* 补强失败不影响主流程 */ }
+  return record;
+}
+
+async function enrichRecords(pool, records) {
+  const out = [];
+  for (const r of records) out.push(await enrichMeetingDetail(pool, r));
+  return out;
+}
+
 // 获取所有下发记录列表（管理员用）
 router.get('/distributed-records', async (req, res) => {
   const { pool } = req.app.locals;
@@ -61,10 +93,67 @@ router.get('/distributed-records/mine', async (req, res) => {
       'SELECT * FROM distributed_records WHERE targetUser = ? ORDER BY createdAt DESC',
       [me]
     );
-    res.json({ success: true, data: records });
+    const enriched = await enrichRecords(pool, records);
+    res.json({ success: true, data: enriched });
   } catch (error) {
     console.error('获取我的下发记录失败:', error);
     res.status(500).json({ success: false, message: '获取我的下发记录失败: ' + error.message });
+  }
+});
+
+// 接收人处理自己收到的下发记录（标记为已处理），并通知下发人
+router.post('/distributed-records/:id/process', async (req, res) => {
+  const { pool } = req.app.locals;
+  const username = getOperator(req);
+  try {
+    const { id } = req.params;
+    const me = getRealName(req);
+    if (!me) {
+      return res.status(401).json({ success: false, message: '无法识别当前用户' });
+    }
+    const [[record]] = await pool.execute('SELECT * FROM distributed_records WHERE id = ?', [id]);
+    if (!record) {
+      return res.status(404).json({ success: false, message: '下发记录不存在' });
+    }
+    if (record.targetUser !== me) {
+      return res.status(403).json({ success: false, message: '只能处理下发给自己的记录' });
+    }
+    const processComment = String(req.body.processComment || '').slice(0, 500);
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    await pool.execute(
+      'UPDATE distributed_records SET status = ?, processComment = ?, updatedAt = ? WHERE id = ?',
+      ['已处理', processComment, now, id]
+    );
+    // 通知下发人：接收人已处理
+    try {
+      let detail = {};
+      try { detail = record.detail ? JSON.parse(record.detail) : {}; } catch {}
+      const title = detail.title || detail.meetingTitle || `${APP_TYPE_CN[record.applicationType] || record.applicationType}申请`;
+      const appTypeCn = APP_TYPE_CN[record.applicationType] || record.applicationType;
+      await createNotification(pool, {
+        userId: record.distributedBy,
+        title: '下发任务已处理',
+        content: `${me} 已处理您下发的${appTypeCn}任务「${title}」`,
+        type: 'approval',
+        relatedId: parseInt(record.applicationId) || 0,
+        relatedType: record.applicationType
+      });
+    } catch (e) {
+      console.error('处理通知创建失败:', e.message);
+    }
+    await createOperationLog(pool, {
+      username,
+      action: 'update',
+      module: 'distribute',
+      targetId: id,
+      targetName: `下发记录ID: ${id}`,
+      detail: `接收人 ${me} 处理下发记录 ID: ${id}`,
+      ipAddress: req.ip
+    });
+    res.json({ success: true, message: '处理成功' });
+  } catch (error) {
+    console.error('处理下发记录失败:', error);
+    res.status(500).json({ success: false, message: '处理下发记录失败: ' + error.message });
   }
 });
 
@@ -109,14 +198,6 @@ router.post('/distributed-records', async (req, res) => {
 
     try {
       // 将英文申请类型映射为对应中文，避免消息中心出现 "leave申请" 等英文
-      const APP_TYPE_CN = {
-        leave: '请假',
-        reimbursement: '报销',
-        meeting: '会议',
-        project: '项目',
-        businessTrip: '出差',
-        entertainment: '业务招待'
-      };
       const appTypeCn = APP_TYPE_CN[applicationType] || applicationType;
       await createNotification(pool, {
         userId: targetUser,

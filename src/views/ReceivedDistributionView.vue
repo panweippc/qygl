@@ -58,8 +58,9 @@
             </el-table-column>
             <el-table-column prop="comment" label="下发说明" min-width="160" show-overflow-tooltip />
             <el-table-column prop="createdAt" label="下发时间" width="180" />
-            <el-table-column label="操作" width="100" fixed="right">
+            <el-table-column label="操作" width="150" fixed="right">
               <template #default="{ row }">
+                <el-button v-if="(row.status || '待处理') === '待处理'" type="success" link @click="openProcess(row)">处理</el-button>
                 <el-button type="primary" link @click="openDetail(row)">查看详情</el-button>
               </template>
             </el-table-column>
@@ -99,6 +100,26 @@
       </div>
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
+        <el-button v-if="(current?.status || '待处理') === '待处理'" type="success" @click="openProcess(current)">标记为已处理</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="processVisible" title="处理下发任务" width="520px" class="custom-dialog">
+      <div v-if="processTarget" class="process-body">
+        <el-descriptions :column="1" border size="small">
+          <el-descriptions-item label="申请类型">{{ typeLabel(processTarget.applicationType) }}</el-descriptions-item>
+          <el-descriptions-item label="申请人">{{ processTarget.applicant }}</el-descriptions-item>
+          <el-descriptions-item label="下发人">{{ processTarget.distributedBy }}</el-descriptions-item>
+        </el-descriptions>
+        <el-form class="process-form" label-position="top">
+          <el-form-item label="处理说明（选填）">
+            <el-input v-model="processComment" type="textarea" :rows="3" placeholder="可填写处理情况、完成说明等" />
+          </el-form-item>
+        </el-form>
+      </div>
+      <template #footer>
+        <el-button @click="processVisible = false">取消</el-button>
+        <el-button type="success" :loading="processing" @click="submitProcess">确认已处理</el-button>
       </template>
     </el-dialog>
   </div>
@@ -108,7 +129,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getMyDistributedRecords } from '../services/api'
+import { getMyDistributedRecords, processDistributedRecord } from '../services/api'
 
 const router = useRouter()
 const records = ref<any[]>([])
@@ -156,6 +177,43 @@ const openDetail = (row: any) => {
   detailVisible.value = true
 }
 
+// 处理（接收人标记自己已处理）
+const processVisible = ref(false)
+const processTarget = ref<any>(null)
+const processComment = ref('')
+const processing = ref(false)
+
+const openProcess = (row: any) => {
+  processTarget.value = row
+  processComment.value = row.processComment || ''
+  processVisible.value = true
+}
+
+const submitProcess = async () => {
+  if (!processTarget.value) return
+  processing.value = true
+  try {
+    const res = await processDistributedRecord(processTarget.value.id, { processComment: processComment.value })
+    if (res.success) {
+      // 本地更新该行状态，避免整表刷新
+      const idx = records.value.findIndex(r => r.id === processTarget.value.id)
+      if (idx !== -1) {
+        records.value[idx].status = '已处理'
+        records.value[idx].processComment = processComment.value
+      }
+      ElMessage.success('已标记为处理完成')
+      processVisible.value = false
+      detailVisible.value = false
+    } else {
+      ElMessage.error(res.message || '处理失败')
+    }
+  } catch (e: any) {
+    ElMessage.error('处理失败: ' + (e.message || ''))
+  } finally {
+    processing.value = false
+  }
+}
+
 // 解析 detail(JSON 字符串) 为可展示字段
 const detailFields = computed(() => {
   const row = current.value
@@ -165,6 +223,7 @@ const detailFields = computed(() => {
   if (!obj || typeof obj !== 'object') return []
   const LABELS: Record<string, string> = {
     title: '标题', meetingDate: '会议日期', meetingTime: '会议时间', location: '地点',
+    participants: '参会人员', agenda: '会议议程',
     leaveType: '请假类型', days: '天数', startDate: '开始日期', endDate: '结束日期',
     reason: '事由', result: '审批结果', approver: '审批人', comment: '备注',
     reimburseType: '报销类型', amount: '金额', reimburseDate: '报销日期',
