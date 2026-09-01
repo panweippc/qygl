@@ -212,31 +212,12 @@ const collectors = {
 };
 
 // 保存指标到数据库
+// 注意：系统指标已由后端进程内的 server/utils/metrics-collector.js 写入 monitor_metrics 表
+// （表结构为 cpu_percent/mem_used_percent 等具体字段，供 Dashboard 使用）
+// 本脚本仅负责告警检查（含邮件通知），避免两种不同结构的数据写入同一张表导致字段冲突
 async function saveMetrics(metrics) {
-  try {
-    const connection = await mysql.createConnection(dbConfig);
-
-    for (const metric of metrics) {
-      if (!metric) continue;
-
-      await connection.execute(
-        `INSERT INTO monitor_metrics (metric_type, metric_name, metric_value, metric_unit, tags)
-         VALUES (?, ?, ?, ?, ?)`,
-        [
-          metric.type,
-          metric.name,
-          metric.value,
-          metric.unit,
-          JSON.stringify(metric.tags || {})
-        ]
-      );
-    }
-
-    await connection.end();
-    console.log(`[${new Date().toLocaleString('zh-CN')}] 采集并保存了 ${metrics.length} 个指标`);
-  } catch (error) {
-    console.error('保存指标失败:', error.message);
-  }
+  // 不再写入 monitor_metrics，仅打印日志确认采集完成
+  console.log(`[${new Date().toLocaleString('zh-CN')}] 采集完成，共 ${metrics.length} 个指标（已交由后端采集器持久化）`);
 }
 
 // 清理历史数据（保留30天）

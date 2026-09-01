@@ -633,6 +633,22 @@ const initDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
+    // 创建monitor_alerts表（系统监控邮件告警去重，与 scripts/monitor-collector.js 配套）
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS monitor_alerts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        alert_type VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+        alert_level VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+        alert_message TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        alert_value DECIMAL(10,2) DEFAULT 0,
+        threshold_value DECIMAL(10,2) DEFAULT 0,
+        metric_tags TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        is_resolved TINYINT DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        resolved_at DATETIME
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
     // 创建tools表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS tools (
