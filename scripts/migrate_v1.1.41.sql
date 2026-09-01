@@ -5,6 +5,7 @@
 -- =============================================
 
 -- 将潘伟的 roleId 从系统管理员(1) 改为 普通员工(2)
-UPDATE employees e
-SET e.roleId = 2
-WHERE e.name = '潘伟' AND e.roleId = 1;
+-- 注意：为避免后续手动编辑潘伟角色后被本脚本/修复脚本反复重置，已废弃此强制赋值。
+-- 如需一次性修正历史数据，请手动执行下方语句（仅当 roleId=1 时生效，且不应重复运行）：
+-- UPDATE employees e SET e.roleId = 2 WHERE e.name = '潘伟' AND e.roleId = 1;
+-- UPDATE employees e SET e.roleId = 2 WHERE e.name = '潘伟' AND e.roleId = 1;

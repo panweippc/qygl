@@ -350,8 +350,9 @@ router.put('/projects/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: '项目不存在' });
     }
 
-    // 安全加固：申请人身份一律从 JWT token 解析，忽略请求体 applicant_name/applicantId，防伪造
-    let name = getRealName(req) || projects[0].applicant_name
+    // 允许编辑“负责人(applicant_name)”：优先使用请求体传入的负责人，其次保留原值，最后回退到当前登录用户
+    const requestedManager = (applicant_name && String(applicant_name).trim()) ? applicant_name : null
+    let name = requestedManager || projects[0].applicant_name || getRealName(req)
     if (applicantId && !name) {
       const [emps] = await pool.execute('SELECT name FROM employees WHERE id = ?', [applicantId])
       if (emps.length > 0) name = emps[0].name

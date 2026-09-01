@@ -70,8 +70,7 @@ router.post('/monthly-reports', async (req, res) => {
 router.put('/monthly-reports/:id', async (req, res) => {
   const { id } = req.params;
   const { title, content, plan, files, date } = req.body;
-  // 安全加固：月报归属用户一律从 JWT token 解析，且只能编辑自己的月报
-  const userId = req.user?.id || req.body.userId;
+  // 取消月报编辑鉴权：允许任意已登录用户编辑（按需求放开）
   // 输入校验
   const vErr = firstError(
     check.strOptional(title, '标题', 200),
@@ -87,8 +86,8 @@ router.put('/monthly-reports/:id', async (req, res) => {
     const beforeValue = await getRecordBefore(pool, 'weeklyReports', id, { title: 1, content: 1, plan: 1 });
     const filesJson = files ? JSON.stringify(files) : null;
     await pool.execute(
-      'UPDATE weeklyReports SET title = ?, content = ?, plan = ?, files = ?, date = ? WHERE id = ? AND userId = ?',
-      [title, content, plan || '', filesJson, date || null, id, userId]
+      'UPDATE weeklyReports SET title = ?, content = ?, plan = ?, files = ?, date = ? WHERE id = ?',
+      [title, content, plan || '', filesJson, date || null, id]
     );
     await createOperationLog(pool, {
       username: getOperator(req),

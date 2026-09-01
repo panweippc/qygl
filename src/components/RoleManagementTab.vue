@@ -46,7 +46,7 @@
           <el-input v-model="roleForm.name" placeholder="请输入角色名称" />
         </el-form-item>
         <el-form-item label="角色编码" prop="code">
-          <el-input v-model="roleForm.code" placeholder="请输入角色编码" :disabled="isEditingRole" />
+          <el-input v-model="roleForm.code" placeholder="请输入角色编码" />
         </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="roleForm.description" type="textarea" placeholder="请输入角色描述" />

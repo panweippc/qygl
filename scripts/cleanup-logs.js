@@ -1,8 +1,8 @@
 /**
  * 日志维护脚本
  * 1. 清理数据库 operation_logs 表中 N 天前的记录（默认 180 天，可通过 LOG_RETENTION_DAYS 覆盖）
- * 2. 轮转安全告警日志 logs/security-alert.log（超过大小则压缩归档，保留份数 LOG_KEEP）
- * 3. 轮转 Nginx 访问/错误日志（logs/qygl-access.log、logs/qygl-error.log）
+ * 2. 轮转 logs/ 目录下全部 *.log（统一规则：超过 ROTATE_BYTES 则压缩归档，保留 LOG_KEEP 份）
+ * 3. 轮转 Nginx 访问/错误日志（nginx-1.22.1/logs/qygl-access.log、qygl-error.log），规则同上
  * 用法：node scripts/cleanup-logs.js
  * 建议：加入 Windows 计划任务，每天执行一次
  */
@@ -80,11 +80,17 @@ async function main() {
     note(`操作日志清理失败: ${e.message}`);
   }
 
-  // 2. 轮转安全告警日志
-  const alertFile = path.join(root, 'logs', 'security-alert.log');
-  rotateFile(alertFile);
+  // 2. 轮转 logs/ 下全部 *.log（统一规则：超过 ROTATE_BYTES 压缩归档，保留 LOG_KEEP 份）
+  const logDir = path.join(root, 'logs');
+  if (fs.existsSync(logDir)) {
+    for (const f of fs.readdirSync(logDir)) {
+      if (f.endsWith('.log')) rotateFile(path.join(logDir, f));
+    }
+  } else {
+    note(`日志目录不存在: ${logDir}`);
+  }
 
-  // 3. 轮转 Nginx 日志
+  // 3. 轮转 Nginx 日志（与上方共用同一套轮转规则）
   rotateFile(path.join(NGINX_LOG_DIR, 'qygl-access.log'));
   rotateFile(path.join(NGINX_LOG_DIR, 'qygl-error.log'));
 

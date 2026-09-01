@@ -434,25 +434,10 @@ router.put('/projects/update-manager', requireRole('系统管理员', '总经理
   }
 });
 
-// 更新项目申请
-router.put('/projects/:id', async (req, res) => {
-  try {
-    const { pool } = req.app.locals;
-    const { id } = req.params;
-    const { project_name, description, project_link } = req.body;
-    const [projects] = await pool.query('SELECT * FROM project_applications WHERE id = ?', [id]);
-    if (projects.length === 0) {
-      return res.status(404).json({ success: false, message: '项目不存在' });
-    }
-    await pool.query(
-      'UPDATE project_applications SET project_name = ?, description = ?, project_link = ?, updated_at = NOW() WHERE id = ?',
-      [project_name, description, project_link, id]
-    );
-    res.json({ success: true, message: '项目更新成功' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+// 注意：项目申请的更新（含 applicant_name/负责人）由 projectApplicationsRouter 的
+// PUT /projects/:id 统一处理。该路由在 server.js 中于 workflowRouter 之后挂载，
+// 故此处不复定义，避免路由被先生效导致负责人(申请编号)无法更新。
+
 
 /**
  * 出差申请API

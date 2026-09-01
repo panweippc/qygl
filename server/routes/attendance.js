@@ -103,7 +103,9 @@ router.put('/leave-applications/:id', async (req, res) => {
     if (!permRecord) {
       return res.status(404).json({ success: false, message: '请假申请不存在' });
     }
-    if (!isManager && permRecord.approver !== operatorName) {
+    // 允许申请人取消自己的申请；审批人/管理员可做任何操作
+    const isApplicant = permRecord.applicant === operatorName;
+    if (!isManager && permRecord.approver !== operatorName && !(result === '取消' && isApplicant)) {
       return res.status(403).json({ success: false, message: '您不是该请假的审批人，无权限操作' });
     }
     let status;

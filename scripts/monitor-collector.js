@@ -11,6 +11,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import mysql from 'mysql2/promise';
+import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -252,6 +253,25 @@ async function cleanupOldMetrics() {
   }
 }
 
+// 发送告警邮件（复用 .env 中的 MAIL_* 配置，与安全事件告警一致）
+async function sendAlertEmail(subject, text) {
+  const host = process.env.MAIL_HOST, user = process.env.MAIL_USER, pass = process.env.MAIL_PASS;
+  const to = (process.env.MAIL_TO || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!host || !user || !pass || to.length === 0) return false;
+  try {
+    const tr = nodemailer.createTransport({
+      host, port: Number(process.env.MAIL_PORT || 465),
+      secure: String(process.env.MAIL_SECURE).toLowerCase() !== 'false',
+      auth: { user, pass },
+    });
+    await tr.sendMail({ from: `"${process.env.MAIL_FROM || '智慧办公平台监控'}" <${user}>`, to: to.join(', '), subject, text });
+    return true;
+  } catch (e) {
+    console.error('系统监控告警邮件发送失败:', e.message);
+    return false;
+  }
+}
+
 // 告警检查
 async function checkAlerts(metrics) {
   try {
@@ -297,6 +317,10 @@ async function checkAlerts(metrics) {
               JSON.stringify(metric.tags || {})
             ]
           );
+          // 触发邮件告警（与现有安全事件告警渠道一致）
+          const mailSubject = `【系统监控告警】${rule.message}`;
+          const mailText = `系统监控触发告警：\n${rule.message}\n当前值：${metric.value}${metric.unit}\n阈值：${rule.threshold || 0}\n级别：${rule.level}\n时间：${new Date().toLocaleString('zh-CN')}`;
+          await sendAlertEmail(mailSubject, mailText);
           console.log(`[${new Date().toLocaleString('zh-CN')}] 触发告警: ${rule.message}`);
         }
       }
