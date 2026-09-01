@@ -186,6 +186,9 @@
         <el-form-item label="项目名称">
           <el-input v-model="addProjectForm.name" placeholder="请输入项目名称" />
         </el-form-item>
+        <el-form-item label="项目类型">
+          <el-input v-model="addProjectForm.projectType" placeholder="请输入项目类型（不再默认取自产品分类）" />
+        </el-form-item>
         <el-form-item label="项目描述">
           <el-input v-model="addProjectForm.description" type="textarea" placeholder="请输入项目描述" />
         </el-form-item>
@@ -273,6 +276,7 @@ const addProjectForm = ref({
   categoryId: 0,
   categoryName: '',
   name: '',
+  projectType: '',
   description: '',
   link: '',
   manager: ''
@@ -461,6 +465,7 @@ const openAddProject = (category: Category) => {
     categoryId: category.id,
     categoryName: category.name,
     name: '',
+    projectType: '',
     description: '',
     link: '',
     manager: ''
@@ -473,11 +478,15 @@ const submitAddProject = async () => {
     ElMessage.warning('请输入项目名称')
     return
   }
+  if (!addProjectForm.value.projectType) {
+    ElMessage.warning('请输入项目类型')
+    return
+  }
   loading.value = true
   try {
     const response = await addProjectApplication({
       projectName: addProjectForm.value.name,
-      projectType: addProjectForm.value.categoryName,
+      projectType: addProjectForm.value.projectType,
       priority: '高',
       budget: 1000,
       startDate: new Date().toISOString().split('T')[0],
