@@ -208,7 +208,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Edit, Delete, Link, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getProjects, getProjectCategories, addProject, addProjectApplication, deleteProject, deleteProjectCategory, updateProjectCategory, updateProjectDetail, updateProjectManager, getEmployees } from '../services/api'
+import { getProjectCategories, addProject, deleteProjectCategory, updateProjectCategory, getEmployees, getCategoryProjects, addCategoryProject, updateCategoryProject, deleteCategoryProject } from '../services/api'
 
 const router = useRouter()
 
@@ -278,28 +278,25 @@ const loadCategories = async () => {
     // 真实分类来自 projects 表（/project-categories）
     const catRes = await getProjectCategories();
     const realCats = (catRes.success ? (catRes.data || []) : []) as any[];
-    // 关联项目来自 project_applications（按 project_type 分组），用于显示"相关项目"
-    const projRes = await getProjects();
-    const projects = (projRes.success ? (projRes.data?.list || []) : []) as any[];
+    // 分类下的项目来自独立的 category_projects 表（不进 OA 审批流）
+    const projRes = await getCategoryProjects();
+    const allProjects = (projRes.success ? (projRes.data || []) : []) as any[];
+    // 按 category_name 分组，并映射为模板所需字段
     const byType = new Map<string, any[]>();
-    projects.forEach((p: any) => {
-      const key = p.project_type;
+    allProjects.forEach((p: any) => {
+      const key = p.category_name;
       if (!byType.has(key)) byType.set(key, []);
-      byType.get(key)!.push(p);
+      byType.get(key)!.push({
+        id: p.id,
+        project_name: p.project_name,
+        description: p.description,
+        applicant_name: p.manager || '', // 模板以 applicant_name 展示负责人
+        project_link: p.project_link || ''
+      });
     });
-    const seen = new Set<string>();
-    const list: any[] = [];
-    realCats.forEach((r: any) => {
-      seen.add(r.name);
+    const list: any[] = realCats.map((r: any) => {
       const ps = byType.get(r.name) || [];
-      list.push({ id: r.id, name: r.name, description: r.description || '', manager: r.manager || '', projectCount: ps.length, projects: ps });
-    });
-    // 补充：从已有项目推导出来的分类（尚未在 projects 表中建记录）
-    byType.forEach((ps, type) => {
-      if (!seen.has(type)) {
-        seen.add(type);
-        list.push({ id: type, name: type, description: '', manager: '', projectCount: ps.length, projects: ps });
-      }
+      return { id: r.id, name: r.name, description: r.description || '', manager: r.manager || '', projectCount: ps.length, projects: ps };
     });
     categories.value = list as Category[];
   } catch (error) {
@@ -328,20 +325,6 @@ const openAddCategoryDialog = () => {
     detail: ''
   }
   addDialogVisible.value = true
-}
-
-const getCurrentUserId = () => {
-  try {
-    const user = JSON.parse(localStorage.getItem('user') || '{}')
-    return user.id || user.userId || 0
-  } catch { return 0 }
-}
-
-const getCurrentUserName = () => {
-  try {
-    const user = JSON.parse(localStorage.getItem('user') || '{}')
-    return user.name || user.username || ''
-  } catch { return '' }
 }
 
 const addCategory = async () => {
@@ -469,21 +452,14 @@ const submitAddProject = async () => {
   }
   loading.value = true
   try {
-    const response = await addProjectApplication({
+    const response = await addCategoryProject({
+      categoryId: addProjectForm.value.categoryId,
+      categoryName: addProjectForm.value.categoryName,
       projectName: addProjectForm.value.name,
-      projectType: addProjectForm.value.categoryName,
-      priority: '高',
-      budget: 1000,
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       description: addProjectForm.value.description || `${addProjectForm.value.name}的项目描述`,
-      project_link: addProjectForm.value.link || '',
-      objectives: `${addProjectForm.value.name}的目标`,
-      teamMembers: [30, 31],
-      resources: '资源描述',
-      applicantId: String(getCurrentUserId())
+      link: addProjectForm.value.link || ''
     });
-    
+
     if (response.success) {
       await loadCategories()
       addProjectDialogVisible.value = false
@@ -515,21 +491,14 @@ const editProject = (project: Project) => {
 const updateProject = async () => {
   loading.value = true
   try {
-    console.log('编辑项目表单数据:', editProjectForm.value);
-    // 使用API更新项目
-    let applicantName = ''
-    if (editProjectForm.value.manager) {
-      const emp = allEmployees.value.find((e: any) => e.name === editProjectForm.value.manager)
-      if (emp) applicantName = emp.name
-    }
-    const response = await updateProjectDetail(editProjectForm.value.id, {
-      project_name: editProjectForm.value.name,
+    // 使用独立分类项目接口更新（不再写 project_applications）
+    const response = await updateCategoryProject(editProjectForm.value.id, {
+      projectName: editProjectForm.value.name,
       description: editProjectForm.value.description,
-      project_link: editProjectForm.value.link,
-      applicant_name: applicantName
+      link: editProjectForm.value.link,
+      manager: editProjectForm.value.manager
     });
-    console.log('编辑项目API响应:', response);
-    
+
     if (response.success) {
       // 重新加载数据
       await loadCategories()
@@ -550,7 +519,7 @@ const handleDeleteProject = async (project: Project) => {
   try {
     await ElMessageBox.confirm(`确定要删除项目"${project.project_name}"吗？`, '确认删除', { type: 'warning' })
     loading.value = true
-    const response = await deleteProject(project.id)
+    const response = await deleteCategoryProject(project.id)
     if (response.success) {
       await loadCategories()
       ElMessage.success('项目删除成功')

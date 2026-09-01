@@ -1,5 +1,6 @@
 import express from 'express';
 import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
+import { getRealName } from '../utils/identity.js';
 const router = express.Router();
 
 router.get('/project-categories', async (req, res) => {
@@ -42,6 +43,8 @@ router.delete('/project-categories/:category', async (req, res) => {
     // 否则分类会从 projects 表残留、刷新后“删除成功却仍存在”
     await pool.execute('DELETE FROM projects WHERE category = ? OR name = ?', [category, category]);
     await pool.execute('DELETE FROM project_applications WHERE project_type = ?', [category]);
+    // 同步清理独立分类项目表，避免分类删除后残留
+    await pool.execute('DELETE FROM category_projects WHERE category_name = ?', [category]);
     await createOperationLog(pool, {
       username: getOperator(req),
       action: 'delete',
@@ -61,6 +64,11 @@ router.put('/project-categories/update-type', async (req, res) => {
   try {
     await pool.execute(
       'UPDATE project_applications SET project_type = ? WHERE project_type = ?',
+      [newType, oldType]
+    );
+    // 同步更新独立分类项目表的分类名
+    await pool.execute(
+      'UPDATE category_projects SET category_name = ? WHERE category_name = ?',
       [newType, oldType]
     );
     await createOperationLog(pool, {
@@ -125,6 +133,100 @@ router.put('/project-categories/:id', async (req, res) => {
   } catch (error) {
     console.error('更新项目失败:', error);
     res.status(500).json({ success: false, message: '更新项目失败' });
+  }
+});
+
+// ===== 产品分类下的项目：独立存储，不写入 project_applications，不进 OA 审批流 =====
+async function ensureCategoryProjectsTable(pool) {
+  await pool.execute(`CREATE TABLE IF NOT EXISTS category_projects (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    category_id INT NOT NULL DEFAULT 0,
+    category_name VARCHAR(255) NOT NULL,
+    project_name VARCHAR(255) NOT NULL,
+    description TEXT,
+    manager VARCHAR(255),
+    project_link VARCHAR(255),
+    applicant_name VARCHAR(255),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  )`);
+}
+
+// 列出某分类（或全部）下的项目
+router.get('/project-categories/projects', async (req, res) => {
+  const { pool } = req.app.locals;
+  try {
+    await ensureCategoryProjectsTable(pool);
+    const { category } = req.query;
+    let rows;
+    if (category) {
+      [rows] = await pool.execute('SELECT * FROM category_projects WHERE category_name = ? ORDER BY id DESC', [category]);
+    } else {
+      [rows] = await pool.execute('SELECT * FROM category_projects ORDER BY id DESC');
+    }
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ success: false, message: '获取分类项目失败' });
+  }
+});
+
+// 新增分类下的项目（不写 project_applications，不进 OA 审批流）
+router.post('/project-categories/projects', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { categoryId, categoryName, projectName, description, link } = req.body;
+  try {
+    await ensureCategoryProjectsTable(pool);
+    if (!projectName || !categoryName) {
+      return res.status(400).json({ success: false, message: '缺少项目名或分类名' });
+    }
+    const applicant = getRealName(req) || '';
+    // 单负责人场景：负责人默认取当前登录用户（新增时不再手动选择）
+    const manager = applicant;
+    const [result] = await pool.execute(
+      `INSERT INTO category_projects (category_id, category_name, project_name, description, manager, project_link, applicant_name, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [categoryId || 0, categoryName, projectName, description || '', manager, link || '', applicant]
+    );
+    await createOperationLog(pool, {
+      username: getOperator(req),
+      action: 'create',
+      module: 'project',
+      targetName: projectName,
+      detail: `添加分类项目(${categoryName}): ${projectName}`
+    });
+    res.json({ success: true, data: { id: result.insertId } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: '添加分类项目失败' });
+  }
+});
+
+// 编辑分类下的项目
+router.put('/project-categories/projects/:id', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id } = req.params;
+  const { projectName, description, link, manager } = req.body;
+  try {
+    await ensureCategoryProjectsTable(pool);
+    await pool.execute(
+      'UPDATE category_projects SET project_name = ?, description = ?, manager = ?, project_link = ?, updated_at = NOW() WHERE id = ?',
+      [projectName, description || '', manager || '', link || '', id]
+    );
+    res.json({ success: true, message: '分类项目更新成功' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: '更新分类项目失败' });
+  }
+});
+
+// 删除分类下的项目
+router.delete('/project-categories/projects/:id', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id } = req.params;
+  try {
+    await ensureCategoryProjectsTable(pool);
+    await pool.execute('DELETE FROM category_projects WHERE id = ?', [id]);
+    res.json({ success: true, message: '分类项目删除成功' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: '删除分类项目失败' });
   }
 });
 

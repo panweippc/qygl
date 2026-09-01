@@ -212,6 +212,24 @@ export const updateProjectCategory = async (data: any): Promise<ApiResponse> => 
   return response.data;
 };
 
+// 产品分类下的项目（独立接口，不进 OA 审批流 project_applications）
+export const getCategoryProjects = async (params?: { category?: string }): Promise<ApiResponse<any[]>> => {
+  const response = await api.get('/project-categories/projects', { params });
+  return response.data;
+};
+export const addCategoryProject = async (data: any): Promise<ApiResponse> => {
+  const response = await api.post('/project-categories/projects', data);
+  return response.data;
+};
+export const updateCategoryProject = async (id: number, data: any): Promise<ApiResponse> => {
+  const response = await api.put(`/project-categories/projects/${id}`, data);
+  return response.data;
+};
+export const deleteCategoryProject = async (id: number): Promise<ApiResponse> => {
+  const response = await api.delete(`/project-categories/projects/${id}`);
+  return response.data;
+};
+
 // 项目申请管理
 export const getProjects = async (): Promise<ApiResponse<{ list: Project[] }>> => {
   const response = await api.get('/projects');
