@@ -13,6 +13,9 @@
  *   2. 部署机需具备：git(且 E:\qygl\qygl 是可 git pull 的仓库)、node/npm(建议加入 PATH，
  *      否则改 NODE_HOME)、全局 pm2、nginx。
  *   3. 流水线用 `bat` 调用 `powershell -Command`，无需额外 Jenkins 插件（仅需默认 Git/Pipeline）。
+ *   ⚠️ 部署机系统代码页为 GBK(936)：`powershell -Command "..."` 内的【中文/emoji 会被错误解码成乱码】，
+ *      导致 PowerShell 解析失败（如 "Try 缺少与其匹配的 Catch"），整条阶段返回非零并跳过后续所有阶段。
+ *      → 所有 powershell -Command 字符串必须【全 ASCII/英文】，中文只能写在 Groovy `echo` 或 cmd `echo` 里。
  * ------------------------------------------------------------
  *
  * v1.2.15 修复：
@@ -127,7 +130,7 @@ pipeline {
         // 清掉 3003 上的陈旧监听，避免新 vite 因 EADDRINUSE 退出（此前 qygl-dev 一直 errored/stopped 的根因）
         // 注意：不能用 bat 的 for/f %a（临时.bat 里 %a 被当环境变量→语法错误退出255）；
         //      也不能用 taskkill 直接清（失败即非零退出码→拖垮阶段）。统一用 powershell + try/catch + 强制 exit 0
-        bat "powershell -Command \"try { \$ps=(Get-NetTCPConnection -LocalPort ${DEV_PORT} -ErrorAction SilentlyContinue | Where-Object { \$_.State -eq 'Listen' }).OwningProcess; foreach(\$p in \$ps){ Stop-Process -Id \$p -Force -ErrorAction SilentlyContinue }; Write-Host ('端口 ${DEV_PORT} 陈旧监听已清理') } catch { Write-Host ('清理端口异常: ' + \$_.Exception.Message) }; exit 0\""
+        bat "powershell -Command \"try { \$ps=(Get-NetTCPConnection -LocalPort ${DEV_PORT} -ErrorAction SilentlyContinue | Where-Object { \$_.State -eq 'Listen' }).OwningProcess; foreach(\$p in \$ps){ Stop-Process -Id \$p -Force -ErrorAction SilentlyContinue }; Write-Host ('cleared stale listener on port ${DEV_PORT}') } catch { Write-Host ('clear port error: ' + \$_.Exception.Message) }; exit 0\""
         bat "ping -n 2 127.0.0.1 >nul"
         // dev server 启动失败【不应】阻断后端重启：用 || 兜底并 exit 0，避免阶段6失败导致阶段7(重启后端)被整条流水线跳过
         bat "pm2 start npm --name ${DEV_PM2} --cwd \"${PROJECT_DIR}\" -- run dev || echo [warn] dev server 启动失败，不影响后端部署（可稍后手动 pm2 start ${DEV_PM2}）"
@@ -142,7 +145,7 @@ pipeline {
         echo '=== 阶段6.5: 验证前端 dev server (3003) ==='
         bat "ping -n 6 127.0.0.1 >nul"
         // dev server 正常应返回 200；返回任何 HTTP 状态（含 404）都说明进程已在 3003 监听，视为就绪
-        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${DEV_PORT}' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('dev server 状态: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('dev server 状态: ' + \$st + ' (已就绪)'); \$ok=\$true; break }; Write-Host ('  重试 ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-not \$ok){ Write-Host '⚠️ dev server 3003 未就绪，可能 npm run dev 启动失败或被占用' }; exit 0\""
+        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${DEV_PORT}' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('dev server status: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('dev server status: ' + \$st + ' (ready)'); \$ok=\$true; break }; Write-Host ('  retry ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-not \$ok){ Write-Host 'WARN: dev server 3003 not ready' }; exit 0\""
       }
     }
 
@@ -168,7 +171,7 @@ pipeline {
       steps {
         echo '=== 阶段8: 验证后端 (3005) ==='
         // 用 127.0.0.1 避免 localhost 解析到 IPv6(::1)；后端启动较慢，最多重试 15 次(约 60s)
-        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 15; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${SERVER_PORT}/api/projects' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('后端状态: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('后端状态: ' + \$st + ' (已就绪，需鉴权)'); \$ok=\$true; break }; Write-Host ('  重试 ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 4 } }; if(-not \$ok){ Write-Host '⚠️ 后端 60s 内未就绪，请检查 pm2 日志' }; exit 0\""
+        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 15; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${SERVER_PORT}/api/projects' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('backend status: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('backend status: ' + \$st + ' (ready, needs auth)'); \$ok=\$true; break }; Write-Host ('  retry ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 4 } }; if(-not \$ok){ Write-Host 'WARN: backend not ready within 60s' }; exit 0\""
       }
     }
 
@@ -177,7 +180,7 @@ pipeline {
       when { expression { return !skipDeploy } }
       steps {
         echo '=== 阶段9: 验证前端 (nginx 8080) ==='
-        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${FRONTEND_PORT}' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('前端状态: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('前端状态: ' + \$st + ' (已就绪)'); \$ok=\$true; break }; Write-Host ('  重试 ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-not \$ok){ Write-Host '⚠️ 前端未就绪，请检查 nginx 日志' }; exit 0\""
+        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${FRONTEND_PORT}' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('frontend status: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('frontend status: ' + \$st + ' (ready)'); \$ok=\$true; break }; Write-Host ('  retry ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-not \$ok){ Write-Host 'WARN: frontend not ready' }; exit 0\""
       }
     }
 
@@ -198,7 +201,7 @@ pipeline {
     }
     failure {
       echo '❌ 流水线执行失败'
-      bat "pm2 logs ${PM2_APP_NAME} --lines 50 || echo 无日志"
+      bat "pm2 logs ${PM2_APP_NAME} --lines 50 || echo no logs"
     }
     always {
       echo '=== 清理 Jenkins 工作区 ==='
