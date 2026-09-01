@@ -365,7 +365,7 @@ const nextApproverDialogVisible = ref(false)
 
 // 审批人表单
   const approverForm = ref({
-  approver: '总经理'
+  approver: '陈东'
 })
 
 // 审批表单
@@ -491,7 +491,7 @@ const submitApplication = () => {
           endDate: formatDate(form.value.endDate),
           days: form.value.days,
           reason: form.value.reason,
-          approver: '总经理'
+          approver: '陈东'
         }
         
         // 直接提交申请

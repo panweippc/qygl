@@ -129,7 +129,7 @@ const form = reactive({
   location: '',
   participants: '',
   agenda: '',
-  approver: '总经理'
+  approver: '陈东'
 })
 
 const rules = {
@@ -151,7 +151,7 @@ const loadApprovers = async () => {
         return position.includes('总经理') || position.includes('总监') || position.includes('经理')
       })
       approverOptions.value = managers
-      const defaultMgr = managers.find((emp: any) => (emp.position || '').includes('总经理'))
+      const defaultMgr = managers.find((emp: any) => emp.name === '陈东') || managers[0]
       if (defaultMgr) form.approver = defaultMgr.name
     }
   } catch (error) {

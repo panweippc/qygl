@@ -197,7 +197,7 @@
               <span>温馨提示</span>
             </template>
             <ul class="tips-list">
-              <li>审批人默认为总经理或部门经理</li>
+              <li>审批人默认为陈东</li>
               <li>提交后将发送通知给审批人</li>
               <li>审批进度可在审批中心查看</li>
               <li>招待费用需如实填写</li>
@@ -261,7 +261,7 @@ const loadApprovers = async () => {
         return position.includes('总经理') || position.includes('总监') || position.includes('经理')
       })
       approverOptions.value = managers
-      const defaultMgr = managers.find((emp: any) => (emp.position || '').includes('总经理'))
+      const defaultMgr = managers.find((emp: any) => emp.name === '陈东') || managers[0]
       if (defaultMgr) form.approver = defaultMgr.id
     }
   } catch (error) {

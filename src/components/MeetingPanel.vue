@@ -356,7 +356,7 @@ const meetingForm = ref({
   location: '',
   participants: [] as string[],
   agenda: '',
-  approver: '总经理'
+  approver: '陈东'
 })
 
 const meetingRules = {

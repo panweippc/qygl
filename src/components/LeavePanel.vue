@@ -394,7 +394,7 @@ const leaveForm = ref({
   endDate: '',
   days: '',
   reason: '',
-  approver: '总经理'
+  approver: '陈东'
 })
 
 const leaveRules = {

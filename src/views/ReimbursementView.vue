@@ -196,7 +196,7 @@ const submitReimbursement = () => {
   // 模拟提交
   if (needDefaultApprover.value) {
     // 非管理员和非财务总监用户，默认审批人是总经理
-    alert('报销申请已提交，审批人：总经理')
+    alert('报销申请已提交，审批人：陈东')
   } else {
     // 管理员和财务总监用户，需要选择审批人
     alert('报销申请已提交，等待审批')

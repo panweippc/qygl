@@ -465,7 +465,7 @@ const reimbursementForm = ref({
   reimburseType: '',
   reimburseDate: '',
   reason: '',
-  approver: '总经理',
+  approver: '陈东',
   detail: {
     projectName: '',
     peopleCount: 1,

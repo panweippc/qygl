@@ -245,7 +245,7 @@ const entertainmentYearDate = ref(null)
 const entertainmentDialogVisible = ref(false)
 const entertainmentRecords = ref<any[]>([])
 
-const entertainmentForm = ref({ guestName: '', guestUnit: '', location: '', guestCount: 1, expenseType: '', expenseAmount: '', expenseDate: '', purpose: '', approver: '总经理' })
+const entertainmentForm = ref({ guestName: '', guestUnit: '', location: '', guestCount: 1, expenseType: '', expenseAmount: '', expenseDate: '', purpose: '', approver: '陈东' })
 
 const entertainmentRules = {
   guestName: [{ required: true, message: '请输入招待对象', trigger: 'blur' }],

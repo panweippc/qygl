@@ -260,7 +260,7 @@
               <span>温馨提示</span>
             </template>
             <ul class="tips-list">
-              <li>审批人默认为总经理角色</li>
+              <li>审批人默认为陈东</li>
               <li>提交后将发送通知给审批人</li>
               <li>审批进度可在个人中心查看</li>
               <li>预算超过10万需财务审核</li>
@@ -386,8 +386,8 @@ const loadApprovers = async () => {
       console.log('筛选后的审批人:', managers);
       approverOptions.value = managers;
       
-      // 默认选择总经理
-      const defaultManager = managers.find(emp => (emp.position || '').includes('总经理'));
+      // 默认选择陈东
+      const defaultManager = managers.find((emp: any) => emp.name === '陈东') || managers[0];
       if (defaultManager) {
         form.approver = defaultManager.id;
         console.log('默认审批人:', defaultManager);
