@@ -245,8 +245,8 @@ router.post('/distributed-records', async (req, res) => {
         title: '新任务下发',
         content,
         type: 'approval',
-        relatedId: parseInt(applicationId),
-        relatedType: applicationType
+        relatedId: result.insertId,
+        relatedType: 'distributed'
       });
     } catch (e) {
       console.error('下发通知创建失败:', e.message);

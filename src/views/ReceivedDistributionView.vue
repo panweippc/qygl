@@ -126,12 +126,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, computed, nextTick } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getMyDistributedRecords, processDistributedRecord } from '../services/api'
 
 const router = useRouter()
+const route = useRoute()
 const records = ref<any[]>([])
 const loading = ref(false)
 const detailVisible = ref(false)
@@ -162,6 +163,13 @@ const load = async () => {
     const res = await getMyDistributedRecords()
     if (res.success) {
       records.value = res.data || []
+      if (route.query.recordId) {
+        const rid = Number(route.query.recordId)
+        const target = records.value.find(r => r.id === rid)
+        if (target) {
+          nextTick(() => openDetail(target))
+        }
+      }
     } else {
       ElMessage.error(res.message || '加载失败')
     }

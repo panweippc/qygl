@@ -64,6 +64,10 @@ const router = useRouter()
  */
 function resolveJumpRoute(item: any): string {
   const hay = `${item?.type || ''} ${item?.title || ''} ${item?.content || ''}`.toLowerCase()
+  // 下发记录通知（接收人视角）：直接跳转到"我收到的下发"并定位该条记录
+  if (item?.relatedType === 'distributed' && item?.relatedId) {
+    return `/received-distributions?recordId=${item.relatedId}`
+  }
   if (/请假/.test(item?.title || '') || /请假/.test(item?.content || '')) return '/oa-office?tab=leave'
   if (/报销/.test(item?.title || '') || /报销/.test(item?.content || '')) return '/oa-office?tab=reimbursement'
   if (/出差/.test(item?.title || '') || /出差/.test(item?.content || '')) return '/oa-office?tab=businessTrip'
