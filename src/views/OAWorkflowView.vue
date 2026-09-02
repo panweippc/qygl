@@ -779,7 +779,7 @@ const getDistributedDetail = (row: any) => {
     return `主题:${row.meetingTitle || row.title || '-'} 日期:${row.meetingDate || '-'} 地点:${row.meetingLocation || row.location || '-'} 时间:${row.meetingTime || '-'}`
   }
   if (type === 'leave') {
-    return `类型:${row.leaveType || '-'} 天数:${formatDays(row.days)}${row.reason ? ' 原因:' + row.reason : ''}`
+    return `类型:${row.leaveType || '-'} 天数:${formatDays(row.days, row.halfDayPeriod)}${row.reason ? ' 原因:' + row.reason : ''}`
   }
   if (type === 'reimbursement') {
     return `类型:${row.reimburseType || '-'} 金额:¥${row.amount || 0}`
@@ -1040,7 +1040,7 @@ const submitApproval = async () => {
         if (type === 'meeting') {
           detailObj = { title: item.title, meetingDate: item.meetingDate, meetingTime: item.meetingTime, location: item.location, participants: item.participants, agenda: item.agenda }
     } else if (type === 'leave') {
-      detailObj = { leaveType: item.leaveType, days: item.days, startDate: item.startDate, endDate: item.endDate, reason: item.reason, result: item.result, comment: item.comment, approver: extractRealName(item.approver || '') }
+      detailObj = { leaveType: item.leaveType, days: item.days, halfDayPeriod: item.halfDayPeriod, startDate: item.startDate, endDate: item.endDate, reason: item.reason, result: item.result, comment: item.comment, approver: extractRealName(item.approver || '') }
     } else if (type === 'reimbursement') {
       detailObj = { reimburseType: item.reimburseType, amount: item.amount, reimburseDate: item.reimburseDate, reason: item.reason }
     } else if (type === 'project') {
@@ -1184,7 +1184,7 @@ const handleDistribute = async () => {
     if (type === 'meeting') {
       detailObj = { title: item.title, meetingDate: item.meetingDate, meetingTime: item.meetingTime, location: item.location, participants: item.participants, agenda: item.agenda }
     } else if (type === 'leave') {
-      detailObj = { leaveType: item.leaveType, days: item.days, startDate: item.startDate, endDate: item.endDate, reason: item.reason, result: item.result, comment: item.comment, approver: extractRealName(item.approver || '') }
+      detailObj = { leaveType: item.leaveType, days: item.days, halfDayPeriod: item.halfDayPeriod, startDate: item.startDate, endDate: item.endDate, reason: item.reason, result: item.result, comment: item.comment, approver: extractRealName(item.approver || '') }
     } else if (type === 'entertainment') {
       detailObj = { guestName: item.guestName, guestUnit: item.guestUnit, location: item.location, guestCount: item.guestCount, expenseType: item.expenseType, expenseAmount: item.expenseAmount }
     }
@@ -1267,7 +1267,7 @@ const getApplicationDetailHtml = (row: any) => {
     const dateRange = startDate && endDate ? `<p><strong>请假时间：</strong>${startDate} 至 ${endDate}</p>` : ''
     const reasonText = row.reason ? `<p><strong>请假原因：</strong>${esc(row.reason)}</p>` : ''
     const resultText = row.result ? `<p><strong>审批记录：</strong><span style="white-space:pre-line">${esc(row.result)}</span></p>` : ''
-    detailHtml = `<p><strong>请假类型：</strong>${esc(row.leaveType || '-')}</p><p><strong>请假天数：</strong>${formatDays(row.days)}</p>${dateRange}${reasonText}${resultText}`
+    detailHtml = `<p><strong>请假类型：</strong>${esc(row.leaveType || '-')}</p><p><strong>请假天数：</strong>${formatDays(row.days, row.halfDayPeriod)}</p>${dateRange}${reasonText}${resultText}`
   } else if (type === 'reimbursement') {
     detailHtml = `<p><strong>报销类型：</strong>${esc(row.reimburseType || '-')}</p><p><strong>合计金额：</strong>¥${esc(row.amount || 0)}</p>`
   } else if (type === 'project') {
@@ -1683,7 +1683,7 @@ const enrichDistributedRecord = (record: any) => {
       }
     } else if (type === 'leave') {
       const leave = [...leaveRecords.value, ...allLeaveRecords.value].find((l: any) => String(l.id) === String(aid))
-      if (leave) extra = { leaveType: leave.leaveType, days: leave.days, startDate: leave.startDate, endDate: leave.endDate }
+      if (leave) extra = { leaveType: leave.leaveType, days: leave.days, halfDayPeriod: leave.halfDayPeriod, startDate: leave.startDate, endDate: leave.endDate }
     } else if (type === 'reimbursement') {
       const reimb = [...reimbursementRecords.value, ...allReimbursementRecords.value].find((r: any) => String(r.id) === String(aid))
       if (reimb) extra = { reimburseType: reimb.reimburseType, amount: reimb.amount }

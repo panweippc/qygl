@@ -67,9 +67,6 @@
             />
           </template>
         </template>
-        <el-button v-if="canExport" type="danger" @click="exportLeaveData" class="export-btn-small">
-          导出
-        </el-button>
         <el-button v-if="!isAdmin && !isLiZhiXin" type="primary" @click="goToLeaveApply" class="action-btn">
           <span class="btn-icon">+</span>
           发起请假申请
@@ -112,9 +109,9 @@
             {{ formatDate(row.endDate, false) }}
           </template>
         </el-table-column>
-        <el-table-column prop="days" label="天数" width="80">
+        <el-table-column prop="days" label="天数" width="100">
           <template #default="{ row }">
-            <span class="days-badge">{{ formatDays(row.days) }}</span>
+            <span class="days-badge">{{ formatDays(row.days, row.halfDayPeriod) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="审批状态" width="120">
@@ -221,7 +218,7 @@
           </div>
           <div class="card-row">
             <span class="card-label">请假天数</span>
-            <span class="days-badge">{{ formatDays(row.days) }}</span>
+            <span class="days-badge">{{ formatDays(row.days, row.halfDayPeriod) }}</span>
           </div>
         </div>
         <div class="card-footer">
@@ -350,16 +347,9 @@ import {
   getLeaveTypeClass,
   exportToCSV,
   exportSingleRow,
-  exportLeaveFormHTML
+  exportLeaveFormHTML,
+  formatDays
 } from '../utils/oaWorkflowUtils'
-
-const formatDays = (days: any) => {
-  const num = Number(days)
-  if (isNaN(num)) return days || '-'
-  if (Math.abs(num - 0.5) < 0.001) return '半天'
-  if (num === Math.floor(num)) return Math.floor(num) + '天'
-  return num + '天'
-}
 
 const props = defineProps<{
   isAdmin: boolean

@@ -37,7 +37,6 @@
             <el-date-picker v-model="entertainmentYearDate" type="year" placeholder="选择年份" size="default" style="width: 140px; margin-right: 8px;" @change="handleDateRangeChange" />
           </template>
         </template>
-        <el-button v-if="canExport" type="danger" @click="exportEntertainmentData" class="export-btn-small">导出</el-button>
         <el-button v-if="!isAdmin && !isLiZhiXin" type="primary" @click="goToEntertainmentApply" class="action-btn">
           <span class="btn-icon">+</span> 发起招待申请
         </el-button>

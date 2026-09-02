@@ -16,6 +16,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+// nginx 反向代理会透传 X-Forwarded-For，express-rate-limit 需要 trust proxy 否则按请求抛 ValidationError
+app.set('trust proxy', 1);
 import 'dotenv/config'
 
 const port = process.env.PORT || 3005;

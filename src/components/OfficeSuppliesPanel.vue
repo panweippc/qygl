@@ -14,9 +14,6 @@
             <el-option label="已拒绝" value="已拒绝" />
           </el-select>
         </template>
-        <el-button v-if="canExport" type="danger" @click="exportProjectData" class="export-btn-small">
-          导出
-        </el-button>
         <el-button v-if="!isAdmin && !isLiZhiXin" type="primary" @click="goToProjectApply" class="action-btn">
           <span class="btn-icon">+</span>
           发起项目申请

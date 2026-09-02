@@ -232,7 +232,7 @@ const detailFields = computed(() => {
   const LABELS: Record<string, string> = {
     title: '标题', meetingDate: '会议日期', meetingTime: '会议时间', location: '地点',
     participants: '参会人员', agenda: '会议议程',
-    leaveType: '请假类型', days: '天数', startDate: '开始日期', endDate: '结束日期',
+    leaveType: '请假类型', days: '请假天数', halfDayPeriod: '上/下午', startDate: '开始日期', endDate: '结束日期',
     reason: '事由', result: '审批结果', approver: '审批人', comment: '备注',
     reimburseType: '报销类型', amount: '金额', reimburseDate: '报销日期',
     projectName: '项目名称', projectType: '项目类型', budget: '预算',

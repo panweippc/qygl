@@ -14,9 +14,6 @@
             <el-option label="已拒绝" value="已拒绝" />
           </el-select>
         </template>
-        <el-button v-if="canExport" type="danger" @click="exportBusinessTripData" class="export-btn-small">
-          导出
-        </el-button>
         <el-button v-if="!isAdmin && !isLiZhiXin" type="primary" @click="goToBusinessTripApply" class="action-btn">
           <span class="btn-icon">+</span>
           发起出差申请

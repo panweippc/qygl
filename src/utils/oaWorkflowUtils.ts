@@ -224,10 +224,12 @@ export const getApplicationTypeLabel = (type: string) => {
   return typeMap[type] || type
 }
 
-export const formatDays = (days: any) => {
+export const formatDays = (days: any, halfDayPeriod?: string) => {
   const num = Number(days)
   if (isNaN(num)) return days || '-'
-  if (Math.abs(num - 0.5) < 0.001) return '半天'
+  if (Math.abs(num - 0.5) < 0.001) {
+    return halfDayPeriod ? `半天（${halfDayPeriod}）` : '半天'
+  }
   if (num === Math.floor(num)) return Math.floor(num) + '天'
   return num + '天'
 }
@@ -269,7 +271,7 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
       '请假类型': item.leaveType,
       '开始日期': item.startDate,
       '结束日期': item.endDate,
-      '请假天数': formatDays(item.days),
+      '请假天数': formatDays(item.days, item.halfDayPeriod),
       '请假原因': item.reason,
       '负责人': item.approver || '-',
       '提交时间': item.submitDate
@@ -1307,10 +1309,8 @@ export const exportLeaveFormHTML = (row: any, department?: string, autoPrint?: b
   const startDate = row.startDate || ''
   const endDate = row.endDate || ''
   const leaveType = getLeaveTypeCN(row.leaveType)
-  const days = row.days || '-'
+  const daysDisplay = formatDays(row.days, row.halfDayPeriod)
   const reason = row.reason || ''
-  const halfDayPeriod = row.halfDayPeriod || ''
-  const halfDayLabel = halfDayPeriod ? `（${halfDayPeriod}）` : ''
 
   const yearS = startDate ? new Date(startDate).getFullYear() : ''
   const monthS = startDate ? new Date(startDate).getMonth() + 1 : ''
@@ -1450,8 +1450,8 @@ export const exportLeaveFormHTML = (row: any, department?: string, autoPrint?: b
       <td class="label">请假时间</td>
       <td class="field-value" colspan="5">
         ${yearS || '____'}年${monthS || '__'}月${dayS || '__'}日
-        至 ${yearE || '____'}年${monthE || '__'}月${dayE || '__'}日${halfDayLabel}
-        ，共 <strong>${days}</strong> 天
+        至 ${yearE || '____'}年${monthE || '__'}月${dayE || '__'}日
+        ，共 <strong>${daysDisplay}</strong>
       </td>
     </tr>
     <tr>

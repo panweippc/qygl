@@ -67,9 +67,6 @@
             />
           </template>
         </template>
-        <el-button v-if="canExport" type="danger" @click="exportMeetingData" class="export-btn-small">
-          导出
-        </el-button>
         <el-button v-if="!isAdmin && !isLiZhiXin" type="primary" @click="goToMeetingApply" class="action-btn">
           <span class="btn-icon">+</span>
           创建会议

@@ -67,9 +67,6 @@
             />
           </template>
         </template>
-        <el-button v-if="canExport" type="danger" @click="exportReimbursementData" class="export-btn-small">
-          导出
-        </el-button>
         <el-button v-if="!isAdmin && !isLiZhiXin" type="primary" @click="goToReimbursementApply" class="action-btn">
           <span class="btn-icon">+</span>
           发起报销申请
