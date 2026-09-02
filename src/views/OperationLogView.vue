@@ -33,7 +33,7 @@
       </div>
       <el-button type="primary" size="small" @click="search">查询</el-button>
       <el-button size="small" @click="resetFilters">重置</el-button>
-      <el-button type="success" size="small" plain @click="exportLogs" :loading="exporting">导出</el-button>
+      <el-button type="success" size="small" plain @click="exportLogs" :loading="exporting" v-if="isLiZhixin">导出</el-button>
     </div>
 
     <div class="log-table" v-loading="loading">
@@ -87,7 +87,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { extractRealName } from '../utils/oaWorkflowUtils'
 
 const loading = ref(false)
 const logs = ref<any[]>([])
@@ -97,6 +99,8 @@ const actions = ref<{ value: string; label: string }[]>([])
 const currentPage = ref(1)
 const pageSize = 30
 const exporting = ref(false)
+// 仅李智鑫（管理员/总经理）可见导出按钮，其余用户无导出权限
+const isLiZhixin = computed(() => extractRealName(localStorage.getItem('username') || '') === '李智鑫')
 
 const filters = ref({ module: '', action: '', startDate: '', endDate: '' })
 

@@ -548,7 +548,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
@@ -1793,6 +1793,24 @@ watch(() => route.query, (query) => {
   }
 }, { immediate: true })
 
+let refreshInterval: ReturnType<typeof setInterval> | null = null
+let isRefreshing = false
+
+const startAutoRefresh = () => {
+  if (refreshInterval) return
+  refreshInterval = setInterval(async () => {
+    if (isRefreshing) return
+    isRefreshing = true
+    try {
+      await refreshAllData()
+    } catch (e) {
+      console.error('自动刷新失败:', e)
+    } finally {
+      isRefreshing = false
+    }
+  }, 3000)
+}
+
 onMounted(async () => {
   await loadEmployees()
   await refreshAllData()
@@ -1802,6 +1820,14 @@ onMounted(async () => {
     if (tabWithData) {
       activeTab.value = tabWithData.name
     }
+  }
+  startAutoRefresh()
+})
+
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+    refreshInterval = null
   }
 })
 </script>
