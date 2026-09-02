@@ -1463,7 +1463,7 @@ const loadProjectRecords = async () => {
         projectName: item.project_name || '',
         projectType: item.project_type || '',
         submitDate: item.created_at?.substring(0, 10) || ''
-      }))).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
+      }))).sort((a: any, b: any) => (b.id || 0) - (a.id || 0))
     }
   } catch (error) {
     console.error('获取项目记录失败:', error)
@@ -1504,7 +1504,7 @@ const loadBusinessTripRecords = async () => {
     const response = await getBusinessTrips({ pageSize: 9999 })
     if (response.success && response.data && response.data.list) {
       const all = response.data.list.map(mapTripRecord)
-      businessTripRecords.value = filterUserRecords(all).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
+      businessTripRecords.value = filterUserRecords(all).sort((a: any, b: any) => (b.id || 0) - (a.id || 0))
     }
   } catch (error) {
     console.error('获取出差记录失败:', error)
@@ -1567,7 +1567,7 @@ const loadAllProjectRecords = async () => {
         projectType: item.project_type || '',
         submitDate: item.created_at?.substring(0, 10) || '',
         distributedUsers: []
-      })).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
+      })).sort((a: any, b: any) => (b.id || 0) - (a.id || 0))
     }
   } catch (error) {
     console.error('获取所有项目记录失败:', error)
@@ -1581,7 +1581,7 @@ const loadAllBusinessTripRecords = async () => {
       allBusinessTripRecords.value = response.data.list.map((item: any) => ({
         ...mapTripRecord(item),
         distributedUsers: []
-      })).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
+      })).sort((a: any, b: any) => (b.id || 0) - (a.id || 0))
     }
   } catch (error) {
     console.error('获取所有出差记录失败:', error)
@@ -1594,7 +1594,7 @@ const loadEntertainmentRecords = async () => {
     if (response.success) {
       entertainmentRecords.value = filterUserRecords(response.data)
         .map((item: any) => ({ ...item, submitDate: item.createdAt?.substring(0, 10) || '' }))
-        .sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
+        .sort((a: any, b: any) => (b.id || 0) - (a.id || 0))
     }
   } catch (error) {
     console.error('获取招待费记录失败:', error)
@@ -1609,7 +1609,7 @@ const loadAllEntertainmentRecords = async () => {
         ...item,
         submitDate: item.createdAt?.substring(0, 10) || '',
         distributedUsers: []
-      })).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
+      })).sort((a: any, b: any) => (b.id || 0) - (a.id || 0))
     }
   } catch (error) {
     console.error('获取所有招待费记录失败:', error)
@@ -1657,7 +1657,7 @@ const loadAllDistributedRecords = async () => {
   try {
     const response = await getAllDistributedRecords()
     if (response.success) {
-      allDistributedRecords.value = (response.data || []).map((r: any) => enrichDistributedRecord(r)).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
+      allDistributedRecords.value = (response.data || []).map((r: any) => enrichDistributedRecord(r)).sort((a: any, b: any) => (b.id || 0) - (a.id || 0))
       await ensureOriginRecordsLoaded(allDistributedRecords.value)
     }
   } catch (error) {
@@ -1710,7 +1710,7 @@ const loadDistributedRecords = async () => {
       distributedRecords.value = response.data.map((record: any) => enrichDistributedRecord({
         ...record,
         distributeDate: record.createdAt ? formatDate(record.createdAt, true) : ''
-      })).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
+      })).sort((a: any, b: any) => (b.id || 0) - (a.id || 0))
     } else {
       distributedRecords.value = []
     }

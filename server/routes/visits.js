@@ -7,7 +7,7 @@ router.get('/visit-records/:townId', async (req, res) => {
   const { townId } = req.params;
   try {
     const { pool } = req.app.locals;
-    const [data] = await pool.execute('SELECT * FROM visit_records WHERE townId = ? ORDER BY id ASC', [townId]);
+    const [data] = await pool.execute('SELECT * FROM visit_records WHERE townId = ? ORDER BY id DESC', [townId]);
     res.json({ success: true, data: data });
   } catch (error) {
     res.status(500).json({ success: false, message: '获取拜访记录失败' });
@@ -19,7 +19,7 @@ router.get('/visit-records/town/:townId', async (req, res) => {
   const { townId } = req.params;
   try {
     const { pool } = req.app.locals;
-    const [data] = await pool.execute('SELECT * FROM visit_records WHERE townId = ? ORDER BY id ASC', [townId]);
+    const [data] = await pool.execute('SELECT * FROM visit_records WHERE townId = ? ORDER BY id DESC', [townId]);
     res.json({ success: true, data: data });
   } catch (error) {
     res.status(500).json({ success: false, message: '获取拜访记录失败' });

@@ -356,7 +356,7 @@ const loadBusinessTripRecords = async () => {
           estimatedCost: item.estimated_cost || item.estimatedCost || 0,
           approver: item.approver || ''
         }
-      }).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
+      }).sort((a: any, b: any) => (b.id || 0) - (a.id || 0))
     }
   } catch (error) {
     console.error('获取出差记录失败:', error)
@@ -392,7 +392,7 @@ const loadAllBusinessTripRecords = async () => {
           distributedUsers: [],
           approver: item.approver || ''
         }
-      }).sort((a: any, b: any) => (a.id || 0) - (b.id || 0))
+      }).sort((a: any, b: any) => (b.id || 0) - (a.id || 0))
       allBusinessTripRecords.value = allBusinessTripRecords.value.map((item: any) => ({
         ...item,
         distributedUsers: getDistributedUsersForApplication(item.id, 'businessTrip')
