@@ -199,10 +199,51 @@ router.post('/distributed-records', async (req, res) => {
     try {
       // 将英文申请类型映射为对应中文，避免消息中心出现 "leave申请" 等英文
       const appTypeCn = APP_TYPE_CN[applicationType] || applicationType;
+      let detailObj = {};
+      try { detailObj = detail ? JSON.parse(detail) : {}; } catch { detailObj = {}; }
+
+      // 会议类：从 meetings 表补强完整信息，让消息中心内容更丰富
+      let meetingExtra = {};
+      if (applicationType === 'meeting') {
+        try {
+          const [[mtg]] = await pool.execute(
+            'SELECT title, meetingDate, meetingTime, location, participants, agenda FROM meetings WHERE id = ?',
+            [applicationId]
+          );
+          if (mtg) {
+            meetingExtra = {
+              title: detailObj.title || mtg.title || '',
+              meetingDate: detailObj.meetingDate || mtg.meetingDate || '',
+              meetingTime: detailObj.meetingTime || mtg.meetingTime || '',
+              location: detailObj.location || mtg.location || '',
+              participants: detailObj.participants || mtg.participants || '',
+              agenda: detailObj.agenda || mtg.agenda || ''
+            };
+          }
+        } catch (e) {
+          console.error('会议下发通知补强失败:', e.message);
+        }
+      }
+
+      let content = `${distributedBy} 给您下发了一条${appTypeCn}申请`;
+      if (detailObj.title || meetingExtra.title) {
+        content += `「${detailObj.title || meetingExtra.title}」`;
+      }
+      content += '，请查看处理';
+      if (applicationType === 'meeting' && (meetingExtra.meetingDate || meetingExtra.location)) {
+        const parts = [];
+        if (meetingExtra.meetingDate) parts.push(`日期：${meetingExtra.meetingDate}`);
+        if (meetingExtra.meetingTime) parts.push(`时间：${meetingExtra.meetingTime}`);
+        if (meetingExtra.location) parts.push(`地点：${meetingExtra.location}`);
+        if (meetingExtra.participants) parts.push(`参会人员：${meetingExtra.participants}`);
+        if (meetingExtra.agenda) parts.push(`会议议程：${meetingExtra.agenda}`);
+        if (parts.length) content += '。' + parts.join('；');
+      }
+
       await createNotification(pool, {
         userId: targetUser,
         title: '新任务下发',
-        content: `${distributedBy} 给您下发了一条${appTypeCn}申请，请查看处理`,
+        content,
         type: 'approval',
         relatedId: parseInt(applicationId),
         relatedType: applicationType

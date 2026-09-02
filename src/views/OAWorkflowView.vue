@@ -1038,7 +1038,7 @@ const submitApproval = async () => {
         const type = approvalForm.value.type
         let detailObj: any = {}
         if (type === 'meeting') {
-          detailObj = { title: item.title, meetingDate: item.meetingDate, meetingTime: item.meetingTime, location: item.location }
+          detailObj = { title: item.title, meetingDate: item.meetingDate, meetingTime: item.meetingTime, location: item.location, participants: item.participants, agenda: item.agenda }
     } else if (type === 'leave') {
       detailObj = { leaveType: item.leaveType, days: item.days, startDate: item.startDate, endDate: item.endDate, reason: item.reason, result: item.result, comment: item.comment, approver: extractRealName(item.approver || '') }
     } else if (type === 'reimbursement') {
@@ -1182,7 +1182,7 @@ const handleDistribute = async () => {
     const type = currentDistributeType.value
     let detailObj: any = {}
     if (type === 'meeting') {
-      detailObj = { title: item.title, meetingDate: item.meetingDate, meetingTime: item.meetingTime, location: item.location }
+      detailObj = { title: item.title, meetingDate: item.meetingDate, meetingTime: item.meetingTime, location: item.location, participants: item.participants, agenda: item.agenda }
     } else if (type === 'leave') {
       detailObj = { leaveType: item.leaveType, days: item.days, startDate: item.startDate, endDate: item.endDate, reason: item.reason, result: item.result, comment: item.comment, approver: extractRealName(item.approver || '') }
     } else if (type === 'entertainment') {
