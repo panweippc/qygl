@@ -57,6 +57,13 @@
               </el-radio-group>
             </el-form-item>
 
+            <el-form-item label="上午/下午" v-if="form.durationType === 'halfDay'">
+              <el-radio-group v-model="form.halfDayPeriod">
+                <el-radio label="上午">上午</el-radio>
+                <el-radio label="下午">下午</el-radio>
+              </el-radio-group>
+            </el-form-item>
+
             <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="开始日期" prop="startDate">
@@ -239,6 +246,7 @@ const form = reactive({
   endDate: '',
   days: '',
   reason: '',
+  halfDayPeriod: '',
   approver: ''
 })
 
@@ -261,6 +269,7 @@ const onDurationTypeChange = () => {
     form.endDate = ''
     form.days = ''
   }
+  if (form.durationType !== 'halfDay') form.halfDayPeriod = ''
 }
 
 const calcDays = () => {
@@ -276,6 +285,7 @@ const calcDays = () => {
     const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
     form.days = days > 0 ? String(days) : ''
   }
+  if (form.durationType !== 'halfDay') form.halfDayPeriod = ''
 }
 
 const disabledEndDate = (time: Date) => {
@@ -304,6 +314,10 @@ const submitForm = async () => {
   if (!formRef.value) return
   await formRef.value.validate(async (valid: boolean) => {
     if (valid) {
+      if (form.durationType === 'halfDay' && !form.halfDayPeriod) {
+        ElMessage.error('请选择上午或下午')
+        return
+      }
       submitting.value = true
       try {
         const username = localStorage.getItem('username') || '当前用户'
@@ -326,6 +340,7 @@ const submitForm = async () => {
           days: form.days,
           reason: form.reason,
           approver: approverName,
+          halfDayPeriod: form.durationType === 'halfDay' ? form.halfDayPeriod : null,
           attachments
         }
         const response = await addLeaveApplication(data)

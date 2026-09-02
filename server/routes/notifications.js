@@ -15,7 +15,7 @@ router.get('/notifications', async (req, res) => {
     const offset = escapeId((parseInt(page) - 1) * parseInt(pageSize));
     const limit = escapeId(parseInt(pageSize));
     const [list] = await pool.query(
-      `SELECT * FROM notifications WHERE userId = ? ORDER BY createdAt DESC LIMIT ${limit} OFFSET ${offset}`,
+      `SELECT n.*, dr.applicationType AS applicationType FROM notifications n LEFT JOIN distributed_records dr ON n.relatedType = 'distributed' AND dr.id = n.relatedId WHERE n.userId = ? ORDER BY n.createdAt DESC LIMIT ${limit} OFFSET ${offset}`,
       [userId]
     );
     const [[{ total }]] = await pool.query(

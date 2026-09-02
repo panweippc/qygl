@@ -1309,6 +1309,8 @@ export const exportLeaveFormHTML = (row: any, department?: string, autoPrint?: b
   const leaveType = getLeaveTypeCN(row.leaveType)
   const days = row.days || '-'
   const reason = row.reason || ''
+  const halfDayPeriod = row.halfDayPeriod || ''
+  const halfDayLabel = halfDayPeriod ? `（${halfDayPeriod}）` : ''
 
   const yearS = startDate ? new Date(startDate).getFullYear() : ''
   const monthS = startDate ? new Date(startDate).getMonth() + 1 : ''
@@ -1448,7 +1450,7 @@ export const exportLeaveFormHTML = (row: any, department?: string, autoPrint?: b
       <td class="label">请假时间</td>
       <td class="field-value" colspan="5">
         ${yearS || '____'}年${monthS || '__'}月${dayS || '__'}日
-        至 ${yearE || '____'}年${monthE || '__'}月${dayE || '__'}日
+        至 ${yearE || '____'}年${monthE || '__'}月${dayE || '__'}日${halfDayLabel}
         ，共 <strong>${days}</strong> 天
       </td>
     </tr>

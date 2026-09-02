@@ -64,9 +64,12 @@ const router = useRouter()
  */
 function resolveJumpRoute(item: any): string {
   const hay = `${item?.type || ''} ${item?.title || ''} ${item?.content || ''}`.toLowerCase()
-  // 下发记录通知（接收人视角）：直接跳转到"我收到的下发"并定位该条记录
+  // 下发记录通知：会议申请的下发 → 我收到的下发并定位；其余申请的下发 → 下发管理
   if (item?.relatedType === 'distributed' && item?.relatedId) {
-    return `/received-distributions?recordId=${item.relatedId}`
+    if (item.applicationType === 'meeting') {
+      return `/received-distributions?recordId=${item.relatedId}`
+    }
+    return '/oa-office?tab=distributed'
   }
   if (/请假/.test(item?.title || '') || /请假/.test(item?.content || '')) return '/oa-office?tab=leave'
   if (/报销/.test(item?.title || '') || /报销/.test(item?.content || '')) return '/oa-office?tab=reimbursement'

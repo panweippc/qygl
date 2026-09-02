@@ -90,8 +90,8 @@ router.get('/distributed-records/mine', async (req, res) => {
       return res.status(401).json({ success: false, message: '无法识别当前用户' });
     }
     const [records] = await pool.execute(
-      'SELECT * FROM distributed_records WHERE targetUser = ? ORDER BY createdAt DESC',
-      [me]
+      'SELECT * FROM distributed_records WHERE targetUser = ? AND applicationType = ? ORDER BY createdAt DESC',
+      [me, 'meeting']
     );
     const enriched = await enrichRecords(pool, records);
     res.json({ success: true, data: enriched });

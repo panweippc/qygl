@@ -1210,7 +1210,11 @@ const initDatabase = async () => {
     try {
       await connection.execute(`ALTER TABLE leave_applications ADD COLUMN attachments TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
     } catch (_e) {}
-    
+    // 迁移：给已存在的leave_applications表补充halfDayPeriod字段（半天：上午/下午）
+    try {
+      await connection.execute(`ALTER TABLE leave_applications ADD COLUMN halfDayPeriod VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    } catch (_e) {}
+
     // 创建reimbursements表（报销管理）
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS reimbursements (

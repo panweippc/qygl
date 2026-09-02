@@ -289,6 +289,12 @@
                 <el-radio label="custom">自定义</el-radio>
               </el-radio-group>
             </el-form-item>
+            <el-form-item label="上午/下午" v-if="leaveForm.durationType === 'halfDay'">
+              <el-radio-group v-model="leaveForm.halfDayPeriod">
+                <el-radio label="上午">上午</el-radio>
+                <el-radio label="下午">下午</el-radio>
+              </el-radio-group>
+            </el-form-item>
             <el-row :gutter="24">
               <el-col :span="12">
                 <el-form-item label="开始日期" prop="startDate">
@@ -393,6 +399,7 @@ const leaveForm = ref({
   endDate: '',
   days: '',
   reason: '',
+  halfDayPeriod: '',
   approver: '陈东'
 })
 
@@ -561,6 +568,10 @@ const submitLeaveApplication = async () => {
   leaveFormRef.value?.validate(async (valid: boolean) => {
     if (valid) {
       try {
+        if (leaveForm.value.durationType === 'halfDay' && !leaveForm.value.halfDayPeriod) {
+          ElMessage.error('请选择上午或下午')
+          return
+        }
         const data = {
           applicant: currentUsername.value,
           leaveType: leaveForm.value.leaveType,
@@ -568,7 +579,8 @@ const submitLeaveApplication = async () => {
           endDate: formatDate(leaveForm.value.endDate),
           days: leaveForm.value.days,
           reason: leaveForm.value.reason,
-          approver: leaveForm.value.approver
+          approver: leaveForm.value.approver,
+          halfDayPeriod: leaveForm.value.durationType === 'halfDay' ? leaveForm.value.halfDayPeriod : null
         }
         const response = await addLeaveApplication(data)
         if (response.success) {
@@ -597,6 +609,7 @@ const onLeaveDurationChange = () => {
     leaveForm.value.endDate = ''
     leaveForm.value.days = ''
   }
+  if (leaveForm.value.durationType !== 'halfDay') leaveForm.value.halfDayPeriod = ''
 }
 
 const onLeaveDateChange = () => {
@@ -609,6 +622,7 @@ const onLeaveDateChange = () => {
   } else if (leaveForm.value.durationType === 'custom') {
     calcLeaveDays()
   }
+  if (leaveForm.value.durationType !== 'halfDay') leaveForm.value.halfDayPeriod = ''
 }
 
 const calcLeaveDays = () => {

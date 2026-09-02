@@ -52,7 +52,7 @@ router.get('/leave-applications/:id', async (req, res) => {
 
 // 提交请假申请
 router.post('/leave-applications', async (req, res) => {
-  const { leaveType, startDate, endDate, days, reason, approver, attachments } = req.body;
+  const { leaveType, startDate, endDate, days, reason, approver, attachments, halfDayPeriod } = req.body;
   // 安全加固：申请人身份一律从 JWT token 解析，忽略请求体 applicant，防伪造
   const applicant = getRealName(req);
   if (!applicant) {
@@ -65,8 +65,8 @@ router.post('/leave-applications', async (req, res) => {
     const { pool } = req.app.locals;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await pool.execute(
-      'INSERT INTO leave_applications (applicant, leaveType, startDate, endDate, days, reason, approver, attachments, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [applicant, leaveType, startDate, endDate, days, reason, approver, attachments || null, '审批中', now]
+      'INSERT INTO leave_applications (applicant, leaveType, startDate, endDate, days, reason, approver, attachments, halfDayPeriod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [applicant, leaveType, startDate, endDate, days, reason, approver, attachments || null, halfDayPeriod || null, '审批中', now]
     );
 
     await createNotification(pool, {
