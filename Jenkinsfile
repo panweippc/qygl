@@ -156,11 +156,12 @@ pipeline {
         echo '=== 阶段7: 重启后端 (pm2 qygl) ==='
         dir("${PROJECT_DIR}") {
           // 采用 delete + start（而非 restart）确保完整重载新代码，避免 fork 进程残留旧模块；
-          // 进程不存在时 stop/delete 失败用 ; 继续，最终由 start 兜底拉起
-          bat "pm2 stop ${PM2_APP_NAME} 2>nul; pm2 delete ${PM2_APP_NAME} 2>nul; pm2 start server.js --name ${PM2_APP_NAME} --cwd \"${PROJECT_DIR}\""
+          // 进程不存在时 delete 失败用 & 继续（cmd 中 ; 不是命令分隔符，必须用 &），最终由 start 兜底拉起；
+          // 末尾 & exit /b 0 确保 pm2 任何非致命报错都不会让本阶段判失败（否则会跳过阶段8~10 健康检查）
+          bat "pm2 delete ${PM2_APP_NAME} 2>nul & pm2 start server.js --name ${PM2_APP_NAME} --cwd \"${PROJECT_DIR}\" & exit /b 0"
           bat 'pm2 save'
           // 诊断输出：确认后端进程确实已拉起（uptime/restart 数），便于排查"看似没重启"的问题
-          bat 'pm2 describe ${PM2_APP_NAME} || pm2 status'
+          bat "pm2 describe ${PM2_APP_NAME} || pm2 status"
         }
       }
     }
@@ -201,7 +202,9 @@ pipeline {
     }
     failure {
       echo '❌ 流水线执行失败'
-      bat "pm2 logs ${PM2_APP_NAME} --lines 50 || echo no logs"
+      // 注意：pm2 logs --lines N 在本机 pm2 版本会进入 [TAILING] 持续流式输出、永不退出，
+      // 触发 30 分钟 timeout 把整条流水线判失败。改为直接读取日志文件末尾（非流式），纯 ASCII，必然退出。
+      bat "powershell -Command \"Get-Content (Join-Path \$env:USERPROFILE ('.pm2/logs/${PM2_APP_NAME}-error.log')) -Tail 50 -ErrorAction SilentlyContinue; Get-Content (Join-Path \$env:USERPROFILE ('.pm2/logs/${PM2_APP_NAME}-out.log')) -Tail 30 -ErrorAction SilentlyContinue; exit 0\""
     }
     always {
       echo '=== 清理 Jenkins 工作区 ==='
