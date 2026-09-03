@@ -40,7 +40,7 @@
               </template>
             </DashboardCard>
 
-            <DashboardCard title="我收到的下发" to="/received-distributions" :requirePerm="false" :stats="[{ value: myDistStats.pending, label: '待处理' }, { value: myDistStats.total, label: '总数' }]">
+            <DashboardCard title="我收到的下发" to="/received-distributions" :stats="[{ value: myDistStats.pending, label: '待处理' }, { value: myDistStats.total, label: '总数' }]">
               <template #icon>
                 <svg viewBox="0 0 24 24" fill="currentColor">
                   <path d="M20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6C22 4.9 21.1 4 20 4ZM20 18H4V8L12 13L20 8V18ZM4 6H20V6.7L12 11.35L4 6.7V6Z"/>
@@ -78,8 +78,7 @@ import TrendChart from '../components/TrendChart.vue'
 import PieChart from '../components/PieChart.vue'
 import RankingChart from '../components/RankingChart.vue'
 import ComparisonChart from '../components/ComparisonChart.vue'
-import { getFiles, getFileCategories, getProjects, getMonthlyReports, getTools, getMyDistributedRecords } from '../services/api'
-import { useMenuPermission } from '../composables/useMenuPermission'
+import { getFiles, getFileCategories, getProjectCategoryStats, getMonthlyReports, getTools, getMyDistributedRecords } from '../services/api'
 
 echarts.registerTheme('default', {
   textStyle: {
@@ -107,51 +106,41 @@ const monthlyReportStats = ref({ total: 0, pending: 0 })
 const toolStats = ref({ total: 0, categories: 0 })
 const myDistStats = ref({ pending: 0, total: 0 })
 
-const { hasMenu } = useMenuPermission()
-
 const loadDashboardData = async () => {
   try {
-    // 仅拉取当前用户有权访问的模块统计，避免越权看到无权限模块的数据
-    if (hasMenu('/file-storage')) {
-      const [filesResponse, categoriesResponse] = await Promise.all([
-        getFiles(),
-        getFileCategories()
-      ])
-      if (filesResponse.success) {
-        fileStats.value = {
-          total: filesResponse.data.length,
-          categories: categoriesResponse.success ? categoriesResponse.data.length : 0
-        }
+    // 所有用户均可看到并点击全部模块卡片，不再按权限过滤
+    const [filesResponse, categoriesResponse] = await Promise.all([
+      getFiles(),
+      getFileCategories()
+    ])
+    if (filesResponse.success) {
+      fileStats.value = {
+        total: filesResponse.data.length,
+        categories: categoriesResponse.success ? categoriesResponse.data.length : 0
       }
     }
 
-    if (hasMenu('/project-category')) {
-      const projectsResponse = await getProjects()
-      if (projectsResponse.success) {
-        projectStats.value = {
-          total: projectsResponse.data.list.length,
-          categories: new Set(projectsResponse.data.list.map((project: any) => project.project_type)).size
-        }
+    const statsResponse = await getProjectCategoryStats()
+    if (statsResponse.success) {
+      projectStats.value = {
+        total: statsResponse.data.total,
+        categories: statsResponse.data.categories
       }
     }
 
-    if (hasMenu('/monthly-report')) {
-      const reportsResponse = await getMonthlyReports()
-      if (reportsResponse.success) {
-        monthlyReportStats.value = {
-          total: reportsResponse.data.length,
-          pending: 0
-        }
+    const reportsResponse = await getMonthlyReports()
+    if (reportsResponse.success) {
+      monthlyReportStats.value = {
+        total: reportsResponse.data.length,
+        pending: 0
       }
     }
 
-    if (hasMenu('/tool-inventory')) {
-      const toolsResponse = await getTools()
-      if (toolsResponse.success) {
-        toolStats.value = {
-          total: toolsResponse.data.length,
-          categories: new Set(toolsResponse.data.map((tool: any) => tool.category)).size
-        }
+    const toolsResponse = await getTools()
+    if (toolsResponse.success) {
+      toolStats.value = {
+        total: toolsResponse.data.length,
+        categories: new Set(toolsResponse.data.map((tool: any) => tool.category)).size
       }
     }
   } catch (error) {

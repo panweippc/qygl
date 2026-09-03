@@ -217,6 +217,12 @@ export const getCategoryProjects = async (params?: { category?: string }): Promi
   const response = await api.get('/project-categories/projects', { params });
   return response.data;
 };
+
+// 首页产品分类卡片统计（与菜单 ProjectCategoryView 同源：category_projects 表）
+export const getProjectCategoryStats = async (): Promise<ApiResponse<{ categories: number; total: number }>> => {
+  const response = await api.get('/project-categories/stats');
+  return response.data;
+};
 export const addCategoryProject = async (data: any): Promise<ApiResponse> => {
   const response = await api.post('/project-categories/projects', data);
   return response.data;

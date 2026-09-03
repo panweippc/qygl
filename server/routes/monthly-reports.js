@@ -12,9 +12,24 @@ const localNow = () => {
 router.get('/monthly-reports', async (req, res) => {
   try {
     const { pool } = req.app.locals;
-    const [reports] = await pool.execute(
-      'SELECT w.*, u.username FROM weeklyReports w LEFT JOIN users u ON w.userId = u.id'
-    );
+    // 权限规则：李智鑫(总经理/系统管理员)可查看全部月报；其余用户仅看自己填写的
+    const roleName = String(req.user?.roleName || '').toLowerCase();
+    const isGM = req.user?.name === '李智鑫'
+      || req.user?.username === '李智鑫'
+      || req.user?.username === '管理员'
+      || ['总经理', '系统管理员', 'admin', 'gm'].includes(roleName);
+    let reports;
+    if (isGM) {
+      [reports] = await pool.execute(
+        'SELECT w.*, u.username FROM weeklyReports w LEFT JOIN users u ON w.userId = u.id'
+      );
+    } else {
+      const currentUserId = req.user?.id;
+      [reports] = await pool.execute(
+        'SELECT w.*, u.username FROM weeklyReports w LEFT JOIN users u ON w.userId = u.id WHERE w.userId = ?',
+        [currentUserId || -1]
+      );
+    }
     const decodeName = (s) => {
       if (typeof s !== 'string' || !s.includes('%')) return s;
       try { return decodeURIComponent(s); } catch (e) { return s; }

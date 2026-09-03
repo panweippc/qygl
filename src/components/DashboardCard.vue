@@ -1,5 +1,5 @@
 <template>
-  <div class="dashboard-card" :class="{ clickable: canEnter, 'no-perm': !!to && !canEnter }" :title="to && !canEnter ? '您没有该模块的访问权限' : undefined" @click="navigate">
+  <div class="dashboard-card clickable" @click="navigate">
     <div class="card-header">
       <h3>{{ title }}</h3>
       <div class="card-icon">
@@ -18,10 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { useMenuPermission } from '../composables/useMenuPermission'
 
 const props = defineProps<{
   title: string
@@ -31,20 +28,9 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
-const { hasMenu } = useMenuPermission()
-
-// 默认开启权限门禁：只要传了 to，就校验当前用户是否有权访问该菜单
-const canEnter = computed(() =>
-  !!props.to && (props.requirePerm === false || hasMenu(props.to))
-)
 
 const navigate = () => {
-  if (!props.to) return
-  if (!canEnter.value) {
-    ElMessage.warning('您没有该模块的访问权限')
-    return
-  }
-  router.push(props.to)
+  if (props.to) router.push(props.to)
 }
 </script>
 
@@ -90,10 +76,6 @@ const navigate = () => {
 }
 
 .dashboard-card.clickable { cursor: pointer; }
-
-.dashboard-card.no-perm { opacity: .55; cursor: not-allowed; }
-.dashboard-card.no-perm:hover { transform: none; box-shadow: 0 4px 20px rgba(100, 149, 237, 0.2); }
-.dashboard-card.no-perm:hover::before { opacity: 0; }
 
 .dashboard-card:hover::before {
   opacity: 1;

@@ -375,18 +375,18 @@ const editCategory = (category: Category) => {
 const updateCategory = async () => {
   loading.value = true
   try {
-    // 如果分类名称发生了变化，更新所有该分类下项目的类型
-    if (editForm.value.originalName !== editForm.value.name) {
-      const updateResponse = await updateProjectCategory({
-        oldType: editForm.value.originalName,
-        newType: editForm.value.name
-      });
-      if (!updateResponse.success) {
-        ElMessage.error('编辑产品分类失败')
-        return;
-      }
+    // 始终提交编辑（即使只改了描述）：后端会同时更新 projects 表的 name/category/description，
+    // 这样分类名变更才会反映到 categories 列表（数据源是 projects 表）
+    const updateResponse = await updateProjectCategory({
+      oldType: editForm.value.originalName,
+      newType: editForm.value.name,
+      description: editForm.value.description
+    });
+    if (!updateResponse.success) {
+      ElMessage.error('编辑产品分类失败')
+      return;
     }
-    
+
     await loadCategories()
     editDialogVisible.value = false
     ElMessage.success('产品分类编辑成功')

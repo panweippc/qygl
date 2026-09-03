@@ -60,23 +60,38 @@ router.delete('/project-categories/:category', async (req, res) => {
 
 router.put('/project-categories/update-type', async (req, res) => {
   const { pool } = req.app.locals;
-  const { oldType, newType } = req.body;
+  const { oldType, newType, description } = req.body;
   try {
-    await pool.execute(
-      'UPDATE project_applications SET project_type = ? WHERE project_type = ?',
-      [newType, oldType]
-    );
-    // 同步更新独立分类项目表的分类名
-    await pool.execute(
-      'UPDATE category_projects SET category_name = ? WHERE category_name = ?',
-      [newType, oldType]
-    );
+    // 1) 更新 projects 表里的分类本身（categories 列表的数据源）—— 这是修 bug 的关键
+    //    新增分类时 name 与 category 都写分类名；编辑时只改 name，category 也跟着改以保持一致
+    if (description !== undefined && description !== null) {
+      await pool.execute(
+        'UPDATE projects SET name = ?, category = ?, description = ? WHERE name = ? OR category = ?',
+        [newType, newType, description, oldType, oldType]
+      );
+    } else {
+      await pool.execute(
+        'UPDATE projects SET name = ?, category = ? WHERE name = ? OR category = ?',
+        [newType, newType, oldType, oldType]
+      );
+    }
+    // 2) 仅在 oldType !== newType 时同步关联表，避免无意义写入
+    if (oldType !== newType) {
+      await pool.execute(
+        'UPDATE project_applications SET project_type = ? WHERE project_type = ?',
+        [newType, oldType]
+      );
+      await pool.execute(
+        'UPDATE category_projects SET category_name = ? WHERE category_name = ?',
+        [newType, oldType]
+      );
+    }
     await createOperationLog(pool, {
       username: getOperator(req),
       action: 'update',
       module: 'project',
       targetName: newType,
-      detail: `项目类型更新: ${oldType} -> ${newType}`
+      detail: `项目类型更新: ${oldType} -> ${newType}${description !== undefined && description !== null ? ' (含详情)' : ''}`
     });
     res.json({ success: true, message: '项目类型更新成功' });
   } catch (error) {
@@ -152,7 +167,22 @@ async function ensureCategoryProjectsTable(pool) {
   )`);
 }
 
+// 产品分类页卡统计（与产品分类菜单页同源：category_projects 表）
+router.get('/project-categories/stats', async (req, res) => {
+  const { pool } = req.app.locals;
+  try {
+    await ensureCategoryProjectsTable(pool);
+    const [[{ total }]] = await pool.query('SELECT COUNT(*) AS total FROM category_projects');
+    const [[{ categories }]] = await pool.query('SELECT COUNT(DISTINCT category_name) AS categories FROM category_projects');
+    res.json({ success: true, data: { total: Number(total) || 0, categories: Number(categories) || 0 } });
+  } catch (error) {
+    console.error('获取产品分类统计失败:', error);
+    res.status(500).json({ success: false, message: '获取产品分类统计失败' });
+  }
+});
+
 // 列出某分类（或全部）下的项目
+// 列表某分类（或全部）下的项目
 router.get('/project-categories/projects', async (req, res) => {
   const { pool } = req.app.locals;
   try {
