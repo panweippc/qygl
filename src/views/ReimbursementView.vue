@@ -8,7 +8,7 @@
       </div>
       <nav class="nav">
         <router-link to="/" class="nav-item">首页</router-link>
-        <router-link to="/oa-office" class="nav-item">OA办公</router-link>
+        <router-link to="/oa-office" class="nav-item">审批中心</router-link>
         <button class="nav-item logout-btn" @click="handleBack">返回</button>
       </nav>
     </header>

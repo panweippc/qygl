@@ -1943,10 +1943,10 @@ const initDatabase = async () => {
         [systemMenuId, '菜单管理', '/system/menus', 'MenuManagement', '📋', 2, '启用', now, now]
       );
 
-      // 添加OA办公菜单
+      // 添加审批中心菜单（原 OA办公）
       await connection.execute(
         'INSERT INTO menus (parentId, name, path, component, icon, sort, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [0, 'OA办公', '/oa-office', 'OAWorkflowView', '📝', 3, '启用', now, now]
+        [0, '审批中心', '/oa-office', 'OAWorkflowView', '📝', 3, '启用', now, now]
       );
 
       console.log('默认菜单数据添加成功');
@@ -1972,19 +1972,19 @@ const initDatabase = async () => {
       console.log('清理废弃菜单失败:', error.message);
     }
 
-    // 检查并添加OA办公菜单（如果不存在）
+    // 检查并添加审批中心菜单（原 OA办公，如果不存在）
     try {
       const [oaOfficeMenu] = await connection.execute('SELECT * FROM menus WHERE path = ?', ['/oa-office']);
       if (oaOfficeMenu.length === 0) {
         const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
         await connection.execute(
           'INSERT INTO menus (parentId, name, path, component, icon, sort, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [0, 'OA办公', '/oa-office', 'OAWorkflowView', '📝', 3, '启用', now, now]
+          [0, '审批中心', '/oa-office', 'OAWorkflowView', '📝', 3, '启用', now, now]
         );
-        console.log('OA办公菜单添加成功');
+        console.log('审批中心菜单添加成功');
       }
     } catch (error) {
-      console.log('检查/添加OA办公菜单:', error.message);
+      console.log('检查/添加审批中心菜单:', error.message);
     }
 
     // 检查并添加所有侧边栏菜单（确保菜单管理页面完整）
@@ -1994,9 +1994,9 @@ const initDatabase = async () => {
       // 所有侧边栏菜单定义（path → 菜单信息）
       const allMenus = [
         // 办公管理
-        { name: 'OA办公', path: '/oa-office', component: 'OAWorkflowView', icon: '📝', sort: 1 },
+        { name: '审批中心', path: '/oa-office', component: 'OAWorkflowView', icon: '📝', sort: 1 },
         { name: '月报', path: '/monthly-report', component: 'MonthlyReportView', icon: '📅', sort: 2 },
-        { name: '工具入库', path: '/tool-inventory', component: 'ToolInventoryView', icon: '🔧', sort: 3 },
+        { name: '物资管理', path: '/tool-inventory', component: 'ToolInventoryView', icon: '🔧', sort: 3 },
         { name: '文件存储', path: '/file-storage', component: 'FileStorageView', icon: '📁', sort: 4 },
         { name: '知识库', path: '/knowledge-base', component: 'KnowledgeBaseView', icon: '📚', sort: 5 },
         { name: '消息中心', path: '/message-center', component: 'MessageCenterView', icon: '💬', sort: 6 },
@@ -2027,6 +2027,21 @@ const initDatabase = async () => {
           console.log(`菜单添加成功: ${menu.name} (${menu.path}), ID: ${result.insertId}`);
         } else {
           menuIdMap[menu.path] = existing[0].id;
+        }
+      }
+
+      // 菜单更名迁移（幂等）：仅当仍是旧名时才更新，避免覆盖管理员在菜单管理页的自定义名称
+      const menuRenames = [
+        { path: '/oa-office', from: 'OA办公', to: '审批中心' },
+        { path: '/tool-inventory', from: '工具入库', to: '物资管理' }
+      ];
+      for (const r of menuRenames) {
+        const [renameRes] = await connection.execute(
+          'UPDATE menus SET name = ?, updatedAt = ? WHERE path = ? AND name = ?',
+          [r.to, now, r.path, r.from]
+        );
+        if (renameRes.affectedRows > 0) {
+          console.log(`菜单更名: ${r.from} → ${r.to}`);
         }
       }
 
