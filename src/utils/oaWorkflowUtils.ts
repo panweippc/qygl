@@ -231,6 +231,11 @@ export const formatDays = (days: any, halfDayPeriod?: string) => {
     return halfDayPeriod ? `半天（${halfDayPeriod}）` : '半天'
   }
   if (num === Math.floor(num)) return Math.floor(num) + '天'
+  // X天半（如 3.5 天 → "3天半"），halfDayPeriod 为最后半天的时段
+  const whole = Math.floor(num)
+  if (Math.abs(num - whole - 0.5) < 0.001) {
+    return halfDayPeriod ? `${whole}天半（${halfDayPeriod}）` : `${whole}天半`
+  }
   return num + '天'
 }
 

@@ -92,6 +92,14 @@
               </el-col>
             </el-row>
 
+            <el-form-item label="最后半天" v-if="form.durationType === 'custom'">
+              <el-radio-group v-model="form.endHalfPeriod" @change="calcDays">
+                <el-radio label="">整天结束</el-radio>
+                <el-radio label="上午">最后半天（上午）</el-radio>
+                <el-radio label="下午">最后半天（下午）</el-radio>
+              </el-radio-group>
+            </el-form-item>
+
             <el-form-item label="请假天数">
               <el-input v-model="form.days" disabled style="width: 140px">
                 <template #append">天</template>
@@ -247,6 +255,7 @@ const form = reactive({
   days: '',
   reason: '',
   halfDayPeriod: '',
+  endHalfPeriod: '',
   approver: ''
 })
 
@@ -270,6 +279,7 @@ const onDurationTypeChange = () => {
     form.days = ''
   }
   if (form.durationType !== 'halfDay') form.halfDayPeriod = ''
+  if (form.durationType !== 'custom') form.endHalfPeriod = ''
 }
 
 const calcDays = () => {
@@ -282,10 +292,13 @@ const calcDays = () => {
   } else if (form.startDate && form.endDate) {
     const start = new Date(form.startDate)
     const end = new Date(form.endDate)
-    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    let days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    // 自定义时段支持"X天半"：最后半天扣 0.5 天（如 9/7~9/10 + 最后半天下午 = 3.5 天）
+    if (form.endHalfPeriod) days -= 0.5
     form.days = days > 0 ? String(days) : ''
   }
   if (form.durationType !== 'halfDay') form.halfDayPeriod = ''
+  if (form.durationType !== 'custom') form.endHalfPeriod = ''
 }
 
 const disabledEndDate = (time: Date) => {
@@ -340,7 +353,9 @@ const submitForm = async () => {
           days: form.days,
           reason: form.reason,
           approver: approverName,
-          halfDayPeriod: form.durationType === 'halfDay' ? form.halfDayPeriod : null,
+          halfDayPeriod: form.durationType === 'halfDay'
+            ? form.halfDayPeriod
+            : (form.durationType === 'custom' && form.endHalfPeriod ? form.endHalfPeriod : null),
           attachments
         }
         const response = await addLeaveApplication(data)

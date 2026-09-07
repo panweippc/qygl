@@ -304,6 +304,13 @@
                 </el-form-item>
               </el-col>
             </el-row>
+            <el-form-item label="最后半天" v-if="leaveForm.durationType === 'custom'">
+              <el-radio-group v-model="leaveForm.endHalfPeriod" @change="calcLeaveDays">
+                <el-radio label="">整天结束</el-radio>
+                <el-radio label="上午">最后半天（上午）</el-radio>
+                <el-radio label="下午">最后半天（下午）</el-radio>
+              </el-radio-group>
+            </el-form-item>
             <el-row :gutter="24">
               <el-col :span="12">
                 <el-form-item label="请假天数" prop="days">
@@ -390,6 +397,7 @@ const leaveForm = ref({
   days: '',
   reason: '',
   halfDayPeriod: '',
+  endHalfPeriod: '',
   approver: '陈东'
 })
 
@@ -570,7 +578,9 @@ const submitLeaveApplication = async () => {
           days: leaveForm.value.days,
           reason: leaveForm.value.reason,
           approver: leaveForm.value.approver,
-          halfDayPeriod: leaveForm.value.durationType === 'halfDay' ? leaveForm.value.halfDayPeriod : null
+          halfDayPeriod: leaveForm.value.durationType === 'halfDay'
+            ? leaveForm.value.halfDayPeriod
+            : (leaveForm.value.durationType === 'custom' && leaveForm.value.endHalfPeriod ? leaveForm.value.endHalfPeriod : null)
         }
         const response = await addLeaveApplication(data)
         if (response.success) {
@@ -600,6 +610,7 @@ const onLeaveDurationChange = () => {
     leaveForm.value.days = ''
   }
   if (leaveForm.value.durationType !== 'halfDay') leaveForm.value.halfDayPeriod = ''
+  if (leaveForm.value.durationType !== 'custom') leaveForm.value.endHalfPeriod = ''
 }
 
 const onLeaveDateChange = () => {
@@ -613,13 +624,16 @@ const onLeaveDateChange = () => {
     calcLeaveDays()
   }
   if (leaveForm.value.durationType !== 'halfDay') leaveForm.value.halfDayPeriod = ''
+  if (leaveForm.value.durationType !== 'custom') leaveForm.value.endHalfPeriod = ''
 }
 
 const calcLeaveDays = () => {
   if (leaveForm.value.startDate && leaveForm.value.endDate) {
     const startD = new Date(leaveForm.value.startDate)
     const endD = new Date(leaveForm.value.endDate)
-    const days = Math.ceil((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    let days = Math.ceil((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    // 自定义时段支持"X天半"：最后半天扣 0.5 天（如 9/7~9/10 + 最后半天下午 = 3.5 天）
+    if (leaveForm.value.endHalfPeriod) days -= 0.5
     leaveForm.value.days = days > 0 ? String(days) : ''
   }
 }

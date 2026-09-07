@@ -82,9 +82,9 @@
         stripe
         fit
       >
-        <el-table-column prop="id" label="报销编号" width="100">
+        <el-table-column prop="seqNo" label="报销编号" width="100">
           <template #default="{ row }">
-            <span class="id-badge">#{{ row.id }}</span>
+            <span class="id-badge">#{{ row.seqNo }}</span>
           </template>
         </el-table-column>
         <el-table-column label="申请人">
@@ -595,7 +595,15 @@ const filteredReimbursementRecords = computed(() => {
     }
   }
 
+  // 申请编号统一：按提交时间倒序展示，seqNo 按申请先后自然编号（最早=1），与 LeavePanel 一致
   return records
+    .slice()
+    .sort((a, b) => {
+      const da = new Date(a.submitDate || a.createdAt || 0).getTime()
+      const db = new Date(b.submitDate || b.createdAt || 0).getTime()
+      return db - da
+    })
+    .map((r, idx, arr) => ({ ...r, seqNo: arr.length - idx }))
 })
 
 const getDistributedUsersForApplication = (applicationId: number, applicationType: string) => {
@@ -714,7 +722,7 @@ const exportReimbursementData = () => {
     data,
     fileName,
     ['报销编号', '申请人', '报销类型', '合计金额', '报销日期', '报销事由', '审批状态', '审批人', '提交时间'],
-    ['id', 'applicant', 'reimburseType', 'amount', 'reimburseDate', 'reason', 'status', 'approver', 'submitDate']
+    ['seqNo', 'applicant', 'reimburseType', 'amount', 'reimburseDate', 'reason', 'status', 'approver', 'submitDate']
   )
 }
 

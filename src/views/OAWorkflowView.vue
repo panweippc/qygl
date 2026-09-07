@@ -71,18 +71,10 @@
             </div>
             <div class="view-toggle">
               <button
-                class="toggle-btn"
-                :class="{ active: viewMode === 'list' }"
-                @click="viewMode = 'list'"
+                class="toggle-btn active"
+                title="表格视图"
               >
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
-              </button>
-              <button
-                class="toggle-btn"
-                :class="{ active: viewMode === 'card' }"
-                @click="viewMode = 'card'"
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2H5c-1.11 0-2 .9-2 2zm12 4c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1V7c0-.55.45-1 1-1h7c.55 0 1 .45 1 1v2zm0 4c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-2c0-.55.45-1 1-1h7c.55 0 1 .45 1 1v2zm-4 5c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-2c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v2zm4-9c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v2c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1V7zm0 4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v2c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-2z"/></svg>
               </button>
             </div>
           </div>

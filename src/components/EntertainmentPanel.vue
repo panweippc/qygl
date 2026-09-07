@@ -45,8 +45,8 @@
 
     <div v-if="viewMode === 'list'" class="list-view">
       <el-table :data="filteredEntertainmentRecords" style="width: 100%" :header-cell-style="{ background: '#f5f7fa', color: '#606266' }" stripe fit>
-        <el-table-column prop="id" label="编号" width="80">
-          <template #default="{ row }"><span class="id-badge">#{{ row.id }}</span></template>
+        <el-table-column prop="seqNo" label="编号" width="80">
+          <template #default="{ row }"><span class="id-badge">#{{ row.seqNo }}</span></template>
         </el-table-column>
         <el-table-column label="申请人">
           <template #default="{ row }">{{ extractRealName(row.applicant) }}</template>
@@ -306,7 +306,15 @@ const filteredEntertainmentRecords = computed(() => {
     }
   }
 
+  // 申请编号统一：按提交时间倒序展示，seqNo 按申请先后自然编号（最早=1），与 LeavePanel 一致
   return records
+    .slice()
+    .sort((a, b) => {
+      const da = new Date(a.submitDate || a.createdAt || 0).getTime()
+      const db = new Date(b.submitDate || b.createdAt || 0).getTime()
+      return db - da
+    })
+    .map((r, idx, arr) => ({ ...r, seqNo: arr.length - idx }))
 })
 
 const loadEntertainmentRecords = async () => {
@@ -402,7 +410,7 @@ const exportEntertainmentData = () => {
   exportToCSV(
     data, fileName,
     ['编号', '申请人', '招待对象', '招待单位', '场所', '招待人数', '费用类型', '费用金额', '招待日期', '招待事由', '审批状态', '审批人', '提交时间'],
-    ['id', 'applicant', 'guestName', 'guestUnit', 'location', 'guestCount', 'expenseType', 'expenseAmount', 'expenseDate', 'purpose', 'status', 'approver', 'submitDate']
+    ['seqNo', 'applicant', 'guestName', 'guestUnit', 'location', 'guestCount', 'expenseType', 'expenseAmount', 'expenseDate', 'purpose', 'status', 'approver', 'submitDate']
   )
 }
 
