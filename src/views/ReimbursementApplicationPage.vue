@@ -122,6 +122,29 @@
                 </el-col>
               </el-row>
 
+              <el-row :gutter="20" v-if="segment.durationType === 'halfDay'">
+                <el-col :span="12">
+                  <el-form-item label="上午/下午">
+                    <el-radio-group v-model="segment.halfDayPeriod">
+                      <el-radio label="上午">上午</el-radio>
+                      <el-radio label="下午">下午</el-radio>
+                    </el-radio-group>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+
+              <el-row :gutter="20" v-if="segment.durationType === 'custom'">
+                <el-col :span="12">
+                  <el-form-item label="最后半天">
+                    <el-radio-group v-model="segment.endHalfPeriod" @change="calcSegmentDays(segment)">
+                      <el-radio label="">整天结束</el-radio>
+                      <el-radio label="上午">最后半天（上午）</el-radio>
+                      <el-radio label="下午">最后半天（下午）</el-radio>
+                    </el-radio-group>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+
               <el-row :gutter="20">
                 <el-col :span="8">
                   <el-form-item label="到达地点">
@@ -322,6 +345,8 @@ const createSegment = () => ({
   departureDate: '',
   departureLocation: '',
   durationType: 'fullDay',
+  halfDayPeriod: '',
+  endHalfPeriod: '',
   arrivalDate: '',
   arrivalLocation: '',
   transport: '',
@@ -365,11 +390,15 @@ const calcSegmentDays = (segment: any) => {
   } else if (segment.departureDate && segment.arrivalDate) {
     const start = new Date(segment.departureDate)
     const end = new Date(segment.arrivalDate)
-    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    let days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    // 自定义时段支持"X天半"：最后半天扣 0.5 天
+    if (segment.endHalfPeriod) days -= 0.5
     segment.days = days > 0 ? days : 0
   } else {
     segment.days = 0
   }
+  if (segment.durationType !== 'halfDay') segment.halfDayPeriod = ''
+  if (segment.durationType !== 'custom') segment.endHalfPeriod = ''
   segment.allowanceAmount = Math.round(segment.days * (Number(segment.allowanceStandard) || 0) * 100) / 100
 }
 

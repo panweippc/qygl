@@ -10,7 +10,7 @@ router.get('/business-trips', async (req, res) => {
   try {
     const { applicantId, status, page = 1, pageSize = 10 } = req.query;
 
-    const columns = 'id, trip_code, applicant_id, applicant_name, department, destination, start_date, end_date, days, purpose, itinerary, estimated_cost, cost_breakdown, accommodation, transport, accompany_persons, customer_info, status, approver, current_step, current_approvers, approval_history, is_urgent, attachments, comment, created_at, updated_at';
+    const columns = 'id, trip_code, applicant_id, applicant_name, department, destination, start_date, end_date, days, purpose, itinerary, estimated_cost, cost_breakdown, accommodation, transport, accompany_persons, customer_info, status, approver, current_step, current_approvers, approval_history, is_urgent, attachments, comment, halfDayPeriod, created_at, updated_at';
     let sql = `SELECT ${columns} FROM business_trip_applications WHERE 1=1`;
     const params = [];
 
@@ -76,6 +76,8 @@ router.post('/business-trips', async (req, res) => {
     const transport = req.body.transport;
     const accompanyPersons = req.body.accompanyPersons;
     const isUrgent = req.body.isUrgent;
+    // 半天 / X天半 对应的时段（上午、下午）
+    const halfDayPeriod = req.body.halfDayPeriod || null;
     // 安全加固：申请人身份一律从 JWT token 解析，忽略请求体 applicantId，防伪造
     const tokenApplicantName = getRealName(req);
     if (!tokenApplicantName) {
@@ -117,13 +119,13 @@ router.post('/business-trips', async (req, res) => {
       `INSERT INTO business_trip_applications 
        (trip_code, applicant_id, applicant_name, department, destination,
         start_date, end_date, days, purpose, itinerary, estimated_cost, cost_breakdown,
-        accommodation, transport, accompany_persons, is_urgent, attachments, status, current_step, approver, created_at, updated_at) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, NOW(), NOW())`,
+        accommodation, transport, accompany_persons, is_urgent, attachments, status, current_step, approver, halfDayPeriod, created_at, updated_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, ?, NOW(), NOW())`,
       [
         tripCode, applicantId, applicant.name, applicant.department, destination,
         startDate, endDate, days, purpose, JSON.stringify(itinerary || []), estimatedCost,
         JSON.stringify(costBreakdown || {}), accommodation, transport,
-        JSON.stringify(accompanyPersons || []), isUrgent ? 1 : 0, req.body.attachments || null, approverName
+        JSON.stringify(accompanyPersons || []), isUrgent ? 1 : 0, req.body.attachments || null, approverName, halfDayPeriod
       ]
     );
 

@@ -159,15 +159,6 @@
               >
                 审批
               </el-button>
-              <el-button
-                v-if="row.status === '审批中' && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
-                size="small"
-                type="danger"
-                @click="$emit('terminate', row, 'leave')"
-                class="terminate-btn"
-              >
-                终止
-              </el-button>
               <el-tag
                 v-if="row.status === '已批准' && canDistribute && isDistributed(row, 'leave')"
                 type="warning"
@@ -231,14 +222,6 @@
               @click="handleApprove(row)"
             >
               审批
-            </el-button>
-            <el-button
-              v-if="row.status === '审批中' && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
-              size="small"
-              type="danger"
-              @click="$emit('terminate', row, 'leave')"
-            >
-              终止
             </el-button>
             <el-button
               v-if="row.status === '审批中' && !isAdmin"

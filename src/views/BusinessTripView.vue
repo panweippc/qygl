@@ -96,6 +96,21 @@
           </el-col>
         </el-row>
 
+        <el-form-item label="上午/下午" v-if="form.durationType === 'halfDay'">
+          <el-radio-group v-model="form.halfDayPeriod">
+            <el-radio label="上午">上午</el-radio>
+            <el-radio label="下午">下午</el-radio>
+          </el-radio-group>
+        </el-form-item>
+
+        <el-form-item label="最后半天" v-if="form.durationType === 'custom'">
+          <el-radio-group v-model="form.endHalfPeriod" @change="calcDays">
+            <el-radio label="">整天结束</el-radio>
+            <el-radio label="上午">最后半天（上午）</el-radio>
+            <el-radio label="下午">最后半天（下午）</el-radio>
+          </el-radio-group>
+        </el-form-item>
+
         <el-form-item label="出差天数">
           <el-input v-model="form.days" disabled placeholder="自动计算" style="width: 120px">
             <template #append>天</template>
@@ -426,6 +441,8 @@ const form = reactive({
   startDate: '',
   endDate: '',
   days: '',
+  halfDayPeriod: '',
+  endHalfPeriod: '',
   purpose: '',
   itinerary: [] as any[],
   costBreakdown: {
@@ -476,6 +493,8 @@ const onDurationTypeChange = () => {
     form.endDate = ''
     form.days = ''
   }
+  if (form.durationType !== 'halfDay') form.halfDayPeriod = ''
+  if (form.durationType !== 'custom') form.endHalfPeriod = ''
 }
 
 const onDateChange = () => {
@@ -494,7 +513,9 @@ const calcDays = () => {
   if (form.startDate && form.endDate) {
     const startD = new Date(form.startDate)
     const endD = new Date(form.endDate)
-    const days = Math.ceil((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    let days = Math.ceil((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    // 自定义时段支持"X天半"：最后半天扣 0.5 天（如 9/7~9/10 + 最后半天下午 = 3.5 天）
+    if (form.endHalfPeriod) days -= 0.5
     form.days = days > 0 ? String(days) : ''
   } else {
     form.days = ''
@@ -536,6 +557,9 @@ const submitForm = async () => {
         const submitData = {
           ...form,
           days: form.days || '1',
+          halfDayPeriod: form.durationType === 'halfDay'
+            ? form.halfDayPeriod
+            : (form.durationType === 'custom' && form.endHalfPeriod ? form.endHalfPeriod : null),
           applicantId: currentUser.value.id,
           applicantName: currentUser.value.name,
           approverId: form.approver,

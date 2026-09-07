@@ -1361,6 +1361,8 @@ const initDatabase = async () => {
     try { await connection.execute(`ALTER TABLE entertainment_expenses ADD COLUMN attachments TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`); } catch (_e) {}
     // 迁移：修改出差申请表days列为DECIMAL支持半天
     try { await connection.execute('ALTER TABLE business_trip_applications MODIFY COLUMN days DECIMAL(5,1) NOT NULL'); } catch (e) {}
+    // 迁移：出差申请表补充halfDayPeriod字段（半天 / X天半 对应的上午、下午时段，与请假表一致）
+    try { await connection.execute(`ALTER TABLE business_trip_applications ADD COLUMN halfDayPeriod VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`); } catch (_e) {}
     
     // 创建oa_approval_flows表（OA审批流程定义）
     await connection.execute(`

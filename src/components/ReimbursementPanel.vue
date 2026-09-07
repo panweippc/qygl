@@ -131,15 +131,6 @@
               >
                 审批
               </el-button>
-              <el-button
-                v-if="row.status === '审批中' && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
-                size="small"
-                type="danger"
-                @click="$emit('terminate', row, 'reimbursement')"
-                class="terminate-btn"
-              >
-                终止
-              </el-button>
               <el-tag
                 v-if="row.status === '已批准' && canDistribute && isDistributed(row, 'reimbursement')"
                 type="warning"
@@ -195,14 +186,6 @@
               @click="handleApprove(row)"
             >
               审批
-            </el-button>
-            <el-button
-              v-if="row.status === '审批中' && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
-              size="small"
-              type="danger"
-              @click="$emit('terminate', row, 'reimbursement')"
-            >
-              终止
             </el-button>
             <el-tag v-if="row.status === '已批准' && canDistribute && isDistributed(row, 'reimbursement')" type="warning" size="small" effect="plain" style="margin-right:6px;">已下发</el-tag>
             <el-button size="small" @click="$emit('view-detail', row, 'reimbursement')">详情</el-button>
@@ -298,6 +281,27 @@
                 <el-col :span="12">
                   <el-form-item label="出发地点">
                     <el-input v-model="segment.departureLocation" placeholder="出发地点"></el-input>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <el-row :gutter="24" v-if="segment.durationType === 'halfDay'">
+                <el-col :span="12">
+                  <el-form-item label="上午/下午">
+                    <el-radio-group v-model="segment.halfDayPeriod">
+                      <el-radio label="上午">上午</el-radio>
+                      <el-radio label="下午">下午</el-radio>
+                    </el-radio-group>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <el-row :gutter="24" v-if="segment.durationType === 'custom'">
+                <el-col :span="12">
+                  <el-form-item label="最后半天">
+                    <el-radio-group v-model="segment.endHalfPeriod" @change="calcReimbursementSegmentDays(segment)">
+                      <el-radio label="">整天结束</el-radio>
+                      <el-radio label="上午">最后半天（上午）</el-radio>
+                      <el-radio label="下午">最后半天（下午）</el-radio>
+                    </el-radio-group>
                   </el-form-item>
                 </el-col>
               </el-row>
@@ -445,6 +449,8 @@ const createReimbursementSegment = () => ({
   departureDate: '',
   departureLocation: '',
   durationType: 'fullDay',
+  halfDayPeriod: '',
+  endHalfPeriod: '',
   arrivalDate: '',
   arrivalLocation: '',
   transport: '',
@@ -481,11 +487,15 @@ const calcReimbursementSegmentDays = (segment: any) => {
   } else if (segment.departureDate && segment.arrivalDate) {
     const start = new Date(segment.departureDate)
     const end = new Date(segment.arrivalDate)
-    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    let days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    // 自定义时段支持"X天半"：最后半天扣 0.5 天
+    if (segment.endHalfPeriod) days -= 0.5
     segment.days = days > 0 ? days : 0
   } else {
     segment.days = 0
   }
+  if (segment.durationType !== 'halfDay') segment.halfDayPeriod = ''
+  if (segment.durationType !== 'custom') segment.endHalfPeriod = ''
   segment.allowanceAmount = Math.round(segment.days * (Number(segment.allowanceStandard) || 0) * 100) / 100
 }
 
