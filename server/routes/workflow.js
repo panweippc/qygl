@@ -4,6 +4,7 @@
 
 import express from 'express';
 import { createNotification, createOperationLog } from '../utils/audit.js';
+import { resubmitApplication } from '../utils/resubmitHelper.js';
 import { getRealName } from '../utils/identity.js';
 import { requireRole } from '../middleware/auth.js';
 
@@ -57,6 +58,7 @@ router.get('/projects', async (req, res) => {
       params.push(status);
     }
 
+    sql += ' AND (is_deleted = 0 OR is_deleted IS NULL)';
     sql += ' ORDER BY created_at DESC';
 
     // 仅当明确提供了 pageSize 参数时才分页
@@ -110,6 +112,8 @@ router.get('/projects', async (req, res) => {
         countSql += ' AND status = ?';
         countParams.push(status);
       }
+
+      countSql += ' AND (is_deleted = 0 OR is_deleted IS NULL)';
 
       const [countResult] = await pool.query(countSql, countParams);
       responseData.pagination = {
@@ -375,7 +379,94 @@ router.post('/projects/:id/approve', async (req, res) => {
   }
 });
 
-// 删除项目申请
+// 仅当前审批人或管理角色可操作（退回/软删判断用）
+const isProjectManagerUser = async (req) => {
+  try {
+    const { pool } = req.app.locals;
+    const name = getRealName(req);
+    if (!name) return false;
+    if (name === '管理员' || name === '总经理' || /^admin$/i.test(name)) return true;
+    const [emp] = await pool.query('SELECT e.position, r.name AS roleName FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?', [name]);
+    if (emp.length === 0) return false;
+    const roleName = emp[0].roleName || '';
+    const position = String(emp[0].position || '');
+    if (['系统管理员', '总经理', '业务中心经理', '技术部经理'].includes(roleName) || /总经理/.test(position)) return true;
+    return false;
+  } catch (e) { return false; }
+};
+
+// 撤回项目申请：申请人本人（待审批/审批中）可撤回，状态置为「已撤回」
+router.post('/projects/:id/withdraw', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pool } = req.app.locals;
+    const operator = getRealName(req);
+    if (!operator) return res.status(401).json({ success: false, message: '未登录' });
+    const [[rec]] = await pool.query('SELECT applicant_name, status, project_code, project_name FROM project_applications WHERE id = ?', [id]);
+    if (!rec) return res.status(404).json({ success: false, message: '项目申请不存在' });
+    if (rec.applicant_name !== operator) return res.status(403).json({ success: false, message: '仅申请人本人可撤回' });
+    if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
+      return res.status(400).json({ success: false, message: '当前状态不可撤回' });
+    }
+    await pool.query('UPDATE project_applications SET status = ? WHERE id = ?', ['已撤回', id]);
+    await createOperationLog(pool, { username: operator, action: 'withdraw', module: 'project', targetName: `${rec.project_name}项目(${rec.project_code})`, detail: '申请人撤回' });
+    res.json({ success: true, message: '撤回成功' });
+  } catch (error) {
+    console.error('撤回项目失败:', error);
+    res.status(500).json({ success: false, message: '撤回失败' });
+  }
+});
+
+// 退回项目申请：当前审批人将申请退回给申请人，状态置为「已退回」，记录退回理由
+router.post('/projects/:id/return', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const { pool } = req.app.locals;
+    const operator = getRealName(req);
+    if (!operator) return res.status(401).json({ success: false, message: '未登录' });
+    if (!reason || !String(reason).trim()) return res.status(400).json({ success: false, message: '退回理由不能为空' });
+    const isManager = await isProjectManagerUser(req);
+    const [[rec]] = await pool.query('SELECT applicant_name, approver, status, project_code, project_name FROM project_applications WHERE id = ?', [id]);
+    if (!rec) return res.status(404).json({ success: false, message: '项目申请不存在' });
+    if (!isManager && rec.approver !== operator) return res.status(403).json({ success: false, message: '仅当前审批人可退回' });
+    if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
+      return res.status(400).json({ success: false, message: '当前状态不可退回' });
+    }
+    await pool.query('UPDATE project_applications SET status = ?, return_reason = ? WHERE id = ?', ['已退回', reason, id]);
+    await createNotification(pool, { userId: rec.applicant_name, title: '项目申请被退回', content: `您的${rec.project_name}项目申请(${rec.project_code})被${operator}退回，原因：${reason}`, type: 'approval', relatedId: parseInt(id), relatedType: 'project' });
+    await createOperationLog(pool, { username: operator, action: 'return', module: 'project', targetName: `${rec.project_name}项目(${rec.project_code})`, detail: reason });
+    res.json({ success: true, message: '已退回' });
+  } catch (error) {
+    console.error('退回项目失败:', error);
+    res.status(500).json({ success: false, message: '退回失败' });
+  }
+});
+
+// 软删除项目申请：仅已撤回/草稿状态可删，置 is_deleted=1（管理员后台仍可查）
+router.post('/projects/:id/soft-delete', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pool } = req.app.locals;
+    const operator = getRealName(req);
+    if (!operator) return res.status(401).json({ success: false, message: '未登录' });
+    const [[rec]] = await pool.query('SELECT applicant_name, status, project_code, project_name FROM project_applications WHERE id = ?', [id]);
+    if (!rec) return res.status(404).json({ success: false, message: '项目申请不存在' });
+    const isManager = await isProjectManagerUser(req);
+    if (!isManager && rec.applicant_name !== operator) return res.status(403).json({ success: false, message: '无权限删除他人的申请' });
+    if (!isManager && !['已撤回', '草稿', 'withdrawn', 'draft'].includes(rec.status)) {
+      return res.status(400).json({ success: false, message: '仅「已撤回/草稿」状态可删除' });
+    }
+    await pool.query('UPDATE project_applications SET is_deleted = 1 WHERE id = ?', [id]);
+    await createOperationLog(pool, { username: operator, action: 'soft_delete', module: 'project', targetName: `${rec.project_name}项目(${rec.project_code})`, detail: '软删除（逻辑删除）' });
+    res.json({ success: true, message: '删除成功' });
+  } catch (error) {
+    console.error('删除项目失败:', error);
+    res.status(500).json({ success: false, message: '删除失败' });
+  }
+});
+
+// 删除项目申请（软删除）：仅已撤回/草稿状态可删，置 is_deleted=1
 router.delete('/projects/:id', async (req, res) => {
   try {
     const { pool } = req.app.locals;
@@ -384,7 +475,7 @@ router.delete('/projects/:id', async (req, res) => {
     if (projects.length === 0) {
       return res.status(404).json({ success: false, message: '项目不存在' });
     }
-    // 安全加固：仅申请人本人（且待审批）或管理角色可删除，防越权删除他人申请
+    // 安全加固：仅申请人本人（且已撤回/草稿）或管理角色可删除，防越权删除他人申请
     const operatorName = getRealName(req);
     const [selfRoles] = await pool.query(
       'SELECT r.name AS roleName, e.position FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
@@ -398,10 +489,10 @@ router.delete('/projects/:id', async (req, res) => {
     if (!isManager && !isOwner) {
       return res.status(403).json({ success: false, message: '无权限删除他人的项目申请' });
     }
-    if (!isManager && project.status !== 'pending') {
-      return res.status(400).json({ success: false, message: '已审批的项目申请不可删除' });
+    if (!isManager && !['已撤回', '草稿', 'withdrawn', 'draft'].includes(project.status)) {
+      return res.status(400).json({ success: false, message: '仅「已撤回/草稿」状态可删除' });
     }
-    await pool.query('DELETE FROM project_applications WHERE id = ?', [id]);
+    await pool.query('UPDATE project_applications SET is_deleted = 1 WHERE id = ?', [id]);
     res.json({ success: true, message: '项目删除成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -854,6 +945,45 @@ router.get('/approvals/done', async (req, res) => {
   } catch (error) {
     console.error('获取已审批任务失败:', error);
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+
+// 重新提交申请：申请人（已撤回 / 已退回 / 草稿）修改后再次提交，状态回到待审批
+router.post('/projects/:id/resubmit', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pool } = req.app.locals;
+    const operator = getRealName(req);
+    if (!operator) return res.status(401).json({ success: false, message: '未登录' });
+    const r = await resubmitApplication(pool, {
+      table: 'project_applications',
+      id,
+      operator,
+      applicantCol: 'applicant_name',
+      data: req.body,
+      newStatus: 'pending'
+    });
+    if (r.code !== 200) return res.status(r.code).json({ success: false, message: r.message });
+    if (req.body.approver) {
+      await createNotification(pool, {
+        userId: req.body.approver,
+        title: '审批提醒',
+        content: `${operator} 重新提交了一份项目申请，请审批`,
+        type: 'approval'
+      });
+    }
+    await createOperationLog(pool, {
+      username: operator,
+      action: 'resubmit',
+      module: 'project',
+      targetName: `${operator}的项目申请`,
+      detail: '撤回/退回后重新提交'
+    });
+    res.json({ success: true, message: r.message });
+  } catch (error) {
+    console.error('重新提交失败:', error);
+    res.status(500).json({ success: false, message: '重新提交失败' });
   }
 });
 

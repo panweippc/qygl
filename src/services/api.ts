@@ -276,6 +276,48 @@ export const deleteProject = async (id: number): Promise<ApiResponse> => {
   return response.data;
 };
 
+// ==================== 撤回 / 退回 / 软删除（统一流程，7 类申请）====================
+// 会议
+export const withdrawMeeting = async (id: number): Promise<ApiResponse> => (await api.post(`/meetings/${id}/withdraw`)).data;
+export const returnMeeting = async (id: number, reason: string): Promise<ApiResponse> => (await api.post(`/meetings/${id}/return`, { reason })).data;
+export const softDeleteMeeting = async (id: number): Promise<ApiResponse> => (await api.post(`/meetings/${id}/soft-delete`)).data;
+// 请假
+export const withdrawLeave = async (id: number): Promise<ApiResponse> => (await api.post(`/leave-applications/${id}/withdraw`)).data;
+export const returnLeave = async (id: number, reason: string): Promise<ApiResponse> => (await api.post(`/leave-applications/${id}/return`, { reason })).data;
+export const softDeleteLeave = async (id: number): Promise<ApiResponse> => (await api.post(`/leave-applications/${id}/soft-delete`)).data;
+// 报销
+export const withdrawReimbursement = async (id: number): Promise<ApiResponse> => (await api.post(`/reimbursements/${id}/withdraw`)).data;
+export const returnReimbursement = async (id: number, reason: string): Promise<ApiResponse> => (await api.post(`/reimbursements/${id}/return`, { reason })).data;
+export const softDeleteReimbursement = async (id: number): Promise<ApiResponse> => (await api.post(`/reimbursements/${id}/soft-delete`)).data;
+// 办公用品
+export const withdrawOfficeSupply = async (id: number): Promise<ApiResponse> => (await api.post(`/office-supplies/${id}/withdraw`)).data;
+export const returnOfficeSupply = async (id: number, reason: string): Promise<ApiResponse> => (await api.post(`/office-supplies/${id}/return`, { reason })).data;
+export const softDeleteOfficeSupply = async (id: number): Promise<ApiResponse> => (await api.post(`/office-supplies/${id}/soft-delete`)).data;
+// 出差
+export const withdrawBusinessTrip = async (id: number): Promise<ApiResponse> => (await api.post(`/business-trips/${id}/withdraw`)).data;
+export const returnBusinessTrip = async (id: number, reason: string): Promise<ApiResponse> => (await api.post(`/business-trips/${id}/return`, { reason })).data;
+export const softDeleteBusinessTrip = async (id: number): Promise<ApiResponse> => (await api.post(`/business-trips/${id}/soft-delete`)).data;
+// 招待
+export const withdrawEntertainment = async (id: number): Promise<ApiResponse> => (await api.post(`/entertainment-expenses/${id}/withdraw`)).data;
+export const returnEntertainment = async (id: number, reason: string): Promise<ApiResponse> => (await api.post(`/entertainment-expenses/${id}/return`, { reason })).data;
+export const softDeleteEntertainment = async (id: number): Promise<ApiResponse> => (await api.post(`/entertainment-expenses/${id}/soft-delete`)).data;
+// 重新提交（撤回 / 退回后修改再提交），状态回到待审批
+export const resubmitMeeting = async (id: number, data: any): Promise<ApiResponse> => (await api.post(`/meetings/${id}/resubmit`, data)).data;
+export const resubmitLeave = async (id: number, data: any): Promise<ApiResponse> => (await api.post(`/leave-applications/${id}/resubmit`, data)).data;
+export const resubmitReimbursement = async (id: number, data: any): Promise<ApiResponse> => (await api.post(`/reimbursements/${id}/resubmit`, data)).data;
+export const resubmitOfficeSupply = async (id: number, data: any): Promise<ApiResponse> => (await api.post(`/office-supplies/${id}/resubmit`, data)).data;
+export const resubmitBusinessTrip = async (id: number, data: any): Promise<ApiResponse> => (await api.post(`/business-trips/${id}/resubmit`, data)).data;
+export const resubmitEntertainment = async (id: number, data: any): Promise<ApiResponse> => (await api.post(`/entertainment-expenses/${id}/resubmit`, data)).data;
+export const resubmitProject = async (id: number, data: any): Promise<ApiResponse> => (await api.post(`/projects/${id}/resubmit`, data)).data;
+
+// 已删除（软删除）申请统一查询，供审批中心「已删除」统计卡片使用
+export const getDeletedApplications = async (): Promise<ApiResponse<any[]>> => (await api.get('/deleted-applications')).data;
+
+// 项目
+export const withdrawProject = async (id: number): Promise<ApiResponse> => (await api.post(`/projects/${id}/withdraw`)).data;
+export const returnProject = async (id: number, reason: string): Promise<ApiResponse> => (await api.post(`/projects/${id}/return`, { reason })).data;
+export const softDeleteProject = async (id: number): Promise<ApiResponse> => (await api.post(`/projects/${id}/soft-delete`)).data;
+
 // 出差申请管理
 export const getBusinessTrips = async (params?: any): Promise<ApiResponse<any[]>> => {
   const response = await api.get('/business-trips', { params });

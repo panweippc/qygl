@@ -12,7 +12,8 @@
             <el-option label="审批中" value="审批中" />
             <el-option label="已批准" value="已批准" />
             <el-option label="已拒绝" value="已拒绝" />
-            <el-option label="已取消" value="已取消" />
+            <el-option label="已撤回" value="已撤回" />
+            <el-option label="已退回" value="已退回" />
           </el-select>
           <el-select v-model="reimbursementPersonFilter" placeholder="筛选人员" size="default" style="width: 140px; margin-right: 8px;" clearable filterable>
             <el-option label="全部人员" value="all" />
@@ -119,11 +120,11 @@
             {{ row.approver || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column label="操作" width="340" fixed="right">
           <template #default="{ row }">
             <div class="action-group">
               <el-button
-                v-if="row.status === '审批中' && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
+                v-if="canApprove(row)"
                 size="small"
                 type="primary"
                 @click="handleApprove(row)"
@@ -139,6 +140,38 @@
               >
                 已下发
               </el-tag>
+              <el-button
+                v-if="canReturn(row)"
+                size="small"
+                type="warning"
+                @click="returnReimbursementAction(row)"
+              >
+                退回
+              </el-button>
+              <el-button
+                v-if="canWithdraw(row)"
+                size="small"
+                @click="withdrawReimbursementAction(row)"
+                class="cancel-btn"
+              >
+                撤回
+              </el-button>
+              <el-button
+                v-if="canResubmitDelete(row)"
+                size="small"
+                type="warning"
+                @click="resubmitReimbursement(row)"
+              >
+                重新提交
+              </el-button>
+              <el-button
+                v-if="canResubmitDelete(row)"
+                size="small"
+                type="danger"
+                @click="deleteReimbursementAction(row)"
+              >
+                删除
+              </el-button>
               <el-button
                 size="small"
                 @click="$emit('view-detail', row, 'reimbursement')"
@@ -180,7 +213,7 @@
           <span class="card-date">{{ row.submitDate }}</span>
           <div class="card-actions">
             <el-button
-              v-if="row.status === '审批中' && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
+              v-if="canApprove(row)"
               size="small"
               type="primary"
               @click="handleApprove(row)"
@@ -188,6 +221,10 @@
               审批
             </el-button>
             <el-tag v-if="row.status === '已批准' && canDistribute && isDistributed(row, 'reimbursement')" type="warning" size="small" effect="plain" style="margin-right:6px;">已下发</el-tag>
+            <el-button v-if="canReturn(row)" size="small" type="warning" @click="returnReimbursementAction(row)">退回</el-button>
+            <el-button v-if="canWithdraw(row)" size="small" @click="withdrawReimbursementAction(row)">撤回</el-button>
+            <el-button v-if="canResubmitDelete(row)" size="small" type="warning" @click="resubmitReimbursement(row)">重新提交</el-button>
+            <el-button v-if="canResubmitDelete(row)" size="small" type="danger" @click="deleteReimbursementAction(row)">删除</el-button>
             <el-button size="small" @click="$emit('view-detail', row, 'reimbursement')">详情</el-button>
           </div>
         </div>
@@ -397,11 +434,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getReimbursements,
   addReimbursement,
-  updateReimbursement
+  updateReimbursement,
+  withdrawReimbursement,
+  returnReimbursement,
+  softDeleteReimbursement
 } from '../services/api'
 import {
   extractRealName,
@@ -712,6 +752,43 @@ const submitReimbursementApplication = async () => {
 const handleApprove = (row: any) => {
   emit('approve', row, 'reimbursement')
 }
+
+// 撤回/退回/重新提交/删除 显示条件
+const isPending = (r: any) => ['审批中', '待审批', '待审核', 'pending'].includes(r.status)
+const isWithdrawnOrDraft = (r: any) => ['已撤回', '草稿', 'withdrawn', 'draft'].includes(r.status)
+const canApprove = (row: any) => isPending(row) && (props.isAdmin || extractRealName(row.approver) === extractRealName(currentUsername.value))
+const canReturn = (row: any) => isPending(row) && (props.isAdmin || extractRealName(row.approver) === extractRealName(currentUsername.value))
+const canWithdraw = (row: any) => isPending(row) && !props.isAdmin && extractRealName(row.applicant) === extractRealName(currentUsername.value)
+const canResubmitDelete = (row: any) => isWithdrawnOrDraft(row) && (props.isAdmin || extractRealName(row.applicant) === extractRealName(currentUsername.value))
+
+const withdrawReimbursementAction = async (row: any) => {
+  try {
+    await ElMessageBox.confirm('确定要撤回该报销申请吗？撤回后将变为「已撤回」状态。', '撤回确认', { confirmButtonText: '确定撤回', cancelButtonText: '取消', type: 'warning' })
+    const response = await withdrawReimbursement(row.id)
+    if (response?.success) { ElMessage.success('撤回成功'); await fetchData() }
+    else { ElMessage.error(response?.message || '撤回失败') }
+  } catch (error: any) { if (error !== 'cancel' && error?.type !== 'cancel') { console.error('撤回失败:', error); ElMessage.error('撤回失败') } }
+}
+
+const returnReimbursementAction = async (row: any) => {
+  try {
+    const { value } = await ElMessageBox.prompt('请填写退回理由（必填）：', '退回申请', { confirmButtonText: '确定退回', cancelButtonText: '取消', inputType: 'textarea', inputValidator: (val: string) => (val && val.trim() ? true : '退回理由不能为空'), type: 'warning' })
+    const response = await returnReimbursement(row.id, value.trim())
+    if (response?.success) { ElMessage.success('已退回'); await fetchData() }
+    else { ElMessage.error(response?.message || '退回失败') }
+  } catch (error: any) { if (error !== 'cancel' && error?.type !== 'cancel' && error?.action !== 'cancel') { console.error('退回失败:', error); ElMessage.error('退回失败') } }
+}
+
+const deleteReimbursementAction = async (row: any) => {
+  try {
+    await ElMessageBox.confirm('确定要删除该报销申请吗？删除后无法恢复。', '删除确认', { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' })
+    const response = await softDeleteReimbursement(row.id)
+    if (response?.success) { ElMessage.success('删除成功'); await fetchData() }
+    else { ElMessage.error(response?.message || '删除失败') }
+  } catch (error: any) { if (error !== 'cancel' && error?.type !== 'cancel') { console.error('删除失败:', error); ElMessage.error('删除失败') } }
+}
+
+const resubmitReimbursement = (row: any) => { router.push(`/oa/reimbursement-apply?id=${row.id}`) }
 
 const handleDateRangeChange = () => {}
 
@@ -1092,4 +1169,23 @@ defineExpose({ fetchData })
   border: none !important;
   color: #fff !important;
 }
-  </style>
+  
+.status-tag.status-withdrawn,
+.card-status.status-withdrawn {
+  background: rgba(158, 158, 158, 0.1);
+  color: #9E9E9E;
+  border: 1px solid rgba(158, 158, 158, 0.3);
+}
+.status-tag.status-returned,
+.card-status.status-returned {
+  background: rgba(255, 112, 67, 0.1);
+  color: #FF7043;
+  border: 1px solid rgba(255, 112, 67, 0.3);
+}
+.status-tag.status-deleted,
+.card-status.status-deleted {
+  background: rgba(97, 97, 97, 0.1);
+  color: #616161;
+  border: 1px solid rgba(97, 97, 97, 0.3);
+}
+</style>

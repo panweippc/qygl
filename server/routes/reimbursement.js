@@ -2,6 +2,7 @@ import express from 'express';
 const router = express.Router();
 
 import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
+import { resubmitApplication } from '../utils/resubmitHelper.js';
 
 // ---- 报销/招待费数据访问控制：申请人本人 + 财务/总经理 可见 ----
 const FINANCE_ROLES = ['财务总监', '财务经理', '总经理', '系统管理员'];
@@ -43,11 +44,11 @@ router.get('/reimbursements', async (req, res) => {
     const { pool } = req.app.locals;
     const isManager = await isFinanceManager(req);
     if (isManager) {
-      const [reimbursements] = await pool.execute('SELECT * FROM reimbursements ORDER BY createdAt DESC');
+      const [reimbursements] = await pool.execute('SELECT * FROM reimbursements WHERE is_deleted = 0 OR is_deleted IS NULL ORDER BY createdAt DESC');
       return res.json({ success: true, data: reimbursements });
     }
     const name = getRealName(req);
-    const [reimbursements] = await pool.execute('SELECT * FROM reimbursements WHERE applicant = ? ORDER BY createdAt DESC', [name]);
+    const [reimbursements] = await pool.execute('SELECT * FROM reimbursements WHERE applicant = ? AND (is_deleted = 0 OR is_deleted IS NULL) ORDER BY createdAt DESC', [name]);
     res.json({ success: true, data: reimbursements });
   } catch (error) {
     console.error('获取报销记录失败:', error);
@@ -72,6 +73,54 @@ router.get('/reimbursements/:id', async (req, res) => {
   } catch (error) {
     console.error('获取报销记录详情失败:', error);
     res.status(500).json({ success: false, message: '获取报销记录详情失败' });
+  }
+});
+
+// 撤回报销申请：申请人本人（审批中）可撤回
+router.post('/reimbursements/:id/withdraw', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pool } = req.app.locals;
+    const operator = getRealName(req);
+    if (!operator) return res.status(401).json({ success: false, message: '未登录' });
+    const [[rec]] = await pool.query('SELECT applicant, status FROM reimbursements WHERE id = ?', [id]);
+    if (!rec) return res.status(404).json({ success: false, message: '报销记录不存在' });
+    if (rec.applicant !== operator) return res.status(403).json({ success: false, message: '仅申请人本人可撤回' });
+    if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
+      return res.status(400).json({ success: false, message: '当前状态不可撤回' });
+    }
+    await pool.execute('UPDATE reimbursements SET status = ?, result = ? WHERE id = ?', ['已撤回', '已撤回', id]);
+    await createOperationLog(pool, { username: operator, action: 'withdraw', module: 'reimbursement', targetName: `${rec.reimburseType || ''}报销`, detail: '申请人撤回' });
+    res.json({ success: true, message: '撤回成功' });
+  } catch (error) {
+    console.error('撤回报销失败:', error);
+    res.status(500).json({ success: false, message: '撤回失败' });
+  }
+});
+
+// 退回报销申请：当前审批人退回，记录理由
+router.post('/reimbursements/:id/return', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const { pool } = req.app.locals;
+    const operator = getRealName(req);
+    if (!operator) return res.status(401).json({ success: false, message: '未登录' });
+    if (!reason || !String(reason).trim()) return res.status(400).json({ success: false, message: '退回理由不能为空' });
+    const isManager = await isFinanceManager(req);
+    const [[rec]] = await pool.query('SELECT applicant, approver, status FROM reimbursements WHERE id = ?', [id]);
+    if (!rec) return res.status(404).json({ success: false, message: '报销记录不存在' });
+    if (!isManager && rec.approver !== operator) return res.status(403).json({ success: false, message: '仅当前审批人可退回' });
+    if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
+      return res.status(400).json({ success: false, message: '当前状态不可退回' });
+    }
+    await pool.execute('UPDATE reimbursements SET status = ?, result = ?, return_reason = ? WHERE id = ?', ['已退回', '已退回', reason, id]);
+    await createNotification(pool, { userId: rec.applicant, title: '报销申请被退回', content: `您的${rec.reimburseType || ''}报销被${operator}退回，原因：${reason}`, type: 'approval' });
+    await createOperationLog(pool, { username: operator, action: 'return', module: 'reimbursement', targetName: `${rec.reimburseType || ''}报销`, detail: reason });
+    res.json({ success: true, message: '已退回' });
+  } catch (error) {
+    console.error('退回报销失败:', error);
+    res.status(500).json({ success: false, message: '退回失败' });
   }
 });
 
@@ -167,12 +216,11 @@ router.put('/reimbursements/:id', async (req, res) => {
   }
 });
 
-// 删除报销申请：仅本人（且仅审批中）或财务/总经理可删除
-router.delete('/reimbursements/:id', async (req, res) => {
+// 软删除报销申请：仅已撤回/草稿状态可删（逻辑删除，管理员后台仍可见）
+router.post('/reimbursements/:id/soft-delete', async (req, res) => {
   const { id } = req.params;
   try {
     const { pool } = req.app.locals;
-    // 删除前获取记录用于审计
     const [rows] = await pool.execute('SELECT applicant, reimburseType, amount, status FROM reimbursements WHERE id = ?', [id]);
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: '报销记录不存在' });
@@ -182,17 +230,82 @@ router.delete('/reimbursements/:id', async (req, res) => {
     if (!isManager && rows[0].applicant !== operator) {
       return res.status(403).json({ success: false, message: '无权限删除他人的报销记录' });
     }
-    if (!isManager && rows[0].status !== '审批中') {
-      return res.status(400).json({ success: false, message: '已审批的报销记录不可删除' });
+    if (!isManager && !['已撤回', '草稿', 'withdrawn', 'draft'].includes(rows[0].status)) {
+      return res.status(400).json({ success: false, message: '仅「已撤回/草稿」状态可删除' });
     }
     const info = rows[0] || {};
-    await pool.execute('DELETE FROM reimbursements WHERE id = ?', [id]);
-    // 删除报销申请审计
-    createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'delete', module: 'reimbursement', targetId: id, targetName: `${info.applicant || ''}的${info.reimburseType || ''}报销`, detail: `删除报销申请: ${info.reimburseType || ''}报销`, ipAddress: req.ip });
+    await pool.execute('UPDATE reimbursements SET is_deleted = 1 WHERE id = ?', [id]);
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'soft_delete', module: 'reimbursement', targetId: id, targetName: `${info.applicant || ''}的${info.reimburseType || ''}报销`, detail: `软删除报销申请: ${info.reimburseType || ''}报销`, ipAddress: req.ip });
     res.json({ success: true, message: '报销申请删除成功' });
   } catch (error) {
     console.error('删除报销申请失败:', error);
     res.status(500).json({ success: false, message: '删除报销申请失败' });
+  }
+});
+
+// 兼容旧的真实 DELETE 调用：同样走软删除
+router.delete('/reimbursements/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { pool } = req.app.locals;
+    const [rows] = await pool.execute('SELECT applicant, reimburseType, amount, status FROM reimbursements WHERE id = ?', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: '报销记录不存在' });
+    }
+    const operator = getRealName(req);
+    const isManager = await isFinanceManager(req);
+    if (!isManager && rows[0].applicant !== operator) {
+      return res.status(403).json({ success: false, message: '无权限删除他人的报销记录' });
+    }
+    if (!isManager && !['已撤回', '草稿', 'withdrawn', 'draft'].includes(rows[0].status)) {
+      return res.status(400).json({ success: false, message: '仅「已撤回/草稿」状态可删除' });
+    }
+    const info = rows[0] || {};
+    await pool.execute('UPDATE reimbursements SET is_deleted = 1 WHERE id = ?', [id]);
+    createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'soft_delete', module: 'reimbursement', targetId: id, targetName: `${info.applicant || ''}的${info.reimburseType || ''}报销`, detail: `软删除报销申请: ${info.reimburseType || ''}报销`, ipAddress: req.ip });
+    res.json({ success: true, message: '报销申请删除成功' });
+  } catch (error) {
+    console.error('删除报销申请失败:', error);
+    res.status(500).json({ success: false, message: '删除报销申请失败' });
+  }
+});
+
+
+// 重新提交申请：申请人（已撤回 / 已退回 / 草稿）修改后再次提交，状态回到待审批
+router.post('/reimbursements/:id/resubmit', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pool } = req.app.locals;
+    const operator = getRealName(req);
+    if (!operator) return res.status(401).json({ success: false, message: '未登录' });
+    const r = await resubmitApplication(pool, {
+      table: 'reimbursements',
+      id,
+      operator,
+      applicantCol: 'applicant',
+      data: req.body,
+      newStatus: '审批中'
+    });
+    if (r.code !== 200) return res.status(r.code).json({ success: false, message: r.message });
+    if (req.body.approver) {
+      await createNotification(pool, {
+        userId: req.body.approver,
+        title: '审批提醒',
+        content: `${operator} 重新提交了一份报销申请，请审批`,
+        type: 'approval'
+      });
+    }
+    await createOperationLog(pool, {
+      username: operator,
+      action: 'resubmit',
+      module: 'reimbursement',
+      targetName: `${operator}的报销申请`,
+      detail: '撤回/退回后重新提交'
+    });
+    res.json({ success: true, message: r.message });
+  } catch (error) {
+    console.error('重新提交失败:', error);
+    res.status(500).json({ success: false, message: '重新提交失败' });
   }
 });
 

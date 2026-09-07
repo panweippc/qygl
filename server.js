@@ -47,6 +47,7 @@ import systemRouter from './server/routes/system.js';
 import approvalsRouter from './server/routes/approvals.js';
 import distributeRouter from './server/routes/distribute.js';
 import projectApplicationsRouter from './server/routes/project-applications.js';
+import deletedApplicationsRouter from './server/routes/deleted-applications.js';
 import businessTripsRouter from './server/routes/business-trips.js';
 import notificationsRouter from './server/routes/notifications.js';
 import operationLogsRouter from './server/routes/operation-logs.js';
@@ -277,6 +278,7 @@ app.use('/api', systemRouter);
 app.use('/api', approvalsRouter);
 app.use('/api', distributeRouter);
 app.use('/api', projectApplicationsRouter);
+app.use('/api', deletedApplicationsRouter);
 app.use('/api', businessTripsRouter);
 app.use('/api', notificationsRouter);
 app.use('/api', operationLogsRouter);
@@ -1363,6 +1365,13 @@ const initDatabase = async () => {
     try { await connection.execute('ALTER TABLE business_trip_applications MODIFY COLUMN days DECIMAL(5,1) NOT NULL'); } catch (e) {}
     // 迁移：出差申请表补充halfDayPeriod字段（半天 / X天半 对应的上午、下午时段，与请假表一致）
     try { await connection.execute(`ALTER TABLE business_trip_applications ADD COLUMN halfDayPeriod VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`); } catch (_e) {}
+
+    // 迁移：为所有 OA 申请表补充 is_deleted（软删除标记）与 return_reason（退回理由）字段，支持撤回/退回/软删除流程
+    const oaTables = ['meetings', 'leave_applications', 'reimbursements', 'office_supplies_applications', 'business_trip_applications', 'entertainment_expenses', 'project_applications'];
+    for (const t of oaTables) {
+      try { await connection.execute(`ALTER TABLE ${t} ADD COLUMN is_deleted TINYINT NOT NULL DEFAULT 0`); } catch (e) {}
+      try { await connection.execute(`ALTER TABLE ${t} ADD COLUMN return_reason TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`); } catch (e) {}
+    }
     
     // 创建oa_approval_flows表（OA审批流程定义）
     await connection.execute(`

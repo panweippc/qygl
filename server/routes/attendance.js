@@ -2,6 +2,7 @@ import express from 'express';
 const router = express.Router();
 
 import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
+import { resubmitApplication } from '../utils/resubmitHelper.js';
 import { getRealName } from '../utils/identity.js';
 
 // 请假审批：仅当前审批人或管理角色可操作
@@ -27,11 +28,82 @@ const isManagerUser = async (req) => {
 router.get('/leave-applications', async (req, res) => {
   try {
     const { pool } = req.app.locals;
-    const [applications] = await pool.execute('SELECT * FROM leave_applications ORDER BY createdAt DESC');
+    const [applications] = await pool.execute('SELECT * FROM leave_applications WHERE is_deleted = 0 OR is_deleted IS NULL ORDER BY createdAt DESC');
     res.json({ success: true, data: applications });
   } catch (error) {
     console.error('获取请假申请失败:', error);
     res.status(500).json({ success: false, message: '获取请假申请失败' });
+  }
+});
+
+// 撤回请假申请：申请人本人（审批中）可撤回
+router.post('/leave-applications/:id/withdraw', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pool } = req.app.locals;
+    const operator = getRealName(req);
+    if (!operator) return res.status(401).json({ success: false, message: '未登录' });
+    const [[rec]] = await pool.query('SELECT applicant, status FROM leave_applications WHERE id = ?', [id]);
+    if (!rec) return res.status(404).json({ success: false, message: '请假申请不存在' });
+    if (rec.applicant !== operator) return res.status(403).json({ success: false, message: '仅申请人本人可撤回' });
+    if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
+      return res.status(400).json({ success: false, message: '当前状态不可撤回' });
+    }
+    await pool.execute('UPDATE leave_applications SET status = ?, result = ? WHERE id = ?', ['已撤回', '已撤回', id]);
+    await createOperationLog(pool, { username: operator, action: 'withdraw', module: 'attendance', targetName: `${rec.leaveType || ''}请假`, detail: '申请人撤回' });
+    res.json({ success: true, message: '撤回成功' });
+  } catch (error) {
+    console.error('撤回请假失败:', error);
+    res.status(500).json({ success: false, message: '撤回失败' });
+  }
+});
+
+// 退回请假申请：当前审批人退回，记录理由
+router.post('/leave-applications/:id/return', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const { pool } = req.app.locals;
+    const operator = getRealName(req);
+    if (!operator) return res.status(401).json({ success: false, message: '未登录' });
+    if (!reason || !String(reason).trim()) return res.status(400).json({ success: false, message: '退回理由不能为空' });
+    const isManager = await isManagerUser(req);
+    const [[rec]] = await pool.query('SELECT applicant, approver, status FROM leave_applications WHERE id = ?', [id]);
+    if (!rec) return res.status(404).json({ success: false, message: '请假申请不存在' });
+    if (!isManager && rec.approver !== operator) return res.status(403).json({ success: false, message: '仅当前审批人可退回' });
+    if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
+      return res.status(400).json({ success: false, message: '当前状态不可退回' });
+    }
+    await pool.execute('UPDATE leave_applications SET status = ?, result = ?, return_reason = ? WHERE id = ?', ['已退回', '已退回', reason, id]);
+    await createNotification(pool, { userId: rec.applicant, title: '请假申请被退回', content: `您的${rec.leaveType || ''}请假被${operator}退回，原因：${reason}`, type: 'approval' });
+    await createOperationLog(pool, { username: operator, action: 'return', module: 'attendance', targetName: `${rec.leaveType || ''}请假`, detail: reason });
+    res.json({ success: true, message: '已退回' });
+  } catch (error) {
+    console.error('退回请假失败:', error);
+    res.status(500).json({ success: false, message: '退回失败' });
+  }
+});
+
+// 软删除请假申请：仅已撤回/草稿可删
+router.post('/leave-applications/:id/soft-delete', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pool } = req.app.locals;
+    const operator = getRealName(req);
+    if (!operator) return res.status(401).json({ success: false, message: '未登录' });
+    const [[rec]] = await pool.query('SELECT applicant, status FROM leave_applications WHERE id = ?', [id]);
+    if (!rec) return res.status(404).json({ success: false, message: '请假申请不存在' });
+    const isManager = await isManagerUser(req);
+    if (!isManager && rec.applicant !== operator) return res.status(403).json({ success: false, message: '无权限删除他人的申请' });
+    if (!isManager && !['已撤回', '草稿', 'withdrawn', 'draft'].includes(rec.status)) {
+      return res.status(400).json({ success: false, message: '仅「已撤回/草稿」状态可删除' });
+    }
+    await pool.execute('UPDATE leave_applications SET is_deleted = 1 WHERE id = ?', [id]);
+    await createOperationLog(pool, { username: operator, action: 'soft_delete', module: 'attendance', targetName: `${rec.leaveType || ''}请假`, detail: '软删除（逻辑删除）' });
+    res.json({ success: true, message: '删除成功' });
+  } catch (error) {
+    console.error('删除请假失败:', error);
+    res.status(500).json({ success: false, message: '删除失败' });
   }
 });
 
@@ -205,6 +277,45 @@ router.delete('/leave-applications/:id', async (req, res) => {
   } catch (error) {
     console.error('删除请假申请失败:', error);
     res.status(500).json({ success: false, message: '删除请假申请失败' });
+  }
+});
+
+
+// 重新提交申请：申请人（已撤回 / 已退回 / 草稿）修改后再次提交，状态回到待审批
+router.post('/leave-applications/:id/resubmit', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pool } = req.app.locals;
+    const operator = getRealName(req);
+    if (!operator) return res.status(401).json({ success: false, message: '未登录' });
+    const r = await resubmitApplication(pool, {
+      table: 'leave_applications',
+      id,
+      operator,
+      applicantCol: 'applicant',
+      data: req.body,
+      newStatus: '审批中'
+    });
+    if (r.code !== 200) return res.status(r.code).json({ success: false, message: r.message });
+    if (req.body.approver) {
+      await createNotification(pool, {
+        userId: req.body.approver,
+        title: '审批提醒',
+        content: `${operator} 重新提交了一份请假申请，请审批`,
+        type: 'approval'
+      });
+    }
+    await createOperationLog(pool, {
+      username: operator,
+      action: 'resubmit',
+      module: 'leave',
+      targetName: `${operator}的请假申请`,
+      detail: '撤回/退回后重新提交'
+    });
+    res.json({ success: true, message: r.message });
+  } catch (error) {
+    console.error('重新提交失败:', error);
+    res.status(500).json({ success: false, message: '重新提交失败' });
   }
 });
 

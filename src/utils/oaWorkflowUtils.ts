@@ -109,6 +109,15 @@ export const getStatusClass = (status: string) => {
       return 'status-rejected'
     case '已取消':
       return 'status-cancelled'
+    case '已撤回':
+    case 'withdrawn':
+      return 'status-withdrawn'
+    case '已退回':
+    case 'returned':
+      return 'status-returned'
+    case '已删除':
+    case 'deleted':
+      return 'status-deleted'
     case '待处理':
       return 'status-pending-blue'
     case '已处理':
@@ -127,7 +136,12 @@ export const getStatusText = (status: string) => {
     case 'rejected':
       return '已拒绝'
     case 'cancelled':
-      return '已取消'
+    case 'withdrawn':
+      return '已撤回'
+    case 'returned':
+      return '已退回'
+    case 'deleted':
+      return '已删除'
     default:
       return status
   }

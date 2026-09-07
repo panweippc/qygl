@@ -89,7 +89,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column label="操作" width="340" fixed="right">
           <template #default="{ row }">
             <div class="action-group">
               <el-button
@@ -110,12 +110,36 @@
                 已下发
               </el-tag>
               <el-button
-                v-if="(row.status === '审批中' || row.status === 'pending') && !isAdmin"
+                v-if="canReturn(row)"
                 size="small"
-                @click="cancelProjectApplication(row)"
+                type="warning"
+                @click="returnProjectAction(row)"
+              >
+                退回
+              </el-button>
+              <el-button
+                v-if="canWithdraw(row)"
+                size="small"
+                @click="withdrawProjectAction(row)"
                 class="cancel-btn"
               >
-                取消
+                撤回
+              </el-button>
+              <el-button
+                v-if="canResubmitDelete(row)"
+                size="small"
+                type="warning"
+                @click="resubmitProject(row)"
+              >
+                重新提交
+              </el-button>
+              <el-button
+                v-if="canResubmitDelete(row)"
+                size="small"
+                type="danger"
+                @click="deleteProjectAction(row)"
+              >
+                删除
               </el-button>
               <el-button
                 size="small"
@@ -183,11 +207,35 @@
               已下发
             </el-tag>
             <el-button
-              v-if="(row.status === '审批中' || row.status === 'pending') && !isAdmin"
+              v-if="canReturn(row)"
               size="small"
-              @click="cancelProjectApplication(row)"
+              type="warning"
+              @click="returnProjectAction(row)"
             >
-              取消
+              退回
+            </el-button>
+            <el-button
+              v-if="canWithdraw(row)"
+              size="small"
+              @click="withdrawProjectAction(row)"
+            >
+              撤回
+            </el-button>
+            <el-button
+              v-if="canResubmitDelete(row)"
+              size="small"
+              type="warning"
+              @click="resubmitProject(row)"
+            >
+              重新提交
+            </el-button>
+            <el-button
+              v-if="canResubmitDelete(row)"
+              size="small"
+              type="danger"
+              @click="deleteProjectAction(row)"
+            >
+              删除
             </el-button>
             <el-button size="small" @click="$emit('view-detail', row, 'project')">详情</el-button>
           </div>
@@ -204,7 +252,10 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getProjects,
   updateProject,
-  deleteProject
+  deleteProject,
+  withdrawProject,
+  returnProject,
+  softDeleteProject
 } from '../services/api'
 import {
   extractRealName,
@@ -392,30 +443,42 @@ const handleApprove = (row: any) => {
   emit('approve', row, 'project')
 }
 
-const cancelProjectApplication = async (row: any) => {
+// 撤回/退回/重新提交/删除 显示条件
+const isPending = (r: any) => ['审批中', '待审批', '待审核', 'pending'].includes(r.status)
+const isWithdrawnOrDraft = (r: any) => ['已撤回', '草稿', 'withdrawn', 'draft'].includes(r.status)
+const canApprove = (row: any) => isPending(row) && (props.isAdmin || extractRealName(row.approver) === extractRealName(currentUsername.value))
+const canReturn = (row: any) => isPending(row) && (props.isAdmin || extractRealName(row.approver) === extractRealName(currentUsername.value))
+const canWithdraw = (row: any) => isPending(row) && !props.isAdmin && extractRealName(row.applicant_name || row.applicant) === extractRealName(currentUsername.value)
+const canResubmitDelete = (row: any) => isWithdrawnOrDraft(row) && (props.isAdmin || extractRealName(row.applicant_name || row.applicant) === extractRealName(currentUsername.value))
+
+const withdrawProjectAction = async (row: any) => {
   try {
-    await ElMessageBox.confirm('确定要取消该项目申请吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    const response = await updateProject(row.id, {
-      result: '取消',
-      comment: '用户主动取消申请'
-    })
-    if (response?.success) {
-      ElMessage.success('申请已取消')
-      await fetchData()
-    } else {
-      ElMessage.error(response?.message || '取消失败')
-    }
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      console.error('取消申请失败:', error)
-      ElMessage.error('取消申请失败')
-    }
-  }
+    await ElMessageBox.confirm('确定要撤回该项目申请吗？撤回后将变为「已撤回」状态。', '撤回确认', { confirmButtonText: '确定撤回', cancelButtonText: '取消', type: 'warning' })
+    const response = await withdrawProject(row.id)
+    if (response?.success) { ElMessage.success('撤回成功'); await fetchData() }
+    else { ElMessage.error(response?.message || '撤回失败') }
+  } catch (error: any) { if (error !== 'cancel' && error?.type !== 'cancel') { console.error('撤回失败:', error); ElMessage.error('撤回失败') } }
 }
+
+const returnProjectAction = async (row: any) => {
+  try {
+    const { value } = await ElMessageBox.prompt('请填写退回理由（必填）：', '退回申请', { confirmButtonText: '确定退回', cancelButtonText: '取消', inputType: 'textarea', inputValidator: (val: string) => (val && val.trim() ? true : '退回理由不能为空'), type: 'warning' })
+    const response = await returnProject(row.id, value.trim())
+    if (response?.success) { ElMessage.success('已退回'); await fetchData() }
+    else { ElMessage.error(response?.message || '退回失败') }
+  } catch (error: any) { if (error !== 'cancel' && error?.type !== 'cancel' && error?.action !== 'cancel') { console.error('退回失败:', error); ElMessage.error('退回失败') } }
+}
+
+const deleteProjectAction = async (row: any) => {
+  try {
+    await ElMessageBox.confirm('确定要删除该项目申请吗？删除后无法恢复。', '删除确认', { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' })
+    const response = await softDeleteProject(row.id)
+    if (response?.success) { ElMessage.success('删除成功'); await fetchData() }
+    else { ElMessage.error(response?.message || '删除失败') }
+  } catch (error: any) { if (error !== 'cancel' && error?.type !== 'cancel') { console.error('删除失败:', error); ElMessage.error('删除失败') } }
+}
+
+const resubmitProject = (row: any) => { router.push(`/oa/project-apply?id=${row.id}`) }
 
 const deleteProjectApplication = async (row: any) => {
   try {
@@ -791,4 +854,23 @@ defineExpose({ fetchData })
   border: none !important;
   color: #fff !important;
 }
-  </style>
+  
+.status-tag.status-withdrawn,
+.card-status.status-withdrawn {
+  background: rgba(158, 158, 158, 0.1);
+  color: #9E9E9E;
+  border: 1px solid rgba(158, 158, 158, 0.3);
+}
+.status-tag.status-returned,
+.card-status.status-returned {
+  background: rgba(255, 112, 67, 0.1);
+  color: #FF7043;
+  border: 1px solid rgba(255, 112, 67, 0.3);
+}
+.status-tag.status-deleted,
+.card-status.status-deleted {
+  background: rgba(97, 97, 97, 0.1);
+  color: #616161;
+  border: 1px solid rgba(97, 97, 97, 0.3);
+}
+</style>

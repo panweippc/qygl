@@ -5,10 +5,20 @@
         <el-card class="form-card">
           <template #header>
             <div class="card-header">
-              <span class="title">创建会议</span>
+              <span class="title">{{ isResubmit ? '重新提交会议申请' : '创建会议' }}</span>
               <el-button @click="goBack">返回</el-button>
             </div>
           </template>
+
+          <el-alert
+            v-if="returnReason"
+            type="warning"
+            show-icon
+            :closable="false"
+            style="margin-bottom: 16px;"
+            title="审批人退回理由"
+            :description="returnReason"
+          />
 
           <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" class="application-form">
             <el-divider content-position="left">会议信息</el-divider>
@@ -107,15 +117,20 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, UserFilled, CircleCheck } from '@element-plus/icons-vue'
-import { addMeeting, getEmployees } from '../services/api'
+import { addMeeting, getEmployees, getMeetings, resubmitMeeting } from '../services/api'
 
 const router = useRouter()
+const route = useRoute()
 const formRef = ref()
 const submitting = ref(false)
 const approverOptions = ref<any[]>([])
+// 重新提交模式：携带 ?id= 进入时回填原数据，退回场景高亮退回理由
+const editId = route.query.id ? Number(route.query.id) : null
+const isResubmit = ref(false)
+const returnReason = ref('')
 
 const currentUser = computed(() => {
   const userStr = localStorage.getItem('user')
@@ -159,6 +174,30 @@ const loadApprovers = async () => {
   }
 }
 
+// 重新提交：回填原申请数据，并展示审批人退回理由
+const loadForEdit = async () => {
+  if (!editId) return
+  try {
+    const response = await getMeetings()
+    if (response.success) {
+      const rec = (response.data || []).find((r: any) => Number(r.id) === Number(editId))
+      if (rec) {
+        isResubmit.value = true
+        form.title = rec.title || ''
+        form.meetingDate = rec.meetingDate || ''
+        form.meetingTime = rec.meetingTime || ''
+        form.location = rec.location || ''
+        form.participants = rec.participants || ''
+        form.agenda = rec.agenda || ''
+        if (rec.approver) form.approver = rec.approver
+        returnReason.value = rec.return_reason || ''
+      }
+    }
+  } catch (error) {
+    console.error('加载原申请数据失败:', error)
+  }
+}
+
 const submitForm = async () => {
   if (!formRef.value) return
   await formRef.value.validate(async (valid: boolean) => {
@@ -176,12 +215,14 @@ const submitForm = async () => {
           agenda: form.agenda,
           approver: form.approver
         }
-        const response = await addMeeting(data)
+        const response = editId
+          ? await resubmitMeeting(editId, data)
+          : await addMeeting(data)
         if (response.success) {
-          ElMessage.success('会议创建成功')
+          ElMessage.success(editId ? '重新提交成功' : '会议创建成功')
           router.replace('/oa-office?tab=meeting')
         } else {
-          ElMessage.error(response.message || '创建失败')
+          ElMessage.error(response.message || (editId ? '重新提交失败' : '创建失败'))
         }
       } catch (error: any) {
         console.error('提交错误:', error)
@@ -195,8 +236,9 @@ const submitForm = async () => {
 
 const goBack = () => { router.back() }
 
-onMounted(() => {
-  loadApprovers()
+onMounted(async () => {
+  await loadApprovers()
+  await loadForEdit()
 })
 </script>
 

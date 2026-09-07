@@ -11,7 +11,17 @@
             </div>
           </template>
 
-          <el-form
+          <el-alert
+            v-if="returnReason"
+            type="warning"
+            show-icon
+            :closable="false"
+            style="margin-bottom: 16px;"
+            title="审批人退回理由"
+            :description="returnReason"
+          />
+
+<el-form
             ref="formRef"
             :model="form"
             :rules="rules"
@@ -275,15 +285,20 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { User, UserFilled, CircleCheck } from '@element-plus/icons-vue';
 import { createProjectApplication } from '@/services/workflow';
-import { getEmployees } from '@/services/api';
+import { getEmployees, getProjects, resubmitProject } from '@/services/api';
 
-const router = useRouter();
+const router = useRouter()
+const route = useRoute();
 const formRef = ref();
 const submitting = ref(false);
+// 重新提交模式：携带 ?id= 进入时回填原数据，退回场景高亮退回理由
+const editId = route.query.id ? Number(route.query.id) : null
+const isResubmit = ref(false)
+const returnReason = ref('')
 const employeeOptions = ref([]);
 const approverOptions = ref([]);
 
@@ -389,7 +404,7 @@ const loadApprovers = async () => {
       // 默认选择陈东
       const defaultManager = managers.find((emp: any) => emp.name === '陈东') || managers[0];
       if (defaultManager) {
-        form.approver = defaultManager.id;
+        if (!editId) form.approver = defaultManager.id;
         console.log('默认审批人:', defaultManager);
       }
     }
@@ -397,6 +412,37 @@ const loadApprovers = async () => {
     console.error('获取审批人失败:', error);
   }
 };
+
+// 重新提交：回填原申请数据，并展示审批人退回理由
+const loadForEdit = async () => {
+  if (!editId) return
+  try {
+    const response = await getProjects()
+    if (response.success) {
+      const arr = Array.isArray(response.data) ? response.data : ((response.data && response.data.list) || [])
+      const rec = arr.find((r: any) => Number(r.id) === Number(editId))
+      if (rec) {
+        isResubmit.value = true
+        // 下划线列名转驼峰后与表单字段自动匹配
+        const camel: Record<string, any> = {}
+        for (const [k, v] of Object.entries(rec)) {
+          camel[k.replace(/_([a-z])/g, (_m, c) => c.toUpperCase())] = v
+        }
+        for (const key of Object.keys(form)) {
+          if (camel[key] !== undefined && camel[key] !== null) form[key] = camel[key]
+        }
+        // 审批人：表单存员工 id，接口返回姓名
+        if (rec.approver && typeof form.approver === 'number') {
+          const opt = approverOptions.value.find((o: any) => o.name === rec.approver)
+          if (opt) form.approver = opt.id
+        }
+        returnReason.value = rec.return_reason || ''
+      }
+    }
+  } catch (error) {
+    console.error('加载原申请数据失败:', error)
+  }
+}
 
 const submitForm = async () => {
   if (!formRef.value) return;
@@ -417,10 +463,12 @@ const submitForm = async () => {
           approverId: form.approver
         };
 
-        const response = await createProjectApplication(submitData);
+        const response = editId
+          ? await resubmitProject(editId, submitData)
+          : await createProjectApplication(submitData);
 
         if (response.success) {
-          ElMessage.success('项目申请提交成功');
+          ElMessage.success(editId ? '重新提交成功' : '项目申请提交成功');
           router.replace('/oa-office?tab=project');
         } else {
           ElMessage.error(response.message || '提交失败');
@@ -442,7 +490,11 @@ const goBack = () => {
 
 // 初始化
 searchEmployees('');
-loadApprovers();
+const initPage = async () => {
+  await loadApprovers()
+  await loadForEdit()
+}
+initPage()
 </script>
 
 <style scoped>

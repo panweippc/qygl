@@ -10,7 +10,17 @@
             </div>
           </template>
 
-          <el-form
+          <el-alert
+            v-if="returnReason"
+            type="warning"
+            show-icon
+            :closable="false"
+            style="margin-bottom: 16px;"
+            title="审批人退回理由"
+            :description="returnReason"
+          />
+
+<el-form
             ref="formRef"
             :model="form"
             :rules="rules"
@@ -211,14 +221,19 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, UserFilled, CircleCheck } from '@element-plus/icons-vue'
-import { addEntertainmentExpense, getEmployees, uploadAttachmentFiles } from '../services/api'
+import { addEntertainmentExpense, getEmployees, uploadAttachmentFiles, getEntertainmentExpenses, resubmitEntertainment } from '../services/api'
 
 const router = useRouter()
+const route = useRoute()
 const formRef = ref()
 const submitting = ref(false)
+// 重新提交模式：携带 ?id= 进入时回填原数据，退回场景高亮退回理由
+const editId = route.query.id ? Number(route.query.id) : null
+const isResubmit = ref(false)
+const returnReason = ref('')
 const approverOptions = ref<any[]>([])
 const fileList = ref<any[]>([])
 
@@ -262,10 +277,41 @@ const loadApprovers = async () => {
       })
       approverOptions.value = managers
       const defaultMgr = managers.find((emp: any) => emp.name === '陈东') || managers[0]
-      if (defaultMgr) form.approver = defaultMgr.id
+      if (defaultMgr && !editId) form.approver = defaultMgr.id
     }
   } catch (error) {
     console.error('获取审批人失败:', error)
+  }
+}
+
+// 重新提交：回填原申请数据，并展示审批人退回理由
+const loadForEdit = async () => {
+  if (!editId) return
+  try {
+    const response = await getEntertainmentExpenses()
+    if (response.success) {
+      const arr = Array.isArray(response.data) ? response.data : ((response.data && response.data.list) || [])
+      const rec = arr.find((r: any) => Number(r.id) === Number(editId))
+      if (rec) {
+        isResubmit.value = true
+        // 下划线列名转驼峰后与表单字段自动匹配
+        const camel: Record<string, any> = {}
+        for (const [k, v] of Object.entries(rec)) {
+          camel[k.replace(/_([a-z])/g, (_m, c) => c.toUpperCase())] = v
+        }
+        for (const key of Object.keys(form)) {
+          if (camel[key] !== undefined && camel[key] !== null) form[key] = camel[key]
+        }
+        // 审批人：表单存员工 id，接口返回姓名
+        if (rec.approver && typeof form.approver === 'number') {
+          const opt = approverOptions.value.find((o: any) => o.name === rec.approver)
+          if (opt) form.approver = opt.id
+        }
+        returnReason.value = rec.return_reason || ''
+      }
+    }
+  } catch (error) {
+    console.error('加载原申请数据失败:', error)
   }
 }
 
@@ -300,9 +346,11 @@ const submitForm = async () => {
           approver: approverName,
           attachments
         }
-        const response = await addEntertainmentExpense(data)
+        const response = editId
+          ? await resubmitEntertainment(editId, data)
+          : await addEntertainmentExpense(data)
         if (response.success) {
-          ElMessage.success('招待费申请已提交')
+          ElMessage.success(editId ? '重新提交成功' : '招待费申请已提交')
           router.replace('/oa-office?tab=entertainment')
         } else {
           ElMessage.error(response.message || '提交失败')
@@ -329,7 +377,11 @@ const goBack = () => {
   router.back()
 }
 
-loadApprovers()
+const initPage = async () => {
+  await loadApprovers()
+  await loadForEdit()
+}
+initPage()
 </script>
 
 <style scoped>

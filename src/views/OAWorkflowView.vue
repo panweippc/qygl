@@ -563,6 +563,7 @@ import {
   updateDistributedRecord,
   getEntertainmentExpenses,
   updateEntertainmentExpense,
+  getDeletedApplications,
   parseAttachments
 } from '../services/api'
 import {
@@ -668,7 +669,9 @@ const approvalStats = ref([
   { key: 'pending', label: '待审批', value: 0, gradient: 'linear-gradient(135deg, #FF9800, #FFC107)', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z' },
   { key: 'approved', label: '已批准', value: 0, gradient: 'linear-gradient(135deg, #4CAF50, #8BC34A)', icon: 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z' },
   { key: 'rejected', label: '已拒绝', value: 0, gradient: 'linear-gradient(135deg, #f44336, #ff5722)', icon: 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z' },
-  { key: 'cancelled', label: '已取消', value: 0, gradient: 'linear-gradient(135deg, #9E9E9E, #BDBDBD)', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 13.59L15.59 15 12 11.41 8.41 15 7 13.59 10.59 10 7 6.41 8.41 5 12 8.59 15.59 5 17 6.41 13.41 10 17 13.59z' },
+  { key: 'withdrawn', label: '已撤回', value: 0, gradient: 'linear-gradient(135deg, #9E9E9E, #BDBDBD)', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 13.59L15.59 15 12 11.41 8.41 15 7 13.59 10.59 10 7 6.41 8.41 5 12 8.59 15.59 5 17 6.41 13.41 10 17 13.59z' },
+  { key: 'returned', label: '已退回', value: 0, gradient: 'linear-gradient(135deg, #FF7043, #FFA726)', icon: 'M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.56 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.44 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z' },
+  { key: 'deleted', label: '已删除', value: 0, gradient: 'linear-gradient(135deg, #616161, #757575)', icon: 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z' },
   { key: 'total', label: '总申请', value: 0, gradient: 'linear-gradient(135deg, #2196F3, #03A9F4)', icon: 'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z' }
 ])
 
@@ -676,6 +679,8 @@ const leaveRecords = ref<any[]>([])
 const reimbursementRecords = ref<any[]>([])
 const meetingRecords = ref<any[]>([])
 const projectRecords = ref<any[]>([])
+// 已删除（软删除）申请，由 /api/deleted-applications 统一返回
+const deletedRecords = ref<any[]>([])
 const businessTripRecords = ref<any[]>([])
 const allLeaveRecords = ref<any[]>([])
 const allReimbursementRecords = ref<any[]>([])
@@ -918,8 +923,16 @@ const updateStats = () => {
   const rejectedStat = approvalStats.value.find(s => s.key === 'rejected')
   if (rejectedStat) rejectedStat.value = allRecords.filter(r => r.status === '已拒绝' || r.status === '拒绝' || r.status === 'rejected').length
 
-  const cancelledStat = approvalStats.value.find(s => s.key === 'cancelled')
-  if (cancelledStat) cancelledStat.value = allRecords.filter(r => r.status === '已取消' || r.status === 'cancelled').length
+  // 「已取消」为历史状态，统一归入「已撤回」统计
+  const withdrawnStat = approvalStats.value.find(s => s.key === 'withdrawn')
+  if (withdrawnStat) withdrawnStat.value = allRecords.filter(r => r.status === '已撤回' || r.status === 'withdrawn' || r.status === '已取消' || r.status === 'cancelled').length
+
+  const returnedStat = approvalStats.value.find(s => s.key === 'returned')
+  if (returnedStat) returnedStat.value = allRecords.filter(r => r.status === '已退回' || r.status === 'returned').length
+
+  // 已删除（软删除）记录由统一接口返回，列表接口默认已过滤
+  const deletedStat = approvalStats.value.find(s => s.key === 'deleted')
+  if (deletedStat) deletedStat.value = deletedRecords.value.length
 
   const totalStat = approvalStats.value.find(s => s.key === 'total')
   if (totalStat) totalStat.value = allRecords.length
@@ -956,9 +969,17 @@ const openStatDetail = (statKey: string) => {
       statDetailTitle.value = '已拒绝列表'
       filteredRecords = allRecords.filter(r => r.status === '已拒绝' || r.status === '拒绝' || r.status === 'rejected')
       break
-    case 'cancelled':
-      statDetailTitle.value = '已取消列表'
-      filteredRecords = allRecords.filter(r => r.status === '已取消' || r.status === 'cancelled')
+    case 'withdrawn':
+      statDetailTitle.value = '已撤回列表'
+      filteredRecords = allRecords.filter(r => r.status === '已撤回' || r.status === 'withdrawn' || r.status === '已取消' || r.status === 'cancelled')
+      break
+    case 'returned':
+      statDetailTitle.value = '已退回列表'
+      filteredRecords = allRecords.filter(r => r.status === '已退回' || r.status === 'returned')
+      break
+    case 'deleted':
+      statDetailTitle.value = '已删除列表'
+      filteredRecords = deletedRecords.value.map(r => ({ ...r, _type: r._type || 'meeting' }))
       break
     case 'total':
       statDetailTitle.value = '所有申请列表'
@@ -1737,6 +1758,18 @@ const loadAdminData = async () => {
   ])
 }
 
+// 加载已删除（软删除）申请：管理员可见全部，普通用户仅本人
+const loadDeletedRecords = async () => {
+  try {
+    const response = await getDeletedApplications()
+    if (response.success) {
+      deletedRecords.value = response.data || []
+    }
+  } catch (error) {
+    console.error('获取已删除申请失败:', error)
+  }
+}
+
 const refreshAllData = async () => {
   await loadNonAdminData()
   if (isAdminComputed.value) {
@@ -1744,6 +1777,7 @@ const refreshAllData = async () => {
   } else if (canDistribute.value) {
     await loadAllDistributedRecords()
   }
+  await loadDeletedRecords()
   updateStats()
   await loadDistributedRecords()
   await Promise.all([
@@ -2503,4 +2537,23 @@ onUnmounted(() => {
   border: none !important;
   color: #fff !important;
 }
-  </style>
+  
+.status-tag.status-withdrawn,
+.card-status.status-withdrawn {
+  background: rgba(158, 158, 158, 0.1);
+  color: #9E9E9E;
+  border: 1px solid rgba(158, 158, 158, 0.3);
+}
+.status-tag.status-returned,
+.card-status.status-returned {
+  background: rgba(255, 112, 67, 0.1);
+  color: #FF7043;
+  border: 1px solid rgba(255, 112, 67, 0.3);
+}
+.status-tag.status-deleted,
+.card-status.status-deleted {
+  background: rgba(97, 97, 97, 0.1);
+  color: #616161;
+  border: 1px solid rgba(97, 97, 97, 0.3);
+}
+</style>

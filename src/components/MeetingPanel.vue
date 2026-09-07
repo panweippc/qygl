@@ -12,7 +12,8 @@
             <el-option label="审批中" value="审批中" />
             <el-option label="已批准" value="已批准" />
             <el-option label="已拒绝" value="已拒绝" />
-            <el-option label="已取消" value="已取消" />
+            <el-option label="已撤回" value="已撤回" />
+            <el-option label="已退回" value="已退回" />
           </el-select>
           <el-select v-model="meetingPersonFilter" placeholder="筛选人员" size="default" style="width: 140px; margin-right: 8px;" clearable filterable>
             <el-option label="全部人员" value="all" />
@@ -119,11 +120,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="submitDate" label="创建时间" width="150"></el-table-column>
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <div class="action-group">
               <el-button
-                v-if="(row.status === '审批中' || row.status === '待审批' || row.status === '待审核' || row.status === 'pending') && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
+                v-if="canApprove(row)"
                 size="small"
                 type="primary"
                 @click="handleApprove(row)"
@@ -140,12 +141,36 @@
                 已下发
               </el-tag>
               <el-button
-                v-if="(row.status === '审批中' || row.status === '待审批' || row.status === '待审核' || row.status === 'pending') && !isAdmin"
+                v-if="canReturn(row)"
                 size="small"
-                @click="cancelMeeting(row)"
+                type="warning"
+                @click="returnMeetingAction(row)"
+              >
+                退回
+              </el-button>
+              <el-button
+                v-if="canWithdraw(row)"
+                size="small"
+                @click="withdrawMeetingAction(row)"
                 class="cancel-btn"
               >
-                取消
+                撤回
+              </el-button>
+              <el-button
+                v-if="canResubmitDelete(row)"
+                size="small"
+                type="warning"
+                @click="resubmitMeeting(row)"
+              >
+                重新提交
+              </el-button>
+              <el-button
+                v-if="canResubmitDelete(row)"
+                size="small"
+                type="danger"
+                @click="deleteMeetingAction(row)"
+              >
+                删除
               </el-button>
               <el-button
                 size="small"
@@ -188,7 +213,7 @@
           <span class="card-date">{{ row.submitDate }}</span>
           <div class="card-actions">
             <el-button
-              v-if="(row.status === '审批中' || row.status === '待审批' || row.status === '待审核' || row.status === 'pending') && (isAdmin || extractRealName(row.approver) === extractRealName(currentUsername))"
+              v-if="canApprove(row)"
               size="small"
               type="primary"
               @click="handleApprove(row)"
@@ -203,6 +228,37 @@
             >
               已下发
             </el-tag>
+            <el-button
+              v-if="canReturn(row)"
+              size="small"
+              type="warning"
+              @click="returnMeetingAction(row)"
+            >
+              退回
+            </el-button>
+            <el-button
+              v-if="canWithdraw(row)"
+              size="small"
+              @click="withdrawMeetingAction(row)"
+            >
+              撤回
+            </el-button>
+            <el-button
+              v-if="canResubmitDelete(row)"
+              size="small"
+              type="warning"
+              @click="resubmitMeeting(row)"
+            >
+              重新提交
+            </el-button>
+            <el-button
+              v-if="canResubmitDelete(row)"
+              size="small"
+              type="danger"
+              @click="deleteMeetingAction(row)"
+            >
+              删除
+            </el-button>
             <el-button size="small" @click="$emit('view-detail', row, 'meeting')">详情</el-button>
           </div>
         </div>
@@ -297,7 +353,10 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getMeetings,
   addMeeting,
-  updateMeeting
+  updateMeeting,
+  withdrawMeeting,
+  returnMeeting,
+  softDeleteMeeting
 } from '../services/api'
 import {
   extractRealName,
@@ -396,6 +455,14 @@ const isReceivedMeeting = (r: any) => {
   if ((r.distributedUsers || []).some((u: any) => extractRealName(u) === me)) return true
   return false
 }
+
+// 撤回/退回/重新提交/删除 显示条件
+const isPending = (r: any) => ['审批中', '待审批', '待审核', 'pending'].includes(r.status)
+const isWithdrawnOrDraft = (r: any) => ['已撤回', '草稿', 'withdrawn', 'draft'].includes(r.status)
+const canApprove = (row: any) => isPending(row) && (props.isAdmin || extractRealName(row.approver) === extractRealName(currentUsername.value))
+const canReturn = (row: any) => isPending(row) && (props.isAdmin || extractRealName(row.approver) === extractRealName(currentUsername.value))
+const canWithdraw = (row: any) => isPending(row) && !props.isAdmin && isMyMeetingApplication(row)
+const canResubmitDelete = (row: any) => isWithdrawnOrDraft(row) && (props.isAdmin || isMyMeetingApplication(row))
 
 const filteredMeetingRecords = computed(() => {
   let records = props.isAdmin ? allMeetingRecords.value : meetingRecords.value
@@ -578,29 +645,76 @@ const handleApprove = (row: any) => {
   emit('approve', row, 'meeting')
 }
 
-const cancelMeeting = async (row: any) => {
+const withdrawMeetingAction = async (row: any) => {
   try {
-    await ElMessageBox.confirm('确定要取消该会议吗？', '提示', {
-      confirmButtonText: '确定',
+    await ElMessageBox.confirm('确定要撤回该会议申请吗？撤回后将变为「已撤回」状态。', '撤回确认', {
+      confirmButtonText: '确定撤回',
       cancelButtonText: '取消',
       type: 'warning'
     })
-    const response = await updateMeeting(row.id, {
-      result: '取消',
-      comment: '用户主动取消申请'
-    })
+    const response = await withdrawMeeting(row.id)
     if (response?.success) {
-      ElMessage.success('会议已取消')
+      ElMessage.success('撤回成功')
       await fetchData()
     } else {
-      ElMessage.error(response?.message || '取消失败')
+      ElMessage.error(response?.message || '撤回失败')
     }
   } catch (error: any) {
-    if (error !== 'cancel') {
-      console.error('取消会议失败:', error)
-      ElMessage.error('取消会议失败')
+    if (error !== 'cancel' && error?.type !== 'cancel') {
+      console.error('撤回会议失败:', error)
+      ElMessage.error('撤回失败')
     }
   }
+}
+
+const returnMeetingAction = async (row: any) => {
+  try {
+    const { value } = await ElMessageBox.prompt('请填写退回理由（必填）：', '退回申请', {
+      confirmButtonText: '确定退回',
+      cancelButtonText: '取消',
+      inputType: 'textarea',
+      inputValidator: (val: string) => (val && val.trim() ? true : '退回理由不能为空'),
+      type: 'warning'
+    })
+    const response = await returnMeeting(row.id, value.trim())
+    if (response?.success) {
+      ElMessage.success('已退回')
+      await fetchData()
+    } else {
+      ElMessage.error(response?.message || '退回失败')
+    }
+  } catch (error: any) {
+    if (error !== 'cancel' && error?.type !== 'cancel' && error?.action !== 'cancel') {
+      console.error('退回会议失败:', error)
+      ElMessage.error('退回失败')
+    }
+  }
+}
+
+const deleteMeetingAction = async (row: any) => {
+  try {
+    await ElMessageBox.confirm('确定要删除该会议申请吗？删除后无法恢复。', '删除确认', {
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    const response = await softDeleteMeeting(row.id)
+    if (response?.success) {
+      ElMessage.success('删除成功')
+      await fetchData()
+    } else {
+      ElMessage.error(response?.message || '删除失败')
+    }
+  } catch (error: any) {
+    if (error !== 'cancel' && error?.type !== 'cancel') {
+      console.error('删除会议失败:', error)
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
+const resubmitMeeting = (row: any) => {
+  router.push(`/oa/meeting-apply?id=${row.id}`)
 }
 
 const handleDateRangeChange = () => {}
@@ -934,4 +1048,23 @@ defineExpose({ fetchData })
   border: none !important;
   color: #fff !important;
 }
-  </style>
+  
+.status-tag.status-withdrawn,
+.card-status.status-withdrawn {
+  background: rgba(158, 158, 158, 0.1);
+  color: #9E9E9E;
+  border: 1px solid rgba(158, 158, 158, 0.3);
+}
+.status-tag.status-returned,
+.card-status.status-returned {
+  background: rgba(255, 112, 67, 0.1);
+  color: #FF7043;
+  border: 1px solid rgba(255, 112, 67, 0.3);
+}
+.status-tag.status-deleted,
+.card-status.status-deleted {
+  background: rgba(97, 97, 97, 0.1);
+  color: #616161;
+  border: 1px solid rgba(97, 97, 97, 0.3);
+}
+</style>
