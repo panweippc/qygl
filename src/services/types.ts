@@ -26,9 +26,23 @@ export interface MonthlyReport {
   id?: number
   title: string
   content: string
-  author: string
+  author?: string
   week?: string
   createdAt?: string
+  plan?: string
+  files?: any[]
+  userId?: number
+  date?: string
+  status?: string
+}
+
+// 通讯录目录条目（仅公开联系字段）
+export interface EmployeeDirectoryEntry {
+  name: string
+  department: string
+  position: string
+  email: string
+  phone: string
 }
 
 export interface FileCategory {

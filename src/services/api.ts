@@ -4,7 +4,7 @@ import type {
   ApiResponse, Employee, MonthlyReport, FileItem, FileCategory,
   Project, Tool, Customer, CustomerActivity, ClosingProject,
   LeaveApplication, Reimbursement, Meeting, OfficeSupply,
-  Role, Menu, Department, DistributedRecord
+  Role, Menu, Department, DistributedRecord, EmployeeDirectoryEntry
 } from './types';
 
 const api = axios.create({
@@ -117,6 +117,12 @@ export const login = async (username: string, password: string) => {
 // 员工管理
 export const getEmployees = async (): Promise<ApiResponse<Employee[]>> => {
   const response = await api.get('/employees');
+  return response.data;
+};
+
+// 通讯录目录：仅返回 姓名/部门/职位/邮箱/电话，对所有登录用户开放（不脱敏）
+export const getEmployeeDirectory = async (): Promise<ApiResponse<EmployeeDirectoryEntry[]>> => {
+  const response = await api.get('/employees/directory');
   return response.data;
 };
 
@@ -289,7 +295,7 @@ export const updateBusinessTrip = async (id: number, data: any): Promise<ApiResp
   return response.data;
 };
 
-// 工具管理
+// 物资管理
 export const getTools = async (): Promise<ApiResponse<Tool[]>> => {
   const response = await api.get('/tools');
   return response.data;

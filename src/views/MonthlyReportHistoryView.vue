@@ -60,6 +60,7 @@
                 <div v-for="report in reports" :key="report.id" class="report-item">
                   <div class="report-meta-group">
                     <span class="report-date-label">{{ report.date || '' }}</span>
+                    <span v-if="report.status === 'draft'" class="draft-badge">草稿</span>
                     <span v-if="isAdmin || isGeneralManager" class="report-employee">{{ report.username || getEmployeeName(report.userId) }}</span>
                     <span class="report-time">{{ report.createdAt || '' }}</span>
                   </div>
@@ -1128,6 +1129,15 @@ onMounted(async () => {
   color: #6495ED;
   font-size: 0.75rem;
   background: rgba(100, 149, 237, 0.1);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+
+.draft-badge {
+  color: #b26a00;
+  font-size: 0.75rem;
+  background: rgba(255, 193, 7, 0.2);
+  border: 1px solid rgba(255, 193, 7, 0.5);
   padding: 0.1rem 0.4rem;
   border-radius: 4px;
 }

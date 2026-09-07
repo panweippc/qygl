@@ -21,6 +21,18 @@
       </div>
     </div>
 
+    <div class="sub-tabs-row">
+      <div class="sub-tabs">
+        <button
+          v-for="tab in businessTripSubTabs"
+          :key="tab.value"
+          class="sub-tab-btn"
+          :class="{ active: businessTripSubTab === tab.value }"
+          @click="businessTripSubTab = tab.value"
+        >{{ tab.label }}</button>
+      </div>
+    </div>
+
     <div v-if="viewMode === 'list'" class="list-view">
       <el-table
         :data="filteredBusinessTripRecords"
@@ -250,6 +262,11 @@ const emit = defineEmits<{
 }>()
 
 const businessTripFilter = ref('all')
+const businessTripSubTab = ref('applied')
+const businessTripSubTabs = [
+  { label: '我申请的', value: 'applied' },
+  { label: '我收到的', value: 'received' }
+]
 const businessTripRecords = ref<any[]>([])
 const allBusinessTripRecords = ref<any[]>([])
 
@@ -262,8 +279,26 @@ const isLiZhiXin = computed(() => extractRealName(currentUsername.value) === '�
 // 导出按钮仅张海琼可见（财务总监负责导出 OA 办公各类申请表）
 const canExport = computed(() => extractRealName(currentUsername.value) === '张海琼')
 
+const isMyBusinessTripApplication = (r: any) => {
+  return extractRealName(r.applicant) === extractRealName(currentUsername.value)
+}
+
+const isReceivedBusinessTrip = (r: any) => {
+  const me = extractRealName(currentUsername.value)
+  if (extractRealName(r.approver) === me) return true
+  if (r.result && r.result.includes(me + ':')) return true
+  if ((r.distributedUsers || []).some((u: any) => extractRealName(u) === me)) return true
+  return false
+}
+
 const filteredBusinessTripRecords = computed(() => {
   let records = props.isAdmin ? allBusinessTripRecords.value : businessTripRecords.value
+
+  if (businessTripSubTab.value === 'applied') {
+    records = records.filter(isMyBusinessTripApplication)
+  } else if (businessTripSubTab.value === 'received') {
+    records = records.filter((r: any) => !isMyBusinessTripApplication(r) && isReceivedBusinessTrip(r))
+  }
 
   if (props.searchKeyword) {
     const keyword = props.searchKeyword.toLowerCase()
@@ -326,11 +361,13 @@ const loadBusinessTripRecords = async () => {
             }
           }
         } catch {}
+        const distributedUsers = getDistributedUsersForApplication(item.id, 'businessTrip')
         return extractRealName(item.applicant_name || item.applicant) === me ||
           extractRealName(item.approver) === me ||
           (item.result && item.result.includes(me + ':')) ||
           inComment ||
-          inHistory
+          inHistory ||
+          distributedUsers.some((u: any) => extractRealName(u) === me)
       })
       businessTripRecords.value = filteredData.map((item: any) => {
         let destination = item.destination ? String(item.destination) : ''
@@ -354,7 +391,8 @@ const loadBusinessTripRecords = async () => {
           endDate: item.end_date || item.endDate || '',
           submitDate: item.created_at?.substring(0, 10) || '',
           estimatedCost: item.estimated_cost || item.estimatedCost || 0,
-          approver: item.approver || ''
+          approver: item.approver || '',
+          distributedUsers: getDistributedUsersForApplication(item.id, 'businessTrip')
         }
       }).sort((a: any, b: any) => (b.id || 0) - (a.id || 0))
     }
@@ -486,6 +524,36 @@ defineExpose({ fetchData })
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
+}
+.sub-tabs-row {
+  margin-bottom: 1rem;
+}
+.sub-tabs {
+  display: inline-flex;
+  gap: 0.5rem;
+  background: rgba(100, 149, 237, 0.08);
+  border-radius: 8px;
+  padding: 0.25rem;
+}
+.sub-tab-btn {
+  border: none;
+  background: transparent;
+  color: #666;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.25s ease;
+}
+.sub-tab-btn.active {
+  background: #fff;
+  color: #6495ED;
+  box-shadow: 0 2px 8px rgba(100, 149, 237, 0.2);
+  font-weight: 600;
+}
+.sub-tab-btn:hover:not(.active) {
+  color: #333;
+  background: rgba(100, 149, 237, 0.12);
 }
 .panel-title {
   display: flex;

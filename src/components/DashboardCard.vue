@@ -1,5 +1,5 @@
 <template>
-  <div class="dashboard-card clickable" @click="navigate">
+  <div class="dashboard-card" :class="{ clickable: !!props.to }" @click="navigate">
     <div class="card-header">
       <h3>{{ title }}</h3>
       <div class="card-icon">
@@ -7,12 +7,13 @@
       </div>
     </div>
     <div class="card-body">
-      <div class="card-stats">
+      <div class="card-stats" v-if="stats && stats.length">
         <div class="stat-item" v-for="stat in stats" :key="stat.label">
           <span class="stat-value">{{ stat.value }}</span>
           <span class="stat-label">{{ stat.label }}</span>
         </div>
       </div>
+      <slot />
     </div>
   </div>
 </template>
@@ -22,7 +23,7 @@ import { useRouter } from 'vue-router'
 
 const props = defineProps<{
   title: string
-  stats: { value: number; label: string }[]
+  stats?: { value: number; label: string }[]
   to?: string
   requirePerm?: boolean
 }>()

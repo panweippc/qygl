@@ -484,7 +484,22 @@ const initDatabase = async () => {
     } catch (error) {
       console.error('添加date字段失败:', error);
     }
-    
+
+    // 检查并添加status字段（草稿/已提交），默认已提交
+    try {
+      const [statusColumns] = await connection.execute(`
+        SHOW COLUMNS FROM weeklyReports WHERE Field = 'status'
+      `);
+      if (statusColumns.length === 0) {
+        await connection.execute(`
+          ALTER TABLE weeklyReports ADD COLUMN status VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'submitted'
+        `);
+        console.log('weeklyReports.status字段添加成功');
+      }
+    } catch (error) {
+      console.error('添加status字段失败:', error);
+    }
+
     // 检查并修改files字段类型为LONGTEXT
     try {
       // 修改files字段类型为LONGTEXT

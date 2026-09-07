@@ -7,7 +7,7 @@
         <div class="logo-glow"></div>
       </div>
       <nav class="nav">
-        <router-link to="/tool-inventory" class="nav-item active">工具入库</router-link>
+        <router-link to="/tool-inventory" class="nav-item active">物资管理</router-link>
         <button class="nav-item logout-btn" @click="handleBack">返回</button>
       </nav>
     </header>
@@ -15,7 +15,7 @@
     <!-- 主内容区 -->
     <main class="main-content">
       <div class="content-wrapper">
-        <!-- 工具入库管理 -->
+        <!-- 物资管理 -->
         <div class="inventory-section">
           <div class="section-header">
             <h2 class="section-title">
@@ -24,10 +24,10 @@
                   <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2ZM20 16H6L4 18V4H20V16Z"/>
                 </svg>
               </span>
-              工具入库
+              物资管理
             </h2>
             <el-button type="primary" @click="openAddToolDialog" class="add-btn">
-              添加工具
+              添加物资
             </el-button>
           </div>
 
@@ -35,7 +35,7 @@
           <div class="search-filter">
             <el-input
               v-model="searchQuery"
-              placeholder="搜索工具名称"
+              placeholder="搜索物资名称"
               prefix-icon="Search"
               class="search-input"
             />
@@ -48,13 +48,13 @@
             </el-select>
           </div>
 
-          <!-- 工具列表 -->
+          <!-- 物资列表 -->
           <div class="tool-list">
             <el-table :data="filteredTools" style="width: 100%" class="tool-table">
               <el-table-column label="序号" width="80">
                 <template #default="{ $index }">{{ (currentPage - 1) * pageSize + $index + 1 }}</template>
               </el-table-column>
-              <el-table-column prop="name" label="工具名称" />
+              <el-table-column prop="name" label="物资名称" />
               <el-table-column prop="category" label="分类" width="120" />
               <el-table-column prop="quantity" label="库存数量" width="120" />
               <el-table-column prop="price" label="单价" width="100" />
@@ -98,16 +98,16 @@
       </div>
     </footer>
 
-    <!-- 添加工具对话�?-->
+    <!-- 添加物资对话�?-->
     <el-dialog
       v-model="addDialogVisible"
-      title="添加工具"
+      title="添加物资"
       width="500px"
       class="dialog"
     >
       <el-form :model="toolForm" label-position="top">
-        <el-form-item label="工具名称">
-          <el-input v-model="toolForm.name" placeholder="请输入工具名称" />
+        <el-form-item label="物资名称">
+          <el-input v-model="toolForm.name" placeholder="请输入物资名称" />
         </el-form-item>
         <el-form-item label="分类">
           <el-select v-model="toolForm.category" placeholder="请选择分类">
@@ -154,16 +154,16 @@
       </template>
     </el-dialog>
 
-    <!-- 编辑工具对话�?-->
+    <!-- 编辑物资对话�?-->
     <el-dialog
       v-model="editDialogVisible"
-      title="编辑工具"
+      title="编辑物资"
       width="500px"
       class="dialog"
     >
       <el-form :model="toolForm" label-position="top">
-        <el-form-item label="工具名称">
-          <el-input v-model="toolForm.name" placeholder="请输入工具名称" />
+        <el-form-item label="物资名称">
+          <el-input v-model="toolForm.name" placeholder="请输入物资名称" />
         </el-form-item>
         <el-form-item label="分类">
           <el-select v-model="toolForm.category" placeholder="请选择分类">
@@ -261,20 +261,20 @@ const toolForm = ref({
 
 const tools = ref<Tool[]>([])
 
-// 从API加载工具数据
+// 从API加载物资数据
 const loadTools = async () => {
   loading.value = true
   try {
-    // 调用API获取工具数据
+    // 调用API获取物资数据
     const response = await getTools();
     if (response.success) {
       tools.value = response.data;
     } else {
-      ElMessage.error('加载工具数据失败')
+      ElMessage.error('加载物资数据失败')
     }
   } catch (error) {
-    console.error('加载工具数据失败:', error)
-    ElMessage.error('加载工具数据失败')
+    console.error('加载物资数据失败:', error)
+    ElMessage.error('加载物资数据失败')
   } finally {
     loading.value = false
   }
@@ -323,7 +323,7 @@ const openAddToolDialog = () => {
 const addTool = async () => {
   loading.value = true
   try {
-    // 调用API添加工具
+    // 调用API添加物资
     const response = await apiAddTool({
       name: toolForm.value.name,
       category: toolForm.value.category,
@@ -339,13 +339,13 @@ const addTool = async () => {
       // 重新加载数据
       await loadTools()
       addDialogVisible.value = false
-      ElMessage.success('工具添加成功')
+      ElMessage.success('物资添加成功')
     } else {
-      ElMessage.error('添加工具失败')
+      ElMessage.error('添加物资失败')
     }
   } catch (error) {
-    console.error('添加工具失败:', error)
-    ElMessage.error('添加工具失败')
+    console.error('添加物资失败:', error)
+    ElMessage.error('添加物资失败')
   } finally {
     loading.value = false
   }
@@ -372,27 +372,27 @@ const editTool = (tool: Tool) => {
 const updateToolData = async () => {
   loading.value = true
   try {
-    console.log('更新工具数据:', toolForm.value)
-    console.log('工具ID:', toolForm.value.id)
-    console.log('开始调用API更新工具')
-    // 调用API更新工具
+    console.log('更新物资数据:', toolForm.value)
+    console.log('物资ID:', toolForm.value.id)
+    console.log('开始调用API更新物资')
+    // 调用API更新物资
     const response = await updateTool(toolForm.value);
     
-    console.log('更新工具响应:', response)
+    console.log('更新物资响应:', response)
     if (response.success) {
       // 重新加载数据
       await loadTools()
       editDialogVisible.value = false
-      ElMessage.success('工具更新成功')
+      ElMessage.success('物资更新成功')
     } else {
-      ElMessage.error('更新工具失败: ' + response.message)
+      ElMessage.error('更新物资失败: ' + response.message)
     }
   } catch (error: any) {
-    console.error('更新工具失败:', error)
+    console.error('更新物资失败:', error)
     console.error('错误类型:', typeof error)
     console.error('错误消息:', error.message)
     console.error('错误堆栈:', error.stack)
-    ElMessage.error('更新工具失败: ' + (error.message || '未知错误'))
+    ElMessage.error('更新物资失败: ' + (error.message || '未知错误'))
   } finally {
     loading.value = false
   }
@@ -400,25 +400,25 @@ const updateToolData = async () => {
 
 const deleteTool = async (id: number) => {
   try {
-    ElMessageBox.confirm('确定要删除该工具吗？', '警告', {
+    ElMessageBox.confirm('确定要删除该物资吗？', '警告', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     }).then(async () => {
       loading.value = true
       try {
-        // 调用API删除工具
+        // 调用API删除物资
         const response = await apiDeleteTool(id);
         if (response.success) {
           // 重新加载数据
           await loadTools()
-          ElMessage.success('工具删除成功')
+          ElMessage.success('物资删除成功')
         } else {
-          ElMessage.error('删除工具失败')
+          ElMessage.error('删除物资失败')
         }
       } catch (error) {
-        console.error('删除工具失败:', error)
-        ElMessage.error('删除工具失败')
+        console.error('删除物资失败:', error)
+        ElMessage.error('删除物资失败')
       } finally {
         loading.value = false
       }
@@ -426,8 +426,8 @@ const deleteTool = async (id: number) => {
       // 取消删除
     })
   } catch (error) {
-    console.error('删除工具失败:', error)
-    ElMessage.error('删除工具失败')
+    console.error('删除物资失败:', error)
+    ElMessage.error('删除物资失败')
   }
 }
 
@@ -589,7 +589,7 @@ const handleCurrentChange = (current: number) => {
   margin: 0 auto;
 }
 
-/* 工具入库管理 */
+/* 物资入库管理 */
 .inventory-section {
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(100, 149, 237, 0.3);
@@ -685,7 +685,7 @@ const handleCurrentChange = (current: number) => {
   color: rgba(51, 51, 51, 0.4) !important;
 }
 
-/* 工具列表 */
+/* 物资列表 */
 .tool-list {
   margin-bottom: 1.5rem;
 }

@@ -21,7 +21,7 @@
                   <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM11 17H7V10H11V17ZM17 17H13V7H17V17Z"/>
                 </svg>
               </div>
-              <span>OA办公</span>
+              <span>审批中心</span>
               <div class="sidebar-item-indicator"></div>
             </router-link>
             <router-link v-if="hasPermission('/monthly-report')" to="/monthly-report" class="sidebar-item">
@@ -39,7 +39,7 @@
                   <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2ZM16 14H8V12H16V14ZM16 10H8V8H16V10Z"/>
                 </svg>
               </div>
-              <span>工具入库</span>
+              <span>物资管理</span>
               <div class="sidebar-item-indicator"></div>
             </router-link>
             <router-link v-if="hasPermission('/file-storage')" to="/file-storage" class="sidebar-item">

@@ -48,7 +48,7 @@ router.get('/monthly-reports', async (req, res) => {
 });
 
 router.post('/monthly-reports', async (req, res) => {
-  const { title, content, plan, files, date } = req.body;
+  const { title, content, plan, files, date, status } = req.body;
   // 安全加固：月报归属用户一律从 JWT token 解析，忽略请求体 userId，防伪造
   const userId = req.user?.id || req.body.userId;
   // 输入校验
@@ -63,9 +63,10 @@ router.post('/monthly-reports', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const filesJson = files ? JSON.stringify(files) : null;
+    const reportStatus = ['draft', 'submitted'].includes(status) ? status : 'submitted';
     await pool.execute(
-      'INSERT INTO weeklyReports (title, content, plan, files, userId, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [title, content, plan || '', filesJson, userId, date || null, localNow()]
+      'INSERT INTO weeklyReports (title, content, plan, files, userId, date, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [title, content, plan || '', filesJson, userId, date || null, reportStatus, localNow()]
     );
     await createOperationLog(pool, {
       userId: userId,
@@ -84,7 +85,7 @@ router.post('/monthly-reports', async (req, res) => {
 
 router.put('/monthly-reports/:id', async (req, res) => {
   const { id } = req.params;
-  const { title, content, plan, files, date } = req.body;
+  const { title, content, plan, files, date, status } = req.body;
   // 取消月报编辑鉴权：允许任意已登录用户编辑（按需求放开）
   // 输入校验
   const vErr = firstError(
@@ -100,9 +101,10 @@ router.put('/monthly-reports/:id', async (req, res) => {
     // 更新前取旧值，用于变更审计
     const beforeValue = await getRecordBefore(pool, 'weeklyReports', id, { title: 1, content: 1, plan: 1 });
     const filesJson = files ? JSON.stringify(files) : null;
+    const reportStatus = ['draft', 'submitted'].includes(status) ? status : 'submitted';
     await pool.execute(
-      'UPDATE weeklyReports SET title = ?, content = ?, plan = ?, files = ?, date = ? WHERE id = ?',
-      [title, content, plan || '', filesJson, date || null, id]
+      'UPDATE weeklyReports SET title = ?, content = ?, plan = ?, files = ?, date = ?, status = ? WHERE id = ?',
+      [title, content, plan || '', filesJson, date || null, reportStatus, id]
     );
     await createOperationLog(pool, {
       username: getOperator(req),

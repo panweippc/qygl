@@ -89,6 +89,24 @@ router.get('/employees', async (req, res) => {
   }
 });
 
+// 通讯录目录接口：仅返回公开联系信息（姓名/部门/职位/邮箱/电话），对所有已登录用户开放，不做脱敏
+// 满足首页通讯录卡片需求，同时不影响 C1 高危字段（身份证/地址等）脱敏策略
+router.get('/employees/directory', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const connection = await pool.getConnection();
+    await connection.execute('SET NAMES utf8mb4');
+    const [rows] = await connection.execute(
+      'SELECT name, department, position, email, phone FROM employees ORDER BY department, name'
+    );
+    connection.release();
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('获取通讯录失败:', error);
+    res.status(500).json({ success: false, message: '获取通讯录失败' });
+  }
+});
+
 router.post('/employees', requireRole('系统管理员', '总经理'), verifyAdminPassword, async (req, res) => {
   const { name, department, position, email, phone, entryDate, password, role, roleId: directRoleId, status, employeeType, education, birthDate, idCard, address, emergencyContact, emergencyPhone } = req.body;
   // 输入校验：核心字段必填且限长，选填字段限长

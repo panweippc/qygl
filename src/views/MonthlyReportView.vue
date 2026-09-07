@@ -37,6 +37,12 @@
               />
             </el-select>
           </div>
+
+          <!-- 填报提醒：当月无提交时提示填报；有暂存草稿时提示已暂存；已提交则不显示 -->
+          <div v-if="reminderInfo.show && !isAdmin && !isGeneralManager" class="reminder-banner" :class="{ 'reminder-draft': reminderInfo.text.includes('暂存') }">
+            <span class="reminder-icon">⏰</span>
+            <span>{{ reminderInfo.text }}</span>
+          </div>
           
           <div class="upload-table">
             <div class="table-wrapper">
@@ -118,6 +124,9 @@
               </table>
             </div>
             <div class="table-actions">
+              <el-button @click="saveDraft" :loading="loading" :disabled="loading" class="draft-btn">
+                暂存
+              </el-button>
               <el-button type="primary" @click="submitReports" :loading="loading" :disabled="loading" class="submit-btn">
                 提交月报
               </el-button>
@@ -155,12 +164,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Delete, Document, Picture } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getMonthlyReports, addMonthlyReport, getEmployees } from '../services/api'
-import { buildContent, buildPlan, emptySections, autoReportTitle } from '../utils/monthlyReport'
+import { getMonthlyReports, addMonthlyReport, updateMonthlyReport, getEmployees } from '../services/api'
+import { buildContent, buildPlan, emptySections, autoReportTitle, sectionsFromReport } from '../utils/monthlyReport'
 
 const router = useRouter()
 
@@ -253,6 +262,20 @@ const availableMonths = computed(() => {
   }
   
   return months
+})
+
+// 填报提醒：当月无提交时提示填报；已有暂存草稿时提示；已提交则不显示
+const reminderInfo = computed(() => {
+  const month = selectedMonth.value
+  if (!month) return { show: false, text: '' }
+  const monthReports = reports.value.filter((r: any) => r.date === month)
+  const hasSubmitted = monthReports.some((r: any) => r.status === 'submitted')
+  if (hasSubmitted) return { show: false, text: '' }
+  const hasDraft = monthReports.some((r: any) => r.status === 'draft')
+  return {
+    show: true,
+    text: hasDraft ? '当前已有暂存文件' : `您 ${month} 月报尚未提交，请按时填报`
+  }
 })
 
 // 计算属性：是否为管理员
@@ -348,6 +371,7 @@ const loadReports = async () => {
 onMounted(async () => {
   await loadEmployees()
   await loadReports()
+  recoverDraft()
 })
 
 // 组件挂载时加载数�?
@@ -468,6 +492,69 @@ const submitReports = async () => {
 const navigateToHistory = () => {
   router.push('/monthly-report-history')
 }
+
+// 暂存草稿：按月+用户维度保存，已存在草稿则更新
+const saveDraft = async () => {
+  const month = selectedMonth.value
+  if (!month) {
+    ElMessage.warning('请先选择月份')
+    return
+  }
+  loading.value = true
+  try {
+    const currentUserId = getCurrentUserId()
+    // 上传附件获取永久 URL（草稿同样保留附件）
+    const uploadPromises = currentReport.value.files.map((file: any) => uploadFile(file))
+    const processedFiles = await Promise.all(uploadPromises)
+    const content = buildContent(currentReport.value)
+    const plan = buildPlan(currentReport.value)
+    const payload = {
+      title: autoTitle.value || `${month}工作月报(草稿)`,
+      content,
+      plan,
+      files: processedFiles,
+      userId: currentUserId,
+      date: month,
+      status: 'draft'
+    }
+    const existingDraft = reports.value.find(
+      (r: any) => r.date === month && r.status === 'draft'
+    )
+    const response = existingDraft
+      ? await updateMonthlyReport({ ...payload, id: existingDraft.id })
+      : await addMonthlyReport(payload)
+    if (response.success) {
+      await loadReports()
+      ElMessage.success('草稿已保存')
+    } else {
+      ElMessage.error('保存草稿失败')
+    }
+  } catch (error) {
+    console.error('保存草稿失败:', error)
+    ElMessage.error('保存草稿失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 草稿恢复：进入页面或切换月份时，若该月存在草稿则回填表单并提示
+const recoverDraft = () => {
+  const month = selectedMonth.value
+  if (!month) return
+  const draft = reports.value.find((r: any) => r.date === month && r.status === 'draft')
+  if (draft) {
+    currentReport.value = {
+      ...sectionsFromReport(draft.content || '', draft.plan || ''),
+      files: Array.isArray(draft.files) ? draft.files : []
+    }
+    ElMessage.info(`已恢复 ${month} 草稿`)
+  }
+}
+
+// 切换月份时尝试恢复该月草稿
+watch(selectedMonth, () => {
+  recoverDraft()
+})
 </script>
 
 <style scoped>
@@ -709,6 +796,30 @@ const navigateToHistory = () => {
   width: 200px;
 }
 
+.reminder-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 193, 7, 0.15);
+  border: 1px solid rgba(255, 193, 7, 0.5);
+  border-radius: 8px;
+  color: #b26a00;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.reminder-icon {
+  font-size: 1.1rem;
+}
+
+.reminder-banner.reminder-draft {
+  background: rgba(100, 149, 237, 0.15);
+  border-color: rgba(100, 149, 237, 0.5);
+  color: #3a6ea5;
+}
+
 .auto-title {
   color: #6495ED;
   font-weight: 600;
@@ -820,6 +931,21 @@ const navigateToHistory = () => {
   -webkit-box-orient: vertical;
   overflow: hidden;
   max-width: 100%;
+}
+
+.draft-btn {
+  border-radius: 8px !important;
+  padding: 0.75rem 2rem !important;
+  font-weight: 600 !important;
+  border: 1px solid rgba(100, 149, 237, 0.6) !important;
+  color: #6495ED !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  transition: all 0.3s ease !important;
+}
+
+.draft-btn:hover {
+  background: rgba(100, 149, 237, 0.1) !important;
+  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.2) !important;
 }
 
 .submit-btn {

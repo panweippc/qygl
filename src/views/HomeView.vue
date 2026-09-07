@@ -32,7 +32,7 @@
               </template>
             </DashboardCard>
 
-            <DashboardCard title="工具管理" to="/tool-inventory" :stats="[{ value: toolStats.total, label: '总工具数' }, { value: toolStats.categories, label: '分类数' }]">
+            <DashboardCard title="物资管理" to="/tool-inventory" :stats="[{ value: toolStats.total, label: '总物资数' }, { value: toolStats.categories, label: '分类数' }]">
               <template #icon>
                 <svg viewBox="0 0 24 24" fill="currentColor">
                   <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2ZM16 14H8V12H16V14ZM16 10H8V8H16V10Z"/>
@@ -40,24 +40,26 @@
               </template>
             </DashboardCard>
 
-            <DashboardCard title="我收到的下发" to="/received-distributions" :stats="[{ value: myDistStats.pending, label: '待处理' }, { value: myDistStats.total, label: '总数' }]">
+            <DashboardCard title="通讯录" :stats="[{ value: contactsStats.total, label: '总人数' }]">
               <template #icon>
                 <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6C22 4.9 21.1 4 20 4ZM20 18H4V8L12 13L20 8V18ZM4 6H20V6.7L12 11.35L4 6.7V6Z"/>
+                  <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
                 </svg>
               </template>
+              <div class="contacts-list">
+                <div v-for="c in contactsList" :key="c.name + '|' + c.department" class="contact-row">
+                  <div class="contact-main">
+                    <span class="contact-name">{{ c.name }}</span>
+                    <span class="contact-dept">{{ c.department }} · {{ c.position }}</span>
+                  </div>
+                  <div class="contact-contact">
+                    <div class="contact-line"><span class="contact-label">邮箱</span><span class="contact-value">{{ c.email || '—' }}</span></div>
+                    <div class="contact-line"><span class="contact-label">电话</span><span class="contact-value">{{ c.phone || '—' }}</span></div>
+                  </div>
+                </div>
+                <div v-if="contactsList.length === 0" class="contact-empty">暂无通讯录数据</div>
+              </div>
             </DashboardCard>
-          </div>
-
-          <div class="dashboard-visualization">
-            <div class="visualization-row">
-              <TrendChart />
-              <PieChart />
-            </div>
-            <div class="visualization-row">
-              <RankingChart />
-              <ComparisonChart />
-            </div>
           </div>
         </div>
       </main>
@@ -68,43 +70,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import * as echarts from 'echarts'
+import { ref, computed, onMounted } from 'vue'
 import DashboardHeader from '../components/DashboardHeader.vue'
 import DashboardSidebar from '../components/DashboardSidebar.vue'
 import DashboardCard from '../components/DashboardCard.vue'
 import DashboardFooter from '../components/DashboardFooter.vue'
-import TrendChart from '../components/TrendChart.vue'
-import PieChart from '../components/PieChart.vue'
-import RankingChart from '../components/RankingChart.vue'
-import ComparisonChart from '../components/ComparisonChart.vue'
-import { getFiles, getFileCategories, getProjectCategoryStats, getMonthlyReports, getTools, getMyDistributedRecords } from '../services/api'
-
-echarts.registerTheme('default', {
-  textStyle: {
-    fontFamily: 'Microsoft YaHei, SimHei, sans-serif'
-  },
-  tooltip: {
-    trigger: 'item',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderColor: '#4169E1',
-    borderWidth: 2,
-    borderRadius: 10,
-    padding: 15,
-    textStyle: {
-      color: '#333',
-      fontSize: 14,
-      fontWeight: '500',
-      fontFamily: 'Microsoft YaHei, SimHei, sans-serif'
-    }
-  }
-})
+import { getFiles, getFileCategories, getProjectCategoryStats, getMonthlyReports, getTools, getEmployeeDirectory } from '../services/api'
 
 const fileStats = ref({ total: 0, categories: 0 })
 const projectStats = ref({ total: 0, categories: 0 })
 const monthlyReportStats = ref({ total: 0, pending: 0 })
 const toolStats = ref({ total: 0, categories: 0 })
-const myDistStats = ref({ pending: 0, total: 0 })
+const contactsList = ref<any[]>([])
+const contactsStats = computed(() => ({
+  total: contactsList.value.length,
+  withPhone: contactsList.value.filter((e: any) => e.phone).length
+}))
 
 const loadDashboardData = async () => {
   try {
@@ -113,6 +94,7 @@ const loadDashboardData = async () => {
       getFiles(),
       getFileCategories()
     ])
+    loadContactsData()
     if (filesResponse.success) {
       fileStats.value = {
         total: filesResponse.data.length,
@@ -150,17 +132,13 @@ const loadDashboardData = async () => {
 
 onMounted(() => {
   loadDashboardData()
-  loadMyDistributions()
 })
 
-const loadMyDistributions = async () => {
+const loadContactsData = async () => {
   try {
-    const res = await getMyDistributedRecords()
+    const res = await getEmployeeDirectory()
     if (res.success && Array.isArray(res.data)) {
-      myDistStats.value = {
-        pending: res.data.filter((r: any) => (r.status || '待处理') === '待处理').length,
-        total: res.data.length
-      }
+      contactsList.value = res.data
     }
   } catch { /* 忽略：不影响主面板 */ }
 }
@@ -242,82 +220,100 @@ const loadMyDistributions = async () => {
   gap: 1rem;
 }
 
-.dashboard-visualization {
-  display: flex;
-  flex-direction: column;
-  gap: 2.5rem;
-  margin-top: 3rem;
-  padding: 2rem;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 248, 255, 0.95));
-  border-radius: 20px;
-  border: 1px solid rgba(100, 149, 237, 0.4);
-  box-shadow: 0 8px 30px rgba(100, 149, 237, 0.2);
-  position: relative;
-  overflow: hidden;
-  z-index: 1;
-}
-
-.dashboard-visualization::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #6495ED, #87CEFA, #6495ED);
-  border-radius: 20px 20px 0 0;
-  z-index: 2;
-}
-
-.dashboard-visualization::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  right: -10%;
-  width: 30%;
-  height: 100%;
-  background: radial-gradient(circle, rgba(100, 149, 237, 0.1) 0%, transparent 70%);
-  transform: translateY(-50%);
-  z-index: 0;
-  animation: pulse 4s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0% { opacity: 0.3; transform: translateY(-50%) scale(1); }
-  50% { opacity: 0.6; transform: translateY(-50%) scale(1.1); }
-  100% { opacity: 0.3; transform: translateY(-50%) scale(1); }
-}
-
-.visualization-row {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 2.5rem;
-}
-
 @media (max-width: 1440px) {
   .dashboard-cards { grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
-  .visualization-row { grid-template-columns: 1fr; gap: 2rem; }
 }
 
 @media (max-width: 1200px) {
   .dashboard-cards { grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
-  .visualization-row { grid-template-columns: 1fr; gap: 2rem; }
   .content { padding: 1.5rem; }
-  .dashboard-visualization { padding: 1.5rem; gap: 2rem; }
 }
 
 @media (max-width: 768px) {
   .dashboard-cards { grid-template-columns: 1fr; gap: 1.2rem; }
-  .dashboard-visualization { padding: 1.2rem; gap: 1.5rem; margin-top: 2rem; }
-  .visualization-row { gap: 1.5rem; }
   .content { padding: 1rem; }
 }
 
 @media (max-width: 480px) {
   .dashboard-cards { grid-template-columns: 1fr; gap: 1rem; }
-  .dashboard-visualization { padding: 1rem; gap: 1.2rem; margin-top: 1.5rem; }
   .content { padding: 0.8rem; }
 }
+
+/* 通讯录列表 */
+.contacts-list {
+  margin-top: 1rem;
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding-right: 4px;
+}
+
+.contact-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.6rem 0.8rem;
+  background: rgba(100, 149, 237, 0.08);
+  border: 1px solid rgba(100, 149, 237, 0.2);
+  border-radius: 10px;
+}
+
+.contact-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.contact-name {
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.contact-dept {
+  font-size: 0.8rem;
+  color: rgba(51, 51, 51, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contact-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.contact-line {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: rgba(51, 51, 51, 0.8);
+}
+
+.contact-label {
+  flex: 0 0 32px;
+  color: #6495ED;
+  font-weight: 600;
+}
+
+.contact-value {
+  word-break: break-all;
+}
+
+.contact-empty {
+  text-align: center;
+  color: rgba(51, 51, 51, 0.5);
+  font-size: 0.85rem;
+  padding: 1rem 0;
+}
+
+.contacts-list::-webkit-scrollbar { width: 6px; }
+.contacts-list::-webkit-scrollbar-thumb { background: rgba(100, 149, 237, 0.5); border-radius: 4px; }
 
 .content::-webkit-scrollbar { width: 8px; }
 .content::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); border-radius: 4px; }

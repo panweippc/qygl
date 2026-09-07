@@ -74,6 +74,18 @@
       </div>
     </div>
 
+    <div class="sub-tabs-row">
+      <div class="sub-tabs">
+        <button
+          v-for="tab in meetingSubTabs"
+          :key="tab.value"
+          class="sub-tab-btn"
+          :class="{ active: meetingSubTab === tab.value }"
+          @click="meetingSubTab = tab.value"
+        >{{ tab.label }}</button>
+      </div>
+    </div>
+
     <div v-if="viewMode === 'list'" class="list-view">
       <el-table
         :data="filteredMeetingRecords"
@@ -335,6 +347,11 @@ const emit = defineEmits<{
 
 const meetingFilter = ref('all')
 const meetingPersonFilter = ref('all')
+const meetingSubTab = ref('applied')
+const meetingSubTabs = [
+  { label: '我申请的', value: 'applied' },
+  { label: '我收到的', value: 'received' }
+]
 const meetingDateType = ref('range')
 const meetingDateRange = ref([])
 const meetingSingleDate = ref(null)
@@ -385,8 +402,26 @@ const meetingOrganizers = computed(() => {
   return Array.from(organizers).sort()
 })
 
+const isMyMeetingApplication = (r: any) => {
+  return extractRealName(r.organizer) === extractRealName(currentUsername.value)
+}
+
+const isReceivedMeeting = (r: any) => {
+  const me = extractRealName(currentUsername.value)
+  if (extractRealName(r.approver) === me) return true
+  if (r.result && r.result.includes(me + ':')) return true
+  if ((r.distributedUsers || []).some((u: any) => extractRealName(u) === me)) return true
+  return false
+}
+
 const filteredMeetingRecords = computed(() => {
   let records = props.isAdmin ? allMeetingRecords.value : meetingRecords.value
+
+  if (meetingSubTab.value === 'applied') {
+    records = records.filter(isMyMeetingApplication)
+  } else if (meetingSubTab.value === 'received') {
+    records = records.filter((r: any) => !isMyMeetingApplication(r) && isReceivedMeeting(r))
+  }
 
   if (props.searchKeyword) {
     const keyword = props.searchKeyword.toLowerCase()
@@ -452,12 +487,19 @@ const loadMeetingRecords = async () => {
   try {
     const response = await getMeetings()
     if (response.success) {
+      const me = extractRealName(currentUsername.value)
       meetingRecords.value = response.data
-        .filter((item: any) => extractRealName(item.organizer) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')))
         .map((item: any) => ({
           ...item,
-          submitDate: item.createdAt?.substring(0, 10) || ''
+          submitDate: item.createdAt?.substring(0, 10) || '',
+          distributedUsers: getDistributedUsersForApplication(item.id, 'meeting')
         }))
+        .filter((item: any) =>
+          extractRealName(item.organizer) === me ||
+          extractRealName(item.approver) === me ||
+          (item.result && item.result.includes(me + ':')) ||
+          (item.distributedUsers || []).some((u: any) => extractRealName(u) === me)
+        )
     }
   } catch (error) {
     console.error('获取会议记录失败:', error)
@@ -618,6 +660,36 @@ defineExpose({ fetchData })
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
+}
+.sub-tabs-row {
+  margin-bottom: 1rem;
+}
+.sub-tabs {
+  display: inline-flex;
+  gap: 0.5rem;
+  background: rgba(100, 149, 237, 0.08);
+  border-radius: 8px;
+  padding: 0.25rem;
+}
+.sub-tab-btn {
+  border: none;
+  background: transparent;
+  color: #666;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.25s ease;
+}
+.sub-tab-btn.active {
+  background: #fff;
+  color: #6495ED;
+  box-shadow: 0 2px 8px rgba(100, 149, 237, 0.2);
+  font-weight: 600;
+}
+.sub-tab-btn:hover:not(.active) {
+  color: #333;
+  background: rgba(100, 149, 237, 0.12);
 }
 .panel-title {
   display: flex;
