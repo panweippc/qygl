@@ -221,7 +221,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getEntertainmentExpenses, addEntertainmentExpense, updateEntertainmentExpense } from '../services/api'
+import { getEntertainmentExpenses, addEntertainmentExpense, updateEntertainmentExpense, getDistributedRecords } from '../services/api'
 import { extractRealName, formatDate, getStatusClass, getStatusText, exportToCSV, exportSingleRow, exportEntertainmentFormHTML } from '../utils/oaWorkflowUtils'
 
 const props = defineProps<{
@@ -292,13 +292,32 @@ const entertainmentSubTabs = [
   { label: '我收到的', value: 'received' }
 ]
 
+// 下发给我的记录（按当前用户拉取，不依赖全局 allDistributedRecords）
+const myDistributedRecords = ref<any[]>([])
+let myDistributedLoaded = false
+const loadMyDistributedRecords = async () => {
+  try {
+    const res = await getDistributedRecords(extractRealName(currentUsername.value))
+    if (res.success) myDistributedRecords.value = res.data || []
+  } catch (e) {
+    console.error('获取我的下发记录失败:', e)
+  }
+  myDistributedLoaded = true
+}
+const isItemDistributedToMe = (item: any, type: string) =>
+  myDistributedRecords.value.some((d: any) =>
+    Number(d.applicationId) === Number(item.id) &&
+    d.applicationType === type &&
+    extractRealName(d.targetUser) === extractRealName(currentUsername.value)
+  )
+
 const isMyEntertainmentApplication = (r: any) => extractRealName(r.applicant) === extractRealName(currentUsername.value)
 
 const isReceivedEntertainment = (r: any) => {
   const me = extractRealName(currentUsername.value)
   if (extractRealName(r.approver) === me) return true
   if (r.result && r.result.includes(me + ':')) return true
-  if ((r.distributedUsers || []).some((u: any) => extractRealName(u) === me)) return true
+  if (isItemDistributedToMe(r, 'entertainment')) return true
   return false
 }
 
@@ -361,10 +380,11 @@ const filteredEntertainmentRecords = computed(() => {
 
 const loadEntertainmentRecords = async () => {
   try {
+    if (!myDistributedLoaded) await loadMyDistributedRecords()
     const response = await getEntertainmentExpenses()
     if (response.success) {
       entertainmentRecords.value = response.data
-        .filter((item: any) => extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')))
+        .filter((item: any) => extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')) || isItemDistributedToMe(item, 'entertainment'))
         .map((item: any) => ({ ...item, submitDate: item.createdAt?.substring(0, 10) || '' }))
         .sort((a: any, b: any) => (b.id || 0) - (a.id || 0))
     }
@@ -374,6 +394,7 @@ const loadEntertainmentRecords = async () => {
 }
 
 const fetchData = async () => {
+  await loadMyDistributedRecords()
   await loadEntertainmentRecords()
   emit('stat-update')
 }

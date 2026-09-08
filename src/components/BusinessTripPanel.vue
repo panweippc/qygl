@@ -257,6 +257,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getBusinessTrips,
+  getDistributedRecords,
   updateBusinessTrip,
   withdrawBusinessTrip,
   returnBusinessTrip,
@@ -318,11 +319,30 @@ const isMyBusinessTripApplication = (r: any) => {
   return extractRealName(r.applicant) === extractRealName(currentUsername.value)
 }
 
+// 下发给我的记录（按当前用户拉取，不依赖全局 allDistributedRecords）
+const myDistributedRecords = ref<any[]>([])
+let myDistributedLoaded = false
+const loadMyDistributedRecords = async () => {
+  try {
+    const res = await getDistributedRecords(extractRealName(currentUsername.value))
+    if (res.success) myDistributedRecords.value = res.data || []
+  } catch (e) {
+    console.error('获取我的下发记录失败:', e)
+  }
+  myDistributedLoaded = true
+}
+const isItemDistributedToMe = (item: any, type: string) =>
+  myDistributedRecords.value.some((d: any) =>
+    Number(d.applicationId) === Number(item.id) &&
+    d.applicationType === type &&
+    extractRealName(d.targetUser) === extractRealName(currentUsername.value)
+  )
+
 const isReceivedBusinessTrip = (r: any) => {
   const me = extractRealName(currentUsername.value)
   if (extractRealName(r.approver) === me) return true
   if (r.result && r.result.includes(me + ':')) return true
-  if ((r.distributedUsers || []).some((u: any) => extractRealName(u) === me)) return true
+  if (isItemDistributedToMe(r, 'businessTrip')) return true
   return false
 }
 
@@ -381,6 +401,7 @@ const isDistributed = (row: any, type: string): boolean => {
 
 const loadBusinessTripRecords = async () => {
   try {
+    if (!myDistributedLoaded) await loadMyDistributedRecords()
     const response = await getBusinessTrips({ pageSize: 9999 })
     if (response.success && response.data && response.data.list) {
       const me = extractRealName(currentUsername.value)
@@ -406,13 +427,12 @@ const loadBusinessTripRecords = async () => {
             }
           }
         } catch {}
-        const distributedUsers = getDistributedUsersForApplication(item.id, 'businessTrip')
         return extractRealName(item.applicant_name || item.applicant) === me ||
           extractRealName(item.approver) === me ||
           (item.result && item.result.includes(me + ':')) ||
           inComment ||
           inHistory ||
-          distributedUsers.some((u: any) => extractRealName(u) === me)
+          isItemDistributedToMe(item, 'businessTrip')
       })
       businessTripRecords.value = filteredData.map((item: any) => {
         let destination = item.destination ? String(item.destination) : ''
@@ -487,6 +507,7 @@ const loadAllBusinessTripRecords = async () => {
 }
 
 const fetchData = async () => {
+  await loadMyDistributedRecords()
   await loadBusinessTripRecords()
   if (props.isAdmin) {
     await loadAllBusinessTripRecords()

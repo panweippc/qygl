@@ -386,6 +386,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getLeaveApplications,
+  getDistributedRecords,
   addLeaveApplication,
   updateLeaveApplication,
   withdrawLeave,
@@ -484,13 +485,32 @@ const leaveSubTabs = [
   { label: '我收到的', value: 'received' }
 ]
 
+// 下发给我的记录（按当前用户拉取，不依赖全局 allDistributedRecords）
+const myDistributedRecords = ref<any[]>([])
+let myDistributedLoaded = false
+const loadMyDistributedRecords = async () => {
+  try {
+    const res = await getDistributedRecords(extractRealName(currentUsername.value))
+    if (res.success) myDistributedRecords.value = res.data || []
+  } catch (e) {
+    console.error('获取我的下发记录失败:', e)
+  }
+  myDistributedLoaded = true
+}
+const isItemDistributedToMe = (item: any, type: string) =>
+  myDistributedRecords.value.some((d: any) =>
+    Number(d.applicationId) === Number(item.id) &&
+    d.applicationType === type &&
+    extractRealName(d.targetUser) === extractRealName(currentUsername.value)
+  )
+
 const isMyLeaveApplication = (r: any) => extractRealName(r.applicant) === extractRealName(currentUsername.value)
 
 const isReceivedLeave = (r: any) => {
   const me = extractRealName(currentUsername.value)
   if (extractRealName(r.approver) === me) return true
   if (r.result && r.result.includes(me + ':')) return true
-  if ((r.distributedUsers || []).some((u: any) => extractRealName(u) === me)) return true
+  if (isItemDistributedToMe(r, 'leave')) return true
   return false
 }
 
@@ -589,10 +609,11 @@ const isDistributed = (row: any, type: string): boolean => {
 
 const loadLeaveRecords = async () => {
   try {
+    if (!myDistributedLoaded) await loadMyDistributedRecords()
     const response = await getLeaveApplications()
     if (response.success) {
       leaveRecords.value = response.data
-        .filter((item: any) => extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')))
+        .filter((item: any) => extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')) || isItemDistributedToMe(item, 'leave'))
         .map((item: any) => ({
           ...item,
           submitDate: item.createdAt?.substring(0, 10) || ''
@@ -623,6 +644,7 @@ const loadAllLeaveRecords = async () => {
 }
 
 const fetchData = async () => {
+  await loadMyDistributedRecords()
   await loadLeaveRecords()
   if (props.isAdmin) {
     await loadAllLeaveRecords()

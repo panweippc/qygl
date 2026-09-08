@@ -449,6 +449,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getReimbursements,
+  getDistributedRecords,
   addReimbursement,
   updateReimbursement,
   withdrawReimbursement,
@@ -604,13 +605,32 @@ const reimbursementSubTabs = [
   { label: '我收到的', value: 'received' }
 ]
 
+// 下发给我的记录（按当前用户拉取，不依赖全局 allDistributedRecords）
+const myDistributedRecords = ref<any[]>([])
+let myDistributedLoaded = false
+const loadMyDistributedRecords = async () => {
+  try {
+    const res = await getDistributedRecords(extractRealName(currentUsername.value))
+    if (res.success) myDistributedRecords.value = res.data || []
+  } catch (e) {
+    console.error('获取我的下发记录失败:', e)
+  }
+  myDistributedLoaded = true
+}
+const isItemDistributedToMe = (item: any, type: string) =>
+  myDistributedRecords.value.some((d: any) =>
+    Number(d.applicationId) === Number(item.id) &&
+    d.applicationType === type &&
+    extractRealName(d.targetUser) === extractRealName(currentUsername.value)
+  )
+
 const isMyReimbursementApplication = (r: any) => extractRealName(r.applicant) === extractRealName(currentUsername.value)
 
 const isReceivedReimbursement = (r: any) => {
   const me = extractRealName(currentUsername.value)
   if (extractRealName(r.approver) === me) return true
   if (r.result && r.result.includes(me + ':')) return true
-  if ((r.distributedUsers || []).some((u: any) => extractRealName(u) === me)) return true
+  if (isItemDistributedToMe(r, 'reimbursement')) return true
   return false
 }
 
@@ -708,10 +728,11 @@ const isDistributed = (row: any, type: string): boolean => {
 
 const loadReimbursementRecords = async () => {
   try {
+    if (!myDistributedLoaded) await loadMyDistributedRecords()
     const response = await getReimbursements()
     if (response.success) {
       reimbursementRecords.value = response.data
-        .filter((item: any) => extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')))
+        .filter((item: any) => extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')) || isItemDistributedToMe(item, 'reimbursement'))
         .map((item: any) => ({
           ...item,
           submitDate: item.createdAt?.substring(0, 10) || ''
@@ -742,6 +763,7 @@ const loadAllReimbursementRecords = async () => {
 }
 
 const fetchData = async () => {
+  await loadMyDistributedRecords()
   await loadReimbursementRecords()
   if (props.isAdmin) {
     await loadAllReimbursementRecords()

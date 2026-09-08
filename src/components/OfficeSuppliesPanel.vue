@@ -263,6 +263,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getProjects,
+  getDistributedRecords,
   updateProject,
   deleteProject,
   withdrawProject,
@@ -322,13 +323,32 @@ const projectSubTabs = [
   { label: '我收到的', value: 'received' }
 ]
 
+// 下发给我的记录（按当前用户拉取，不依赖全局 allDistributedRecords）
+const myDistributedRecords = ref<any[]>([])
+let myDistributedLoaded = false
+const loadMyDistributedRecords = async () => {
+  try {
+    const res = await getDistributedRecords(extractRealName(currentUsername.value))
+    if (res.success) myDistributedRecords.value = res.data || []
+  } catch (e) {
+    console.error('获取我的下发记录失败:', e)
+  }
+  myDistributedLoaded = true
+}
+const isItemDistributedToMe = (item: any, type: string) =>
+  myDistributedRecords.value.some((d: any) =>
+    Number(d.applicationId) === Number(item.id) &&
+    d.applicationType === type &&
+    extractRealName(d.targetUser) === extractRealName(currentUsername.value)
+  )
+
 const isMyProjectApplication = (r: any) => extractRealName(r.applicant_name || r.applicant) === extractRealName(currentUsername.value)
 
 const isReceivedProject = (r: any) => {
   const me = extractRealName(currentUsername.value)
   if (extractRealName(r.approver) === me) return true
   if (r.result && r.result.includes(me + ':')) return true
-  if ((r.distributedUsers || []).some((u: any) => extractRealName(u) === me)) return true
+  if (isItemDistributedToMe(r, 'project')) return true
   return false
 }
 
@@ -388,10 +408,11 @@ const isDistributed = (row: any, type: string): boolean => {
 
 const loadProjectRecords = async () => {
   try {
+    if (!myDistributedLoaded) await loadMyDistributedRecords()
     const response = await getProjects()
     if (response.success && response.data && response.data.list) {
       const filteredData = response.data.list.filter((item: any) => {
-        return extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':'))
+        return extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')) || isItemDistributedToMe(item, 'project')
       })
       projectRecords.value = filteredData.map((item: any) => {
         let projectName = item.project_name ? String(item.project_name) : ''
@@ -469,6 +490,7 @@ const loadAllProjectRecords = async () => {
 }
 
 const fetchData = async () => {
+  await loadMyDistributedRecords()
   await loadProjectRecords()
   if (props.isAdmin) {
     await loadAllProjectRecords()

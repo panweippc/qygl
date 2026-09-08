@@ -352,6 +352,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getMeetings,
+  getDistributedRecords,
   addMeeting,
   updateMeeting,
   withdrawMeeting,
@@ -445,6 +446,25 @@ const meetingOrganizers = computed(() => {
   return Array.from(organizers).sort()
 })
 
+// 下发给我的记录（按当前用户拉取，不依赖全局 allDistributedRecords）
+const myDistributedRecords = ref<any[]>([])
+let myDistributedLoaded = false
+const loadMyDistributedRecords = async () => {
+  try {
+    const res = await getDistributedRecords(extractRealName(currentUsername.value))
+    if (res.success) myDistributedRecords.value = res.data || []
+  } catch (e) {
+    console.error('获取我的下发记录失败:', e)
+  }
+  myDistributedLoaded = true
+}
+const isItemDistributedToMe = (item: any, type: string) =>
+  myDistributedRecords.value.some((d: any) =>
+    Number(d.applicationId) === Number(item.id) &&
+    d.applicationType === type &&
+    extractRealName(d.targetUser) === extractRealName(currentUsername.value)
+  )
+
 const isMyMeetingApplication = (r: any) => {
   return extractRealName(r.organizer) === extractRealName(currentUsername.value)
 }
@@ -453,7 +473,7 @@ const isReceivedMeeting = (r: any) => {
   const me = extractRealName(currentUsername.value)
   if (extractRealName(r.approver) === me) return true
   if (r.result && r.result.includes(me + ':')) return true
-  if ((r.distributedUsers || []).some((u: any) => extractRealName(u) === me)) return true
+  if (isItemDistributedToMe(r, 'meeting')) return true
   return false
 }
 
@@ -546,6 +566,7 @@ const filteredMeetingRecords = computed(() => {
 
 const loadMeetingRecords = async () => {
   try {
+    if (!myDistributedLoaded) await loadMyDistributedRecords()
     const response = await getMeetings()
     if (response.success) {
       const me = extractRealName(currentUsername.value)
@@ -559,7 +580,7 @@ const loadMeetingRecords = async () => {
           extractRealName(item.organizer) === me ||
           extractRealName(item.approver) === me ||
           (item.result && item.result.includes(me + ':')) ||
-          (item.distributedUsers || []).some((u: any) => extractRealName(u) === me)
+          isItemDistributedToMe(item, 'meeting')
         )
     }
   } catch (error) {
@@ -600,6 +621,7 @@ const isDistributed = (row: any, type: string): boolean => {
 }
 
 const fetchData = async () => {
+  await loadMyDistributedRecords()
   await loadMeetingRecords()
   if (props.isAdmin) {
     await loadAllMeetingRecords()
