@@ -347,7 +347,7 @@
 
 <script setup lang="ts">
 import { printForm } from '../utils/oaWorkflowUtils'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -376,6 +376,7 @@ const props = defineProps<{
   allEmployees: any[]
   approverEmployees: any[]
   allDistributedRecords: any[]
+  subTab: string
 }>()
 
 const emit = defineEmits<{
@@ -389,7 +390,7 @@ const emit = defineEmits<{
 
 const meetingFilter = ref('all')
 const meetingPersonFilter = ref('all')
-const meetingSubTab = ref('applied')
+const meetingSubTab = ref(props.subTab || 'applied')
 const meetingSubTabs = [
   { label: '我申请的', value: 'applied' },
   { label: '我收到的', value: 'received' }
@@ -463,6 +464,8 @@ const canApprove = (row: any) => isPending(row) && (props.isAdmin || extractReal
 const canReturn = (row: any) => isPending(row) && (props.isAdmin || extractRealName(row.approver) === extractRealName(currentUsername.value))
 const canWithdraw = (row: any) => isPending(row) && !props.isAdmin && isMyMeetingApplication(row)
 const canResubmitDelete = (row: any) => isWithdrawnOrDraft(row) && (props.isAdmin || isMyMeetingApplication(row))
+
+watch(() => props.subTab, (v: string) => { if (v) meetingSubTab.value = v })
 
 const filteredMeetingRecords = computed(() => {
   let records = props.isAdmin ? allMeetingRecords.value : meetingRecords.value

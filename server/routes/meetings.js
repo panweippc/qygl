@@ -42,13 +42,29 @@ router.post('/meetings/:id/withdraw', async (req, res) => {
     const { pool } = req.app.locals;
     const operator = getRealName(req);
     if (!operator) return res.status(401).json({ success: false, message: '未登录' });
-    const [[rec]] = await pool.query('SELECT organizer, status FROM meetings WHERE id = ?', [id]);
+    const [[rec]] = await pool.query('SELECT * FROM meetings WHERE id = ?', [id]);
     if (!rec) return res.status(404).json({ success: false, message: '会议申请不存在' });
     if (rec.organizer !== operator) return res.status(403).json({ success: false, message: '仅申请人本人可撤回' });
     if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
       return res.status(400).json({ success: false, message: '当前状态不可撤回' });
     }
     await pool.execute('UPDATE meetings SET status = ?, result = ? WHERE id = ?', ['已撤回', '已撤回', id]);
+    // withdrawNotify: 撤回后通知审批人，并给申请人一条消息中心回执
+    try {
+      const notifyTargets = new Set([rec.approver, operator].filter(Boolean));
+      for (const uid of notifyTargets) {
+        await createNotification(pool, {
+          userId: uid,
+          title: '申请已撤回',
+          content: uid === operator
+            ? `您已撤回自己的会议申请（编号 ${id}）`
+            : `${operator} 撤回了一份会议申请（编号 ${id}），该申请已从您的待办中移除`,
+          type: 'approval',
+          relatedId: parseInt(id),
+          relatedType: 'meeting'
+        });
+      }
+    } catch (e) { /* 通知失败不影响撤回主流程 */ }
     await createOperationLog(pool, { username: operator, action: 'withdraw', module: 'meeting', targetName: `会议"${rec.title || ''}"`, detail: '申请人撤回' });
     res.json({ success: true, message: '撤回成功' });
   } catch (error) {
@@ -67,7 +83,7 @@ router.post('/meetings/:id/return', async (req, res) => {
     if (!operator) return res.status(401).json({ success: false, message: '未登录' });
     if (!reason || !String(reason).trim()) return res.status(400).json({ success: false, message: '退回理由不能为空' });
     const isManager = await isManagerUser(req);
-    const [[rec]] = await pool.query('SELECT organizer, approver, status FROM meetings WHERE id = ?', [id]);
+    const [[rec]] = await pool.query('SELECT * FROM meetings WHERE id = ?', [id]);
     if (!rec) return res.status(404).json({ success: false, message: '会议申请不存在' });
     if (!isManager && rec.approver !== operator) return res.status(403).json({ success: false, message: '仅当前审批人可退回' });
     if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
@@ -90,7 +106,7 @@ router.post('/meetings/:id/soft-delete', async (req, res) => {
     const { pool } = req.app.locals;
     const operator = getRealName(req);
     if (!operator) return res.status(401).json({ success: false, message: '未登录' });
-    const [[rec]] = await pool.query('SELECT organizer, status FROM meetings WHERE id = ?', [id]);
+    const [[rec]] = await pool.query('SELECT * FROM meetings WHERE id = ?', [id]);
     if (!rec) return res.status(404).json({ success: false, message: '会议申请不存在' });
     const isManager = await isManagerUser(req);
     if (!isManager && rec.organizer !== operator) return res.status(403).json({ success: false, message: '无权限删除他人的申请' });
@@ -156,7 +172,7 @@ router.put('/meetings/:id', async (req, res) => {
     // 安全加固：仅当前审批人或管理角色可操作
     const operatorName = getRealName(req);
     const isManager = await isManagerUser(req);
-    const [[permRecord]] = await pool.query('SELECT approver FROM meetings WHERE id = ?', [id]);
+    const [[permRecord]] = await pool.query('SELECT * FROM meetings WHERE id = ?', [id]);
     if (!permRecord) {
       return res.status(404).json({ success: false, message: '会议记录不存在' });
     }
@@ -164,7 +180,7 @@ router.put('/meetings/:id', async (req, res) => {
       return res.status(403).json({ success: false, message: '您不是该会议的审批人，无权限操作' });
     }
     if (forwardTo) {
-      const [[current]] = await pool.query('SELECT approver, comment as oldComment FROM meetings WHERE id = ?', [id]);
+      const [[current]] = await pool.query('SELECT * FROM meetings WHERE id = ?', [id]);
       const currentApprover = current?.approver || '';
       const intermediateResult = result ? `${currentApprover}:${result}` : null;
       const newComment = current?.oldComment
@@ -174,7 +190,7 @@ router.put('/meetings/:id', async (req, res) => {
         'UPDATE meetings SET comment = ?, result = ?, approver = ? WHERE id = ?',
         [newComment, intermediateResult, forwardTo, id]
       );
-      const [[app]] = await pool.query('SELECT title, organizer FROM meetings WHERE id = ?', [id]);
+      const [[app]] = await pool.query('SELECT * FROM meetings WHERE id = ?', [id]);
       if (app) {
         await createNotification(pool, { userId: app.organizer, title: '会议已转发', content: `您发起的会议"${app.title}"已转发至总经理审批`, type: 'approval' });
         await createNotification(pool, { userId: forwardTo, title: '会议审批提醒', content: `${app.organizer} 发起的会议"${app.title}"已转发给您，请审批`, type: 'approval' });
@@ -182,7 +198,7 @@ router.put('/meetings/:id', async (req, res) => {
       }
     } else {
       const status = result === '批准' ? '已批准' : result === '拒绝' ? '已拒绝' : '待审批';
-      const [[current]] = await pool.query('SELECT approver, comment as oldComment, result as oldResult FROM meetings WHERE id = ?', [id]);
+      const [[current]] = await pool.query('SELECT * FROM meetings WHERE id = ?', [id]);
       const currentApprover = current?.approver || '';
       const accumulatedResult = current?.oldResult && current.oldResult.includes(':')
         ? `${current.oldResult};${currentApprover}:${result}`
@@ -194,7 +210,7 @@ router.put('/meetings/:id', async (req, res) => {
         'UPDATE meetings SET comment = ?, result = ?, status = ? WHERE id = ?',
         [newComment, accumulatedResult, status, id]
       );
-      const [[app]] = await pool.query('SELECT title, organizer FROM meetings WHERE id = ?', [id]);
+      const [[app]] = await pool.query('SELECT * FROM meetings WHERE id = ?', [id]);
       if (app) {
         const actionLabel = result === '批准' ? '已通过' : result === '拒绝' ? '被拒绝' : '已更新';
         await createNotification(pool, { userId: app.organizer, title: `会议审批${actionLabel}`, content: `您发起的会议"${app.title}"${actionLabel}`, type: 'approval' });

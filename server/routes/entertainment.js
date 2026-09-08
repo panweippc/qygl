@@ -62,13 +62,29 @@ router.post('/entertainment-expenses/:id/withdraw', async (req, res) => {
     const { pool } = req.app.locals;
     const operator = getRealName(req);
     if (!operator) return res.status(401).json({ success: false, message: '未登录' });
-    const [[rec]] = await pool.query('SELECT applicant, status FROM entertainment_expenses WHERE id = ?', [id]);
+    const [[rec]] = await pool.query('SELECT * FROM entertainment_expenses WHERE id = ?', [id]);
     if (!rec) return res.status(404).json({ success: false, message: '招待费记录不存在' });
     if (rec.applicant !== operator) return res.status(403).json({ success: false, message: '仅申请人本人可撤回' });
     if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
       return res.status(400).json({ success: false, message: '当前状态不可撤回' });
     }
     await pool.execute('UPDATE entertainment_expenses SET status = ?, result = ? WHERE id = ?', ['已撤回', '已撤回', id]);
+    // withdrawNotify: 撤回后通知审批人，并给申请人一条消息中心回执
+    try {
+      const notifyTargets = new Set([rec.approver, operator].filter(Boolean));
+      for (const uid of notifyTargets) {
+        await createNotification(pool, {
+          userId: uid,
+          title: '申请已撤回',
+          content: uid === operator
+            ? `您已撤回自己的招待费申请（编号 ${id}）`
+            : `${operator} 撤回了一份招待费申请（编号 ${id}），该申请已从您的待办中移除`,
+          type: 'approval',
+          relatedId: parseInt(id),
+          relatedType: 'entertainment'
+        });
+      }
+    } catch (e) { /* 通知失败不影响撤回主流程 */ }
     await createOperationLog(pool, { username: operator, action: 'withdraw', module: 'entertainment', targetName: `${rec.expenseType || ''}招待`, detail: '申请人撤回' });
     res.json({ success: true, message: '撤回成功' });
   } catch (error) {
@@ -87,7 +103,7 @@ router.post('/entertainment-expenses/:id/return', async (req, res) => {
     if (!operator) return res.status(401).json({ success: false, message: '未登录' });
     if (!reason || !String(reason).trim()) return res.status(400).json({ success: false, message: '退回理由不能为空' });
     const isManager = await isFinanceManager(req);
-    const [[rec]] = await pool.query('SELECT applicant, approver, status FROM entertainment_expenses WHERE id = ?', [id]);
+    const [[rec]] = await pool.query('SELECT * FROM entertainment_expenses WHERE id = ?', [id]);
     if (!rec) return res.status(404).json({ success: false, message: '招待费记录不存在' });
     if (!isManager && rec.approver !== operator) return res.status(403).json({ success: false, message: '仅当前审批人可退回' });
     if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
@@ -110,7 +126,7 @@ router.post('/entertainment-expenses/:id/soft-delete', async (req, res) => {
     const { pool } = req.app.locals;
     const operator = getRealName(req);
     if (!operator) return res.status(401).json({ success: false, message: '未登录' });
-    const [[rec]] = await pool.query('SELECT applicant, status FROM entertainment_expenses WHERE id = ?', [id]);
+    const [[rec]] = await pool.query('SELECT * FROM entertainment_expenses WHERE id = ?', [id]);
     if (!rec) return res.status(404).json({ success: false, message: '招待费记录不存在' });
     const isManager = await isFinanceManager(req);
     if (!isManager && rec.applicant !== operator) return res.status(403).json({ success: false, message: '无权限删除他人的申请' });
@@ -180,7 +196,7 @@ router.put('/entertainment-expenses/:id', async (req, res) => {
     const { pool } = req.app.locals;
     const operator = getRealName(req);
     const isManager = await isFinanceManager(req);
-    const [[record]] = await pool.query('SELECT applicant, approver FROM entertainment_expenses WHERE id = ?', [id]);
+    const [[record]] = await pool.query('SELECT * FROM entertainment_expenses WHERE id = ?', [id]);
     if (!record) {
       return res.status(404).json({ success: false, message: '招待费记录不存在' });
     }
@@ -189,7 +205,7 @@ router.put('/entertainment-expenses/:id', async (req, res) => {
       return res.status(403).json({ success: false, message: '您不是该招待费的审批人，无权限操作' });
     }
     if (forwardTo) {
-      const [[current]] = await pool.query('SELECT approver, comment as oldComment, result as oldResult FROM entertainment_expenses WHERE id = ?', [id]);
+      const [[current]] = await pool.query('SELECT * FROM entertainment_expenses WHERE id = ?', [id]);
       const currentApprover = current?.approver || '';
       const intermediateResult = result ? `${currentApprover}:${result}` : null;
       const accumulatedResult = current?.oldResult && current.oldResult.includes(':')
@@ -202,7 +218,7 @@ router.put('/entertainment-expenses/:id', async (req, res) => {
         'UPDATE entertainment_expenses SET comment = ?, result = ?, approver = ? WHERE id = ?',
         [newComment, accumulatedResult, forwardTo, id]
       );
-      const [[app]] = await pool.query('SELECT applicant FROM entertainment_expenses WHERE id = ?', [id]);
+      const [[app]] = await pool.query('SELECT * FROM entertainment_expenses WHERE id = ?', [id]);
       if (app) {
         await createNotification(pool, { userId: app.applicant, title: '招待费已转发', content: `您的业务招待费申请已转发至总经理审批`, type: 'approval' });
         await createNotification(pool, { userId: forwardTo, title: '招待费审批提醒', content: `${app.applicant} 的业务招待费申请已转发给您，请审批`, type: 'approval' });
@@ -210,7 +226,7 @@ router.put('/entertainment-expenses/:id', async (req, res) => {
       }
     } else {
       const status = result === '批准' ? '已批准' : result === '拒绝' ? '已拒绝' : '审批中';
-      const [[current]] = await pool.query('SELECT approver, comment as oldComment, result as oldResult FROM entertainment_expenses WHERE id = ?', [id]);
+      const [[current]] = await pool.query('SELECT * FROM entertainment_expenses WHERE id = ?', [id]);
       const currentApprover = current?.approver || '';
       const accumulatedResult = current?.oldResult && current.oldResult.includes(':')
         ? `${current.oldResult};${currentApprover}:${result}`

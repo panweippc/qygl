@@ -252,7 +252,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -284,6 +284,7 @@ const props = defineProps<{
   allEmployees: any[]
   approverEmployees: any[]
   allDistributedRecords: any[]
+  subTab: string
 }>()
 
 const emit = defineEmits<{
@@ -296,7 +297,7 @@ const emit = defineEmits<{
 }>()
 
 const businessTripFilter = ref('all')
-const businessTripSubTab = ref('applied')
+const businessTripSubTab = ref(props.subTab || 'applied')
 const businessTripSubTabs = [
   { label: '我申请的', value: 'applied' },
   { label: '我收到的', value: 'received' }
@@ -324,6 +325,8 @@ const isReceivedBusinessTrip = (r: any) => {
   if ((r.distributedUsers || []).some((u: any) => extractRealName(u) === me)) return true
   return false
 }
+
+watch(() => props.subTab, (v: string) => { if (v) businessTripSubTab.value = v })
 
 const filteredBusinessTripRecords = computed(() => {
   let records = props.isAdmin ? allBusinessTripRecords.value : businessTripRecords.value

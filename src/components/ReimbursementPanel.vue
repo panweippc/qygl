@@ -75,6 +75,18 @@
       </div>
     </div>
 
+    <div class="sub-tabs-row">
+      <div class="sub-tabs">
+        <button
+          v-for="tab in reimbursementSubTabs"
+          :key="tab.value"
+          class="sub-tab-btn"
+          :class="{ active: reimbursementSubTab === tab.value }"
+          @click="reimbursementSubTab = tab.value"
+        >{{ tab.label }}</button>
+      </div>
+    </div>
+
     <div v-if="viewMode === 'list'" class="list-view">
       <el-table
         :data="filteredReimbursementRecords"
@@ -432,7 +444,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -463,6 +475,7 @@ const props = defineProps<{
   allEmployees: any[]
   approverEmployees: any[]
   allDistributedRecords: any[]
+  subTab: string
 }>()
 
 const emit = defineEmits<{
@@ -585,8 +598,32 @@ const reimbursementApplicants = computed(() => {
   return Array.from(applicants).sort()
 })
 
+const reimbursementSubTab = ref(props.subTab || 'applied')
+const reimbursementSubTabs = [
+  { label: '我申请的', value: 'applied' },
+  { label: '我收到的', value: 'received' }
+]
+
+const isMyReimbursementApplication = (r: any) => extractRealName(r.applicant) === extractRealName(currentUsername.value)
+
+const isReceivedReimbursement = (r: any) => {
+  const me = extractRealName(currentUsername.value)
+  if (extractRealName(r.approver) === me) return true
+  if (r.result && r.result.includes(me + ':')) return true
+  if ((r.distributedUsers || []).some((u: any) => extractRealName(u) === me)) return true
+  return false
+}
+
+watch(() => props.subTab, (v: string) => { if (v) reimbursementSubTab.value = v })
+
 const filteredReimbursementRecords = computed(() => {
   let records = props.isAdmin ? allReimbursementRecords.value : reimbursementRecords.value
+
+  if (reimbursementSubTab.value === 'applied') {
+    records = records.filter(isMyReimbursementApplication)
+  } else if (reimbursementSubTab.value === 'received') {
+    records = records.filter((r: any) => !isMyReimbursementApplication(r) && isReceivedReimbursement(r))
+  }
 
   if (props.searchKeyword) {
     const keyword = props.searchKeyword.toLowerCase()
@@ -1187,5 +1224,36 @@ defineExpose({ fetchData })
   background: rgba(97, 97, 97, 0.1);
   color: #616161;
   border: 1px solid rgba(97, 97, 97, 0.3);
+}
+
+.sub-tabs-row {
+  margin-bottom: 1rem;
+}
+.sub-tabs {
+  display: inline-flex;
+  gap: 0.5rem;
+  background: rgba(100, 149, 237, 0.08);
+  border-radius: 8px;
+  padding: 0.25rem;
+}
+.sub-tab-btn {
+  border: none;
+  background: transparent;
+  color: #666;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.25s ease;
+}
+.sub-tab-btn.active {
+  background: #fff;
+  color: #6495ED;
+  box-shadow: 0 2px 8px rgba(100, 149, 237, 0.2);
+  font-weight: 600;
+}
+.sub-tab-btn:hover:not(.active) {
+  color: #333;
+  background: rgba(100, 149, 237, 0.12);
 }
 </style>

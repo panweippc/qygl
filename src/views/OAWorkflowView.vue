@@ -91,6 +91,7 @@
                 :allEmployees="allEmployees"
                 :approverEmployees="approverEmployees"
                 :allDistributedRecords="allDistributedRecords"
+                :subTab="defaultSubTab"
                 @approve="openApprovalDialog"
                 @terminate="terminateProcess"
                 @distribute="openDistributeDialog"
@@ -110,6 +111,7 @@
                 :allEmployees="allEmployees"
                 :approverEmployees="approverEmployees"
                 :allDistributedRecords="allDistributedRecords"
+                :subTab="defaultSubTab"
                 @approve="openApprovalDialog"
                 @terminate="terminateProcess"
                 @distribute="openDistributeDialog"
@@ -129,6 +131,7 @@
                 :allEmployees="allEmployees"
                 :approverEmployees="approverEmployees"
                 :allDistributedRecords="allDistributedRecords"
+                :subTab="defaultSubTab"
                 @approve="openApprovalDialog"
                 @terminate="terminateProcess"
                 @distribute="openDistributeDialog"
@@ -148,6 +151,7 @@
                 :allEmployees="allEmployees"
                 :approverEmployees="approverEmployees"
                 :allDistributedRecords="allDistributedRecords"
+                :subTab="defaultSubTab"
                 @approve="openApprovalDialog"
                 @terminate="terminateProcess"
                 @distribute="openDistributeDialog"
@@ -167,6 +171,7 @@
                 :allEmployees="allEmployees"
                 :approverEmployees="approverEmployees"
                 :allDistributedRecords="allDistributedRecords"
+                :subTab="defaultSubTab"
                 @approve="openApprovalDialog"
                 @terminate="terminateProcess"
                 @distribute="openDistributeDialog"
@@ -186,6 +191,7 @@
                 :allEmployees="allEmployees"
                 :approverEmployees="approverEmployees"
                 :allDistributedRecords="allDistributedRecords"
+                :subTab="defaultSubTab"
                 @approve="openApprovalDialog"
                 @terminate="terminateProcess"
                 @view-detail="viewDetail"
@@ -412,12 +418,14 @@
           <span :class="['detail-status', getStatusClass(currentDetailItem.status)]">{{ getStatusText(currentDetailItem.status) }}</span>
         </div>
         <div class="detail-body">
-          <div class="detail-section" v-for="(value, key) in getDetailFields(currentDetailItem, currentDetailType, currentUsername)" :key="key">
-            <div class="detail-row">
-              <span class="detail-label">{{ key }}</span>
-              <span class="detail-value">{{ value }}</span>
-            </div>
-          </div>
+          <el-table :data="detailFieldRows" border size="small" style="width: 100%" max-height="420">
+            <el-table-column prop="label" label="字段" width="140" />
+            <el-table-column prop="value" label="内容" min-width="220">
+              <template #default="{ row }">
+                <span :class="{ 'return-reason-text': row.highlight }">{{ row.value }}</span>
+              </template>
+            </el-table-column>
+          </el-table>
         </div>
         <div class="detail-footer">
           <div class="detail-section" v-if="currentDetailType === 'businessTrip' && getBusinessTripApprovalChain(currentDetailItem)">
@@ -600,6 +608,7 @@ const route = useRoute()
 
 const loading = ref(false)
 const activeTab = ref('project')
+const defaultSubTab = ref('applied')
 const viewMode = ref('list')
 const searchKeyword = ref('')
 
@@ -1110,6 +1119,16 @@ const getAttachmentDownloadUrl = (file: { name: string; url: string }) => {
   // token 由 axios 拦截器通过 Authorization header 携带，不在 URL 中传递
   return `/api/attachments/download?file=${encodeURIComponent(file.url)}&name=${encodeURIComponent(file.name)}`
 }
+
+// 详情弹窗：字段以表格方式展示；存在退回理由时追加一行并高亮
+const detailFieldRows = computed(() => {
+  if (!currentDetailItem.value) return []
+  const fields = getDetailFields(currentDetailItem.value, currentDetailType.value, currentUsername.value) || {}
+  const rows = Object.entries(fields).map(([label, value]) => ({ label, value, highlight: false }))
+  const reason = currentDetailItem.value.return_reason || currentDetailItem.value.returnReason
+  if (reason) rows.push({ label: '退回理由', value: reason, highlight: true })
+  return rows
+})
 
 const viewDetail = (row: any, type: string) => {
   currentDetailItem.value = row
@@ -1806,6 +1825,9 @@ watch(() => route.query, (query) => {
     if (validTabs.includes(query.tab as string)) {
       activeTab.value = query.tab as string
     }
+  }
+  if (query.subTab) {
+    defaultSubTab.value = (query.subTab as string) || 'applied'
   }
   if (query.action === 'create' && query.type) {
     const type = query.type as string
@@ -2555,5 +2577,9 @@ onUnmounted(() => {
   background: rgba(97, 97, 97, 0.1);
   color: #616161;
   border: 1px solid rgba(97, 97, 97, 0.3);
+}
+.return-reason-text {
+  color: #FF7043;
+  font-weight: 600;
 }
 </style>

@@ -20,8 +20,12 @@ router.get('/monthly-reports', async (req, res) => {
       || ['总经理', '系统管理员', 'admin', 'gm'].includes(roleName);
     let reports;
     if (isGM) {
+      // 李智鑫/管理员：可看他人「已提交」的月报 + 自己的全部（含暂存草稿）；
+      // 他人「暂存(draft)」的月报不对外可见，仅本人可见
       [reports] = await pool.execute(
-        'SELECT w.*, u.username FROM weeklyReports w LEFT JOIN users u ON w.userId = u.id'
+        `SELECT w.*, u.username FROM weeklyReports w LEFT JOIN users u ON w.userId = u.id
+         WHERE w.userId = ? OR IFNULL(w.status, 'submitted') = 'submitted'`,
+        [req.user?.id || -1]
       );
     } else {
       const currentUserId = req.user?.id;

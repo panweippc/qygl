@@ -64,10 +64,11 @@ const router = useRouter()
  */
 function resolveJumpRoute(item: any): string {
   const hay = `${item?.type || ''} ${item?.title || ''} ${item?.content || ''}`.toLowerCase()
-  // 下发记录通知：会议申请的下发 → 我收到的下发并定位；其余申请的下发 → 下发管理
+  // 下发记录通知：统一跳转到对应申请页签的「我收到的」子页签（不再跳转已下线的"我收到的下发"）
   if (item?.relatedType === 'distributed' && item?.relatedId) {
-    if (item.applicationType === 'meeting') {
-      return `/received-distributions?recordId=${item.relatedId}`
+    const t = item.applicationType
+    if (['leave', 'reimbursement', 'meeting', 'project', 'businessTrip', 'entertainment'].includes(t)) {
+      return `/oa-office?tab=${t}&subTab=received`
     }
     return '/oa-office?tab=distributed'
   }

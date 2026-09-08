@@ -65,25 +65,6 @@
             <button class="module-button">进入审批</button>
           </div>
 
-          <!-- 我收到的下发 -->
-          <div class="module-card" @click="navigateTo('/received-distributions')">
-            <div class="module-header">
-              <div class="module-icon orange">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6C22 4.9 21.1 4 20 4ZM20 18H4V8L12 13L20 8V18ZM4 6H20V6.7L12 11.35L4 6.7V6Z"/>
-                </svg>
-              </div>
-              <div class="module-badge" v-if="myDistPending > 0">{{ myDistPending }}</div>
-            </div>
-            <h3 class="module-title">我收到的下发</h3>
-            <p class="module-description">查看他人下发给您的任务与通知（只读）</p>
-            <div class="module-features">
-              <span class="feature-tag">下发查看</span>
-              <span class="feature-tag">仅本人</span>
-            </div>
-            <button class="module-button secondary">查看</button>
-          </div>
-
           <!-- 任务中心 -->
           <div class="module-card" @click="navigateTo('/task-center')">
             <div class="module-header">
@@ -179,7 +160,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { getPendingLeaveApplications, getPendingReimbursements, getPendingMeetings, getMyDistributedRecords } from '../services/api'
+import { getPendingLeaveApplications, getPendingReimbursements, getPendingMeetings } from '../services/api'
 import { extractRealName } from '../utils/oaWorkflowUtils'
 
 const router = useRouter()
@@ -192,7 +173,8 @@ const statistics = ref([
   { key: 'total', label: '总事项', value: 0, class: 'purple', icon: 'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z' }
 ])
 
-// 待处理数�?const pendingCount = computed(() => {
+// 待处理数
+const pendingCount = computed(() => {
   return statistics.value.find(s => s.key === 'pending')?.value || 0
 })
 
@@ -201,16 +183,7 @@ const currentUsername = computed(() => {
   return localStorage.getItem('username') || '当前用户'
 })
 
-// 我收到的下发（待处理数，用于角标）
-const myDistPending = ref(0)
-const loadMyDistributions = async () => {
-  try {
-    const res = await getMyDistributedRecords()
-    if (res.success && Array.isArray(res.data)) {
-      myDistPending.value = res.data.filter((r: any) => (r.status || '待处理') === '待处理').length
-    }
-  } catch { /* 忽略 */ }
-}
+// 我收到的下发功能已下线（下发通知改跳对应申请页签的「我收到的」子页签）
 
 const isLiZhiXin = computed(() => extractRealName(currentUsername.value) === '李智鑫')
 
@@ -285,7 +258,6 @@ const handleBack = () => {
 // 组件挂载
 onMounted(() => {
   loadStatistics()
-  loadMyDistributions()
 })
 </script>
 

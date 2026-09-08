@@ -129,6 +129,9 @@ export const getStatusClass = (status: string) => {
 
 export const getStatusText = (status: string) => {
   switch (status) {
+    // 「已取消」为历史状态值，统一展示为「已撤回」
+    case '已取消':
+      return '已撤回'
     case 'pending':
       return '审批中'
     case 'approved':

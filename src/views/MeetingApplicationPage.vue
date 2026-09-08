@@ -50,7 +50,22 @@
             </el-row>
 
             <el-form-item label="参会人员" prop="participants">
-              <el-input v-model="form.participants" placeholder="请输入参会人员姓名，多个用逗号分隔" />
+              <el-select
+                v-model="form.participants"
+                multiple
+                filterable
+                collapse-tags
+                collapse-tags-tooltip
+                placeholder="请选择参会人员"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="emp in employeeOptions"
+                  :key="emp.id"
+                  :label="emp.name"
+                  :value="emp.name"
+                />
+              </el-select>
             </el-form-item>
 
             <el-divider content-position="left">会议议程</el-divider>
@@ -127,6 +142,7 @@ const route = useRoute()
 const formRef = ref()
 const submitting = ref(false)
 const approverOptions = ref<any[]>([])
+const employeeOptions = ref<any[]>([])
 // 重新提交模式：携带 ?id= 进入时回填原数据，退回场景高亮退回理由
 const editId = route.query.id ? Number(route.query.id) : null
 const isResubmit = ref(false)
@@ -142,7 +158,7 @@ const form = reactive({
   meetingDate: '',
   meetingTime: '',
   location: '',
-  participants: '',
+  participants: [] as string[],
   agenda: '',
   approver: '陈东'
 })
@@ -152,7 +168,7 @@ const rules = {
   meetingDate: [{ required: true, message: '请选择会议日期', trigger: 'change' }],
   meetingTime: [{ required: true, message: '请选择会议时间', trigger: 'change' }],
   location: [{ required: true, message: '请输入会议地点', trigger: 'blur' }],
-  participants: [{ required: true, message: '请输入参会人员', trigger: 'blur' }],
+  participants: [{ required: true, message: '请选择参会人员', trigger: 'change' }],
   agenda: [{ required: true, message: '请输入会议议程', trigger: 'blur' }],
   approver: [{ required: true, message: '请选择审批人', trigger: 'change' }]
 }
@@ -166,6 +182,7 @@ const loadApprovers = async () => {
         return position.includes('总经理') || position.includes('总监') || position.includes('经理')
       })
       approverOptions.value = managers
+      employeeOptions.value = response.data || []
       const defaultMgr = managers.find((emp: any) => emp.name === '陈东') || managers[0]
       if (defaultMgr) form.approver = defaultMgr.name
     }
@@ -187,7 +204,7 @@ const loadForEdit = async () => {
         form.meetingDate = rec.meetingDate || ''
         form.meetingTime = rec.meetingTime || ''
         form.location = rec.location || ''
-        form.participants = rec.participants || ''
+        form.participants = rec.participants ? String(rec.participants).split(',').map((s: string) => s.trim()).filter(Boolean) : []
         form.agenda = rec.agenda || ''
         if (rec.approver) form.approver = rec.approver
         returnReason.value = rec.return_reason || ''
@@ -211,7 +228,7 @@ const submitForm = async () => {
           meetingDate: form.meetingDate,
           meetingTime: form.meetingTime,
           location: form.location,
-          participants: form.participants,
+          participants: Array.isArray(form.participants) ? form.participants.join(',') : (form.participants || ''),
           agenda: form.agenda,
           approver: form.approver
         }

@@ -21,6 +21,18 @@
       </div>
     </div>
 
+    <div class="sub-tabs-row">
+      <div class="sub-tabs">
+        <button
+          v-for="tab in projectSubTabs"
+          :key="tab.value"
+          class="sub-tab-btn"
+          :class="{ active: projectSubTab === tab.value }"
+          @click="projectSubTab = tab.value"
+        >{{ tab.label }}</button>
+      </div>
+    </div>
+
     <div v-if="viewMode === 'list'" class="list-view">
       <el-table
         :data="filteredProjectRecords"
@@ -246,7 +258,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -279,6 +291,7 @@ const props = defineProps<{
   allEmployees: any[]
   approverEmployees: any[]
   allDistributedRecords: any[]
+  subTab: string
 }>()
 
 const emit = defineEmits<{
@@ -303,8 +316,32 @@ const isLiZhiXin = computed(() => extractRealName(currentUsername.value) === '�
 // 导出按钮仅张海琼可见（财务总监负责导出 OA 办公各类申请表）
 const canExport = computed(() => extractRealName(currentUsername.value) === '张海琼')
 
+const projectSubTab = ref(props.subTab || 'applied')
+const projectSubTabs = [
+  { label: '我申请的', value: 'applied' },
+  { label: '我收到的', value: 'received' }
+]
+
+const isMyProjectApplication = (r: any) => extractRealName(r.applicant_name || r.applicant) === extractRealName(currentUsername.value)
+
+const isReceivedProject = (r: any) => {
+  const me = extractRealName(currentUsername.value)
+  if (extractRealName(r.approver) === me) return true
+  if (r.result && r.result.includes(me + ':')) return true
+  if ((r.distributedUsers || []).some((u: any) => extractRealName(u) === me)) return true
+  return false
+}
+
+watch(() => props.subTab, (v: string) => { if (v) projectSubTab.value = v })
+
 const filteredProjectRecords = computed(() => {
   let records = props.isAdmin ? allProjectRecords.value : projectRecords.value
+
+  if (projectSubTab.value === 'applied') {
+    records = records.filter(isMyProjectApplication)
+  } else if (projectSubTab.value === 'received') {
+    records = records.filter((r: any) => !isMyProjectApplication(r) && isReceivedProject(r))
+  }
 
   if (props.searchKeyword) {
     const keyword = props.searchKeyword.toLowerCase()
@@ -872,5 +909,36 @@ defineExpose({ fetchData })
   background: rgba(97, 97, 97, 0.1);
   color: #616161;
   border: 1px solid rgba(97, 97, 97, 0.3);
+}
+
+.sub-tabs-row {
+  margin-bottom: 1rem;
+}
+.sub-tabs {
+  display: inline-flex;
+  gap: 0.5rem;
+  background: rgba(100, 149, 237, 0.08);
+  border-radius: 8px;
+  padding: 0.25rem;
+}
+.sub-tab-btn {
+  border: none;
+  background: transparent;
+  color: #666;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.25s ease;
+}
+.sub-tab-btn.active {
+  background: #fff;
+  color: #6495ED;
+  box-shadow: 0 2px 8px rgba(100, 149, 237, 0.2);
+  font-weight: 600;
+}
+.sub-tab-btn:hover:not(.active) {
+  color: #333;
+  background: rgba(100, 149, 237, 0.12);
 }
 </style>

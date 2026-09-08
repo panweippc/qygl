@@ -176,7 +176,7 @@ router.get('/business-trips/:id', async (req, res) => {
     const { id } = req.params;
     const trip_columns = 'id, trip_code, applicant_id, applicant_name, department, destination, start_date, end_date, days, purpose, itinerary, estimated_cost, cost_breakdown, accommodation, transport, accompany_persons, customer_info, status, approver, current_step, current_approvers, approval_history, is_urgent, attachments, comment, created_at, updated_at';
     const [trips] = await pool.execute(
-      `SELECT ${trip_columns} FROM business_trip_applications WHERE id = ?`,
+      `SELECT * FROM business_trip_applications WHERE id = ?`,
       [id]
     );
 
@@ -359,13 +359,29 @@ router.post('/business-trips/:id/withdraw', async (req, res) => {
     const { pool } = req.app.locals;
     const operator = getRealName(req);
     if (!operator) return res.status(401).json({ success: false, message: '未登录' });
-    const [[rec]] = await pool.query('SELECT applicant_name, status, trip_code, destination FROM business_trip_applications WHERE id = ?', [id]);
+    const [[rec]] = await pool.query('SELECT * FROM business_trip_applications WHERE id = ?', [id]);
     if (!rec) return res.status(404).json({ success: false, message: '出差申请不存在' });
     if (rec.applicant_name !== operator) return res.status(403).json({ success: false, message: '仅申请人本人可撤回' });
     if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
       return res.status(400).json({ success: false, message: '当前状态不可撤回' });
     }
     await pool.execute('UPDATE business_trip_applications SET status = ? WHERE id = ?', ['已撤回', id]);
+    // withdrawNotify: 撤回后通知审批人，并给申请人一条消息中心回执
+    try {
+      const notifyTargets = new Set([rec.approver, operator].filter(Boolean));
+      for (const uid of notifyTargets) {
+        await createNotification(pool, {
+          userId: uid,
+          title: '申请已撤回',
+          content: uid === operator
+            ? `您已撤回自己的出差申请（编号 ${id}）`
+            : `${operator} 撤回了一份出差申请（编号 ${id}），该申请已从您的待办中移除`,
+          type: 'approval',
+          relatedId: parseInt(id),
+          relatedType: 'business_trip'
+        });
+      }
+    } catch (e) { /* 通知失败不影响撤回主流程 */ }
     await createOperationLog(pool, { username: operator, action: 'withdraw', module: 'business_trip', targetName: `${rec.destination}出差(${rec.trip_code})`, detail: '申请人撤回' });
     res.json({ success: true, message: '撤回成功' });
   } catch (error) {
@@ -384,7 +400,7 @@ router.post('/business-trips/:id/return', async (req, res) => {
     if (!operator) return res.status(401).json({ success: false, message: '未登录' });
     if (!reason || !String(reason).trim()) return res.status(400).json({ success: false, message: '退回理由不能为空' });
     const isManager = await isManagerUser(req);
-    const [[rec]] = await pool.query('SELECT applicant_name, approver, status, trip_code, destination FROM business_trip_applications WHERE id = ?', [id]);
+    const [[rec]] = await pool.query('SELECT * FROM business_trip_applications WHERE id = ?', [id]);
     if (!rec) return res.status(404).json({ success: false, message: '出差申请不存在' });
     if (!isManager && rec.approver !== operator) return res.status(403).json({ success: false, message: '仅当前审批人可退回' });
     if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
@@ -407,7 +423,7 @@ router.post('/business-trips/:id/soft-delete', async (req, res) => {
     const { pool } = req.app.locals;
     const operator = getRealName(req);
     if (!operator) return res.status(401).json({ success: false, message: '未登录' });
-    const [[rec]] = await pool.query('SELECT applicant_name, status, trip_code, destination FROM business_trip_applications WHERE id = ?', [id]);
+    const [[rec]] = await pool.query('SELECT * FROM business_trip_applications WHERE id = ?', [id]);
     if (!rec) return res.status(404).json({ success: false, message: '出差申请不存在' });
     const isManager = await isManagerUser(req);
     if (!isManager && rec.applicant_name !== operator) return res.status(403).json({ success: false, message: '无权限删除他人的申请' });
