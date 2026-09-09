@@ -683,10 +683,11 @@ function isUnprocessedStatus(status) {
   return result
 }
 
+// 张海琼收到的下发统一下沉到「下发管理」页，她的申请页签角标不再重复计入
 const receivedCountByType = (type: string) =>
-  isAdminComputed.value ? 0 : distributedRecords.value.filter(r => r.applicationType === type).length
+  (isAdminComputed.value || isCurrentUserZhang.value) ? 0 : distributedRecords.value.filter(r => r.applicationType === type).length
 const receivedUnreadByType = (type: string) =>
-  isAdminComputed.value ? 0 : distributedRecords.value.filter(r => r.applicationType === type && r.read !== 1).length
+  (isAdminComputed.value || isCurrentUserZhang.value) ? 0 : distributedRecords.value.filter(r => r.applicationType === type && r.read !== 1).length
 
 const pendingLeaveCount = computed(() => {
   const records = isAdminComputed.value ? allLeaveRecords.value : leaveRecords.value
@@ -738,14 +739,8 @@ const totalProjectCount = computed(() => {
 
 const distributedActiveSubTab = ref('all')
 
-// 下发管理视角：审批人/下发人看到的是「自己下发的」记录（可据此查看接收人是否已读）
-const distributedManageRecords = computed(() => {
-  const me = extractRealName(currentUsername.value)
-  const list = isAdminComputed.value
-    ? allDistributedRecords.value
-    : allDistributedRecords.value.filter(r => extractRealName(r.distributedBy) === me)
-  return list
-})
+// 下发管理是张海琼独有的入口：展示「她收到的」所有下发，按申请类型分子页签（打印/导出/标已读均在此）
+const distributedManageRecords = computed(() => distributedRecords.value)
 
 const distributedSubTabs = computed(() => {
   const src = distributedManageRecords.value

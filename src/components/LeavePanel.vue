@@ -545,11 +545,14 @@ const isItemDistributedToMe = (item: any, type: string) =>
 
 const isMyLeaveApplication = (r: any) => extractRealName(r.applicant) === extractRealName(currentUsername.value)
 
+// 张海琼收到的下发统一下沉到「下发管理」页，她的「我收到的」只保留需要自己审批的
+const isZhangUser = computed(() => extractRealName(currentUsername.value) === '张海琼')
+
 const isReceivedLeave = (r: any) => {
   const me = extractRealName(currentUsername.value)
   if (extractRealName(r.approver) === me) return true
   if (r.result && r.result.includes(me + ':')) return true
-  if (isItemDistributedToMe(r, 'leave')) return true
+  if (!isZhangUser.value && isItemDistributedToMe(r, 'leave')) return true
   return false
 }
 
@@ -680,7 +683,7 @@ const loadLeaveRecords = async () => {
     const response = await getLeaveApplications()
     if (response.success) {
       leaveRecords.value = response.data
-        .filter((item: any) => extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')) || isItemDistributedToMe(item, 'leave'))
+        .filter((item: any) => extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')) || (!isZhangUser.value && isItemDistributedToMe(item, 'leave')))
         .map((item: any) => ({
           ...item,
           submitDate: item.createdAt?.substring(0, 10) || ''

@@ -383,11 +383,14 @@ const isItemDistributedToMe = (item: any, type: string) =>
 
 const isMyProjectApplication = (r: any) => extractRealName(r.applicant_name || r.applicant) === extractRealName(currentUsername.value)
 
+// 张海琼收到的下发统一下沉到「下发管理」页，她的「我收到的」只保留需要自己审批的
+const isZhangUser = computed(() => extractRealName(currentUsername.value) === '张海琼')
+
 const isReceivedProject = (r: any) => {
   const me = extractRealName(currentUsername.value)
   if (extractRealName(r.approver) === me) return true
   if (r.result && r.result.includes(me + ':')) return true
-  if (isItemDistributedToMe(r, 'project')) return true
+  if (!isZhangUser.value && isItemDistributedToMe(r, 'project')) return true
   return false
 }
 
@@ -479,7 +482,7 @@ const loadProjectRecords = async () => {
     const response = await getProjects()
     if (response.success && response.data && response.data.list) {
       const filteredData = response.data.list.filter((item: any) => {
-        return extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')) || isItemDistributedToMe(item, 'project')
+        return extractRealName(item.applicant_name || item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')) || (!isZhangUser.value && isItemDistributedToMe(item, 'project'))
       })
       projectRecords.value = filteredData.map((item: any) => {
         let projectName = item.project_name ? String(item.project_name) : ''

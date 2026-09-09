@@ -349,11 +349,14 @@ const isItemDistributedToMe = (item: any, type: string) =>
 
 const isMyEntertainmentApplication = (r: any) => extractRealName(r.applicant) === extractRealName(currentUsername.value)
 
+// 张海琼收到的下发统一下沉到「下发管理」页，她的「我收到的」只保留需要自己审批的
+const isZhangUser = computed(() => extractRealName(currentUsername.value) === '张海琼')
+
 const isReceivedEntertainment = (r: any) => {
   const me = extractRealName(currentUsername.value)
   if (extractRealName(r.approver) === me) return true
   if (r.result && r.result.includes(me + ':')) return true
-  if (isItemDistributedToMe(r, 'entertainment')) return true
+  if (!isZhangUser.value && isItemDistributedToMe(r, 'entertainment')) return true
   return false
 }
 
@@ -448,7 +451,7 @@ const loadEntertainmentRecords = async () => {
     const response = await getEntertainmentExpenses()
     if (response.success) {
       entertainmentRecords.value = response.data
-        .filter((item: any) => extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')) || isItemDistributedToMe(item, 'entertainment'))
+        .filter((item: any) => extractRealName(item.applicant) === extractRealName(currentUsername.value) || extractRealName(item.approver) === extractRealName(currentUsername.value) || (item.result && item.result.includes(extractRealName(currentUsername.value) + ':')) || (!isZhangUser.value && isItemDistributedToMe(item, 'entertainment')))
         .map((item: any) => ({ ...item, submitDate: item.createdAt?.substring(0, 10) || '' }))
         .sort((a: any, b: any) => (b.id || 0) - (a.id || 0))
     }

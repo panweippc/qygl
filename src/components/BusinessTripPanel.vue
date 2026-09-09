@@ -377,11 +377,14 @@ const isItemDistributedToMe = (item: any, type: string) =>
     extractRealName(d.targetUser) === extractRealName(currentUsername.value)
   )
 
+// 张海琼收到的下发统一下沉到「下发管理」页，她的「我收到的」只保留需要自己审批的
+const isZhangUser = computed(() => extractRealName(currentUsername.value) === '张海琼')
+
 const isReceivedBusinessTrip = (r: any) => {
   const me = extractRealName(currentUsername.value)
   if (extractRealName(r.approver) === me) return true
   if (r.result && r.result.includes(me + ':')) return true
-  if (isItemDistributedToMe(r, 'businessTrip')) return true
+  if (!isZhangUser.value && isItemDistributedToMe(r, 'businessTrip')) return true
   return false
 }
 
@@ -499,7 +502,7 @@ const loadBusinessTripRecords = async () => {
           (item.result && item.result.includes(me + ':')) ||
           inComment ||
           inHistory ||
-          isItemDistributedToMe(item, 'businessTrip')
+          (!isZhangUser.value && isItemDistributedToMe(item, 'businessTrip'))
       })
       businessTripRecords.value = filteredData.map((item: any) => {
         let destination = item.destination ? String(item.destination) : ''

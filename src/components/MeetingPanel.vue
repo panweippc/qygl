@@ -508,11 +508,14 @@ const isMyMeetingApplication = (r: any) => {
   return extractRealName(r.organizer) === extractRealName(currentUsername.value)
 }
 
+// 张海琼收到的下发统一下沉到「下发管理」页，她的「我收到的」只保留需要自己审批的
+const isZhangUser = computed(() => extractRealName(currentUsername.value) === '张海琼')
+
 const isReceivedMeeting = (r: any) => {
   const me = extractRealName(currentUsername.value)
   if (extractRealName(r.approver) === me) return true
   if (r.result && r.result.includes(me + ':')) return true
-  if (isItemDistributedToMe(r, 'meeting')) return true
+  if (!isZhangUser.value && isItemDistributedToMe(r, 'meeting')) return true
   return false
 }
 
@@ -647,7 +650,7 @@ const loadMeetingRecords = async () => {
           extractRealName(item.organizer) === me ||
           extractRealName(item.approver) === me ||
           (item.result && item.result.includes(me + ':')) ||
-          isItemDistributedToMe(item, 'meeting')
+          (!isZhangUser.value && isItemDistributedToMe(item, 'meeting'))
         )
     }
   } catch (error) {
