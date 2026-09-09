@@ -206,6 +206,7 @@
                   <span class="title-text">下发申请管理</span>
                 </div>
                 <div class="header-actions">
+                  <el-checkbox v-model="distributedShowUnreadOnly" class="unreadonly-check">仅看未读</el-checkbox>
                   <el-button v-if="isCurrentUserZhang" type="danger" @click="exportDistributedData" class="export-btn-small">
                     导出
                   </el-button>
@@ -255,14 +256,6 @@
                     <el-table-column prop="applicant" label="原申请人" width="120"></el-table-column>
                     <el-table-column prop="distributedBy" label="下发人" width="120"></el-table-column>
                     <el-table-column prop="distributeDate" label="下发时间" width="150"></el-table-column>
-                    <el-table-column prop="status" label="处理状态" width="100">
-                      <template #default="{ row }">
-                        <span :class="['status-tag', getStatusClass(row.status)]">
-                          <span class="status-dot"></span>
-                          {{ row.status }}
-                        </span>
-                      </template>
-                    </el-table-column>
                     <el-table-column label="已读状态" width="100">
                       <template #default="{ row }">
                         <span :class="row.read === 1 ? 'read-status read' : 'read-status unread'">
@@ -714,7 +707,8 @@ const pendingEntertainmentCount = computed(() => {
   return records.filter(r => isUnprocessedStatus(r.status)).length + receivedUnreadByType('entertainment')
 })
 const totalEntertainmentCount = computed(() => (isAdminComputed.value ? allEntertainmentRecords.value : entertainmentRecords.value).length + receivedCountByType('entertainment'))
-const pendingDistributedCount = computed(() => distributedRecords.value.filter(r => r.status === "待处理").length)
+// 未读口径统一为 read 字段（处理状态已废弃，避免两套数字对不上）
+const pendingDistributedCount = computed(() => distributedRecords.value.filter(r => r.read !== 1).length)
 const totalDistributedCount = computed(() => distributedRecords.value.length)
 
 const pendingMeetingCount = computed(() => {
@@ -742,25 +736,38 @@ const distributedActiveSubTab = ref('all')
 // 下发管理是张海琼独有的入口：展示「她收到的」所有下发，按申请类型分子页签（打印/导出/标已读均在此）
 const distributedManageRecords = computed(() => distributedRecords.value)
 
+// 仅看未读开关：开启后表格只显示未读的下发记录
+const distributedShowUnreadOnly = ref(false)
+
+// 子页签计数与主页签口径一致：有未读 → 红色显示未读数；无未读 → 灰色显示总数
 const distributedSubTabs = computed(() => {
   const src = distributedManageRecords.value
   const counts: Record<string, number> = {}
+  const unread: Record<string, number> = {}
+  let unreadAll = 0
   src.forEach(r => {
     counts[r.applicationType] = (counts[r.applicationType] || 0) + 1
+    if (r.read !== 1) {
+      unread[r.applicationType] = (unread[r.applicationType] || 0) + 1
+      unreadAll++
+    }
   })
+  const mk = (name: string, label: string, icon: string, total: number, un: number) =>
+    ({ name, label, icon, badge: un > 0 ? un : total, badgeType: un > 0 ? 'red' : 'gray' })
   return [
-    { name: 'all', label: '全部', icon: '📋', badge: src.length },
-    { name: 'leave', label: '请假', icon: '📝', badge: counts['leave'] || 0 },
-    { name: 'reimbursement', label: '报销', icon: '💰', badge: counts['reimbursement'] || 0 },
-    { name: 'meeting', label: '会议', icon: '📅', badge: counts['meeting'] || 0 },
-    { name: 'project', label: '项目', icon: '📊', badge: counts['project'] || 0 },
-    { name: 'businessTrip', label: '出差', icon: '✈️', badge: counts['businessTrip'] || 0 },
-    { name: 'entertainment', label: '招待', icon: '🍽️', badge: counts['entertainment'] || 0 }
+    mk('all', '全部', '📋', src.length, unreadAll),
+    mk('leave', '请假', '📝', counts['leave'] || 0, unread['leave'] || 0),
+    mk('reimbursement', '报销', '💰', counts['reimbursement'] || 0, unread['reimbursement'] || 0),
+    mk('meeting', '会议', '📅', counts['meeting'] || 0, unread['meeting'] || 0),
+    mk('project', '项目', '📊', counts['project'] || 0, unread['project'] || 0),
+    mk('businessTrip', '出差', '✈️', counts['businessTrip'] || 0, unread['businessTrip'] || 0),
+    mk('entertainment', '招待', '🍽️', counts['entertainment'] || 0, unread['entertainment'] || 0)
   ]
 })
 
 const filteredDistributedRecords = computed(() => {
-  const src = distributedManageRecords.value
+  let src = distributedManageRecords.value
+  if (distributedShowUnreadOnly.value) src = src.filter(r => r.read !== 1)
   if (distributedActiveSubTab.value === 'all') return src
   return src.filter(r => r.applicationType === distributedActiveSubTab.value)
 })
@@ -789,13 +796,14 @@ const getDistributedDetail = (row: any) => {
 }
 
 const exportDistributedData = () => {
-  const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '处理状态', '申请详情', '处理说明']
-  const fields = ['id', 'applicationType', 'applicationId', 'applicant', 'distributedBy', 'distributeDate', 'status', 'detailText', 'processComment']
+  const headers = ['下发编号', '申请类型', '原申请编号', '原申请人', '下发人', '下发时间', '已读状态', '申请详情', '处理说明']
+  const fields = ['id', 'applicationType', 'applicationId', 'applicant', 'distributedBy', 'distributeDate', 'readText', 'detailText', 'processComment']
   const filename = '下发管理'
   const data = (filteredDistributedRecords.value.length > 0 ? filteredDistributedRecords.value : distributedRecords.value)
     .map((r: any) => ({
       ...r,
       detailText: getDistributedDetail(r),
+      readText: r.read === 1 ? '已读' : '未读',
       // 导出时把英文类型转换为中文标签，与表格保持一致
       applicationType: getApplicationTypeLabel(r.applicationType)
     }))
