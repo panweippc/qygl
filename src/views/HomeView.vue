@@ -40,7 +40,7 @@
               </template>
             </DashboardCard>
 
-            <DashboardCard title="通讯录" :stats="[{ value: contactsStats.total, label: '总人数' }]">
+            <DashboardCard title="通讯录" class="contacts-card" :stats="[{ value: contactsStats.total, label: '总人数' }]">
               <template #icon>
                 <svg viewBox="0 0 24 24" fill="currentColor">
                   <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
@@ -239,32 +239,42 @@ const loadContactsData = async () => {
   .content { padding: 0.8rem; }
 }
 
-/* 通讯录列表 */
+/* 通讯录卡片：独占一行并横向展示 */
+.contacts-card {
+  grid-column: 1 / -1;
+}
+
+/* 通讯录列表 - 横向展示 */
 .contacts-list {
   margin-top: 1rem;
   max-height: 240px;
   overflow-y: auto;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 0.6rem;
   padding-right: 4px;
 }
 
 .contact-row {
   display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.6rem 0.8rem;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.5rem 0.8rem;
   background: rgba(100, 149, 237, 0.08);
   border: 1px solid rgba(100, 149, 237, 0.2);
   border-radius: 10px;
+  flex: 1 1 320px;
+  min-width: 300px;
+  max-width: 480px;
 }
 
 .contact-main {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
 }
 
 .contact-name {
@@ -274,7 +284,7 @@ const loadContactsData = async () => {
 }
 
 .contact-dept {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: rgba(51, 51, 51, 0.6);
   white-space: nowrap;
   overflow: hidden;
@@ -284,14 +294,16 @@ const loadContactsData = async () => {
 .contact-contact {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.1rem;
+  margin-left: auto;
+  min-width: 0;
 }
 
 .contact-line {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: rgba(51, 51, 51, 0.8);
 }
 
@@ -310,6 +322,7 @@ const loadContactsData = async () => {
   color: rgba(51, 51, 51, 0.5);
   font-size: 0.85rem;
   padding: 1rem 0;
+  width: 100%;
 }
 
 .contacts-list::-webkit-scrollbar { width: 6px; }
