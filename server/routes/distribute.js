@@ -123,6 +123,26 @@ router.get('/distributed-records/mine', async (req, res) => {
   }
 });
 
+// 获取"我下发的"记录：下发人视角，列出自己下发的所有记录及每个接收人的已读状态（用于回执追溯）
+router.get('/distributed-records/by-distributor/:distributedBy', async (req, res) => {
+  const { pool } = req.app.locals;
+  await ensureSchema(pool);
+  try {
+    let { distributedBy } = req.params;
+    const match = distributedBy.match(/^emp_(.+?)_\d+$/);
+    if (match) distributedBy = match[1];
+    const [records] = await pool.execute(
+      'SELECT * FROM distributed_records WHERE distributedBy = ? ORDER BY createdAt DESC',
+      [distributedBy]
+    );
+    const enriched = await enrichRecords(pool, records);
+    res.json({ success: true, data: enriched });
+  } catch (error) {
+    console.error('获取我下发的记录失败:', error);
+    res.status(500).json({ success: false, message: '获取我下发的记录失败: ' + error.message });
+  }
+});
+
 // 接收人处理自己收到的下发记录（标记为已处理），并通知下发人
 router.post('/distributed-records/:id/process', async (req, res) => {
   const { pool } = req.app.locals;
@@ -186,7 +206,6 @@ router.put('/distributed-records/:id/read', async (req, res) => {
   const me = getRealName(req);
   try {
     const { id } = req.params;
-    const readVal = (req.body.read === 0 || req.body.read === '0') ? 0 : 1;
     const [[record]] = await pool.execute('SELECT * FROM distributed_records WHERE id = ?', [id]);
     if (!record) {
       return res.status(404).json({ success: false, message: '下发记录不存在' });
@@ -194,13 +213,36 @@ router.put('/distributed-records/:id/read', async (req, res) => {
     if (record.targetUser !== me && record.distributedBy !== me) {
       return res.status(403).json({ success: false, message: '只能标记自己相关下发记录的已读状态' });
     }
+    // 接收人(被下发者)视角：已读是单向确认，只能置 1，不能改回 0（防止反复标记未读）
+    const isRecipient = record.targetUser === me;
+    let readVal = (req.body.read === 0 || req.body.read === '0') ? 0 : 1;
+    if (isRecipient) readVal = 1;
     // read 为 MySQL 保留字，必须加反引号
     await pool.execute('UPDATE distributed_records SET `read` = ?, updatedAt = ? WHERE id = ?', [readVal, new Date().toISOString().slice(0, 19).replace('T', ' '), id]);
-    // 接收人标记为已读时，同步将对应的下发通知置为已读
-    if (record.targetUser === me && readVal === 1) {
+    // 接收人标记为已读时：1) 同步把接收人自己的下发通知置为已读；2) 给下发人插一条"已读回执"通知
+    if (isRecipient && readVal === 1) {
       try {
         await pool.execute('UPDATE notifications SET isRead = 1 WHERE relatedType = ? AND relatedId = ? AND userId = ?', ['distributed', id, record.targetUser]);
       } catch (e) { /* 通知同步失败不影响主流程 */ }
+      // 已读回执：仅在 未读→已读 跳变时插，避免重复；且不给自己下发回执（自下发）
+      if (record.read === 0 && record.distributedBy && record.distributedBy !== record.targetUser) {
+        try {
+          let detail = {};
+          try { detail = record.detail ? JSON.parse(record.detail) : {}; } catch {}
+          const appTypeCn = APP_TYPE_CN[record.applicationType] || record.applicationType;
+          const title = detail.title || detail.meetingTitle || `${appTypeCn}申请`;
+          await createNotification(pool, {
+            userId: record.distributedBy,
+            title: '下发已读回执',
+            content: `${record.targetUser} 已读您下发的${appTypeCn}「${title}」`,
+            type: 'distributed_read',
+            relatedId: parseInt(record.applicationId) || 0,
+            relatedType: record.applicationType
+          });
+        } catch (e) {
+          console.error('已读回执通知创建失败:', e.message);
+        }
+      }
     }
     await createOperationLog(pool, {
       username: me,

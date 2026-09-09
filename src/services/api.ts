@@ -603,6 +603,12 @@ export const markDistributedRead = async (id: number, read: number): Promise<Api
   return response.data;
 };
 
+// 获取"我下发的"记录（下发人视角，含各接收人已读状态）
+export const getDistributedByMe = async (distributedBy: string): Promise<ApiResponse<DistributedRecord[]>> => {
+  const response = await api.get(`/distributed-records/by-distributor/${distributedBy}`);
+  return response.data;
+};
+
 // 业务招待费管理
 export const getEntertainmentExpenses = async (): Promise<ApiResponse<any[]>> => {
   const response = await api.get('/entertainment-expenses');

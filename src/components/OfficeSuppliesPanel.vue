@@ -107,12 +107,12 @@
               {{ getDistributionRead(row, 'project') ? '已读' : '未读' }}
             </span>
             <el-button
-              v-if="getMyDistribution(row, 'project')"
+              v-if="getMyDistribution(row, 'project') && !getDistributionRead(row, 'project')"
               size="small"
-              :type="getDistributionRead(row, 'project') ? 'info' : 'primary'"
+              type="primary"
               @click="toggleRecordRead(row, 'project')"
             >
-              {{ getDistributionRead(row, 'project') ? '标为未读' : '标为已读' }}
+              标为已读
             </el-button>
           </template>
         </el-table-column>
@@ -272,12 +272,12 @@
               {{ getDistributionRead(row, 'project') ? '已读' : '未读' }}
             </span>
             <el-button
-              v-if="projectSubTab === 'received' && getMyDistribution(row, 'project')"
+              v-if="projectSubTab === 'received' && getMyDistribution(row, 'project') && !getDistributionRead(row, 'project')"
               size="small"
-              :type="getDistributionRead(row, 'project') ? 'info' : 'primary'"
+              type="primary"
               @click="toggleRecordRead(row, 'project')"
             >
-              {{ getDistributionRead(row, 'project') ? '标为未读' : '标为已读' }}
+              标为已读
             </el-button>
             <el-button size="small" @click="$emit('view-detail', row, 'project')">详情</el-button>
           </div>
@@ -410,12 +410,12 @@ const getDistributionRead = (row: any, type: string) => {
 const toggleRecordRead = async (row: any, type: string) => {
   const d = getMyDistribution(row, type)
   if (!d) return
-  const newRead = d.read === 1 ? 0 : 1
+  const newRead = 1
   try {
     const res = await markDistributedRead(d.id, newRead)
     if (res.success) {
       d.read = newRead
-      ElMessage.success(newRead === 1 ? '已标记为已读' : '已标记为未读')
+      ElMessage.success('已标记为已读')
     } else {
       ElMessage.error(res.message || '操作失败')
     }

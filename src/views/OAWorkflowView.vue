@@ -272,12 +272,22 @@
                       <template #default="{ row }">
                         <div class="action-group">
                           <el-button
+                            v-if="row.read === 0"
                             size="small"
-                            :type="row.read === 1 ? 'info' : 'primary'"
+                            type="primary"
                             @click="toggleDistributedRead(row)"
                             class="action-btn-small"
                           >
-                            {{ row.read === 1 ? '标为未读' : '标为已读' }}
+                            标为已读
+                          </el-button>
+                          <el-button
+                            v-else
+                            size="small"
+                            type="info"
+                            disabled
+                            class="action-btn-small"
+                          >
+                            已读
                           </el-button>
                           <el-button
                             size="small"
@@ -294,6 +304,69 @@
                 </div>
               </div>
             </div>
+
+            <div v-show="activeTab === 'distributedByMe'" class="tab-panel">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <span class="title-badge">📤</span>
+                  <span class="title-text">我下发的</span>
+                </div>
+                <div class="header-actions">
+                  <el-button type="primary" @click="loadMyDistributedRecords" class="refresh-btn">
+                    <el-icon><Refresh /></el-icon> 刷新
+                  </el-button>
+                </div>
+              </div>
+              <div class="panel-content">
+                <div class="table-container">
+                  <el-table
+                    :data="myDistributedRecords"
+                    style="width: 100%"
+                    :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: '600' }"
+                    v-loading="loading"
+                    stripe
+                    fit
+                  >
+                    <el-table-column prop="id" label="下发编号" width="100">
+                      <template #default="{ row }">
+                        <span class="id-badge">#{{ row.id }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="applicationType" label="申请类型" width="120">
+                      <template #default="{ row }">
+                        <span class="type-tag" :class="row.applicationType">{{ getApplicationTypeLabel(row.applicationType) }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="applicationId" label="原申请编号" width="100">
+                      <template #default="{ row }">
+                        <span class="id-badge">#{{ row.applicationId }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="applicant" label="原申请人" width="120"></el-table-column>
+                    <el-table-column prop="targetUser" label="接收人" width="120"></el-table-column>
+                    <el-table-column prop="distributeDate" label="下发时间" width="150"></el-table-column>
+                    <el-table-column label="已读状态" width="100">
+                      <template #default="{ row }">
+                        <span :class="row.read === 1 ? 'read-status read' : 'read-status unread'">
+                          {{ row.read === 1 ? '已读' : '未读' }}
+                        </span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="申请详情" min-width="180">
+                      <template #default="{ row }">
+                        <span class="distributed-detail-text">{{ getDistributedDetail(row) }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="操作" width="120" fixed="right">
+                      <template #default="{ row }">
+                        <el-button size="small" @click="viewDistributedDetail(row)" class="view-btn">详情</el-button>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -537,6 +610,7 @@ import {
   addDistributedRecord,
   updateDistributedRecord,
   markDistributedRead,
+  getDistributedByMe,
   getEntertainmentExpenses,
   updateEntertainmentExpense,
   getDeletedApplications,
@@ -667,6 +741,7 @@ const allBusinessTripRecords = ref<any[]>([])
 const entertainmentRecords = ref<any[]>([])
 const allEntertainmentRecords = ref<any[]>([])
 const distributedRecords = ref<any[]>([])
+const myDistributedRecords = ref<any[]>([])
 
 // 判断审批状态是否为"未处理"（红色角标的判断依据）
 function isUnprocessedStatus(status) {
@@ -902,6 +977,10 @@ const tabs = computed(() => {
 
   if (isCurrentUserZhang.value) {
     baseTabs.push({ name: 'distributed', label: '下发管理', icon: '📨', badge: pendingDistributedCount.value > 0 ? pendingDistributedCount.value : totalDistributedCount.value, badgeType: pendingDistributedCount.value > 0 ? 'red' : 'gray' })
+  }
+
+  if (isCurrentUserZhang.value || isAdminComputed.value || canDistribute.value) {
+    baseTabs.push({ name: 'distributedByMe', label: '我下发的', icon: '📤', badge: 0, badgeType: 'gray' })
   }
 
   return baseTabs
@@ -1260,12 +1339,11 @@ const handleDistribute = async () => {
 }
 
 const toggleDistributedRead = async (row: any) => {
-  const newRead = row.read === 1 ? 0 : 1
   try {
-    const response = await markDistributedRead(row.id, newRead)
+    const response = await markDistributedRead(row.id, 1)
     if (response.success) {
-      row.read = newRead
-      ElMessage.success(newRead === 1 ? '已标记为已读' : '已标记为未读')
+      row.read = 1
+      ElMessage.success('已标记为已读')
     } else {
       ElMessage.error(response.message || '操作失败')
     }
@@ -1741,6 +1819,24 @@ const loadDistributedRecords = async () => {
   }
 }
 
+const loadMyDistributedRecords = async () => {
+  try {
+    const realUsername = extractRealName(currentUsername.value)
+    const response = await getDistributedByMe(realUsername)
+    if (response.success) {
+      myDistributedRecords.value = response.data.map((record: any) => enrichDistributedRecord({
+        ...record,
+        distributeDate: record.createdAt ? formatDate(record.createdAt, true) : ''
+      })).sort((a: any, b: any) => (b.id || 0) - (a.id || 0))
+    } else {
+      myDistributedRecords.value = []
+    }
+  } catch (error) {
+    console.error('获取我下发的记录失败:', error)
+    myDistributedRecords.value = []
+  }
+}
+
 const loadNonAdminData = async () => {
   await Promise.all([
     loadLeaveRecords(),
@@ -1786,6 +1882,7 @@ const refreshAllData = async () => {
   await loadDeletedRecords()
   updateStats()
   await loadDistributedRecords()
+  await loadMyDistributedRecords()
   await Promise.all([
     leavePanelRef.value?.fetchData(),
     reimbursementPanelRef.value?.fetchData(),
