@@ -280,15 +280,15 @@
                           >
                             标为已读
                           </el-button>
-                          <el-button
+                          <el-tag
                             v-else
+                            type="success"
                             size="small"
-                            type="info"
-                            disabled
-                            class="action-btn-small"
+                            effect="plain"
+                            class="read-tag"
                           >
                             已读
-                          </el-button>
+                          </el-tag>
                           <el-button
                             size="small"
                             @click="viewDistributedDetail(row)"
