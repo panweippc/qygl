@@ -18,10 +18,14 @@ const ensureSchema = (pool) => {
   if (!schemaReady) {
     schemaReady = (async () => {
       try {
-        await pool.execute('ALTER TABLE distributed_records ADD COLUMN read TINYINT(1) NOT NULL DEFAULT 0')
+        // read 是 MySQL 保留字，列名必须加反引号，否则语法错误(ER_PARSE_ERROR)
+        await pool.execute('ALTER TABLE distributed_records ADD COLUMN `read` TINYINT(1) NOT NULL DEFAULT 0')
         console.log('[distribute] distributed_records.read 字段已新增')
       } catch (e) {
-        // 字段已存在则忽略
+        // 字段已存在属正常；其余真实错误必须打日志，并清空缓存以便下次重试
+        if (e && e.code === 'ER_DUP_FIELDNAME') return
+        console.error('[distribute] 新增 distributed_records.read 字段失败:', e && e.code, e && e.message)
+        schemaReady = null
       }
     })()
   }
@@ -190,7 +194,8 @@ router.put('/distributed-records/:id/read', async (req, res) => {
     if (record.targetUser !== me && record.distributedBy !== me) {
       return res.status(403).json({ success: false, message: '只能标记自己相关下发记录的已读状态' });
     }
-    await pool.execute('UPDATE distributed_records SET read = ?, updatedAt = ? WHERE id = ?', [readVal, new Date().toISOString().slice(0, 19).replace('T', ' '), id]);
+    // read 为 MySQL 保留字，必须加反引号
+    await pool.execute('UPDATE distributed_records SET `read` = ?, updatedAt = ? WHERE id = ?', [readVal, new Date().toISOString().slice(0, 19).replace('T', ' '), id]);
     // 接收人标记为已读时，同步将对应的下发通知置为已读
     if (record.targetUser === me && readVal === 1) {
       try {
