@@ -83,7 +83,7 @@
           class="sub-tab-btn"
           :class="{ active: reimbursementSubTab === tab.value }"
           @click="reimbursementSubTab = tab.value"
-        >{{ tab.label }}</button>
+        >{{ tab.label }}<span v-if="tab.badge > 0" class="sub-tab-badge">{{ tab.badge }}</span></button>
       </div>
     </div>
 
@@ -130,6 +130,21 @@
         <el-table-column label="审批人" width="100">
           <template #default="{ row }">
             {{ row.approver || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="已读状态" width="140" v-if="reimbursementSubTab === 'received'">
+          <template #default="{ row }">
+            <span v-if="getMyDistribution(row, 'reimbursement')" :class="getDistributionRead(row, 'reimbursement') ? 'read-status read' : 'read-status unread'">
+              {{ getDistributionRead(row, 'reimbursement') ? '已读' : '未读' }}
+            </span>
+            <el-button
+              v-if="getMyDistribution(row, 'reimbursement')"
+              size="small"
+              :type="getDistributionRead(row, 'reimbursement') ? 'info' : 'primary'"
+              @click="toggleRecordRead(row, 'reimbursement')"
+            >
+              {{ getDistributionRead(row, 'reimbursement') ? '标为未读' : '标为已读' }}
+            </el-button>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="340" fixed="right">
@@ -237,6 +252,21 @@
             <el-button v-if="canWithdraw(row)" size="small" @click="withdrawReimbursementAction(row)">撤回</el-button>
             <el-button v-if="canResubmitDelete(row)" size="small" type="warning" @click="resubmitReimbursement(row)">重新提交</el-button>
             <el-button v-if="canResubmitDelete(row)" size="small" type="danger" @click="deleteReimbursementAction(row)">删除</el-button>
+            <span
+              v-if="reimbursementSubTab === 'received' && getMyDistribution(row, 'reimbursement')"
+              :class="getDistributionRead(row, 'reimbursement') ? 'read-status read' : 'read-status unread'"
+              style="margin-right: 6px;"
+            >
+              {{ getDistributionRead(row, 'reimbursement') ? '已读' : '未读' }}
+            </span>
+            <el-button
+              v-if="reimbursementSubTab === 'received' && getMyDistribution(row, 'reimbursement')"
+              size="small"
+              :type="getDistributionRead(row, 'reimbursement') ? 'info' : 'primary'"
+              @click="toggleRecordRead(row, 'reimbursement')"
+            >
+              {{ getDistributionRead(row, 'reimbursement') ? '标为未读' : '标为已读' }}
+            </el-button>
             <el-button size="small" @click="$emit('view-detail', row, 'reimbursement')">详情</el-button>
           </div>
         </div>
@@ -450,6 +480,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getReimbursements,
   getDistributedRecords,
+  markDistributedRead,
   addReimbursement,
   updateReimbursement,
   withdrawReimbursement,
@@ -600,10 +631,18 @@ const reimbursementApplicants = computed(() => {
 })
 
 const reimbursementSubTab = ref(props.subTab || 'applied')
-const reimbursementSubTabs = [
-  { label: '我申请的', value: 'applied' },
-  { label: '我收到的', value: 'received' }
-]
+const appliedReimbursementCount = computed(() => {
+  const base = props.isAdmin ? allReimbursementRecords.value : reimbursementRecords.value
+  return base.filter(isMyReimbursementApplication).length
+})
+const receivedReimbursementCount = computed(() => {
+  const base = props.isAdmin ? allReimbursementRecords.value : reimbursementRecords.value
+  return base.filter((r: any) => !isMyReimbursementApplication(r) && isReceivedReimbursement(r)).length
+})
+const reimbursementSubTabs = computed(() => [
+  { label: '我申请的', value: 'applied', badge: appliedReimbursementCount.value },
+  { label: '我收到的', value: 'received', badge: receivedReimbursementCount.value }
+])
 
 // 下发给我的记录（按当前用户拉取，不依赖全局 allDistributedRecords）
 const myDistributedRecords = ref<any[]>([])
@@ -632,6 +671,34 @@ const isReceivedReimbursement = (r: any) => {
   if (r.result && r.result.includes(me + ':')) return true
   if (isItemDistributedToMe(r, 'reimbursement')) return true
   return false
+}
+
+// 已读/未读：从「下发给我的」记录中匹配对应下发记录，读取 read 字段
+const getMyDistribution = (row: any, type: string) =>
+  myDistributedRecords.value.find((d: any) =>
+    Number(d.applicationId) === Number(row.id) &&
+    d.applicationType === type &&
+    extractRealName(d.targetUser) === extractRealName(currentUsername.value)
+  ) || null
+const getDistributionRead = (row: any, type: string) => {
+  const d = getMyDistribution(row, type)
+  return d ? d.read === 1 : false
+}
+const toggleRecordRead = async (row: any, type: string) => {
+  const d = getMyDistribution(row, type)
+  if (!d) return
+  const newRead = d.read === 1 ? 0 : 1
+  try {
+    const res = await markDistributedRead(d.id, newRead)
+    if (res.success) {
+      d.read = newRead
+      ElMessage.success(newRead === 1 ? '已标记为已读' : '已标记为未读')
+    } else {
+      ElMessage.error(res.message || '操作失败')
+    }
+  } catch (e) {
+    ElMessage.error('操作失败')
+  }
 }
 
 watch(() => props.subTab, (v: string) => { if (v) reimbursementSubTab.value = v })
@@ -1277,5 +1344,36 @@ defineExpose({ fetchData })
 .sub-tab-btn:hover:not(.active) {
   color: #333;
   background: rgba(100, 149, 237, 0.12);
+}
+.read-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.read-status.read {
+  background: rgba(76, 175, 80, 0.12);
+  color: #4CAF50;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+.read-status.unread {
+  background: rgba(230, 162, 60, 0.12);
+  color: #E6A23C;
+  border: 1px solid rgba(230, 162, 60, 0.3);
+}
+.sub-tab-badge {
+  display: inline-block;
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #6495ED;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
 }
 </style>

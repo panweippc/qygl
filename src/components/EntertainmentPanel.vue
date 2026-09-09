@@ -52,7 +52,7 @@
           class="sub-tab-btn"
           :class="{ active: entertainmentSubTab === tab.value }"
           @click="entertainmentSubTab = tab.value"
-        >{{ tab.label }}</button>
+        >{{ tab.label }}<span v-if="tab.badge > 0" class="sub-tab-badge">{{ tab.badge }}</span></button>
       </div>
     </div>
 
@@ -96,6 +96,21 @@
         <el-table-column label="提交时间" width="100">
           <template #default="{ row }">{{ formatDate(row.submitDate, false) }}</template>
         </el-table-column>
+        <el-table-column label="已读状态" width="140" v-if="entertainmentSubTab === 'received'">
+          <template #default="{ row }">
+            <span v-if="getMyDistribution(row, 'entertainment')" :class="getDistributionRead(row, 'entertainment') ? 'read-status read' : 'read-status unread'">
+              {{ getDistributionRead(row, 'entertainment') ? '已读' : '未读' }}
+            </span>
+            <el-button
+              v-if="getMyDistribution(row, 'entertainment')"
+              size="small"
+              :type="getDistributionRead(row, 'entertainment') ? 'info' : 'primary'"
+              @click="toggleRecordRead(row, 'entertainment')"
+            >
+              {{ getDistributionRead(row, 'entertainment') ? '标为未读' : '标为已读' }}
+            </el-button>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="340" fixed="right">
           <template #default="{ row }">
             <div class="action-group">
@@ -134,6 +149,21 @@
             <el-button v-if="canWithdraw(row)" size="small" @click="withdrawEntertainmentAction(row)">撤回</el-button>
             <el-button v-if="canResubmitDelete(row)" size="small" type="warning" @click="resubmitEntertainment(row)">重新提交</el-button>
             <el-button v-if="canResubmitDelete(row)" size="small" type="danger" @click="deleteEntertainmentAction(row)">删除</el-button>
+            <span
+              v-if="entertainmentSubTab === 'received' && getMyDistribution(row, 'entertainment')"
+              :class="getDistributionRead(row, 'entertainment') ? 'read-status read' : 'read-status unread'"
+              style="margin-right: 6px;"
+            >
+              {{ getDistributionRead(row, 'entertainment') ? '已读' : '未读' }}
+            </span>
+            <el-button
+              v-if="entertainmentSubTab === 'received' && getMyDistribution(row, 'entertainment')"
+              size="small"
+              :type="getDistributionRead(row, 'entertainment') ? 'info' : 'primary'"
+              @click="toggleRecordRead(row, 'entertainment')"
+            >
+              {{ getDistributionRead(row, 'entertainment') ? '标为未读' : '标为已读' }}
+            </el-button>
             <el-button size="small" @click="$emit('view-detail', row, 'entertainment')">详情</el-button>
           </div>
         </div>
@@ -221,7 +251,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getEntertainmentExpenses, addEntertainmentExpense, updateEntertainmentExpense, getDistributedRecords } from '../services/api'
+import { getEntertainmentExpenses, addEntertainmentExpense, updateEntertainmentExpense, getDistributedRecords, markDistributedRead } from '../services/api'
 import { extractRealName, formatDate, getStatusClass, getStatusText, exportToCSV, exportSingleRow, exportEntertainmentFormHTML } from '../utils/oaWorkflowUtils'
 
 const props = defineProps<{
@@ -287,10 +317,16 @@ const entertainmentApplicants = computed(() => {
 })
 
 const entertainmentSubTab = ref(props.subTab || 'applied')
-const entertainmentSubTabs = [
-  { label: '我申请的', value: 'applied' },
-  { label: '我收到的', value: 'received' }
-]
+const appliedEntertainmentCount = computed(() =>
+  entertainmentRecords.value.filter(isMyEntertainmentApplication).length
+)
+const receivedEntertainmentCount = computed(() =>
+  entertainmentRecords.value.filter((r: any) => !isMyEntertainmentApplication(r) && isReceivedEntertainment(r)).length
+)
+const entertainmentSubTabs = computed(() => [
+  { label: '我申请的', value: 'applied', badge: appliedEntertainmentCount.value },
+  { label: '我收到的', value: 'received', badge: receivedEntertainmentCount.value }
+])
 
 // 下发给我的记录（按当前用户拉取，不依赖全局 allDistributedRecords）
 const myDistributedRecords = ref<any[]>([])
@@ -322,6 +358,34 @@ const isReceivedEntertainment = (r: any) => {
 }
 
 watch(() => props.subTab, (v: string) => { if (v) entertainmentSubTab.value = v })
+
+// 已读/未读：从「下发给我的」记录中匹配对应下发记录，读取 read 字段
+const getMyDistribution = (row: any, type: string) =>
+  myDistributedRecords.value.find((d: any) =>
+    Number(d.applicationId) === Number(row.id) &&
+    d.applicationType === type &&
+    extractRealName(d.targetUser) === extractRealName(currentUsername.value)
+  ) || null
+const getDistributionRead = (row: any, type: string) => {
+  const d = getMyDistribution(row, type)
+  return d ? d.read === 1 : false
+}
+const toggleRecordRead = async (row: any, type: string) => {
+  const d = getMyDistribution(row, type)
+  if (!d) return
+  const newRead = d.read === 1 ? 0 : 1
+  try {
+    const res = await markDistributedRead(d.id, newRead)
+    if (res.success) {
+      d.read = newRead
+      ElMessage.success(newRead === 1 ? '已标记为已读' : '已标记为未读')
+    } else {
+      ElMessage.error(res.message || '操作失败')
+    }
+  } catch (e) {
+    ElMessage.error('操作失败')
+  }
+}
 
 const filteredEntertainmentRecords = computed(() => {
   let records = entertainmentRecords.value
@@ -613,5 +677,36 @@ defineExpose({ fetchData })
 .sub-tab-btn:hover:not(.active) {
   color: #333;
   background: rgba(100, 149, 237, 0.12);
+}
+.read-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.read-status.read {
+  background: rgba(76, 175, 80, 0.12);
+  color: #4CAF50;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+.read-status.unread {
+  background: rgba(230, 162, 60, 0.12);
+  color: #E6A23C;
+  border: 1px solid rgba(230, 162, 60, 0.3);
+}
+.sub-tab-badge {
+  display: inline-block;
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #6495ED;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
 }
 </style>

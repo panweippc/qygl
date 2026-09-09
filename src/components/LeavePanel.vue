@@ -83,7 +83,7 @@
           class="sub-tab-btn"
           :class="{ active: leaveSubTab === tab.value }"
           @click="leaveSubTab = tab.value"
-        >{{ tab.label }}</button>
+        >{{ tab.label }}<span v-if="tab.badge > 0" class="sub-tab-badge">{{ tab.badge }}</span></button>
       </div>
     </div>
 
@@ -134,6 +134,21 @@
               {{ getStatusText(row.status) }}
               <span v-if="row.result && row.result.includes(':') && row.status === '审批中'" class="intermediate-result">({{ row.result }})</span>
             </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="已读状态" width="140" v-if="leaveSubTab === 'received'">
+          <template #default="{ row }">
+            <span v-if="getMyDistribution(row, 'leave')" :class="getDistributionRead(row, 'leave') ? 'read-status read' : 'read-status unread'">
+              {{ getDistributionRead(row, 'leave') ? '已读' : '未读' }}
+            </span>
+            <el-button
+              v-if="getMyDistribution(row, 'leave')"
+              size="small"
+              :type="getDistributionRead(row, 'leave') ? 'info' : 'primary'"
+              @click="toggleRecordRead(row, 'leave')"
+            >
+              {{ getDistributionRead(row, 'leave') ? '标为未读' : '标为已读' }}
+            </el-button>
           </template>
         </el-table-column>
         <el-table-column label="审批人" width="100">
@@ -291,6 +306,21 @@
             >
               删除
             </el-button>
+            <span
+              v-if="leaveSubTab === 'received' && getMyDistribution(row, 'leave')"
+              :class="getDistributionRead(row, 'leave') ? 'read-status read' : 'read-status unread'"
+              style="margin-right: 6px;"
+            >
+              {{ getDistributionRead(row, 'leave') ? '已读' : '未读' }}
+            </span>
+            <el-button
+              v-if="leaveSubTab === 'received' && getMyDistribution(row, 'leave')"
+              size="small"
+              :type="getDistributionRead(row, 'leave') ? 'info' : 'primary'"
+              @click="toggleRecordRead(row, 'leave')"
+            >
+              {{ getDistributionRead(row, 'leave') ? '标为未读' : '标为已读' }}
+            </el-button>
             <el-button size="small" @click="$emit('view-detail', row, 'leave')">详情</el-button>
           </div>
         </div>
@@ -387,6 +417,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getLeaveApplications,
   getDistributedRecords,
+  markDistributedRead,
   addLeaveApplication,
   updateLeaveApplication,
   withdrawLeave,
@@ -480,10 +511,18 @@ const leaveApplicants = computed(() => {
 })
 
 const leaveSubTab = ref(props.subTab || 'applied')
-const leaveSubTabs = [
-  { label: '我申请的', value: 'applied' },
-  { label: '我收到的', value: 'received' }
-]
+const appliedLeaveCount = computed(() => {
+  const base = props.isAdmin ? allLeaveRecords.value : leaveRecords.value
+  return base.filter(isMyLeaveApplication).length
+})
+const receivedLeaveCount = computed(() => {
+  const base = props.isAdmin ? allLeaveRecords.value : leaveRecords.value
+  return base.filter((r: any) => !isMyLeaveApplication(r) && isReceivedLeave(r)).length
+})
+const leaveSubTabs = computed(() => [
+  { label: '我申请的', value: 'applied', badge: appliedLeaveCount.value },
+  { label: '我收到的', value: 'received', badge: receivedLeaveCount.value }
+])
 
 // 下发给我的记录（按当前用户拉取，不依赖全局 allDistributedRecords）
 const myDistributedRecords = ref<any[]>([])
@@ -512,6 +551,34 @@ const isReceivedLeave = (r: any) => {
   if (r.result && r.result.includes(me + ':')) return true
   if (isItemDistributedToMe(r, 'leave')) return true
   return false
+}
+
+// 已读/未读：从「下发给我的」记录中匹配对应下发记录，读取 read 字段
+const getMyDistribution = (row: any, type: string) =>
+  myDistributedRecords.value.find((d: any) =>
+    Number(d.applicationId) === Number(row.id) &&
+    d.applicationType === type &&
+    extractRealName(d.targetUser) === extractRealName(currentUsername.value)
+  ) || null
+const getDistributionRead = (row: any, type: string) => {
+  const d = getMyDistribution(row, type)
+  return d ? d.read === 1 : false
+}
+const toggleRecordRead = async (row: any, type: string) => {
+  const d = getMyDistribution(row, type)
+  if (!d) return
+  const newRead = d.read === 1 ? 0 : 1
+  try {
+    const res = await markDistributedRead(d.id, newRead)
+    if (res.success) {
+      d.read = newRead
+      ElMessage.success(newRead === 1 ? '已标记为已读' : '已标记为未读')
+    } else {
+      ElMessage.error(res.message || '操作失败')
+    }
+  } catch (e) {
+    ElMessage.error('操作失败')
+  }
 }
 
 watch(() => props.subTab, (v: string) => { if (v) leaveSubTab.value = v })
@@ -1181,5 +1248,36 @@ defineExpose({ fetchData })
 .sub-tab-btn:hover:not(.active) {
   color: #333;
   background: rgba(100, 149, 237, 0.12);
+}
+.sub-tab-badge {
+  display: inline-block;
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #6495ED;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+.read-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.read-status.read {
+  background: rgba(76, 175, 80, 0.12);
+  color: #4CAF50;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+.read-status.unread {
+  background: rgba(230, 162, 60, 0.12);
+  color: #E6A23C;
+  border: 1px solid rgba(230, 162, 60, 0.3);
 }
 </style>

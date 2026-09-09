@@ -12,6 +12,22 @@ const APP_TYPE_CN = {
   entertainment: '业务招待'
 };
 
+// 幂等迁移：为 distributed_records 增加 read 字段（0=未读 1=已读），兼容已在运行的库
+let schemaReady = null
+const ensureSchema = (pool) => {
+  if (!schemaReady) {
+    schemaReady = (async () => {
+      try {
+        await pool.execute('ALTER TABLE distributed_records ADD COLUMN read TINYINT(1) NOT NULL DEFAULT 0')
+        console.log('[distribute] distributed_records.read 字段已新增')
+      } catch (e) {
+        // 字段已存在则忽略
+      }
+    })()
+  }
+  return schemaReady
+}
+
 // 会议类下发记录，若 detail 缺参会人员/会议议程，则从 meetings 表补回（兼容早期下发的记录）
 async function enrichMeetingDetail(pool, record) {
   if (record.applicationType !== 'meeting') return record;
@@ -38,6 +54,7 @@ async function enrichRecords(pool, records) {
 // 获取所有下发记录列表（管理员用）
 router.get('/distributed-records', async (req, res) => {
   const { pool } = req.app.locals;
+  await ensureSchema(pool);
   try {
     console.log('收到获取所有下发记录请求');
     const [records] = await pool.execute(
@@ -54,6 +71,7 @@ router.get('/distributed-records', async (req, res) => {
 // 获取下发记录列表（根据目标用户）
 router.get('/distributed-records/user/:targetUser', async (req, res) => {
   const { pool } = req.app.locals;
+  await ensureSchema(pool);
   try {
     let { targetUser } = req.params;
     console.log('接收到的targetUser:', targetUser);
@@ -157,9 +175,48 @@ router.post('/distributed-records/:id/process', async (req, res) => {
   }
 });
 
+// 标记下发记录的已读/未读状态（接收人可标记自己的；下发人可代为标记其下发的）
+router.put('/distributed-records/:id/read', async (req, res) => {
+  const { pool } = req.app.locals;
+  await ensureSchema(pool);
+  const me = getRealName(req);
+  try {
+    const { id } = req.params;
+    const readVal = (req.body.read === 0 || req.body.read === '0') ? 0 : 1;
+    const [[record]] = await pool.execute('SELECT * FROM distributed_records WHERE id = ?', [id]);
+    if (!record) {
+      return res.status(404).json({ success: false, message: '下发记录不存在' });
+    }
+    if (record.targetUser !== me && record.distributedBy !== me) {
+      return res.status(403).json({ success: false, message: '只能标记自己相关下发记录的已读状态' });
+    }
+    await pool.execute('UPDATE distributed_records SET read = ?, updatedAt = ? WHERE id = ?', [readVal, new Date().toISOString().slice(0, 19).replace('T', ' '), id]);
+    // 接收人标记为已读时，同步将对应的下发通知置为已读
+    if (record.targetUser === me && readVal === 1) {
+      try {
+        await pool.execute('UPDATE notifications SET isRead = 1 WHERE relatedType = ? AND relatedId = ? AND userId = ?', ['distributed', id, record.targetUser]);
+      } catch (e) { /* 通知同步失败不影响主流程 */ }
+    }
+    await createOperationLog(pool, {
+      username: me,
+      action: 'update',
+      module: 'distribute',
+      targetId: id,
+      targetName: `下发记录ID: ${id}`,
+      detail: `标记下发记录已读状态: ${readVal === 1 ? '已读' : '未读'}`,
+      ipAddress: req.ip
+    });
+    res.json({ success: true, message: readVal === 1 ? '已标记为已读' : '已标记为未读' });
+  } catch (error) {
+    console.error('标记下发已读失败:', error);
+    res.status(500).json({ success: false, message: '标记下发已读失败: ' + error.message });
+  }
+});
+
 // 添加下发记录
 router.post('/distributed-records', async (req, res) => {
   const { pool } = req.app.locals;
+  await ensureSchema(pool);
   const username = getOperator(req);
   try {
     const { applicationId, applicationType, applicant, distributedBy, targetUser, comment, status, detail } = req.body;

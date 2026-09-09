@@ -597,6 +597,12 @@ export const processDistributedRecord = async (id: number, data: { processCommen
   return response.data;
 };
 
+// 标记下发记录已读/未读（接收人标记自己，下发人可代为标记其下发的）
+export const markDistributedRead = async (id: number, read: number): Promise<ApiResponse> => {
+  const response = await api.put(`/distributed-records/${id}/read`, { read });
+  return response.data;
+};
+
 // 业务招待费管理
 export const getEntertainmentExpenses = async (): Promise<ApiResponse<any[]>> => {
   const response = await api.get('/entertainment-expenses');

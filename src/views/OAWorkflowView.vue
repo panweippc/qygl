@@ -263,6 +263,13 @@
                         </span>
                       </template>
                     </el-table-column>
+                    <el-table-column label="已读状态" width="100">
+                      <template #default="{ row }">
+                        <span :class="row.read === 1 ? 'read-status read' : 'read-status unread'">
+                          {{ row.read === 1 ? '已读' : '未读' }}
+                        </span>
+                      </template>
+                    </el-table-column>
                     <el-table-column label="申请详情" min-width="180">
                       <template #default="{ row }">
                         <span class="distributed-detail-text">{{ getDistributedDetail(row) }}</span>
@@ -272,13 +279,12 @@
                       <template #default="{ row }">
                         <div class="action-group">
                           <el-button
-                            v-if="row.status === '待处理'"
                             size="small"
-                            type="primary"
-                            @click="handleDistributedItem(row)"
+                            :type="row.read === 1 ? 'info' : 'primary'"
+                            @click="toggleDistributedRead(row)"
                             class="action-btn-small"
                           >
-                            处理
+                            {{ row.read === 1 ? '标为未读' : '标为已读' }}
                           </el-button>
                           <el-button
                             size="small"
@@ -506,38 +512,6 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="processDialogVisible" title="处理申请" width="550px" class="custom-dialog" :modal="false">
-      <div class="process-content" v-if="currentProcessItem">
-        <div class="process-info">
-          <div class="info-row">
-            <span class="info-label">下发编号：</span>
-            <span class="info-value">#{{ currentProcessItem.id }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">申请类型：</span>
-            <span class="info-value">{{ getApplicationTypeLabel(currentProcessItem.applicationType) }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">原申请编号：</span>
-            <span class="info-value">#{{ currentProcessItem.applicationId }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">原申请人：</span>
-            <span class="info-value">{{ currentProcessItem.applicant }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">下发人：</span>
-            <span class="info-value">{{ currentProcessItem.distributedBy }}</span>
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="processDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitProcess">确认处理</el-button>
-        </span>
-      </template>
-    </el-dialog>
 
     <footer class="footer">
       <div class="footer-content">
@@ -569,6 +543,7 @@ import {
   getAllDistributedRecords,
   addDistributedRecord,
   updateDistributedRecord,
+  markDistributedRead,
   getEntertainmentExpenses,
   updateEntertainmentExpense,
   getDeletedApplications,
@@ -708,6 +683,11 @@ function isUnprocessedStatus(status) {
   return result
 }
 
+const receivedCountByType = (type: string) =>
+  isAdminComputed.value ? 0 : distributedRecords.value.filter(r => r.applicationType === type).length
+const receivedUnreadByType = (type: string) =>
+  isAdminComputed.value ? 0 : distributedRecords.value.filter(r => r.applicationType === type && r.read !== 1).length
+
 const pendingLeaveCount = computed(() => {
   const records = isAdminComputed.value ? allLeaveRecords.value : leaveRecords.value
   const unprocessed = records.filter(r => isUnprocessedStatus(r.status))
@@ -715,31 +695,31 @@ const pendingLeaveCount = computed(() => {
     console.log('[请假角标] 总记录数:', records.length, '未处理数:', unprocessed.length)
     console.log('[请假角标] 记录状态:', records.map(r => r.status))
   }
-  return unprocessed.length
+  return unprocessed.length + receivedUnreadByType('leave')
 })
-const totalLeaveCount = computed(() => (isAdminComputed.value ? allLeaveRecords.value : leaveRecords.value).length)
+const totalLeaveCount = computed(() => (isAdminComputed.value ? allLeaveRecords.value : leaveRecords.value).length + receivedCountByType('leave'))
 const pendingReimbursementCount = computed(() => {
   const records = isAdminComputed.value ? allReimbursementRecords.value : reimbursementRecords.value
-  return records.filter(r => isUnprocessedStatus(r.status)).length
+  return records.filter(r => isUnprocessedStatus(r.status)).length + receivedUnreadByType('reimbursement')
 })
-const totalReimbursementCount = computed(() => (isAdminComputed.value ? allReimbursementRecords.value : reimbursementRecords.value).length)
+const totalReimbursementCount = computed(() => (isAdminComputed.value ? allReimbursementRecords.value : reimbursementRecords.value).length + receivedCountByType('reimbursement'))
 const pendingBusinessTripCount = computed(() => {
   const records = isAdminComputed.value ? allBusinessTripRecords.value : businessTripRecords.value
-  return records.filter(r => isUnprocessedStatus(r.status)).length
+  return records.filter(r => isUnprocessedStatus(r.status)).length + receivedUnreadByType('businessTrip')
 })
-const totalBusinessTripCount = computed(() => (isAdminComputed.value ? allBusinessTripRecords.value : businessTripRecords.value).length)
+const totalBusinessTripCount = computed(() => (isAdminComputed.value ? allBusinessTripRecords.value : businessTripRecords.value).length + receivedCountByType('businessTrip'))
 const pendingEntertainmentCount = computed(() => {
   const records = isAdminComputed.value ? allEntertainmentRecords.value : entertainmentRecords.value
-  return records.filter(r => isUnprocessedStatus(r.status)).length
+  return records.filter(r => isUnprocessedStatus(r.status)).length + receivedUnreadByType('entertainment')
 })
-const totalEntertainmentCount = computed(() => (isAdminComputed.value ? allEntertainmentRecords.value : entertainmentRecords.value).length)
+const totalEntertainmentCount = computed(() => (isAdminComputed.value ? allEntertainmentRecords.value : entertainmentRecords.value).length + receivedCountByType('entertainment'))
 const pendingDistributedCount = computed(() => distributedRecords.value.filter(r => r.status === "待处理").length)
 const totalDistributedCount = computed(() => distributedRecords.value.length)
 
 const pendingMeetingCount = computed(() => {
   const allMeetings = [...meetingRecords.value, ...allMeetingRecords.value]
   const uniqueMeetings = allMeetings.filter((item, index, self) => index === self.findIndex(t => t.id === item.id))
-  return uniqueMeetings.filter(r => isUnprocessedStatus(r.status)).length
+  return uniqueMeetings.filter(r => isUnprocessedStatus(r.status)).length + receivedUnreadByType('meeting')
 })
 const totalMeetingCount = computed(() => {
   const allMeetings = [...meetingRecords.value, ...allMeetingRecords.value]
@@ -749,7 +729,7 @@ const totalMeetingCount = computed(() => {
 const pendingProjectCount = computed(() => {
   const allProjects = [...projectRecords.value, ...allProjectRecords.value]
   const uniqueProjects = allProjects.filter((item, index, self) => index === self.findIndex(t => t.id === item.id))
-  return uniqueProjects.filter(r => isUnprocessedStatus(r.status)).length
+  return uniqueProjects.filter(r => isUnprocessedStatus(r.status)).length + receivedUnreadByType('project')
 })
 const totalProjectCount = computed(() => {
   const allProjects = [...projectRecords.value, ...allProjectRecords.value]
@@ -758,13 +738,23 @@ const totalProjectCount = computed(() => {
 
 const distributedActiveSubTab = ref('all')
 
+// 下发管理视角：审批人/下发人看到的是「自己下发的」记录（可据此查看接收人是否已读）
+const distributedManageRecords = computed(() => {
+  const me = extractRealName(currentUsername.value)
+  const list = isAdminComputed.value
+    ? allDistributedRecords.value
+    : allDistributedRecords.value.filter(r => extractRealName(r.distributedBy) === me)
+  return list
+})
+
 const distributedSubTabs = computed(() => {
+  const src = distributedManageRecords.value
   const counts: Record<string, number> = {}
-  distributedRecords.value.forEach(r => {
+  src.forEach(r => {
     counts[r.applicationType] = (counts[r.applicationType] || 0) + 1
   })
   return [
-    { name: 'all', label: '全部', icon: '📋', badge: distributedRecords.value.length },
+    { name: 'all', label: '全部', icon: '📋', badge: src.length },
     { name: 'leave', label: '请假', icon: '📝', badge: counts['leave'] || 0 },
     { name: 'reimbursement', label: '报销', icon: '💰', badge: counts['reimbursement'] || 0 },
     { name: 'meeting', label: '会议', icon: '📅', badge: counts['meeting'] || 0 },
@@ -775,8 +765,9 @@ const distributedSubTabs = computed(() => {
 })
 
 const filteredDistributedRecords = computed(() => {
-  if (distributedActiveSubTab.value === 'all') return distributedRecords.value
-  return distributedRecords.value.filter(r => r.applicationType === distributedActiveSubTab.value)
+  const src = distributedManageRecords.value
+  if (distributedActiveSubTab.value === 'all') return src
+  return src.filter(r => r.applicationType === distributedActiveSubTab.value)
 })
 
 const getDistributedDetail = (row: any) => {
@@ -1007,9 +998,17 @@ const currentApprovalItem = ref<any>(null)
 const approvalForm = ref({ id: '', type: '', comment: '', result: '', forward: false, forwardTo: '', distributeTargets: [] as string[] })
 const approvalFormRef = ref()
 
+const getApplicantName = (row: any, type: string) => {
+  if (!row) return ''
+  if (type === 'meeting') return extractRealName(row.organizer || '')
+  return extractRealName(row.applicant_name || row.applicant || row.applicantName || '')
+}
+
 const openApprovalDialog = (row: any, type: string) => {
   currentApprovalItem.value = { ...row, type }
-  approvalForm.value = { id: row.id, type, comment: '', result: '', forward: false, forwardTo: '', distributeTargets: ['张海琼'] }
+  // 下发对象默认值：张海琼 + 当前申请单的申请人（去重）
+  const defaultTargets = [...new Set(['张海琼', getApplicantName(row, type)])].filter(Boolean)
+  approvalForm.value = { id: row.id, type, comment: '', result: '', forward: false, forwardTo: '', distributeTargets: defaultTargets }
   approvalDialogVisible.value = true
 }
 
@@ -1054,7 +1053,7 @@ const submitApproval = async () => {
       const targets = [...new Set(approvalForm.value.distributeTargets || [])]
       const effectiveTargets = targets.length > 0
         ? targets
-        : (approvalForm.value.result === '批准' ? ['张海琼'] : [])
+        : (approvalForm.value.result === '批准' ? [...new Set(['张海琼', getApplicantName(currentApprovalItem.value, approvalForm.value.type)])] : [])
       if (approvalForm.value.result === '批准' && !approvalForm.value.forward && effectiveTargets.length > 0) {
         const item = currentApprovalItem.value
         const type = approvalForm.value.type
@@ -1257,34 +1256,19 @@ const handleDistribute = async () => {
   }
 }
 
-const processDialogVisible = ref(false)
-const currentProcessItem = ref<any>(null)
-const processContent = ref('')
-
-const handleDistributedItem = (row: any) => {
-  currentProcessItem.value = row
-  processContent.value = ''
-  processDialogVisible.value = true
-}
-
-const submitProcess = async () => {
+const toggleDistributedRead = async (row: any) => {
+  const newRead = row.read === 1 ? 0 : 1
   try {
-    const response = await updateDistributedRecord(currentProcessItem.value.id, {
-      status: '已处理'
-    })
+    const response = await markDistributedRead(row.id, newRead)
     if (response.success) {
-      const index = distributedRecords.value.findIndex(r => r.id === currentProcessItem.value.id)
-      if (index !== -1) {
-        distributedRecords.value[index].status = '已处理'
-      }
-      ElMessage.success('处理成功')
-      processDialogVisible.value = false
+      row.read = newRead
+      ElMessage.success(newRead === 1 ? '已标记为已读' : '已标记为未读')
     } else {
-      ElMessage.error(response.message || '处理失败')
+      ElMessage.error(response.message || '操作失败')
     }
   } catch (error) {
-    console.error('处理下发记录失败:', error)
-    ElMessage.error('处理失败')
+    console.error('标记下发已读失败:', error)
+    ElMessage.error('操作失败')
   }
 }
 
@@ -2253,6 +2237,23 @@ onUnmounted(() => {
   background: rgba(76, 175, 80, 0.1);
   color: #4CAF50;
   border: 1px solid rgba(76, 175, 80, 0.3);
+}
+.read-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.read-status.read {
+  background: rgba(76, 175, 80, 0.12);
+  color: #4CAF50;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+.read-status.unread {
+  background: rgba(230, 162, 60, 0.12);
+  color: #E6A23C;
+  border: 1px solid rgba(230, 162, 60, 0.3);
 }
 .action-group {
   display: flex;

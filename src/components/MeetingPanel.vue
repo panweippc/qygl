@@ -83,7 +83,7 @@
           class="sub-tab-btn"
           :class="{ active: meetingSubTab === tab.value }"
           @click="meetingSubTab = tab.value"
-        >{{ tab.label }}</button>
+        >{{ tab.label }}<span v-if="tab.badge > 0" class="sub-tab-badge">{{ tab.badge }}</span></button>
       </div>
     </div>
 
@@ -120,6 +120,21 @@
           </template>
         </el-table-column>
         <el-table-column prop="submitDate" label="创建时间" width="150"></el-table-column>
+        <el-table-column label="已读状态" width="140" v-if="meetingSubTab === 'received'">
+          <template #default="{ row }">
+            <span v-if="getMyDistribution(row, 'meeting')" :class="getDistributionRead(row, 'meeting') ? 'read-status read' : 'read-status unread'">
+              {{ getDistributionRead(row, 'meeting') ? '已读' : '未读' }}
+            </span>
+            <el-button
+              v-if="getMyDistribution(row, 'meeting')"
+              size="small"
+              :type="getDistributionRead(row, 'meeting') ? 'info' : 'primary'"
+              @click="toggleRecordRead(row, 'meeting')"
+            >
+              {{ getDistributionRead(row, 'meeting') ? '标为未读' : '标为已读' }}
+            </el-button>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <div class="action-group">
@@ -259,6 +274,21 @@
             >
               删除
             </el-button>
+            <span
+              v-if="meetingSubTab === 'received' && getMyDistribution(row, 'meeting')"
+              :class="getDistributionRead(row, 'meeting') ? 'read-status read' : 'read-status unread'"
+              style="margin-right: 6px;"
+            >
+              {{ getDistributionRead(row, 'meeting') ? '已读' : '未读' }}
+            </span>
+            <el-button
+              v-if="meetingSubTab === 'received' && getMyDistribution(row, 'meeting')"
+              size="small"
+              :type="getDistributionRead(row, 'meeting') ? 'info' : 'primary'"
+              @click="toggleRecordRead(row, 'meeting')"
+            >
+              {{ getDistributionRead(row, 'meeting') ? '标为未读' : '标为已读' }}
+            </el-button>
             <el-button size="small" @click="$emit('view-detail', row, 'meeting')">详情</el-button>
           </div>
         </div>
@@ -353,6 +383,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getMeetings,
   getDistributedRecords,
+  markDistributedRead,
   addMeeting,
   updateMeeting,
   withdrawMeeting,
@@ -392,10 +423,18 @@ const emit = defineEmits<{
 const meetingFilter = ref('all')
 const meetingPersonFilter = ref('all')
 const meetingSubTab = ref(props.subTab || 'applied')
-const meetingSubTabs = [
-  { label: '我申请的', value: 'applied' },
-  { label: '我收到的', value: 'received' }
-]
+const appliedMeetingCount = computed(() => {
+  const base = props.isAdmin ? allMeetingRecords.value : meetingRecords.value
+  return base.filter(isMyMeetingApplication).length
+})
+const receivedMeetingCount = computed(() => {
+  const base = props.isAdmin ? allMeetingRecords.value : meetingRecords.value
+  return base.filter((r: any) => !isMyMeetingApplication(r) && isReceivedMeeting(r)).length
+})
+const meetingSubTabs = computed(() => [
+  { label: '我申请的', value: 'applied', badge: appliedMeetingCount.value },
+  { label: '我收到的', value: 'received', badge: receivedMeetingCount.value }
+])
 const meetingDateType = ref('range')
 const meetingDateRange = ref([])
 const meetingSingleDate = ref(null)
@@ -486,6 +525,34 @@ const canWithdraw = (row: any) => isPending(row) && !props.isAdmin && isMyMeetin
 const canResubmitDelete = (row: any) => isWithdrawnOrDraft(row) && (props.isAdmin || isMyMeetingApplication(row))
 
 watch(() => props.subTab, (v: string) => { if (v) meetingSubTab.value = v })
+
+// 已读/未读：从「下发给我的」记录中匹配对应下发记录，读取 read 字段
+const getMyDistribution = (row: any, type: string) =>
+  myDistributedRecords.value.find((d: any) =>
+    Number(d.applicationId) === Number(row.id) &&
+    d.applicationType === type &&
+    extractRealName(d.targetUser) === extractRealName(currentUsername.value)
+  ) || null
+const getDistributionRead = (row: any, type: string) => {
+  const d = getMyDistribution(row, type)
+  return d ? d.read === 1 : false
+}
+const toggleRecordRead = async (row: any, type: string) => {
+  const d = getMyDistribution(row, type)
+  if (!d) return
+  const newRead = d.read === 1 ? 0 : 1
+  try {
+    const res = await markDistributedRead(d.id, newRead)
+    if (res.success) {
+      d.read = newRead
+      ElMessage.success(newRead === 1 ? '已标记为已读' : '已标记为未读')
+    } else {
+      ElMessage.error(res.message || '操作失败')
+    }
+  } catch (e) {
+    ElMessage.error('操作失败')
+  }
+}
 
 const filteredMeetingRecords = computed(() => {
   let records = props.isAdmin ? allMeetingRecords.value : meetingRecords.value
@@ -1091,5 +1158,36 @@ defineExpose({ fetchData })
   background: rgba(97, 97, 97, 0.1);
   color: #616161;
   border: 1px solid rgba(97, 97, 97, 0.3);
+}
+.read-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.read-status.read {
+  background: rgba(76, 175, 80, 0.12);
+  color: #4CAF50;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+.read-status.unread {
+  background: rgba(230, 162, 60, 0.12);
+  color: #E6A23C;
+  border: 1px solid rgba(230, 162, 60, 0.3);
+}
+.sub-tab-badge {
+  display: inline-block;
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #6495ED;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
 }
 </style>
