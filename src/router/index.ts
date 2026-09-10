@@ -58,7 +58,7 @@ const router = createRouter({
     {
       path: '/sales-funnel',
       name: 'sales-funnel',
-      component: () => import('../views/SalesFunnelView.vue')
+      component: () => import('../views/SalesFourTablesView.vue')
     },
     {
       path: '/customer-management',
@@ -68,7 +68,7 @@ const router = createRouter({
     {
       path: '/sales-opportunity',
       name: 'sales-opportunity',
-      component: () => import('../views/SalesOpportunityView.vue')
+      redirect: '/sales-funnel'
     },
     {
       path: '/sales-target',
