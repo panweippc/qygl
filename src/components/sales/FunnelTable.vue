@@ -78,6 +78,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { salesFetch, salesFetchJSON } from './salesApi'
 import ImportDialog from './ImportDialog.vue'
 import DiffDialog from './DiffDialog.vue'
 
@@ -110,8 +111,7 @@ async function load() {
     if (filter.value.month) qs.set('month', filter.value.month)
     qs.set('page', String(page.value))
     qs.set('pageSize', String(pageSize.value))
-    const res = await fetch(`/api/sales-four-tables/${props.type}?${qs.toString()}`)
-    const json = await res.json()
+    const json = await salesFetchJSON(`/api/sales-four-tables/${props.type}?${qs.toString()}`)
     if (json.success) {
       list.value = json.data.list
       total.value = json.data.total
@@ -130,8 +130,7 @@ async function save() {
   try {
     const url = `/api/sales-four-tables/${props.type}` + (editForm.value.id ? `/${editForm.value.id}` : '')
     const method = editForm.value.id ? 'PUT' : 'POST'
-    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editForm.value) })
-    const json = await res.json()
+    const json = await salesFetchJSON(url, { method, body: JSON.stringify(editForm.value) })
     if (json.success) {
       ElMessage.success('保存成功')
       editVisible.value = false
@@ -144,8 +143,7 @@ async function save() {
 async function remove(row: any) {
   try {
     await ElMessageBox.confirm('确定删除该记录吗？', '提示', { type: 'warning' })
-    const res = await fetch(`/api/sales-four-tables/${props.type}/${row.id}`, { method: 'DELETE' })
-    const json = await res.json()
+    const json = await salesFetchJSON(`/api/sales-four-tables/${props.type}/${row.id}`, { method: 'DELETE' })
     if (json.success) { ElMessage.success('删除成功'); load() }
     else ElMessage.error(json.message || '删除失败')
   } catch {}

@@ -3,7 +3,7 @@
     <header class="sft-header">
       <div class="sft-header-left">
         <el-button text @click="router.push('/')">← 返回</el-button>
-        <h2>销售四表管理</h2>
+        <h2>销售漏斗</h2>
       </div>
       <div class="sft-header-right">
         <el-tag v-if="perm.canWrite" type="success">可写入</el-tag>
@@ -37,6 +37,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { salesFetchJSON } from '../components/sales/salesApi'
 import FunnelTable from '../components/sales/FunnelTable.vue'
 import DealTable from '../components/sales/DealTable.vue'
 import ProjectTable from '../components/sales/ProjectTable.vue'
@@ -47,28 +48,23 @@ const perm = ref({ canWrite: false, canView: false, isAdmin: false })
 
 async function loadPerm() {
   try {
-    const res = await fetch('/api/sales-four-tables/intention')
-    perm.value.canView = res.ok
-    // 写入权限通过试写判断：后端仅管理员/销售部经理/业务中心经理可写
-    perm.value.canWrite = false
-  } catch {}
-}
-
-async function checkWritePerm() {
-  try {
-    const res = await fetch('/api/sales-four-tables/intention', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
-    perm.value.canWrite = res.status !== 403
-  } catch {
-    perm.value.canWrite = false
+    const json = await salesFetchJSON('/api/sales-four-tables/permission')
+    if (json.success && json.data) {
+      perm.value = {
+        canWrite: Boolean(json.data.canWrite),
+        canView: Boolean(json.data.canView || json.data.isOwnerFilter),
+        isAdmin: Boolean(json.data.isAdmin)
+      }
+    }
+  } catch (e: any) {
+    // 无权限时保持仅查看 false
+    console.error('获取销售漏斗权限失败:', e.message)
   }
 }
 
 function onTabChange() {}
 
-onMounted(async () => {
-  await loadPerm()
-  await checkWritePerm()
-})
+onMounted(loadPerm)
 </script>
 
 <style scoped>

@@ -293,6 +293,11 @@ function getReportMonth(reportDate) {
   return d.slice(0, 7);
 }
 
+// 当前用户销售四表权限（供前端统一判断）
+router.get('/sales-four-tables/permission', requireSalesView, async (req, res) => {
+  res.json({ success: true, data: req.salesPerm });
+});
+
 // 通用列表查询
 router.get('/sales-four-tables/:type', requireSalesView, async (req, res) => {
   const { pool } = req.app.locals;

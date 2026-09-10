@@ -29,6 +29,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { salesFetchJSON } from './salesApi'
 
 const props = defineProps<{ modelValue: boolean, type: string, recordId: number | null }>()
 const emit = defineEmits(['update:modelValue'])
@@ -43,8 +44,7 @@ const v2 = ref<number | null>(null)
 
 async function loadVersions() {
   if (!props.recordId) return
-  const res = await fetch(`/api/sales-four-tables/${props.type}/${props.recordId}/versions`)
-  const json = await res.json()
+  const json = await salesFetchJSON(`/api/sales-four-tables/${props.type}/${props.recordId}/versions`)
   if (json.success) {
     versions.value = json.data
     if (versions.value.length >= 2) {
@@ -57,8 +57,7 @@ async function loadVersions() {
 
 async function loadDiff() {
   if (!props.recordId || !v1.value || !v2.value) return
-  const res = await fetch(`/api/sales-four-tables/${props.type}/${props.recordId}/diff?v1=${v1.value}&v2=${v2.value}`)
-  const json = await res.json()
+  const json = await salesFetchJSON(`/api/sales-four-tables/${props.type}/${props.recordId}/diff?v1=${v1.value}&v2=${v2.value}`)
   if (json.success) diffs.value = json.data
   else ElMessage.error(json.message || '对比失败')
 }
