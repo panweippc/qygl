@@ -21,6 +21,20 @@
       </button>
     </nav>
 
+    <div class="rc-guide">
+      <el-alert :title="guide.title" :type="guide.type" :closable="false" show-icon>
+        <template #default>
+          <p class="rc-guide-text">{{ guide.text }}</p>
+          <ul v-if="guide.items" class="rc-guide-list">
+            <li v-for="(item, idx) in guide.items" :key="idx">
+              <span class="rc-guide-tag" :style="{ background: item.color }">{{ item.tag }}</span>
+              <span class="rc-guide-desc">{{ item.desc }}</span>
+            </li>
+          </ul>
+        </template>
+      </el-alert>
+    </div>
+
     <main class="rc-body">
       <div class="rc-tab">
         <FileStorageView v-show="active === 'files'" />
@@ -50,6 +64,31 @@ const tabs = [
 
 const visibleTabs = computed(() => tabs.filter(t => hasMenu(t.perm)))
 const active = ref('files')
+
+const guides = {
+  files: {
+    title: '文件库使用指引',
+    type: 'info',
+    text: '文件库用于集中存放代码配置、压缩包、安装包、音视频、文档、图片等资料。上传前请选择左侧分类，系统将自动识别格式并提供对应预览。',
+    items: [
+      { tag: '代码/配置', color: '#E6F7FF', desc: 'JS / TS / Vue / Java / Python / SQL / JSON / YAML / XML / CSS / Shell 等（支持语法高亮预览）' },
+      { tag: '压缩包/安装包', color: '#FFF2E8', desc: 'ZIP / RAR / 7Z / EXE / MSI / DMG / APK / APPX 等（≤2G，仅下载，不支持在线预览）' },
+      { tag: '音视频', color: '#F6FFED', desc: 'MP4 / WEBM / MP3 / WAV / OGG / AVI / MOV 等（≤2G，支持在线播放）' },
+      { tag: '文档/图片', color: '#F0F5FF', desc: 'Word / Excel / PPT / PDF / JPG / PNG / GIF / SVG / WEBP 等（支持在线预览）' }
+    ]
+  },
+  kb: {
+    title: '知识文章使用指引',
+    type: 'success',
+    text: '知识文章用于沉淀公司制度、技术文档、销售资料、操作手册等结构化内容。支持按分类浏览、搜索和编辑。'
+  },
+  cat: {
+    title: '产品分类使用指引',
+    type: 'warning',
+    text: '产品分类用于维护项目/产品目录，展示不同类别下的项目信息。如需上传文件，请切换到「文件库」分类。'
+  }
+}
+const guide = computed(() => guides[active.value as keyof typeof guides])
 
 // 权限加载后若当前标签不可见，自动切到第一个可见标签
 watch(visibleTabs, (vt) => {
@@ -145,5 +184,46 @@ const goBack = () => {
 .rc-tab :deep(.knowledge-base > .page-header),
 .rc-tab :deep(.project-category-container > .header) {
   display: none !important;
+}
+
+.rc-guide {
+  padding: 0.75rem 1.5rem;
+  background: rgba(255, 255, 255, 0.7);
+  border-bottom: 1px solid rgba(100, 149, 237, 0.15);
+}
+.rc-guide-text {
+  margin: 0.5rem 0 0.25rem;
+  line-height: 1.6;
+  color: #4a5568;
+  font-size: 0.9rem;
+}
+.rc-guide-list {
+  margin: 0.5rem 0 0;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.rc-guide-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+}
+.rc-guide-tag {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #2d3748;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.rc-guide-desc {
+  font-size: 0.8rem;
+  color: #4a5568;
 }
 </style>

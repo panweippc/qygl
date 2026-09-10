@@ -109,7 +109,7 @@ function flattenTree(items: any[], level = 0): any[] {
 
 const flatMenus = computed(() => flattenTree(menus.value))
 
-const excludeParentNames = new Set(['系统管理', '角色管理', '菜单管理'])
+const excludeParentNames = new Set(['系统管理', '角色管理', '菜单管理', '资料中心'])
 
 const parentMenuOptions = computed(() => {
   const options: any[] = []

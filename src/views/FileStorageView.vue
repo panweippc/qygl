@@ -66,6 +66,29 @@
             </span>
             上传文件到{{ selectedCategory.name }}
           </h2>
+
+          <el-card class="upload-guide-card" shadow="never">
+            <div class="upload-guide-title">📋 {{ selectedCategory.name }} 可上传格式</div>
+            <div class="upload-guide-grid">
+              <div class="upload-guide-item">
+                <span class="ug-tag" style="background:#E6F7FF">代码/配置</span>
+                <span class="ug-desc">JS / TS / Vue / Java / Python / SQL / JSON / YAML / XML / CSS / Shell / INI / Properties</span>
+              </div>
+              <div class="upload-guide-item">
+                <span class="ug-tag" style="background:#FFF2E8">压缩包/安装包</span>
+                <span class="ug-desc">ZIP / RAR / 7Z / TAR / GZ / EXE / MSI / DMG / APK / APPX（≤2G，仅下载）</span>
+              </div>
+              <div class="upload-guide-item">
+                <span class="ug-tag" style="background:#F6FFED">音视频</span>
+                <span class="ug-desc">MP4 / WEBM / MP3 / WAV / OGG / AVI / MOV / MKV / FLV（≤2G，在线播放）</span>
+              </div>
+              <div class="upload-guide-item">
+                <span class="ug-tag" style="background:#F0F5FF">文档/图片</span>
+                <span class="ug-desc">PDF / DOC / DOCX / XLS / XLSX / PPT / PPTX / TXT / MD / JPG / PNG / GIF / SVG / WEBP</span>
+              </div>
+            </div>
+          </el-card>
+
           <div class="upload-area">
             <el-upload
               class="upload-demo"
@@ -761,6 +784,50 @@ const formatFileSize = (size: number): string => {
   padding: 2rem;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(5px);
+}
+
+.upload-guide-card {
+  margin-bottom: 1.25rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(100, 149, 237, 0.15);
+  border-radius: 10px;
+}
+.upload-guide-card :deep(.el-card__body) {
+  padding: 1rem 1.25rem;
+}
+.upload-guide-title {
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+}
+.upload-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0.6rem;
+}
+.upload-guide-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+}
+.ug-tag {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #2d3748;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ug-desc {
+  font-size: 0.8rem;
+  color: #4a5568;
+  line-height: 1.5;
 }
 
 .section-title {
