@@ -21,7 +21,8 @@
         </template>
       </el-table-column>
       <el-table-column prop="sales_type" label="销售类型" width="100" />
-      <el-table-column prop="revenue_type" label="收入类型" width="120" />
+      <el-table-column prop="revenue_type" label="代理类型" width="100" />
+      <el-table-column prop="sales_status" label="销售状态" width="100" />
       <el-table-column prop="report_date" label="申报日期" width="110" />
       <el-table-column prop="product_type" label="产品类型" min-width="120" show-overflow-tooltip />
       <el-table-column prop="contract_amount" label="合同额" width="110">
