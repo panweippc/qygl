@@ -34,8 +34,9 @@
 
     <el-pagination v-if="total > pageSize" v-model:current-page="page" :page-size="pageSize" :total="total" layout="prev,pager,next" class="ft-pagination" @current-change="load" />
 
-    <el-drawer v-model="editVisible" :title="editForm.id ? '编辑大项目进展' : '新增大项目进展'" size="700px">
-      <el-tabs v-model="projectTab">
+    <el-dialog v-model="editVisible" :title="editForm.id ? '编辑大项目进展' : '新增大项目进展'" width="700px" align-center destroy-on-close>
+      <div class="dialog-body">
+        <el-tabs v-model="projectTab">
         <el-tab-pane label="客户全貌" name="base">
           <el-form :model="editForm" label-width="130px">
             <el-form-item label="客户名称"><el-input v-model="editForm.customer_name" /></el-form-item>
@@ -127,11 +128,14 @@
           <el-button type="primary" size="small" @click="addVisit">+ 添加拜访记录</el-button>
         </el-tab-pane>
       </el-tabs>
+      </div>
       <template #footer>
-        <el-button @click="editVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        <span class="dialog-footer">
+          <el-button @click="editVisible = false">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        </span>
       </template>
-    </el-drawer>
+    </el-dialog>
 
     <DiffDialog v-model="diffVisible" type="project" :record-id="diffRecordId" />
   </div>
@@ -233,4 +237,6 @@ onMounted(load)
 .ft-pagination { margin-top: 1rem; justify-content: flex-end; }
 .sub-section { border: 1px solid #eee; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
 .sub-title { font-weight: 600; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
+.dialog-body { max-height: 60vh; overflow-y: auto; padding-right: 0.5rem; }
+.dialog-footer { display: flex; justify-content: flex-end; gap: 0.5rem; }
 </style>

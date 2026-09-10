@@ -48,28 +48,49 @@
 
     <el-pagination v-if="total > pageSize" v-model:current-page="page" :page-size="pageSize" :total="total" layout="prev,pager,next" class="ft-pagination" @current-change="load" />
 
-    <el-drawer v-model="editVisible" :title="editForm.id ? '编辑成交用户' : '新增成交用户'" size="550px">
-      <el-form :model="editForm" label-width="120px">
-        <el-form-item label="owner"><el-input v-model="editForm.owner" /></el-form-item>
-        <el-form-item label="销售类型"><el-input v-model="editForm.sales_type" /></el-form-item>
-        <el-form-item label="收入类型"><el-input v-model="editForm.revenue_type" /></el-form-item>
-        <el-form-item label="申报日期"><el-date-picker v-model="editForm.report_date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item>
-        <el-form-item label="产品类型"><el-input v-model="editForm.product_type" /></el-form-item>
-        <el-form-item label="客户名单"><el-input v-model="editForm.customer_name" /></el-form-item>
-        <el-form-item label="联系人"><el-input v-model="editForm.contact" /></el-form-item>
-        <el-form-item label="电话"><el-input v-model="editForm.phone" /></el-form-item>
-        <el-form-item label="站点数"><el-input-number v-model="editForm.site_count" :min="0" style="width:100%" /></el-form-item>
-        <el-form-item label="合同额"><el-input-number v-model="editForm.contract_amount" :min="0" style="width:100%" /></el-form-item>
-        <el-form-item label="实际金额"><el-input-number v-model="editForm.actual_amount" :min="0" style="width:100%" /></el-form-item>
-        <el-form-item label="回款金额"><el-input-number v-model="editForm.received_amount" :min="0" style="width:100%" /></el-form-item>
-        <el-form-item label="未回款金额"><el-input-number v-model="editForm.unreceived_amount" :min="0" style="width:100%" /></el-form-item>
-        <el-form-item label="备注"><el-input v-model="editForm.remark" type="textarea" :rows="2" /></el-form-item>
-      </el-form>
+    <el-dialog v-model="editVisible" :title="editForm.id ? '编辑成交用户' : '新增成交用户'" width="550px" align-center destroy-on-close>
+      <div class="dialog-body">
+        <el-form :model="editForm" label-width="120px">
+          <el-form-item label="owner"><el-input v-model="editForm.owner" /></el-form-item>
+          <el-form-item label="销售类型">
+            <el-select v-model="editForm.sales_type" placeholder="请选择" style="width:100%">
+              <el-option label="渠道" value="渠道" />
+              <el-option label="直销" value="直销" />
+              <el-option label="服务" value="服务" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="代理类型">
+            <el-select v-model="editForm.revenue_type" placeholder="请选择" style="width:100%">
+              <el-option label="代理" value="代理" />
+              <el-option label="直销" value="直销" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="申报日期"><el-date-picker v-model="editForm.report_date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item>
+          <el-form-item label="产品类型"><el-input v-model="editForm.product_type" /></el-form-item>
+          <el-form-item label="客户名单"><el-input v-model="editForm.customer_name" /></el-form-item>
+          <el-form-item label="联系人"><el-input v-model="editForm.contact" /></el-form-item>
+          <el-form-item label="电话"><el-input v-model="editForm.phone" /></el-form-item>
+          <el-form-item label="站点数"><el-input-number v-model="editForm.site_count" :min="0" style="width:100%" /></el-form-item>
+          <el-form-item label="合同额"><el-input-number v-model="editForm.contract_amount" :min="0" style="width:100%" /></el-form-item>
+          <el-form-item label="实际金额"><el-input-number v-model="editForm.actual_amount" :min="0" style="width:100%" /></el-form-item>
+          <el-form-item label="回款金额"><el-input-number v-model="editForm.received_amount" :min="0" style="width:100%" /></el-form-item>
+          <el-form-item label="未回款金额"><el-input-number v-model="editForm.unreceived_amount" :min="0" style="width:100%" /></el-form-item>
+          <el-form-item label="销售状态">
+            <el-select v-model="editForm.sales_status" placeholder="请选择" style="width:100%">
+              <el-option label="销售成交" value="销售成交" />
+              <el-option label="实施交付" value="实施交付" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="备注"><el-input v-model="editForm.remark" type="textarea" :rows="2" /></el-form-item>
+        </el-form>
+      </div>
       <template #footer>
-        <el-button @click="editVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        <span class="dialog-footer">
+          <el-button @click="editVisible = false">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        </span>
       </template>
-    </el-drawer>
+    </el-dialog>
 
     <ImportDialog v-model="importVisible" type="deal" @success="load" />
     <DiffDialog v-model="diffVisible" type="deal" :record-id="diffRecordId" />
@@ -99,7 +120,7 @@ const saving = ref(false)
 const emptyForm = () => ({
   owner: '', sales_type: '', revenue_type: '', report_date: '', product_type: '',
   customer_name: '', contact: '', phone: '', site_count: 0, contract_amount: 0,
-  actual_amount: 0, received_amount: 0, unreceived_amount: 0, remark: ''
+  actual_amount: 0, received_amount: 0, unreceived_amount: 0, sales_status: '', remark: ''
 })
 const editForm = ref<any>(emptyForm())
 
@@ -146,4 +167,6 @@ onMounted(load)
 .ft-filters { display: flex; gap: 0.5rem; }
 .ft-actions { display: flex; gap: 0.5rem; }
 .ft-pagination { margin-top: 1rem; justify-content: flex-end; }
+.dialog-body { max-height: 60vh; overflow-y: auto; padding-right: 0.5rem; }
+.dialog-footer { display: flex; justify-content: flex-end; gap: 0.5rem; }
 </style>

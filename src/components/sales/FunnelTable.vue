@@ -44,35 +44,56 @@
 
     <el-pagination v-if="total > pageSize" v-model:current-page="page" :page-size="pageSize" :total="total" layout="prev,pager,next" class="ft-pagination" @current-change="load" />
 
-    <el-drawer v-model="editVisible" :title="editForm.id ? '编辑' + title : '新增' + title" size="600px">
-      <el-form :model="editForm" label-width="120px">
-        <el-form-item label="owner"><el-input v-model="editForm.owner" /></el-form-item>
-        <el-form-item label="销售类型"><el-input v-model="editForm.sales_type" /></el-form-item>
-        <el-form-item label="收入类型"><el-input v-model="editForm.revenue_type" /></el-form-item>
-        <el-form-item label="申报日期"><el-date-picker v-model="editForm.report_date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item>
-        <el-form-item label="产品类型"><el-input v-model="editForm.product_type" /></el-form-item>
-        <el-form-item label="合作伙伴"><el-input v-model="editForm.partner_name" /></el-form-item>
-        <el-form-item label="主要竞争对手"><el-input v-model="editForm.competitor" /></el-form-item>
-        <el-form-item label="客户名单"><el-input v-model="editForm.customer_name" /></el-form-item>
-        <el-form-item label="联系人"><el-input v-model="editForm.contact" /></el-form-item>
-        <el-form-item label="电话"><el-input v-model="editForm.phone" /></el-form-item>
-        <el-form-item label="站点数"><el-input-number v-model="editForm.site_count" :min="0" style="width:100%" /></el-form-item>
-        <el-form-item label="本月回款金额"><el-input-number v-model="editForm.monthly_repayment" :min="0" style="width:100%" /></el-form-item>
-        <el-form-item label="本月回款把握度"><el-input v-model="editForm.monthly_confidence" /></el-form-item>
-        <el-form-item label="预计总回款额"><el-input-number v-model="editForm.estimated_total" :min="0" style="width:100%" /></el-form-item>
-        <el-form-item label="进展状态%"><el-input-number v-model="editForm.progress_percent" :min="0" :max="100" style="width:100%" /></el-form-item>
-        <el-form-item label="销售状态"><el-input v-model="editForm.sales_status" /></el-form-item>
-        <el-form-item label="预计回款月份"><el-input v-model="editForm.estimated_repay_month" /></el-form-item>
-        <el-form-item label="主观机会度"><el-input v-model="editForm.opportunity_assessment" /></el-form-item>
-        <el-form-item label="成功/放弃"><el-input v-model="editForm.success_or_giveup" /></el-form-item>
-        <el-form-item label="公司级支持"><el-input v-model="editForm.company_support" type="textarea" :rows="2" /></el-form-item>
-        <el-form-item label="备注"><el-input v-model="editForm.remark" type="textarea" :rows="2" /></el-form-item>
-      </el-form>
+    <el-dialog v-model="editVisible" :title="editForm.id ? '编辑' + title : '新增' + title" width="600px" align-center destroy-on-close>
+      <div class="dialog-body">
+        <el-form :model="editForm" label-width="120px">
+          <el-form-item label="owner"><el-input v-model="editForm.owner" /></el-form-item>
+          <el-form-item label="销售类型">
+            <el-select v-model="editForm.sales_type" placeholder="请选择" style="width:100%">
+              <el-option label="渠道" value="渠道" />
+              <el-option label="直销" value="直销" />
+              <el-option label="服务" value="服务" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="代理类型">
+            <el-select v-model="editForm.revenue_type" placeholder="请选择" style="width:100%">
+              <el-option label="代理" value="代理" />
+              <el-option label="直销" value="直销" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="申报日期"><el-date-picker v-model="editForm.report_date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item>
+          <el-form-item label="产品类型"><el-input v-model="editForm.product_type" /></el-form-item>
+          <el-form-item label="合作伙伴"><el-input v-model="editForm.partner_name" /></el-form-item>
+          <el-form-item label="主要竞争对手"><el-input v-model="editForm.competitor" /></el-form-item>
+          <el-form-item label="客户名单"><el-input v-model="editForm.customer_name" /></el-form-item>
+          <el-form-item label="联系人"><el-input v-model="editForm.contact" /></el-form-item>
+          <el-form-item label="电话"><el-input v-model="editForm.phone" /></el-form-item>
+          <el-form-item label="站点数"><el-input-number v-model="editForm.site_count" :min="0" style="width:100%" /></el-form-item>
+          <el-form-item label="本月回款金额"><el-input-number v-model="editForm.monthly_repayment" :min="0" style="width:100%" /></el-form-item>
+          <el-form-item label="本月回款把握度"><el-input v-model="editForm.monthly_confidence" /></el-form-item>
+          <el-form-item label="预计总回款额"><el-input-number v-model="editForm.estimated_total" :min="0" style="width:100%" /></el-form-item>
+          <el-form-item label="进展状态%">
+            <el-input-number v-model="editForm.progress_percent" :min="0" :max="100" style="width:100%" />
+          </el-form-item>
+          <el-form-item label="销售状态">
+            <el-select v-model="editForm.sales_status" placeholder="请选择" style="width:100%">
+              <el-option v-for="s in salesStatusOptions" :key="s" :label="s" :value="s" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="预计回款月份"><el-input v-model="editForm.estimated_repay_month" /></el-form-item>
+          <el-form-item label="主观机会度"><el-input v-model="editForm.opportunity_assessment" /></el-form-item>
+          <el-form-item label="成功/放弃"><el-input v-model="editForm.success_or_giveup" /></el-form-item>
+          <el-form-item label="公司级支持"><el-input v-model="editForm.company_support" type="textarea" :rows="2" /></el-form-item>
+          <el-form-item label="备注"><el-input v-model="editForm.remark" type="textarea" :rows="2" /></el-form-item>
+        </el-form>
+      </div>
       <template #footer>
-        <el-button @click="editVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        <span class="dialog-footer">
+          <el-button @click="editVisible = false">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        </span>
       </template>
-    </el-drawer>
+    </el-dialog>
 
     <ImportDialog v-model="importVisible" :type="type" @success="load" />
     <DiffDialog v-model="diffVisible" :type="type" :record-id="diffRecordId" />
@@ -80,14 +101,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesFetch, salesFetchJSON } from './salesApi'
 import ImportDialog from './ImportDialog.vue'
 import DiffDialog from './DiffDialog.vue'
 
 const props = defineProps<{ type: 'intention' | 'key', title: string, perm: any }>()
-const emit = defineEmits(['customer-click'])
+const emit = defineEmits(['customer-click', 'progress-jump'])
+
+const salesStatusMap: Record<string, string[]> = {
+  intention: ['确认意向', '引导立项', '方案提交'],
+  key: ['赢得认可', '商务谈判']
+}
+const salesStatusOptions = computed(() => salesStatusMap[props.type] || [])
 
 const list = ref<any[]>([])
 const loading = ref(false)
@@ -130,6 +157,13 @@ function openEdit(row?: any) {
   editVisible.value = true
 }
 
+function targetTabByProgress(p: number): string | null {
+  if (p >= 10 && p <= 40) return 'intention'
+  if (p >= 41 && p <= 90) return 'key'
+  if (p >= 91 && p <= 100) return 'deal'
+  return null
+}
+
 async function save() {
   saving.value = true
   try {
@@ -140,6 +174,8 @@ async function save() {
       ElMessage.success('保存成功')
       editVisible.value = false
       load()
+      const target = targetTabByProgress(Number(editForm.value.progress_percent || 0))
+      if (target && target !== props.type) emit('progress-jump', target)
     } else { ElMessage.error(json.message || '保存失败') }
   } catch (e: any) { ElMessage.error('保存失败: ' + e.message) }
   finally { saving.value = false }
@@ -169,4 +205,6 @@ watch(() => props.type, load)
 .ft-filters { display: flex; gap: 0.5rem; }
 .ft-actions { display: flex; gap: 0.5rem; }
 .ft-pagination { margin-top: 1rem; justify-content: flex-end; }
+.dialog-body { max-height: 60vh; overflow-y: auto; padding-right: 0.5rem; }
+.dialog-footer { display: flex; justify-content: flex-end; gap: 0.5rem; }
 </style>

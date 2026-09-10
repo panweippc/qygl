@@ -21,10 +21,10 @@
 
     <el-tabs v-model="activeTab" class="sft-tabs" @tab-change="onTabChange">
       <el-tab-pane label="意向漏斗" name="intention">
-        <FunnelTable type="intention" title="意向漏斗" :perm="perm" @customer-click="openCrossRef" />
+        <FunnelTable type="intention" title="意向漏斗" :perm="perm" @customer-click="openCrossRef" @progress-jump="activeTab = $event" />
       </el-tab-pane>
       <el-tab-pane label="重点漏斗" name="key">
-        <FunnelTable type="key" title="重点漏斗" :perm="perm" @customer-click="openCrossRef" />
+        <FunnelTable type="key" title="重点漏斗" :perm="perm" @customer-click="openCrossRef" @progress-jump="activeTab = $event" />
       </el-tab-pane>
       <el-tab-pane label="成交用户" name="deal">
         <DealTable :perm="perm" @customer-click="openCrossRef" />
