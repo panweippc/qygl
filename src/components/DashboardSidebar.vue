@@ -42,22 +42,13 @@
               <span>物资管理</span>
               <div class="sidebar-item-indicator"></div>
             </router-link>
-            <router-link v-if="hasPermission('/file-storage')" to="/file-storage" class="sidebar-item">
+            <router-link v-if="hasPermission('/file-storage') || hasPermission('/knowledge-base') || hasPermission('/project-category')" to="/resource-center" class="sidebar-item">
               <div class="sidebar-icon sidebar-icon-sm">
                 <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M13 9H11V7H13V9ZM13 13H11V11H13V13ZM13 17H11V15H13V17ZM21 3H3C1.9 3 1 3.9 1 5V19C1 20.1 1.9 21 3 21H21C22.1 21 23 20.1 23 19V5C23 3.9 22.1 3 21 3ZM21 19H3V5H21V19Z"/>
+                  <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2zm0 4h8v2h-8V8zm0 3h8v2h-8v-2zm0 3h5v2h-5v-2z"/>
                 </svg>
               </div>
-              <span>文件存储</span>
-              <div class="sidebar-item-indicator"></div>
-            </router-link>
-            <router-link v-if="hasPermission('/knowledge-base')" to="/knowledge-base" class="sidebar-item">
-              <div class="sidebar-icon sidebar-icon-sm">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 9h8v2h-8V9zm0 3h4v2h-4v-2zm0-6h8v2h-8V6z"/>
-                </svg>
-              </div>
-              <span>知识库</span>
+              <span>资料中心</span>
               <div class="sidebar-item-indicator"></div>
             </router-link>
             <router-link v-if="hasPermission('/message-center')" to="/message-center" class="sidebar-item">
@@ -84,15 +75,6 @@
             <span class="group-title">业务管理</span>
           </div>
           <div v-show="expandedGroups.business" class="group-items">
-            <router-link v-if="hasPermission('/project-category')" to="/project-category" class="sidebar-item">
-              <div class="sidebar-icon sidebar-icon-sm">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM9 17H7V10H9V17ZM13 17H11V7H13V17ZM17 17H15V13H17V17Z"/>
-                </svg>
-              </div>
-              <span>产品分类</span>
-              <div class="sidebar-item-indicator"></div>
-            </router-link>
             <router-link v-if="hasPermission('/sales-funnel')" to="/sales-funnel" class="sidebar-item">
               <div class="sidebar-icon sidebar-icon-sm">
                 <svg viewBox="0 0 24 24" fill="currentColor">

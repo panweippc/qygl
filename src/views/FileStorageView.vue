@@ -81,7 +81,7 @@
               <div class="upload-trigger">
                 <el-icon class="upload-icon"><Plus /></el-icon>
                 <div class="upload-text">点击或拖拽文件到此处上传</div>
-                <div class="upload-hint">支持 JPG、PNG、PDF、DOCX 等格式</div>
+                <div class="upload-hint">支持 图片 / 文档 / 代码配置 / 压缩包·安装包(≤2G) / 音视频 等格式</div>
               </div>
             </el-upload>
           </div>
@@ -179,12 +179,17 @@
       destroy-on-close
     >
       <div class="preview-content">
-        <img v-if="previewFileData.type && ['png','jpg','jpeg','gif','bmp','webp','svg'].includes(previewFileData.type)" :src="previewFileData.url" class="image-preview" />
-        <div v-else-if="previewFileData.type === 'pdf'" class="pdf-preview">
-          <iframe :src="previewFileData.url" frameborder="0" width="100%" height="500px"></iframe>
+        <img v-if="previewKind === 'image'" :src="previewFileData.url" class="image-preview" />
+        <div v-else-if="previewKind === 'code'" class="code-preview">
+          <pre v-html="previewCodeHtml"></pre>
         </div>
-        <div v-else-if="previewFileData.type === 'txt' || previewFileData.type === 'md'" class="text-preview">
+        <video v-else-if="previewKind === 'media' && isVideoExt" :src="previewMediaUrl" controls class="media-preview"></video>
+        <audio v-else-if="previewKind === 'media'" :src="previewMediaUrl" controls class="media-preview"></audio>
+        <div v-else-if="previewKind === 'text'" class="text-preview">
           <pre>{{ previewFileContent }}</pre>
+        </div>
+        <div v-else-if="previewKind === 'pdf'" class="pdf-preview">
+          <iframe :src="previewFileData.url" frameborder="0" width="100%" height="500px"></iframe>
         </div>
         <div v-else class="other-preview">
           <div class="file-icon">
@@ -214,6 +219,8 @@ import { Plus, Delete, Download, Folder, Document } from '@element-plus/icons-vu
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useButtonPermission } from '@/composables/usePermission'
 import { getFiles, deleteFile as apiDeleteFile, getFileCategories, addFileCategory, deleteFileCategory } from '../services/api'
+import { previewKindOf } from '../utils/fileTypes'
+import { highlightCode, extToLang } from '../utils/codeHighlight'
 
 const router = useRouter()
 const { hasPerm } = useButtonPermission()
@@ -252,6 +259,11 @@ const newCategory = ref({ name: '', description: '' })
 const previewVisible = ref(false)
 const previewFileData = ref<File>({ id: 0, name: '', size: 0, type: '', url: '', uploaderId: 0, categoryId: null, createdAt: '' })
 const previewFileContent = ref('')
+// 格式扩展：代码高亮 / 音视频预览
+const previewCodeHtml = ref('')
+const previewMediaUrl = ref('')
+const previewKind = computed(() => previewKindOf((previewFileData.value.type || '').toLowerCase()))
+const isVideoExt = computed(() => ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv'].includes((previewFileData.value.type || '').toLowerCase()))
 
 // 从API加载文件数据
 const loadFiles = async () => {
@@ -415,15 +427,30 @@ const downloadFile = (file: File) => {
   document.body.removeChild(a)
 }
 
-const viewFile = (file: File) => {
+const viewFile = async (file: File) => {
   if (!file.url) {
     ElMessage.warning('文件地址无效')
     return
   }
   previewFileData.value = file
   previewFileContent.value = ''
-  if (['txt', 'md'].includes(file.type)) {
-    fetch(file.url).then(r => r.text()).then(t => { previewFileContent.value = t }).catch(() => {})
+  previewCodeHtml.value = ''
+  previewMediaUrl.value = ''
+  const ext = (file.type || '').toLowerCase()
+  const kind = previewKindOf(ext)
+  try {
+    if (kind === 'code') {
+      const txt = await fetch(file.url).then(r => r.text())
+      previewCodeHtml.value = highlightCode(txt, extToLang(ext))
+    } else if (kind === 'text') {
+      previewFileContent.value = await fetch(file.url).then(r => r.text())
+    } else if (kind === 'media') {
+      previewMediaUrl.value = file.url
+    }
+  } catch {
+    previewCodeHtml.value = ''
+    previewFileContent.value = ''
+    previewMediaUrl.value = ''
   }
   previewVisible.value = true
 }
@@ -1115,6 +1142,38 @@ const formatFileSize = (size: number): string => {
   object-fit: contain;
   border-radius: 8px;
 }
+.preview-dialog .code-preview {
+  width: 100%;
+  max-height: 500px;
+  overflow: auto;
+  background: #1e1e1e;
+  border-radius: 8px;
+  border: 1px solid #333;
+}
+.preview-dialog .code-preview pre {
+  margin: 0;
+  padding: 1rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #d4d4d4;
+}
+.preview-dialog .media-preview {
+  width: 100%;
+  max-height: 500px;
+  border-radius: 8px;
+  outline: none;
+}
+.preview-dialog .code-preview :deep(.tok-comment) { color: #6a9955; font-style: italic; }
+.preview-dialog .code-preview :deep(.tok-string) { color: #ce9178; }
+.preview-dialog .code-preview :deep(.tok-number) { color: #b5cea8; }
+.preview-dialog .code-preview :deep(.tok-keyword) { color: #569cd6; }
+.preview-dialog .code-preview :deep(.tok-func) { color: #dcdcaa; }
+.preview-dialog .code-preview :deep(.tok-tag) { color: #569cd6; }
+.preview-dialog .code-preview :deep(.tok-attr) { color: #9cdcfe; }
+.preview-dialog .code-preview :deep(.tok-punct) { color: #d4d4d4; }
 .preview-dialog .pdf-preview {
   width: 100%;
 }

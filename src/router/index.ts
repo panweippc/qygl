@@ -28,12 +28,17 @@ const router = createRouter({
     {
       path: '/file-storage',
       name: 'file-storage',
-      component: () => import('../views/FileStorageView.vue')
+      redirect: '/resource-center'
+    },
+    {
+      path: '/resource-center',
+      name: 'resource-center',
+      component: () => import('../views/ResourceCenterView.vue')
     },
     {
       path: '/project-category',
       name: 'project-category',
-      component: () => import('../views/ProjectCategoryView.vue')
+      redirect: '/resource-center'
     },
     {
       path: '/tool-inventory',
@@ -73,7 +78,7 @@ const router = createRouter({
     {
       path: '/knowledge-base',
       name: 'knowledge-base',
-      component: () => import('../views/KnowledgeBaseView.vue')
+      redirect: '/resource-center'
     },
     {
       path: '/oa-office',
