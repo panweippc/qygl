@@ -539,7 +539,7 @@
             <span v-if="currentDistributeType === 'leave'">请假申请</span>
             <span v-else-if="currentDistributeType === 'reimbursement'">报销申请</span>
             <span v-else-if="currentDistributeType === 'meeting'">会议申请</span>
-            <span v-else-if="currentDistributeType === 'project'">项目申请</span>
+            <span v-else-if="currentDistributeType === 'project'">协同申请</span>
             <span v-else-if="currentDistributeType === 'businessTrip'">出差申请</span>
             <span v-else-if="currentDistributeType === 'entertainment'">业务招待费</span>
           </p>
@@ -826,7 +826,7 @@ const distributedSubTabs = computed(() => {
     mk('leave', '请假', '📝', counts['leave'] || 0, unread['leave'] || 0),
     mk('reimbursement', '报销', '💰', counts['reimbursement'] || 0, unread['reimbursement'] || 0),
     mk('meeting', '会议', '📅', counts['meeting'] || 0, unread['meeting'] || 0),
-    mk('project', '项目', '📊', counts['project'] || 0, unread['project'] || 0),
+    mk('project', '协同', '📊', counts['project'] || 0, unread['project'] || 0),
     mk('businessTrip', '出差', '✈️', counts['businessTrip'] || 0, unread['businessTrip'] || 0),
     mk('entertainment', '招待', '🍽️', counts['entertainment'] || 0, unread['entertainment'] || 0)
   ]
@@ -962,7 +962,7 @@ const tabs = computed(() => {
     { name: 'leave', label: '请假申请', icon: '📝', badge: pendingLeaveCount.value > 0 ? pendingLeaveCount.value : totalLeaveCount.value, badgeType: pendingLeaveCount.value > 0 ? 'red' : 'gray' },
     { name: 'reimbursement', label: '报销管理', icon: '💰', badge: pendingReimbursementCount.value > 0 ? pendingReimbursementCount.value : totalReimbursementCount.value, badgeType: pendingReimbursementCount.value > 0 ? 'red' : 'gray' },
     { name: 'meeting', label: '会议管理', icon: '📅', badge: pendingMeetingCount.value > 0 ? pendingMeetingCount.value : totalMeetingCount.value, badgeType: pendingMeetingCount.value > 0 ? 'red' : 'gray' },
-    { name: 'project', label: '项目申请', icon: '📊', badge: pendingProjectCount.value > 0 ? pendingProjectCount.value : totalProjectCount.value, badgeType: pendingProjectCount.value > 0 ? 'red' : 'gray' },
+    { name: 'project', label: '协同申请', icon: '📊', badge: pendingProjectCount.value > 0 ? pendingProjectCount.value : totalProjectCount.value, badgeType: pendingProjectCount.value > 0 ? 'red' : 'gray' },
     { name: 'businessTrip', label: '出差申请', icon: '✈️', badge: pendingBusinessTripCount.value > 0 ? pendingBusinessTripCount.value : totalBusinessTripCount.value, badgeType: pendingBusinessTripCount.value > 0 ? 'red' : 'gray' },
     { name: 'entertainment', label: '业务招待费', icon: '🍽️', badge: pendingEntertainmentCount.value > 0 ? pendingEntertainmentCount.value : totalEntertainmentCount.value, badgeType: pendingEntertainmentCount.value > 0 ? 'red' : 'gray' }
   ]
@@ -1360,7 +1360,13 @@ const getApplicationDetailHtml = (row: any) => {
   } else if (type === 'reimbursement') {
     detailHtml = `<p><strong>报销类型：</strong>${esc(row.reimburseType || '-')}</p><p><strong>合计金额：</strong>¥${esc(row.amount || 0)}</p>`
   } else if (type === 'project') {
-    detailHtml = `<p><strong>项目名称：</strong>${esc(row.projectName || '-')}</p><p><strong>项目类型：</strong>${esc(row.projectType || '-')}</p>`
+    const projDept = (() => {
+      const v = row.participatingDepartments || row.participating_departments || ''
+      if (!v) return ''
+      if (Array.isArray(v)) return v.join('、')
+      try { const p = JSON.parse(v); return Array.isArray(p) ? p.join('、') : String(p) } catch { return String(v) }
+    })()
+    detailHtml = `<p><strong>协同事项名称：</strong>${esc(row.projectName || '-')}</p><p><strong>协作类型：</strong>${esc(row.projectType || '-')}</p>${projDept ? `<p><strong>参与部门：</strong>${esc(projDept)}</p>` : ''}`
   } else if (type === 'businessTrip') {
     detailHtml = `<p><strong>目的地：</strong>${esc(row.destination || '-')}</p><p><strong>出差天数：</strong>${formatDays(row.days)}</p>`
   } else if (type === 'entertainment') {

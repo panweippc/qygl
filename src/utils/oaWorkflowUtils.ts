@@ -203,7 +203,11 @@ export const getProjectTypeClass = (type: string) => {
     '市场项目': 'type-market',
     '运营项目': 'type-operation',
     '基建项目': 'type-construction',
-    '其他项目': 'type-other'
+    '其他项目': 'type-other',
+    '跨部门协作': 'type-research',
+    '联合支持': 'type-operation',
+    '资源协调': 'type-market',
+    '其他': 'type-other'
   }
   return map[type] || 'type-other'
 }

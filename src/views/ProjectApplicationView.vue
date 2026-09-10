@@ -6,7 +6,7 @@
         <el-card class="form-card">
           <template #header>
             <div class="card-header">
-              <span class="title">项目申请</span>
+              <span class="title">协同申请</span>
               <el-button @click="goBack">返回</el-button>
             </div>
           </template>
@@ -33,18 +33,23 @@
             
             <el-row :gutter="20">
               <el-col :span="12">
-                <el-form-item label="项目名称" prop="projectName">
+                <el-form-item label="协同事项名称" prop="projectName">
                   <el-input
                     v-model="form.projectName"
-                    placeholder="请输入项目名称"
+                    placeholder="请输入协同事项名称"
                     maxlength="100"
                     show-word-limit
                   />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="项目类型" prop="projectType">
-                  <el-input v-model="form.projectType" placeholder="请输入项目类型" />
+                <el-form-item label="协作类型" prop="projectType">
+                  <el-select v-model="form.projectType" placeholder="请选择协作类型" style="width: 100%">
+                    <el-option label="跨部门协作" value="跨部门协作" />
+                    <el-option label="联合支持" value="联合支持" />
+                    <el-option label="资源协调" value="资源协调" />
+                    <el-option label="其他" value="其他" />
+                  </el-select>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -87,7 +92,7 @@
                       v-for="emp in approverOptions"
                       :key="emp.id"
                       :label="emp.name"
-                      :value="emp.id"
+                      :value="String(emp.id)"
                     />
                   </el-select>
                 </el-form-item>
@@ -128,39 +133,58 @@
           </el-col>
         </el-row>
 
-        <!-- 项目详情 -->
-        <el-divider content-position="left">项目详情</el-divider>
-        
-        <el-form-item label="项目描述" prop="description">
+        <!-- 协同详情 -->
+        <el-divider content-position="left">协同详情</el-divider>
+
+        <el-form-item label="协作说明" prop="description">
           <el-input
             v-model="form.description"
             type="textarea"
             :rows="4"
-            placeholder="请详细描述项目内容、背景和目标"
+            placeholder="请详细描述协同事项的内容、背景与目标"
             maxlength="500"
             show-word-limit
           />
         </el-form-item>
 
-        <el-form-item label="项目目标" prop="objectives">
+        <el-form-item label="期望产出" prop="objectives">
           <el-input
             v-model="form.objectives"
             type="textarea"
             :rows="3"
-            placeholder="请描述项目的预期成果和目标"
+            placeholder="请描述协同事项的预期成果和交付物"
             maxlength="300"
             show-word-limit
           />
         </el-form-item>
 
-        <el-form-item label="项目成员">
+        <el-form-item label="参与部门">
+          <el-select
+            v-model="form.participatingDepartments"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            placeholder="请选择或输入参与部门"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="dept in departmentOptions"
+              :key="dept"
+              :label="dept"
+              :value="dept"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="协同成员">
           <el-select
             v-model="form.teamMembers"
             multiple
             filterable
             remote
             :remote-method="searchEmployees"
-            placeholder="请选择项目成员"
+            placeholder="请选择协同成员"
             style="width: 100%"
           >
             <el-option
@@ -214,14 +238,14 @@
                   <el-icon><UserFilled /></el-icon>
                 </template>
                 <div class="timeline-content">
-                  <h4>部门经理审批</h4>
-                  <p class="text-gray">自动分配</p>
+                  <h4>负责人审批</h4>
+                  <p class="text-gray">由所选审批人处理</p>
                 </div>
               </el-timeline-item>
 
-              <el-timeline-item 
-                v-if="form.budget >= 100000" 
-                type="warning" 
+              <el-timeline-item
+                v-if="form.budget >= 100000"
+                type="warning"
                 :hollow="true"
               >
                 <template #dot>
@@ -238,7 +262,7 @@
                   <el-icon><CircleCheck /></el-icon>
                 </template>
                 <div class="timeline-content">
-                  <h4>总经理审批</h4>
+                  <h4>终审</h4>
                   <p class="text-gray">最终审批</p>
                 </div>
               </el-timeline-item>
@@ -270,7 +294,7 @@
               <span>温馨提示</span>
             </template>
             <ul class="tips-list">
-              <li>审批人默认为陈东</li>
+              <li>可手动选择审批人，不再默认指定</li>
               <li>提交后将发送通知给审批人</li>
               <li>审批进度可在个人中心查看</li>
               <li>预算超过10万需财务审核</li>
@@ -302,15 +326,24 @@ const returnReason = ref('')
 const employeeOptions = ref([]);
 const approverOptions = ref([]);
 
+// 部门选项：从员工列表中抽取去重后的部门
+const departmentOptions = computed(() => {
+  const set = new Set<string>();
+  for (const emp of employeeOptions.value || []) {
+    if (emp.department) set.add(emp.department);
+  }
+  return Array.from(set);
+});
+
 // 获取当前用户信息（从localStorage）
 const currentUser = computed(() => {
   const userStr = localStorage.getItem('user');
   return userStr ? JSON.parse(userStr) : null;
 });
 
-// 当前选择的审批人信息
+// 当前选择的审批人信息（类型安全比较，避免 emp.id 与 form.approver 类型不一致导致不显示）
 const selectedApprover = computed(() => {
-  return approverOptions.value.find(emp => emp.id === form.approver) || null;
+  return approverOptions.value.find(emp => String(emp.id) === String(form.approver)) || null;
 });
 
 const form = reactive({
@@ -323,17 +356,18 @@ const form = reactive({
   description: '',
   objectives: '',
   teamMembers: [],
+  participatingDepartments: [],
   resources: '',
   approver: ''
 });
 
 const rules = {
   projectName: [
-      { required: true, message: '请输入项目名称', trigger: 'blur' },
+      { required: true, message: '请输入协同事项名称', trigger: 'blur' },
       { min: 2, max: 100, message: '长度在 2 到 100 个字符之间', trigger: 'blur' }
     ],
   projectType: [
-    { required: true, message: '请输入项目类型', trigger: 'blur' }
+    { required: true, message: '请选择协作类型', trigger: 'change' }
   ],
   priority: [
     { required: true, message: '请选择优先级', trigger: 'change' }
@@ -352,11 +386,11 @@ const rules = {
     { required: true, message: '请选择结束日期', trigger: 'change' }
   ],
   description: [
-    { required: true, message: '请输入项目描述', trigger: 'blur' },
-    { min: 10, message: '描述至少10个字符', trigger: 'blur' }
+    { required: true, message: '请输入协作说明', trigger: 'blur' },
+    { min: 10, message: '说明至少10个字符', trigger: 'blur' }
   ],
   objectives: [
-    { required: true, message: '请输入项目目标', trigger: 'blur' }
+    { required: true, message: '请输入期望产出', trigger: 'blur' }
   ],
   resources: [
     { required: true, message: '请输入所需资源', trigger: 'blur' }
@@ -401,10 +435,10 @@ const loadApprovers = async () => {
       console.log('筛选后的审批人:', managers);
       approverOptions.value = managers;
       
-      // 默认选择陈东
+      // 默认选择陈东（存为字符串，与 el-select 的 :value="String(emp.id)" 一致）
       const defaultManager = managers.find((emp: any) => emp.name === '陈东') || managers[0];
       if (defaultManager) {
-        if (!editId) form.approver = defaultManager.id;
+        if (!editId) form.approver = String(defaultManager.id);
         console.log('默认审批人:', defaultManager);
       }
     }
@@ -431,10 +465,16 @@ const loadForEdit = async () => {
         for (const key of Object.keys(form)) {
           if (camel[key] !== undefined && camel[key] !== null) form[key] = camel[key]
         }
-        // 审批人：表单存员工 id，接口返回姓名
-        if (rec.approver && typeof form.approver === 'number') {
+        // 审批人：接口返回姓名，需映射回员工 id（与 el-select 的 String(emp.id) 一致）
+        if (rec.approver) {
           const opt = approverOptions.value.find((o: any) => o.name === rec.approver)
-          if (opt) form.approver = opt.id
+          form.approver = opt ? String(opt.id) : ''
+        }
+        // 参与部门：DB 存 JSON 字符串，回填为数组
+        if (typeof form.participatingDepartments === 'string' && form.participatingDepartments) {
+          try { form.participatingDepartments = JSON.parse(form.participatingDepartments) } catch { form.participatingDepartments = [] }
+        } else if (typeof form.participatingDepartments === 'string') {
+          form.participatingDepartments = []
         }
         returnReason.value = rec.return_reason || ''
       }
@@ -460,7 +500,10 @@ const submitForm = async () => {
           ...form,
           applicantId: currentUser.value.id,
           applicantName: currentUser.value.name,
-          approverId: form.approver
+          // 后端按 approver(姓名) 落库并写入 current_approvers，用于审批权限与「我收到的」可见性
+          approver: selectedApprover.value?.name || '',
+          approverId: form.approver,
+          participatingDepartments: form.participatingDepartments || []
         };
 
         const response = editId
@@ -468,7 +511,7 @@ const submitForm = async () => {
           : await createProjectApplication(submitData);
 
         if (response.success) {
-          ElMessage.success(editId ? '重新提交成功' : '项目申请提交成功');
+          ElMessage.success(editId ? '重新提交成功' : '协同申请提交成功');
           router.replace('/oa-office?tab=project');
         } else {
           ElMessage.error(response.message || '提交失败');

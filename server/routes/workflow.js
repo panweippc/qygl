@@ -36,6 +36,26 @@ const resolveApprover = async (pool, { approverId, operator }) => {
 };
 
 /**
+ * 确保 project_applications 表具备协同申请所需扩展列（参与部门）。
+ * 幂等：列已存在时忽略 ER_DUP_FIELDNAME。
+ */
+let projectSchemaReady = null;
+const ensureProjectSchema = async (pool) => {
+  if (projectSchemaReady) return projectSchemaReady;
+  projectSchemaReady = (async () => {
+    try {
+      await pool.execute('ALTER TABLE project_applications ADD COLUMN `participating_departments` TEXT DEFAULT NULL');
+    } catch (e) {
+      if (e.code !== 'ER_DUP_FIELDNAME') {
+        console.error('[project] ensureSchema 失败:', e.message);
+        projectSchemaReady = null; // 允许下次请求重试
+      }
+    }
+  })();
+  return projectSchemaReady;
+};
+
+/**
  * 项目申请API
  */
 
@@ -44,6 +64,8 @@ router.get('/projects', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const { applicant, status } = req.query;
+
+    await ensureProjectSchema(pool);
 
     let sql = 'SELECT * FROM project_applications WHERE 1=1';
     const params = [];
@@ -89,6 +111,9 @@ router.get('/projects', async (req, res) => {
       team_members: project.team_members || '',
       resources: project.resources || '',
       project_link: project.project_link || '',
+      approver: project.approver || '',
+      approver_id: project.approver_id || '',
+      participating_departments: project.participating_departments || '',
       status: project.status || 'pending',
       current_step: project.current_step || 1,
       current_approvers: project.current_approvers || '',
@@ -158,6 +183,8 @@ router.post("/projects", async (req, res) => {
       applicant_id,
       approverId,
       approver_id,
+      participatingDepartments,
+      participating_departments,
       applicantName,
       applicant_name
     } = req.body;
@@ -178,13 +205,15 @@ router.post("/projects", async (req, res) => {
       approverNameVal = employees.length > 0 ? employees[0].name : "";
     }
 
+    // 当前审批人：默认即用户所选审批人，用于审批权限校验与「我收到的」可见性
+    const currentApproversVal = approverNameVal || '';
     const projectCode = 'PRJ' + String(Date.now()).slice(-6);
     const now = new Date();
 
     const [result] = await pool.query(
       `INSERT INTO project_applications
-       (project_code, project_name, applicant_id, applicant_name, department, project_type, priority, budget, start_date, end_date, description, objectives, team_members, resources, project_link, status, current_step, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, ?)`,
+       (project_code, project_name, applicant_id, applicant_name, department, project_type, priority, budget, start_date, end_date, description, objectives, team_members, resources, project_link, approver, approver_id, current_approvers, participating_departments, status, current_step, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, ?)`,
       [
         projectCode,
         projectName || project_name || '',
@@ -201,19 +230,36 @@ router.post("/projects", async (req, res) => {
         JSON.stringify(teamMembers || team_members || []),
         resources || '',
         projectLink || project_link || '',
+        approverNameVal || null,
+        approverIdVal || null,
+        currentApproversVal,
+        JSON.stringify(participatingDepartments || participating_departments || []),
         now,
         now
       ]
     );
 
-    // 审计：创建项目申请
+    // 审计：创建协同申请
     await createOperationLog(pool, {
       username: getRealName(req) || applicantNameVal || '系统',
       action: 'create',
       module: 'project',
-      targetName: projectName || project_name || `项目申请(${projectCode})`,
-      detail: `创建项目申请，提交给${approverNameVal || '未指定'}审批`
+      targetName: projectName || project_name || `协同申请(${projectCode})`,
+      detail: `创建协同申请，提交给${approverNameVal || '未指定'}审批`
     });
+    // 通知审批人
+    if (approverNameVal) {
+      try {
+        await createNotification(pool, {
+          userId: approverNameVal,
+          title: '协同申请待审批',
+          content: `${applicantNameVal} 提交了协同申请「${projectName || project_name || ''}」(${projectCode})，请审批`,
+          type: 'approval',
+          relatedId: result.insertId,
+          relatedType: 'project'
+        });
+      } catch (e) { /* 通知失败不影响主流程 */ }
+    }
     res.json({
       success: true,
       data: {

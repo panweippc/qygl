@@ -3,7 +3,7 @@
     <div class="panel-header">
       <div class="panel-title">
         <span class="title-badge">📊</span>
-        <span>项目申请管理</span>
+        <span>协同申请管理</span>
       </div>
       <div class="header-actions">
         <template v-if="isAdmin">
@@ -16,7 +16,7 @@
         </template>
         <el-button v-if="!isAdmin && !isLiZhiXin" type="primary" @click="goToProjectApply" class="action-btn">
           <span class="btn-icon">+</span>
-          发起项目申请
+          发起协同申请
         </el-button>
       </div>
     </div>
@@ -51,9 +51,20 @@
             {{ extractRealName(row.applicant) }}
           </template>
         </el-table-column>
-        <el-table-column prop="projectName" label="项目名称" min-width="150">
+        <el-table-column prop="projectName" label="协同事项名称" min-width="150">
           <template #default="{ row }">
             <span class="project-name">{{ row.projectName }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="projectType" label="协作类型" width="110">
+          <template #default="{ row }">
+            <span class="type-tag" :class="getProjectTypeClass(row.projectType)">{{ row.projectType }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="participatingDepartments" label="参与部门" width="160">
+          <template #default="{ row }">
+            <span v-if="getDeptArray(row).length">{{ getDeptArray(row).join('、') }}</span>
+            <span v-else class="no-distributed">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="budget" label="预算金额" width="120">
@@ -194,8 +205,12 @@
             <span class="card-value">{{ row.applicant || currentUser }}</span>
           </div>
           <div class="card-row">
-            <span class="card-label">项目名称</span>
+            <span class="card-label">协同事项名称</span>
             <span class="card-value highlight">{{ row.projectName }}</span>
+          </div>
+          <div class="card-row" v-if="getDeptArray(row).length">
+            <span class="card-label">参与部门</span>
+            <span class="card-value">{{ getDeptArray(row).join('、') }}</span>
           </div>
           <div class="card-row">
             <span class="card-label">预算金额</span>
@@ -435,6 +450,7 @@ const filteredProjectRecords = computed(() => {
     records = records.filter((r: any) =>
       r.projectName?.toLowerCase().includes(keyword) ||
       r.projectType?.toLowerCase().includes(keyword) ||
+      (getDeptArray(r).join('、')).toLowerCase().includes(keyword) ||
       r.applicant?.toLowerCase().includes(keyword)
     )
   }
@@ -473,6 +489,14 @@ const isDistributed = (row: any, type: string): boolean => {
   )
 }
 
+// 参与部门：DB 存 JSON 字符串，统一解析为数组
+const getDeptArray = (row: any): string[] => {
+  const v = row.participatingDepartments ?? row.participating_departments ?? ''
+  if (!v) return []
+  if (Array.isArray(v)) return v
+  try { const p = JSON.parse(v); return Array.isArray(p) ? p : [String(p)] } catch { return String(v).split(/[,，]/).map((s: string) => s.trim()).filter(Boolean) }
+}
+
 const loadProjectRecords = async () => {
   try {
     if (!myDistributedLoaded) await loadMyDistributedRecords()
@@ -505,6 +529,7 @@ const loadProjectRecords = async () => {
           applicant: item.applicant_name,
           projectName: projectName,
           projectType: projectType,
+          participatingDepartments: item.participating_departments || '',
           submitDate: item.created_at?.substring(0, 10) || ''
         }
       })
@@ -542,6 +567,7 @@ const loadAllProjectRecords = async () => {
           applicant: item.applicant_name,
           projectName: projectName,
           projectType: projectType,
+          participatingDepartments: item.participating_departments || '',
           submitDate: item.created_at?.substring(0, 10) || '',
           distributedUsers: []
         }
@@ -656,8 +682,8 @@ const printRow = (row) => {
     ElMessage.warning('没有数据可打印')
     return
   }
-  // 项目申请无专门纸质表单，使用通用打印
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>项目申请详情</title><style>@page{margin:10mm}body{font-family:"SimSun","宋体",serif;padding:20px;color:#000}.info-row{margin:10px 0}.info-label{font-weight:bold;display:inline-block;width:100px}</style></head><body><h2 style="text-align:center">项目申请详情</h2><div class="info-row"><span class="info-label">项目名称：</span>${row.projectName || row.title || ''}</div><div class="info-row"><span class="info-label">申请人：</span>${row.applicant || ''}</div><div class="info-row"><span class="info-label">项目类型：</span>${row.projectType || ''}</div><div class="info-row"><span class="info-label">审批状态：</span>${row.status || ''}</div></body></html>`
+  // 协同申请无专门纸质表单，使用通用打印
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>协同申请详情</title><style>@page{margin:10mm}body{font-family:"SimSun","宋体",serif;padding:20px;color:#000}.info-row{margin:10px 0}.info-label{font-weight:bold;display:inline-block;width:100px}</style></head><body><h2 style="text-align:center">协同申请详情</h2><div class="info-row"><span class="info-label">协同事项名称：</span>${row.projectName || row.title || ''}</div><div class="info-row"><span class="info-label">申请人：</span>${row.applicant || ''}</div><div class="info-row"><span class="info-label">协作类型：</span>${row.projectType || ''}</div><div class="info-row"><span class="info-label">参与部门：</span>${getDeptArray(row).join('、') || '-'}</div><div class="info-row"><span class="info-label">审批状态：</span>${row.status || ''}</div></body></html>`
   const win = window.open('', '_blank')
   if (win) { win.document.open(); win.document.write(html); win.document.close(); win.onload = () => win.print(); }
 }
