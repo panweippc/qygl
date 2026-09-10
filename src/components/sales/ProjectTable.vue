@@ -13,7 +13,11 @@
 
     <el-table :data="list" v-loading="loading" stripe style="width:100%">
       <el-table-column type="index" width="50" />
-      <el-table-column prop="customer_name" label="客户名称" min-width="160" show-overflow-tooltip />
+      <el-table-column prop="customer_name" label="客户名称" min-width="160" show-overflow-tooltip>
+        <template #default="{ row }">
+          <el-button link size="small" @click.stop="emit('customer-click', row.customer_name)">{{ row.customer_name }}</el-button>
+        </template>
+      </el-table-column>
       <el-table-column prop="unit_nature" label="单位性质" width="120" />
       <el-table-column prop="report_date" label="日期" width="110" />
       <el-table-column prop="project_owner" label="项目负责人" width="120" />
@@ -140,6 +144,7 @@ import { salesFetchJSON } from './salesApi'
 import DiffDialog from './DiffDialog.vue'
 
 const props = defineProps<{ perm: any }>()
+const emit = defineEmits(['customer-click'])
 const list = ref<any[]>([])
 const loading = ref(false)
 const total = ref(0)

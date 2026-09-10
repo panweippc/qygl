@@ -15,7 +15,11 @@
     <el-table :data="list" v-loading="loading" stripe style="width:100%" @row-click="(_, __, e) => e && openEdit(_)">
       <el-table-column type="index" width="50" />
       <el-table-column prop="owner" label="owner" width="100" />
-      <el-table-column prop="customer_name" label="客户名单" min-width="140" show-overflow-tooltip />
+      <el-table-column prop="customer_name" label="客户名单" min-width="140" show-overflow-tooltip>
+        <template #default="{ row }">
+          <el-button link size="small" @click.stop="emit('customer-click', row.customer_name)">{{ row.customer_name }}</el-button>
+        </template>
+      </el-table-column>
       <el-table-column prop="partner_name" label="合作伙伴" min-width="120" show-overflow-tooltip />
       <el-table-column prop="sales_type" label="销售类型" width="100" />
       <el-table-column prop="revenue_type" label="收入类型" width="120" />
@@ -83,6 +87,7 @@ import ImportDialog from './ImportDialog.vue'
 import DiffDialog from './DiffDialog.vue'
 
 const props = defineProps<{ type: 'intention' | 'key', title: string, perm: any }>()
+const emit = defineEmits(['customer-click'])
 
 const list = ref<any[]>([])
 const loading = ref(false)

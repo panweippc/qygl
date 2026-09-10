@@ -15,7 +15,11 @@
     <el-table :data="list" v-loading="loading" stripe style="width:100%">
       <el-table-column type="index" width="50" />
       <el-table-column prop="owner" label="owner" width="100" />
-      <el-table-column prop="customer_name" label="客户名单" min-width="160" show-overflow-tooltip />
+      <el-table-column prop="customer_name" label="客户名单" min-width="160" show-overflow-tooltip>
+        <template #default="{ row }">
+          <el-button link size="small" @click.stop="emit('customer-click', row.customer_name)">{{ row.customer_name }}</el-button>
+        </template>
+      </el-table-column>
       <el-table-column prop="sales_type" label="销售类型" width="100" />
       <el-table-column prop="revenue_type" label="收入类型" width="120" />
       <el-table-column prop="report_date" label="申报日期" width="110" />
@@ -80,6 +84,7 @@ import ImportDialog from './ImportDialog.vue'
 import DiffDialog from './DiffDialog.vue'
 
 const props = defineProps<{ perm: any }>()
+const emit = defineEmits(['customer-click'])
 const list = ref<any[]>([])
 const loading = ref(false)
 const total = ref(0)

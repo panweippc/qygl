@@ -11,6 +11,8 @@
       </div>
     </header>
 
+    <StatsPanel />
+
     <div class="sft-guide">
       <el-alert title="销售四表使用说明" type="info" :closable="false" show-icon>
         <p>本模块包含「意向漏斗、重点漏斗、成交用户、大项目进展」四张表。销售部成员和业务中心经理可在线填写或 Excel 导入；李智鑫（总经理/管理员）可查看全部数据。每次保存自动生成版本快照，支持字段级差异对比。</p>
@@ -19,18 +21,20 @@
 
     <el-tabs v-model="activeTab" class="sft-tabs" @tab-change="onTabChange">
       <el-tab-pane label="意向漏斗" name="intention">
-        <FunnelTable type="intention" title="意向漏斗" :perm="perm" />
+        <FunnelTable type="intention" title="意向漏斗" :perm="perm" @customer-click="openCrossRef" />
       </el-tab-pane>
       <el-tab-pane label="重点漏斗" name="key">
-        <FunnelTable type="key" title="重点漏斗" :perm="perm" />
+        <FunnelTable type="key" title="重点漏斗" :perm="perm" @customer-click="openCrossRef" />
       </el-tab-pane>
       <el-tab-pane label="成交用户" name="deal">
-        <DealTable :perm="perm" />
+        <DealTable :perm="perm" @customer-click="openCrossRef" />
       </el-tab-pane>
       <el-tab-pane label="大项目进展" name="project">
-        <ProjectTable :perm="perm" />
+        <ProjectTable :perm="perm" @customer-click="openCrossRef" />
       </el-tab-pane>
     </el-tabs>
+
+    <CrossReferenceDialog v-model="crossVisible" :customer="crossCustomer" @jump="onCrossJump" />
   </div>
 </template>
 
@@ -38,6 +42,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { salesFetchJSON } from '../components/sales/salesApi'
+import StatsPanel from '../components/sales/StatsPanel.vue'
+import CrossReferenceDialog from '../components/sales/CrossReferenceDialog.vue'
 import FunnelTable from '../components/sales/FunnelTable.vue'
 import DealTable from '../components/sales/DealTable.vue'
 import ProjectTable from '../components/sales/ProjectTable.vue'
@@ -45,6 +51,8 @@ import ProjectTable from '../components/sales/ProjectTable.vue'
 const router = useRouter()
 const activeTab = ref('intention')
 const perm = ref({ canWrite: false, canView: false, isAdmin: false })
+const crossVisible = ref(false)
+const crossCustomer = ref('')
 
 async function loadPerm() {
   try {
@@ -63,6 +71,17 @@ async function loadPerm() {
 }
 
 function onTabChange() {}
+
+function openCrossRef(customer: string) {
+  crossCustomer.value = customer
+  crossVisible.value = true
+}
+
+function onCrossJump({ type, id }: { type: string, id: number }) {
+  crossVisible.value = false
+  activeTab.value = type
+  // 子表格加载后通过事件或 provide 滚动到对应行较复杂，先切换标签页让用户定位
+}
 
 onMounted(loadPerm)
 </script>

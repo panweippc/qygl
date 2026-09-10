@@ -298,6 +298,78 @@ router.get('/sales-four-tables/permission', requireSalesView, async (req, res) =
   res.json({ success: true, data: req.salesPerm });
 });
 
+// 按客户名称跨四表联查（必须在 /:type 之前）
+router.get('/sales-four-tables/cross-reference', requireSalesView, async (req, res) => {
+  const { pool } = req.app.locals;
+  const customer = String(req.query.customer || '').trim();
+  if (!customer) return res.status(400).json({ success: false, message: '缺少 customer 参数' });
+  try {
+    await ensureSchema(pool);
+    const ownerFilter = req.salesPerm.isOwnerFilter ? 'AND created_by = ?' : '';
+    const ownerParam = req.salesPerm.isOwnerFilter ? [req.salesPerm.username] : [];
+    const like = `%${customer}%`;
+    const results = {};
+    for (const [type, meta] of Object.entries(TABLE_META)) {
+      const [rows] = await pool.execute(
+        `SELECT id, customer_name, owner, sales_type, product_type, report_date, report_month, created_by, created_at
+         FROM ${meta.table} WHERE customer_name LIKE ? ${ownerFilter} ORDER BY updated_at DESC LIMIT 20`,
+        [like, ...ownerParam]
+      );
+      results[type] = rows;
+    }
+    // 大项目进展
+    const [projectRows] = await pool.execute(
+      `SELECT id, customer_name, project_owner, unit_nature, project_budget, report_date, report_month, created_by, created_at
+       FROM sales_project_analysis WHERE customer_name LIKE ? ${ownerFilter} ORDER BY updated_at DESC LIMIT 20`,
+      [like, ...ownerParam]
+    );
+    results.project = projectRows;
+    res.json({ success: true, data: results });
+  } catch (error) {
+    console.error('客户联查失败:', error);
+    res.status(500).json({ success: false, message: '客户联查失败' });
+  }
+});
+
+// 销售漏斗统计指标（必须在 /:type 之前）
+router.get('/sales-four-tables/stats', requireSalesView, async (req, res) => {
+  const { pool } = req.app.locals;
+  try {
+    await ensureSchema(pool);
+    const ownerCond = req.salesPerm.isOwnerFilter ? 'WHERE created_by = ?' : '';
+    const ownerParam = req.salesPerm.isOwnerFilter ? [req.salesPerm.username] : [];
+    const stats = {};
+    for (const [type, meta] of Object.entries(TABLE_META)) {
+      const [[countRow]] = await pool.execute(`SELECT COUNT(*) AS total FROM ${meta.table} ${ownerCond}`, ownerParam);
+      stats[type] = { total: countRow.total };
+    }
+    // 各表金额汇总
+    const buildSum = (table, sums) =>
+      `SELECT ${sums.map(s => `COALESCE(SUM(${s.col}),0) AS ${s.alias}`).join(', ')} FROM ${table} ${ownerCond}`;
+    const [[intentionMoney]] = await pool.execute(
+      buildSum('sales_intention_funnel', [{ col: 'monthly_repayment', alias: 'monthly' }, { col: 'estimated_total', alias: 'estimated' }]),
+      ownerParam
+    );
+    const [[keyMoney]] = await pool.execute(
+      buildSum('sales_key_funnel', [{ col: 'monthly_repayment', alias: 'monthly' }, { col: 'estimated_total', alias: 'estimated' }]),
+      ownerParam
+    );
+    const [[dealMoney]] = await pool.execute(
+      buildSum('sales_deal_customers', [{ col: 'contract_amount', alias: 'contract' }, { col: 'received_amount', alias: 'received' }, { col: 'unreceived_amount', alias: 'unreceived' }]),
+      ownerParam
+    );
+    const [[projectCount]] = await pool.execute(`SELECT COUNT(*) AS total FROM sales_project_analysis ${ownerCond}`, ownerParam);
+    stats.intention = { ...stats.intention, ...intentionMoney };
+    stats.key = { ...stats.key, ...keyMoney };
+    stats.deal = { ...stats.deal, ...dealMoney };
+    stats.project = { total: projectCount.total };
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    console.error('统计失败:', error);
+    res.status(500).json({ success: false, message: '统计失败' });
+  }
+});
+
 // 通用列表查询
 router.get('/sales-four-tables/:type', requireSalesView, async (req, res) => {
   const { pool } = req.app.locals;
