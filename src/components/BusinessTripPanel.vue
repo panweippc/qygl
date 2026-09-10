@@ -29,7 +29,7 @@
           class="sub-tab-btn"
           :class="{ active: businessTripSubTab === tab.value }"
           @click="businessTripSubTab = tab.value"
-        >{{ tab.label }}<span v-if="tab.badge > 0" class="sub-tab-badge">{{ tab.badge }}</span></button>
+        >{{ tab.label }}<span v-if="tab.badge > 0" class="sub-tab-badge" :class="{ 'sub-tab-badge-red': tab.badgeType === 'red' }">{{ tab.badge }}</span></button>
       </div>
     </div>
 
@@ -104,19 +104,11 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="已读状态" width="140" v-if="businessTripSubTab === 'received'">
+        <el-table-column label="已读状态" width="100" v-if="businessTripSubTab === 'received'">
           <template #default="{ row }">
             <span v-if="getMyDistribution(row, 'businessTrip')" :class="getDistributionRead(row, 'businessTrip') ? 'read-status read' : 'read-status unread'">
               {{ getDistributionRead(row, 'businessTrip') ? '已读' : '未读' }}
             </span>
-            <el-button
-              v-if="getMyDistribution(row, 'businessTrip') && !getDistributionRead(row, 'businessTrip')"
-              size="small"
-              type="primary"
-              @click="toggleRecordRead(row, 'businessTrip')"
-            >
-              标为已读
-            </el-button>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="340" fixed="right">
@@ -258,13 +250,6 @@
             >
               删除
             </el-button>
-            <span
-              v-if="businessTripSubTab === 'received' && getMyDistribution(row, 'businessTrip')"
-              :class="getDistributionRead(row, 'businessTrip') ? 'read-status read' : 'read-status unread'"
-              style="margin-right: 6px;"
-            >
-              {{ getDistributionRead(row, 'businessTrip') ? '已读' : '未读' }}
-            </span>
             <el-button
               v-if="businessTripSubTab === 'received' && getMyDistribution(row, 'businessTrip') && !getDistributionRead(row, 'businessTrip')"
               size="small"
@@ -273,6 +258,14 @@
             >
               标为已读
             </el-button>
+            <el-tag
+              v-if="businessTripSubTab === 'received' && getMyDistribution(row, 'businessTrip') && getDistributionRead(row, 'businessTrip')"
+              type="success"
+              size="small"
+              effect="plain"
+            >
+              已读
+            </el-tag>
             <el-button size="small" @click="$emit('view-detail', row, 'businessTrip')">详情</el-button>
           </div>
         </div>
@@ -332,15 +325,19 @@ const businessTripFilter = ref('all')
 const businessTripSubTab = ref(props.subTab || 'applied')
 const appliedBusinessTripCount = computed(() => {
   const base = props.isAdmin ? allBusinessTripRecords.value : businessTripRecords.value
-  return base.filter(isMyBusinessTripApplication).length
+  const applied = base.filter(isMyBusinessTripApplication)
+  return { total: applied.length, pending: applied.filter(r => isPending(r)).length }
 })
 const receivedBusinessTripCount = computed(() => {
   const base = props.isAdmin ? allBusinessTripRecords.value : businessTripRecords.value
-  return base.filter((r: any) => !isMyBusinessTripApplication(r) && isReceivedBusinessTrip(r)).length
+  const received = base.filter((r: any) => !isMyBusinessTripApplication(r) && isReceivedBusinessTrip(r))
+  const pending = received.filter(r => isPending(r)).length
+  const unread = received.filter(r => isItemDistributedToMe(r, 'businessTrip') && !getDistributionRead(r, 'businessTrip')).length
+  return { total: received.length, pendingUnread: pending + unread }
 })
 const businessTripSubTabs = computed(() => [
-  { label: '我申请的', value: 'applied', badge: appliedBusinessTripCount.value },
-  { label: '我收到的', value: 'received', badge: receivedBusinessTripCount.value }
+  { label: '我申请的', value: 'applied', badge: appliedBusinessTripCount.value.pending > 0 ? appliedBusinessTripCount.value.pending : appliedBusinessTripCount.value.total, badgeType: appliedBusinessTripCount.value.pending > 0 ? 'red' : 'gray' },
+  { label: '我收到的', value: 'received', badge: receivedBusinessTripCount.value.pendingUnread > 0 ? receivedBusinessTripCount.value.pendingUnread : receivedBusinessTripCount.value.total, badgeType: receivedBusinessTripCount.value.pendingUnread > 0 ? 'red' : 'gray' }
 ])
 const businessTripRecords = ref<any[]>([])
 const allBusinessTripRecords = ref<any[]>([])
@@ -733,6 +730,9 @@ defineExpose({ fetchData })
   font-size: 12px;
   font-weight: 600;
   text-align: center;
+}
+.sub-tab-badge-red {
+  background: #F56C6C;
 }
 .panel-title {
   display: flex;

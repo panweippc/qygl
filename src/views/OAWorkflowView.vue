@@ -787,24 +787,16 @@ const pendingDistributedCount = computed(() => distributedRecords.value.filter(r
 const totalDistributedCount = computed(() => distributedRecords.value.length)
 
 const pendingMeetingCount = computed(() => {
-  const allMeetings = [...meetingRecords.value, ...allMeetingRecords.value]
-  const uniqueMeetings = allMeetings.filter((item, index, self) => index === self.findIndex(t => t.id === item.id))
-  return uniqueMeetings.filter(r => isUnprocessedStatus(r.status)).length + receivedUnreadByType('meeting')
+  const records = isAdminComputed.value ? allMeetingRecords.value : meetingRecords.value
+  return records.filter(r => isUnprocessedStatus(r.status)).length + receivedUnreadByType('meeting')
 })
-const totalMeetingCount = computed(() => {
-  const allMeetings = [...meetingRecords.value, ...allMeetingRecords.value]
-  return allMeetings.filter((item, index, self) => index === self.findIndex(t => t.id === item.id)).length
-})
+const totalMeetingCount = computed(() => (isAdminComputed.value ? allMeetingRecords.value : meetingRecords.value).length + receivedCountByType('meeting'))
 
 const pendingProjectCount = computed(() => {
-  const allProjects = [...projectRecords.value, ...allProjectRecords.value]
-  const uniqueProjects = allProjects.filter((item, index, self) => index === self.findIndex(t => t.id === item.id))
-  return uniqueProjects.filter(r => isUnprocessedStatus(r.status)).length + receivedUnreadByType('project')
+  const records = isAdminComputed.value ? allProjectRecords.value : projectRecords.value
+  return records.filter(r => isUnprocessedStatus(r.status)).length + receivedUnreadByType('project')
 })
-const totalProjectCount = computed(() => {
-  const allProjects = [...projectRecords.value, ...allProjectRecords.value]
-  return allProjects.filter((item, index, self) => index === self.findIndex(t => t.id === item.id)).length
-})
+const totalProjectCount = computed(() => (isAdminComputed.value ? allProjectRecords.value : projectRecords.value).length + receivedCountByType('project'))
 
 const distributedActiveSubTab = ref('all')
 

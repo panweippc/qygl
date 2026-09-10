@@ -83,7 +83,7 @@
           class="sub-tab-btn"
           :class="{ active: reimbursementSubTab === tab.value }"
           @click="reimbursementSubTab = tab.value"
-        >{{ tab.label }}<span v-if="tab.badge > 0" class="sub-tab-badge">{{ tab.badge }}</span></button>
+        >{{ tab.label }}<span v-if="tab.badge > 0" class="sub-tab-badge" :class="{ 'sub-tab-badge-red': tab.badgeType === 'red' }">{{ tab.badge }}</span></button>
       </div>
     </div>
 
@@ -132,19 +132,11 @@
             {{ row.approver || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="已读状态" width="140" v-if="reimbursementSubTab === 'received'">
+        <el-table-column label="已读状态" width="100" v-if="reimbursementSubTab === 'received'">
           <template #default="{ row }">
             <span v-if="getMyDistribution(row, 'reimbursement')" :class="getDistributionRead(row, 'reimbursement') ? 'read-status read' : 'read-status unread'">
               {{ getDistributionRead(row, 'reimbursement') ? '已读' : '未读' }}
             </span>
-            <el-button
-              v-if="getMyDistribution(row, 'reimbursement') && !getDistributionRead(row, 'reimbursement')"
-              size="small"
-              type="primary"
-              @click="toggleRecordRead(row, 'reimbursement')"
-            >
-              标为已读
-            </el-button>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="340" fixed="right">
@@ -252,13 +244,6 @@
             <el-button v-if="canWithdraw(row)" size="small" @click="withdrawReimbursementAction(row)">撤回</el-button>
             <el-button v-if="canResubmitDelete(row)" size="small" type="warning" @click="resubmitReimbursement(row)">重新提交</el-button>
             <el-button v-if="canResubmitDelete(row)" size="small" type="danger" @click="deleteReimbursementAction(row)">删除</el-button>
-            <span
-              v-if="reimbursementSubTab === 'received' && getMyDistribution(row, 'reimbursement')"
-              :class="getDistributionRead(row, 'reimbursement') ? 'read-status read' : 'read-status unread'"
-              style="margin-right: 6px;"
-            >
-              {{ getDistributionRead(row, 'reimbursement') ? '已读' : '未读' }}
-            </span>
             <el-button
               v-if="reimbursementSubTab === 'received' && getMyDistribution(row, 'reimbursement') && !getDistributionRead(row, 'reimbursement')"
               size="small"
@@ -267,6 +252,14 @@
             >
               标为已读
             </el-button>
+            <el-tag
+              v-if="reimbursementSubTab === 'received' && getMyDistribution(row, 'reimbursement') && getDistributionRead(row, 'reimbursement')"
+              type="success"
+              size="small"
+              effect="plain"
+            >
+              已读
+            </el-tag>
             <el-button size="small" @click="$emit('view-detail', row, 'reimbursement')">详情</el-button>
           </div>
         </div>
@@ -633,15 +626,19 @@ const reimbursementApplicants = computed(() => {
 const reimbursementSubTab = ref(props.subTab || 'applied')
 const appliedReimbursementCount = computed(() => {
   const base = props.isAdmin ? allReimbursementRecords.value : reimbursementRecords.value
-  return base.filter(isMyReimbursementApplication).length
+  const applied = base.filter(isMyReimbursementApplication)
+  return { total: applied.length, pending: applied.filter(r => isPending(r)).length }
 })
 const receivedReimbursementCount = computed(() => {
   const base = props.isAdmin ? allReimbursementRecords.value : reimbursementRecords.value
-  return base.filter((r: any) => !isMyReimbursementApplication(r) && isReceivedReimbursement(r)).length
+  const received = base.filter((r: any) => !isMyReimbursementApplication(r) && isReceivedReimbursement(r))
+  const pending = received.filter(r => isPending(r)).length
+  const unread = received.filter(r => isItemDistributedToMe(r, 'reimbursement') && !getDistributionRead(r, 'reimbursement')).length
+  return { total: received.length, pendingUnread: pending + unread }
 })
 const reimbursementSubTabs = computed(() => [
-  { label: '我申请的', value: 'applied', badge: appliedReimbursementCount.value },
-  { label: '我收到的', value: 'received', badge: receivedReimbursementCount.value }
+  { label: '我申请的', value: 'applied', badge: appliedReimbursementCount.value.pending > 0 ? appliedReimbursementCount.value.pending : appliedReimbursementCount.value.total, badgeType: appliedReimbursementCount.value.pending > 0 ? 'red' : 'gray' },
+  { label: '我收到的', value: 'received', badge: receivedReimbursementCount.value.pendingUnread > 0 ? receivedReimbursementCount.value.pendingUnread : receivedReimbursementCount.value.total, badgeType: receivedReimbursementCount.value.pendingUnread > 0 ? 'red' : 'gray' }
 ])
 
 // 下发给我的记录（按当前用户拉取，不依赖全局 allDistributedRecords）
@@ -1378,5 +1375,8 @@ defineExpose({ fetchData })
   font-size: 12px;
   font-weight: 600;
   text-align: center;
+}
+.sub-tab-badge-red {
+  background: #F56C6C;
 }
 </style>

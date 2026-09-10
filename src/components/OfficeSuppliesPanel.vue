@@ -29,7 +29,7 @@
           class="sub-tab-btn"
           :class="{ active: projectSubTab === tab.value }"
           @click="projectSubTab = tab.value"
-        >{{ tab.label }}<span v-if="tab.badge > 0" class="sub-tab-badge">{{ tab.badge }}</span></button>
+        >{{ tab.label }}<span v-if="tab.badge > 0" class="sub-tab-badge" :class="{ 'sub-tab-badge-red': tab.badgeType === 'red' }">{{ tab.badge }}</span></button>
       </div>
     </div>
 
@@ -101,19 +101,11 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="已读状态" width="140" v-if="projectSubTab === 'received'">
+        <el-table-column label="已读状态" width="100" v-if="projectSubTab === 'received'">
           <template #default="{ row }">
             <span v-if="getMyDistribution(row, 'project')" :class="getDistributionRead(row, 'project') ? 'read-status read' : 'read-status unread'">
               {{ getDistributionRead(row, 'project') ? '已读' : '未读' }}
             </span>
-            <el-button
-              v-if="getMyDistribution(row, 'project') && !getDistributionRead(row, 'project')"
-              size="small"
-              type="primary"
-              @click="toggleRecordRead(row, 'project')"
-            >
-              标为已读
-            </el-button>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="340" fixed="right">
@@ -264,13 +256,6 @@
             >
               删除
             </el-button>
-            <span
-              v-if="projectSubTab === 'received' && getMyDistribution(row, 'project')"
-              :class="getDistributionRead(row, 'project') ? 'read-status read' : 'read-status unread'"
-              style="margin-right: 6px;"
-            >
-              {{ getDistributionRead(row, 'project') ? '已读' : '未读' }}
-            </span>
             <el-button
               v-if="projectSubTab === 'received' && getMyDistribution(row, 'project') && !getDistributionRead(row, 'project')"
               size="small"
@@ -279,6 +264,14 @@
             >
               标为已读
             </el-button>
+            <el-tag
+              v-if="projectSubTab === 'received' && getMyDistribution(row, 'project') && getDistributionRead(row, 'project')"
+              type="success"
+              size="small"
+              effect="plain"
+            >
+              已读
+            </el-tag>
             <el-button size="small" @click="$emit('view-detail', row, 'project')">详情</el-button>
           </div>
         </div>
@@ -351,15 +344,19 @@ const canExport = computed(() => extractRealName(currentUsername.value) === '张
 const projectSubTab = ref(props.subTab || 'applied')
 const appliedProjectCount = computed(() => {
   const base = props.isAdmin ? allProjectRecords.value : projectRecords.value
-  return base.filter(isMyProjectApplication).length
+  const applied = base.filter(isMyProjectApplication)
+  return { total: applied.length, pending: applied.filter(r => isPending(r)).length }
 })
 const receivedProjectCount = computed(() => {
   const base = props.isAdmin ? allProjectRecords.value : projectRecords.value
-  return base.filter((r: any) => !isMyProjectApplication(r) && isReceivedProject(r)).length
+  const received = base.filter((r: any) => !isMyProjectApplication(r) && isReceivedProject(r))
+  const pending = received.filter(r => isPending(r)).length
+  const unread = received.filter(r => isItemDistributedToMe(r, 'project') && !getDistributionRead(r, 'project')).length
+  return { total: received.length, pendingUnread: pending + unread }
 })
 const projectSubTabs = computed(() => [
-  { label: '我申请的', value: 'applied', badge: appliedProjectCount.value },
-  { label: '我收到的', value: 'received', badge: receivedProjectCount.value }
+  { label: '我申请的', value: 'applied', badge: appliedProjectCount.value.pending > 0 ? appliedProjectCount.value.pending : appliedProjectCount.value.total, badgeType: appliedProjectCount.value.pending > 0 ? 'red' : 'gray' },
+  { label: '我收到的', value: 'received', badge: receivedProjectCount.value.pendingUnread > 0 ? receivedProjectCount.value.pendingUnread : receivedProjectCount.value.total, badgeType: receivedProjectCount.value.pendingUnread > 0 ? 'red' : 'gray' }
 ])
 
 // 下发给我的记录（按当前用户拉取，不依赖全局 allDistributedRecords）
@@ -1063,5 +1060,8 @@ defineExpose({ fetchData })
   font-size: 12px;
   font-weight: 600;
   text-align: center;
+}
+.sub-tab-badge-red {
+  background: #F56C6C;
 }
 </style>

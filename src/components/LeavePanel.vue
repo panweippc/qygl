@@ -83,7 +83,7 @@
           class="sub-tab-btn"
           :class="{ active: leaveSubTab === tab.value }"
           @click="leaveSubTab = tab.value"
-        >{{ tab.label }}<span v-if="tab.badge > 0" class="sub-tab-badge">{{ tab.badge }}</span></button>
+        >{{ tab.label }}<span v-if="tab.badge > 0" class="sub-tab-badge" :class="{ 'sub-tab-badge-red': tab.badgeType === 'red' }">{{ tab.badge }}</span></button>
       </div>
     </div>
 
@@ -136,19 +136,11 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="已读状态" width="140" v-if="leaveSubTab === 'received'">
+        <el-table-column label="已读状态" width="100" v-if="leaveSubTab === 'received'">
           <template #default="{ row }">
             <span v-if="getMyDistribution(row, 'leave')" :class="getDistributionRead(row, 'leave') ? 'read-status read' : 'read-status unread'">
               {{ getDistributionRead(row, 'leave') ? '已读' : '未读' }}
             </span>
-            <el-button
-              v-if="getMyDistribution(row, 'leave') && !getDistributionRead(row, 'leave')"
-              size="small"
-              type="primary"
-              @click="toggleRecordRead(row, 'leave')"
-            >
-              标为已读
-            </el-button>
           </template>
         </el-table-column>
         <el-table-column label="审批人" width="100">
@@ -306,13 +298,6 @@
             >
               删除
             </el-button>
-            <span
-              v-if="leaveSubTab === 'received' && getMyDistribution(row, 'leave')"
-              :class="getDistributionRead(row, 'leave') ? 'read-status read' : 'read-status unread'"
-              style="margin-right: 6px;"
-            >
-              {{ getDistributionRead(row, 'leave') ? '已读' : '未读' }}
-            </span>
             <el-button
               v-if="leaveSubTab === 'received' && getMyDistribution(row, 'leave') && !getDistributionRead(row, 'leave')"
               size="small"
@@ -321,6 +306,14 @@
             >
               标为已读
             </el-button>
+            <el-tag
+              v-if="leaveSubTab === 'received' && getMyDistribution(row, 'leave') && getDistributionRead(row, 'leave')"
+              type="success"
+              size="small"
+              effect="plain"
+            >
+              已读
+            </el-tag>
             <el-button size="small" @click="$emit('view-detail', row, 'leave')">详情</el-button>
           </div>
         </div>
@@ -513,15 +506,19 @@ const leaveApplicants = computed(() => {
 const leaveSubTab = ref(props.subTab || 'applied')
 const appliedLeaveCount = computed(() => {
   const base = props.isAdmin ? allLeaveRecords.value : leaveRecords.value
-  return base.filter(isMyLeaveApplication).length
+  const applied = base.filter(isMyLeaveApplication)
+  return { total: applied.length, pending: applied.filter(r => isPending(r)).length }
 })
 const receivedLeaveCount = computed(() => {
   const base = props.isAdmin ? allLeaveRecords.value : leaveRecords.value
-  return base.filter((r: any) => !isMyLeaveApplication(r) && isReceivedLeave(r)).length
+  const received = base.filter((r: any) => !isMyLeaveApplication(r) && isReceivedLeave(r))
+  const pending = received.filter(r => isPending(r)).length
+  const unread = received.filter(r => isItemDistributedToMe(r, 'leave') && !getDistributionRead(r, 'leave')).length
+  return { total: received.length, pendingUnread: pending + unread }
 })
 const leaveSubTabs = computed(() => [
-  { label: '我申请的', value: 'applied', badge: appliedLeaveCount.value },
-  { label: '我收到的', value: 'received', badge: receivedLeaveCount.value }
+  { label: '我申请的', value: 'applied', badge: appliedLeaveCount.value.pending > 0 ? appliedLeaveCount.value.pending : appliedLeaveCount.value.total, badgeType: appliedLeaveCount.value.pending > 0 ? 'red' : 'gray' },
+  { label: '我收到的', value: 'received', badge: receivedLeaveCount.value.pendingUnread > 0 ? receivedLeaveCount.value.pendingUnread : receivedLeaveCount.value.total, badgeType: receivedLeaveCount.value.pendingUnread > 0 ? 'red' : 'gray' }
 ])
 
 // 下发给我的记录（按当前用户拉取，不依赖全局 allDistributedRecords）
@@ -1265,6 +1262,9 @@ defineExpose({ fetchData })
   font-size: 12px;
   font-weight: 600;
   text-align: center;
+}
+.sub-tab-badge-red {
+  background: #F56C6C;
 }
 .read-status {
   display: inline-block;

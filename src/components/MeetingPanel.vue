@@ -83,7 +83,7 @@
           class="sub-tab-btn"
           :class="{ active: meetingSubTab === tab.value }"
           @click="meetingSubTab = tab.value"
-        >{{ tab.label }}<span v-if="tab.badge > 0" class="sub-tab-badge">{{ tab.badge }}</span></button>
+        >{{ tab.label }}<span v-if="tab.badge > 0" class="sub-tab-badge" :class="{ 'sub-tab-badge-red': tab.badgeType === 'red' }">{{ tab.badge }}</span></button>
       </div>
     </div>
 
@@ -120,19 +120,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="submitDate" label="创建时间" width="150"></el-table-column>
-        <el-table-column label="已读状态" width="140" v-if="meetingSubTab === 'received'">
+        <el-table-column label="已读状态" width="100" v-if="meetingSubTab === 'received'">
           <template #default="{ row }">
             <span v-if="getMyDistribution(row, 'meeting')" :class="getDistributionRead(row, 'meeting') ? 'read-status read' : 'read-status unread'">
               {{ getDistributionRead(row, 'meeting') ? '已读' : '未读' }}
             </span>
-            <el-button
-              v-if="getMyDistribution(row, 'meeting') && !getDistributionRead(row, 'meeting')"
-              size="small"
-              type="primary"
-              @click="toggleRecordRead(row, 'meeting')"
-            >
-              标为已读
-            </el-button>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="300" fixed="right">
@@ -187,6 +179,22 @@
               >
                 删除
               </el-button>
+              <el-button
+                v-if="meetingSubTab === 'received' && getMyDistribution(row, 'meeting') && !getDistributionRead(row, 'meeting')"
+                size="small"
+                type="primary"
+                @click="toggleRecordRead(row, 'meeting')"
+              >
+                标为已读
+              </el-button>
+              <el-tag
+                v-if="meetingSubTab === 'received' && getMyDistribution(row, 'meeting') && getDistributionRead(row, 'meeting')"
+                type="success"
+                size="small"
+                effect="plain"
+              >
+                已读
+              </el-tag>
               <el-button
                 size="small"
                 @click="$emit('view-detail', row, 'meeting')"
@@ -425,15 +433,19 @@ const meetingPersonFilter = ref('all')
 const meetingSubTab = ref(props.subTab || 'applied')
 const appliedMeetingCount = computed(() => {
   const base = props.isAdmin ? allMeetingRecords.value : meetingRecords.value
-  return base.filter(isMyMeetingApplication).length
+  const applied = base.filter(isMyMeetingApplication)
+  return { total: applied.length, pending: applied.filter(r => isPending(r)).length }
 })
 const receivedMeetingCount = computed(() => {
   const base = props.isAdmin ? allMeetingRecords.value : meetingRecords.value
-  return base.filter((r: any) => !isMyMeetingApplication(r) && isReceivedMeeting(r)).length
+  const received = base.filter((r: any) => !isMyMeetingApplication(r) && isReceivedMeeting(r))
+  const pending = received.filter(r => isPending(r)).length
+  const unread = received.filter(r => isItemDistributedToMe(r, 'meeting') && !getDistributionRead(r, 'meeting')).length
+  return { total: received.length, pendingUnread: pending + unread }
 })
 const meetingSubTabs = computed(() => [
-  { label: '我申请的', value: 'applied', badge: appliedMeetingCount.value },
-  { label: '我收到的', value: 'received', badge: receivedMeetingCount.value }
+  { label: '我申请的', value: 'applied', badge: appliedMeetingCount.value.pending > 0 ? appliedMeetingCount.value.pending : appliedMeetingCount.value.total, badgeType: appliedMeetingCount.value.pending > 0 ? 'red' : 'gray' },
+  { label: '我收到的', value: 'received', badge: receivedMeetingCount.value.pendingUnread > 0 ? receivedMeetingCount.value.pendingUnread : receivedMeetingCount.value.total, badgeType: receivedMeetingCount.value.pendingUnread > 0 ? 'red' : 'gray' }
 ])
 const meetingDateType = ref('range')
 const meetingDateRange = ref([])
@@ -1192,5 +1204,8 @@ defineExpose({ fetchData })
   font-size: 12px;
   font-weight: 600;
   text-align: center;
+}
+.sub-tab-badge-red {
+  background: #F56C6C;
 }
 </style>
