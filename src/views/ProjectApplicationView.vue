@@ -97,11 +97,6 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :span="12">
-                <el-form-item label="审批角色">
-                  <el-tag type="success" size="small">总经理</el-tag>
-                </el-form-item>
-              </el-col>
             </el-row>
 
         <!-- 时间规划 -->
