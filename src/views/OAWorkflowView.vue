@@ -320,16 +320,55 @@
               <div class="panel-content">
                 <div class="table-container">
                   <el-table
-                    :data="myDistributedRecords"
+                    :data="myDistributedGroups"
                     style="width: 100%"
                     :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: '600' }"
                     v-loading="loading"
+                    row-key="key"
                     stripe
                     fit
                   >
-                    <el-table-column prop="id" label="下发编号" width="100">
+                    <el-table-column type="expand" width="46">
                       <template #default="{ row }">
-                        <span class="id-badge">#{{ row.id }}</span>
+                        <div class="group-expand">
+                          <div class="group-expand-hint">逐人明细：每条下发记录的编号与已读状态</div>
+                          <el-table
+                            :data="row.records"
+                            size="small"
+                            style="width: 100%"
+                            :header-cell-style="{ background: '#fafbfc', color: '#909399', fontWeight: '600' }"
+                          >
+                            <el-table-column label="下发编号" width="110">
+                              <template #default="{ row: sub }">
+                                <span class="id-badge">#{{ sub.id }}</span>
+                              </template>
+                            </el-table-column>
+                            <el-table-column prop="targetUser" label="接收人" width="140"></el-table-column>
+                            <el-table-column prop="distributeDate" label="下发时间" width="170"></el-table-column>
+                            <el-table-column label="已读状态" width="120">
+                              <template #default="{ row: sub }">
+                                <span :class="sub.read === 1 ? 'read-status read' : 'read-status unread'">
+                                  {{ sub.read === 1 ? '已读' : '未读' }}
+                                </span>
+                              </template>
+                            </el-table-column>
+                            <el-table-column label="申请详情" min-width="200">
+                              <template #default="{ row: sub }">
+                                <span class="distributed-detail-text">{{ getDistributedDetail(sub) }}</span>
+                              </template>
+                            </el-table-column>
+                            <el-table-column label="操作" width="100" fixed="right">
+                              <template #default="{ row: sub }">
+                                <el-button size="small" @click="viewDistributedDetail(sub)" class="view-btn">详情</el-button>
+                              </template>
+                            </el-table-column>
+                          </el-table>
+                        </div>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="applicationId" label="原申请编号" width="110">
+                      <template #default="{ row }">
+                        <span class="id-badge">#{{ row.applicationId }}</span>
                       </template>
                     </el-table-column>
                     <el-table-column prop="applicationType" label="申请类型" width="120">
@@ -337,29 +376,34 @@
                         <span class="type-tag" :class="row.applicationType">{{ getApplicationTypeLabel(row.applicationType) }}</span>
                       </template>
                     </el-table-column>
-                    <el-table-column prop="applicationId" label="原申请编号" width="100">
+                    <el-table-column prop="applicant" label="原申请人" width="110"></el-table-column>
+                    <el-table-column label="接收人" min-width="240">
                       <template #default="{ row }">
-                        <span class="id-badge">#{{ row.applicationId }}</span>
+                        <div class="receiver-cell">
+                          <span v-for="name in groupReceivers(row)" :key="name" class="receiver-tag">{{ name }}</span>
+                          <span class="receiver-count">共 {{ row.records.length }} 人</span>
+                        </div>
                       </template>
                     </el-table-column>
-                    <el-table-column prop="applicant" label="原申请人" width="120"></el-table-column>
-                    <el-table-column prop="targetUser" label="接收人" width="120"></el-table-column>
-                    <el-table-column prop="distributeDate" label="下发时间" width="150"></el-table-column>
-                    <el-table-column label="已读状态" width="100">
+                    <el-table-column label="下发时间" width="180">
                       <template #default="{ row }">
-                        <span :class="row.read === 1 ? 'read-status read' : 'read-status unread'">
-                          {{ row.read === 1 ? '已读' : '未读' }}
-                        </span>
+                        <span>{{ row.distributeDate }}</span>
+                        <span v-if="!row.sameTime" class="time-suffix">起</span>
                       </template>
                     </el-table-column>
-                    <el-table-column label="申请详情" min-width="180">
+                    <el-table-column label="已读进度" width="140">
                       <template #default="{ row }">
-                        <span class="distributed-detail-text">{{ getDistributedDetail(row) }}</span>
+                        <span class="read-status" :class="groupReadInfo(row).cls">{{ groupReadInfo(row).text }}</span>
                       </template>
                     </el-table-column>
-                    <el-table-column label="操作" width="120" fixed="right">
+                    <el-table-column label="申请详情" min-width="200">
                       <template #default="{ row }">
-                        <el-button size="small" @click="viewDistributedDetail(row)" class="view-btn">详情</el-button>
+                        <span class="distributed-detail-text">{{ row.detail }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="操作" width="100" fixed="right">
+                      <template #default="{ row }">
+                        <el-button size="small" @click="viewGroupDistributedDetail(row)" class="view-btn">详情</el-button>
                       </template>
                     </el-table-column>
                   </el-table>
@@ -860,6 +904,69 @@ const getDistributedDetail = (row: any) => {
     return `客户:${row.guestName || '-'} 金额:¥${row.expenseAmount || 0}`
   }
   return ''
+}
+
+// 「我下发的」按原申请合并：同一（申请类型 + 原申请编号）的多条下发聚合为一行。
+// 主行只回答"发给了谁、谁还没看"，逐人明细（含下发编号）下沉到展开行，信息零丢失。
+type MyDistributedGroup = {
+  key: string
+  applicationType: string
+  applicationId: any
+  applicant: string
+  distributeDate: string
+  sameTime: boolean
+  readCount: number
+  detail: string
+  records: any[]
+  maxId: number
+}
+
+const myDistributedGroups = computed<MyDistributedGroup[]>(() => {
+  const map = new Map<string, MyDistributedGroup>()
+  myDistributedRecords.value.forEach((r: any) => {
+    const key = `${r.applicationType}-${r.applicationId}`
+    let g = map.get(key)
+    if (!g) {
+      g = {
+        key,
+        applicationType: r.applicationType,
+        applicationId: r.applicationId,
+        applicant: r.applicant || '',
+        distributeDate: r.distributeDate || '',
+        sameTime: true,
+        readCount: 0,
+        detail: getDistributedDetail(r),
+        records: [],
+        maxId: r.id || 0
+      }
+      map.set(key, g)
+    }
+    g.records.push(r)
+    // 组内下发时间不一致时，主行展示最早时间并在末尾标注"起"
+    if (r.distributeDate && g.distributeDate && r.distributeDate !== g.distributeDate) {
+      g.sameTime = false
+      if (r.distributeDate < g.distributeDate) g.distributeDate = r.distributeDate
+    }
+    if (r.read === 1) g.readCount++
+    if ((r.id || 0) > g.maxId) g.maxId = r.id
+  })
+  return Array.from(map.values())
+    .map(g => ({ ...g, records: g.records.sort((a: any, b: any) => (b.id || 0) - (a.id || 0)) }))
+    .sort((a, b) => b.maxId - a.maxId)
+})
+
+// 组内接收人去重（同一人不会被重复下发，这里仅作兜底）
+const groupReceivers = (g: MyDistributedGroup) =>
+  Array.from(new Set(g.records.map((r: any) => r.targetUser).filter(Boolean)))
+
+// 已读进度：单人保持"已读/未读"，多人显示"全部未读/部分已读/全部已读 X/N"
+const groupReadInfo = (g: MyDistributedGroup) => {
+  const total = g.records.length
+  const read = g.readCount
+  if (total <= 1) return read === 1 ? { text: '已读', cls: 'read' } : { text: '未读', cls: 'unread' }
+  if (read === total) return { text: `全部已读 ${read}/${total}`, cls: 'read' }
+  if (read > 0) return { text: `部分已读 ${read}/${total}`, cls: 'partial' }
+  return { text: `全部未读 0/${total}`, cls: 'unread' }
 }
 
 const exportDistributedData = () => {
@@ -1393,7 +1500,7 @@ const getDistributedAttachmentsHtml = (row: any) => {
   }
 }
 
-const viewDistributedDetail = (row: any) => {
+const viewDistributedDetail = (row: any, extraHtml = '') => {
   const appDetailHtml = getApplicationDetailHtml(row)
   const attachmentsHtml = getDistributedAttachmentsHtml(row)
   ElMessageBox.alert(`
@@ -1406,6 +1513,7 @@ const viewDistributedDetail = (row: any) => {
       <p><strong>下发人：</strong>${esc(row.distributedBy)}</p>
       <p><strong>下发时间：</strong>${esc(row.distributeDate)}</p>
       <p><strong>处理状态：</strong>${esc(row.status)}</p>
+      ${extraHtml}
       ${appDetailHtml ? '<hr style="margin:8px 0;border-color:#eee"/>' + appDetailHtml : ''}
       ${attachmentsHtml ? '<hr style="margin:8px 0;border-color:#eee"/>' + attachmentsHtml : ''}
     </div>
@@ -1413,6 +1521,27 @@ const viewDistributedDetail = (row: any) => {
     dangerouslyUseHTMLString: true,
     confirmButtonText: '确定'
   })
+}
+
+// 合并行（一次下发多人的申请）查看详情：下发编号显示区间，并补充接收人与已读汇总
+const viewGroupDistributedDetail = (g: MyDistributedGroup) => {
+  const ids = g.records.map((r: any) => Number(r.id)).filter((v: number) => Number.isFinite(v))
+  const minId = ids.length ? Math.min(...ids) : ''
+  const maxId = ids.length ? Math.max(...ids) : ''
+  const receivers = groupReceivers(g)
+  const readInfo = groupReadInfo(g)
+  const rowsHtml = g.records.map((r: any) =>
+    `<p style="margin:2px 0;font-size:12px;color:#606266">#${esc(r.id)} ${esc(r.targetUser)} <span style="color:${r.read === 1 ? '#4CAF50' : '#E6A23C'}">${r.read === 1 ? '已读' : '未读'}</span></p>`
+  ).join('')
+  const extraHtml = `<hr style="margin:8px 0;border-color:#eee"/>
+    <p><strong>接收人（${receivers.length}人）：</strong>${esc(receivers.join('、'))}</p>
+    <p><strong>已读进度：</strong>${esc(readInfo.text)}</p>
+    <div>${rowsHtml}</div>`
+  viewDistributedDetail({
+    ...(g.records[0] || {}),
+    id: ids.length > 1 ? `${minId}~${maxId}` : (g.records[0]?.id ?? ''),
+    distributeDate: g.sameTime ? g.distributeDate : `${g.distributeDate} 起`
+  }, extraHtml)
 }
 
 const terminateProcess = async (row: any, type: string) => {
@@ -2352,6 +2481,44 @@ onUnmounted(() => {
   background: rgba(230, 162, 60, 0.12);
   color: #E6A23C;
   border: 1px solid rgba(230, 162, 60, 0.3);
+}
+.read-status.partial {
+  background: rgba(64, 158, 255, 0.12);
+  color: #409EFF;
+  border: 1px solid rgba(64, 158, 255, 0.3);
+}
+.receiver-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.receiver-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #5B7FBF;
+  background: rgba(100, 149, 237, 0.08);
+  border: 1px solid rgba(100, 149, 237, 0.25);
+}
+.receiver-count {
+  font-size: 12px;
+  color: #909399;
+}
+.time-suffix {
+  margin-left: 4px;
+  font-size: 12px;
+  color: #909399;
+}
+.group-expand {
+  padding: 8px 16px 12px 48px;
+  background: #fafbfc;
+}
+.group-expand-hint {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 6px;
 }
 .action-group {
   display: flex;
