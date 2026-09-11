@@ -1,12 +1,12 @@
 <template>
   <div class="project-panel">
     <div class="pp-toolbar">
-      <span class="pp-title">{{ categoryId !== null ? '「' + categoryName + '」' : '未分类 - ' }}项目信息 <span class="count-badge">{{ visibleProjects.length }}</span></span>
+      <span class="pp-title">{{ all ? '全部' : (categoryId !== null ? '「' + categoryName + '」' : '未分类') }}项目信息 <span class="count-badge">{{ visibleProjects.length }}</span></span>
       <el-button type="primary" size="small" @click="openAddProject">新增项目</el-button>
     </div>
 
     <el-alert
-      v-if="categoryId === null && visibleProjects.length > 0"
+      v-if="!all && categoryId === null && visibleProjects.length > 0"
       type="warning"
       :closable="false"
       show-icon
@@ -18,24 +18,35 @@
     <div class="project-list" v-loading="loading">
       <div v-if="visibleProjects.length === 0" class="empty-state">
         <span class="empty-icon">📦</span>
-        <p>该分类下暂无项目信息</p>
+        <p>{{ all ? '暂无项目信息' : '该分类下暂无项目信息' }}</p>
         <el-button type="primary" size="small" class="empty-cta" @click="openAddProject">在这里新增第一条项目信息</el-button>
       </div>
 
       <div v-for="project in visibleProjects" :key="project.id" class="project-item">
         <div class="project-content">
-          <div class="project-name">{{ project.project_name }}</div>
+          <div class="project-head">
+            <span class="project-name">{{ project.project_name }}</span>
+            <span class="status-tag" :style="{ background: statusColor(project.status) }">{{ project.status || '未开始' }}</span>
+          </div>
           <div class="project-description">{{ project.description || '暂无描述' }}</div>
-          <div v-if="project.applicant_name || project.manager" class="project-manager">负责人: {{ project.applicant_name || project.manager }}</div>
+          <div class="project-meta">
+            <span v-if="project.manager || project.applicant_name">负责人: {{ project.manager || project.applicant_name }}</span>
+            <span v-if="project.start_date || project.end_date">周期: {{ project.start_date || '—' }} ~ {{ project.end_date || '—' }}</span>
+          </div>
+          <div class="project-progress">
+            <el-progress :percentage="Math.min(100, Math.max(0, Number(project.progress) || 0))" :stroke-width="8" />
+          </div>
           <div v-if="project.project_link" class="project-link">
             <a :href="project.project_link" target="_blank" rel="noopener noreferrer">
               <el-icon><Link /></el-icon>{{ project.project_link }}
             </a>
           </div>
-          <div v-if="project.category_name && categoryId === null" class="project-uncat">原分类：{{ project.category_name }}</div>
+          <div v-if="project.category_name && (all || categoryId === null)" class="project-uncat">
+            {{ all ? '归属：' : '原分类：' }}{{ project.category_name }}
+          </div>
         </div>
         <div class="project-actions">
-          <el-dropdown v-if="categoryId === null" trigger="click" @command="(name) => assignProject(project, name)">
+          <el-dropdown v-if="all || categoryId === null" trigger="click" @command="(name) => assignProject(project, name)">
             <el-button size="small" class="action-btn assign">
               <el-icon><FolderOpened /></el-icon>归入分类
             </el-button>
@@ -72,6 +83,32 @@
         <el-form-item label="项目链接">
           <el-input v-model="addForm.link" placeholder="请输入项目链接" />
         </el-form-item>
+        <el-form-item label="负责人">
+          <el-select v-model="addForm.manager" placeholder="选择负责人（默认当前用户）" filterable clearable style="width:100%">
+            <el-option v-for="u in userList" :key="u.id" :label="u.name" :value="u.name" />
+          </el-select>
+        </el-form-item>
+        <div class="form-row">
+          <el-form-item label="项目状态" style="flex:1">
+            <el-select v-model="addForm.status" placeholder="选择状态" style="width:100%">
+              <el-option v-for="s in STATUS_OPTIONS" :key="s" :label="s" :value="s" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="完成进度" style="flex:1">
+            <el-slider v-model="addForm.progress" :min="0" :max="100" :step="5" show-input />
+          </el-form-item>
+        </div>
+        <el-form-item label="起止时间">
+          <el-date-picker
+            v-model="addForm.dateRange"
+            type="daterange"
+            value-format="YYYY-MM-DD"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            style="width:100%"
+          />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="addDialogVisible = false">取消</el-button>
@@ -92,7 +129,30 @@
           <el-input v-model="editForm.link" placeholder="请输入项目链接" />
         </el-form-item>
         <el-form-item label="负责人">
-          <el-input :model-value="currentUsername" disabled />
+          <el-select v-model="editForm.manager" placeholder="选择负责人" filterable clearable style="width:100%">
+            <el-option v-for="u in userList" :key="u.id" :label="u.name" :value="u.name" />
+          </el-select>
+        </el-form-item>
+        <div class="form-row">
+          <el-form-item label="项目状态" style="flex:1">
+            <el-select v-model="editForm.status" placeholder="选择状态" style="width:100%">
+              <el-option v-for="s in STATUS_OPTIONS" :key="s" :label="s" :value="s" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="完成进度" style="flex:1">
+            <el-slider v-model="editForm.progress" :min="0" :max="100" :step="5" show-input />
+          </el-form-item>
+        </div>
+        <el-form-item label="起止时间">
+          <el-date-picker
+            v-model="editForm.dateRange"
+            type="daterange"
+            value-format="YYYY-MM-DD"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            style="width:100%"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -113,19 +173,34 @@ import { useRoleGuard } from '@/composables/useRoleGuard'
 const props = defineProps<{
   categoryId: number | null
   categoryName: string
+  /** true = 跨分类「全部」视图（忽略 categoryId，展示所有项目） */
+  all?: boolean
 }>()
 
 const loading = ref(false)
 const projects = ref<any[]>([])
 const categoryOptions = ref<{ id: number; name: string }[]>([])
+const userList = ref<{ id: number; name: string }[]>([])
 
 const { userName, isOwnerOrManager, refresh: refreshRole } = useRoleGuard()
 
 const currentUsername = computed(() => userName.value || '当前用户')
 
+const STATUS_OPTIONS = ['未开始', '进行中', '已完成', '已暂停', '已取消']
+const statusColor = (s: string) => {
+  switch (s) {
+    case '进行中': return '#1890ff'
+    case '已完成': return '#52c41a'
+    case '已暂停': return '#faad14'
+    case '已取消': return '#bfbfbf'
+    default: return '#8c8c8c'
+  }
+}
+
 const validNames = computed(() => new Set(categoryOptions.value.map(c => c.name)))
 
 const visibleProjects = computed(() => {
+  if (props.all) return projects.value
   if (props.categoryId === null) {
     return projects.value.filter(p => !p.category_name || !validNames.value.has(p.category_name))
   }
@@ -143,11 +218,19 @@ const loadProjects = async () => {
 const loadCategories = async () => {
   try { const res = await getFileCategories(); if (res.success) categoryOptions.value = res.data } catch { /* ignore */ }
 }
+const loadMembers = async () => {
+  try { const res = await fetch('/api/employees').then(r => r.json()); if (res.success) userList.value = res.data.map((e: any) => ({ id: e.id, name: e.name })) } catch { /* ignore */ }
+}
 
 const addDialogVisible = ref(false)
-const addForm = ref({ name: '', description: '', link: '', categoryName: '' })
+const addForm = ref({ name: '', description: '', link: '', categoryName: '', manager: '', status: '未开始', progress: 0, dateRange: [] as string[] })
 const openAddProject = () => {
-  addForm.value = { name: '', description: '', link: '', categoryName: props.categoryId !== null ? props.categoryName : '' }
+  addForm.value = {
+    name: '', description: '', link: '',
+    categoryName: props.categoryId !== null ? props.categoryName : '',
+    manager: currentUsername.value,
+    status: '未开始', progress: 0, dateRange: []
+  }
   addDialogVisible.value = true
 }
 const submitAddProject = async () => {
@@ -161,7 +244,12 @@ const submitAddProject = async () => {
       categoryName: catName,
       projectName: addForm.value.name,
       description: addForm.value.description || `${addForm.value.name}的项目描述`,
-      link: addForm.value.link || ''
+      link: addForm.value.link || '',
+      manager: addForm.value.manager || currentUsername.value,
+      status: addForm.value.status || '未开始',
+      progress: Math.min(100, Math.max(0, Number(addForm.value.progress) || 0)),
+      startDate: addForm.value.dateRange?.[0] || '',
+      endDate: addForm.value.dateRange?.[1] || ''
     })
     if (res.success) { await loadProjects(); addDialogVisible.value = false; ElMessage.success('项目添加成功') }
     else ElMessage.error('添加项目失败')
@@ -169,16 +257,34 @@ const submitAddProject = async () => {
 }
 
 const editDialogVisible = ref(false)
-const editForm = ref({ id: 0, name: '', description: '', link: '' })
+const editForm = ref({ id: 0, name: '', description: '', link: '', manager: '', status: '未开始', progress: 0, dateRange: [] as string[] })
 const editProject = (project: any) => {
-  editForm.value = { id: project.id, name: project.project_name, description: project.description || '', link: project.project_link || '' }
+  editForm.value = {
+    id: project.id,
+    name: project.project_name,
+    description: project.description || '',
+    link: project.project_link || '',
+    manager: project.manager || project.applicant_name || currentUsername.value,
+    status: project.status || '未开始',
+    progress: Number(project.progress) || 0,
+    dateRange: [project.start_date, project.end_date].filter(Boolean)
+  }
   editDialogVisible.value = true
 }
 const submitEditProject = async () => {
   if (!editForm.value.name) { ElMessage.warning('请输入项目名称'); return }
   loading.value = true
   try {
-    const res = await updateCategoryProject(editForm.value.id, { projectName: editForm.value.name, description: editForm.value.description, link: editForm.value.link })
+    const res = await updateCategoryProject(editForm.value.id, {
+      projectName: editForm.value.name,
+      description: editForm.value.description,
+      link: editForm.value.link,
+      manager: editForm.value.manager || currentUsername.value,
+      status: editForm.value.status || '未开始',
+      progress: Math.min(100, Math.max(0, Number(editForm.value.progress) || 0)),
+      startDate: editForm.value.dateRange?.[0] || '',
+      endDate: editForm.value.dateRange?.[1] || ''
+    })
     if (res.success) { await loadProjects(); editDialogVisible.value = false; ElMessage.success('项目编辑成功') }
     else ElMessage.error('编辑项目失败')
   } finally { loading.value = false }
@@ -209,9 +315,9 @@ const assignProject = async (project: any, categoryName: string) => {
   } catch (e: any) { ElMessage.error(e.message || '归入分类失败') }
 }
 
-watch(() => props.categoryId, () => { /* visibleProjects 自动重算 */ })
+watch(() => [props.categoryId, props.all], () => { /* visibleProjects 自动重算 */ })
 
-onMounted(() => { refreshRole(); loadProjects(); loadCategories() })
+onMounted(() => { refreshRole(); loadProjects(); loadCategories(); loadMembers() })
 </script>
 
 <style scoped>
@@ -223,9 +329,14 @@ onMounted(() => { refreshRole(); loadProjects(); loadCategories() })
 .project-item { padding: 1rem 1.25rem; background: rgba(255,255,255,0.9); border: 1px solid rgba(100,149,237,0.2); border-left: 3px solid rgba(100,149,237,0.5); border-radius: 8px; font-size: 0.9rem; transition: all 0.3s ease; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
 .project-item:hover { background: rgba(100,149,237,0.12); transform: translateX(4px); }
 .project-content { flex: 1; min-width: 0; }
-.project-name { font-weight: 600; color: #333; margin-bottom: 0.4rem; }
+.project-name { font-weight: 600; color: #333; }
+.project-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
+.status-tag { color: #fff; font-size: 0.72rem; padding: 0.1rem 0.5rem; border-radius: 10px; font-weight: 600; }
 .project-description { color: rgba(51,51,51,0.7); font-size: 0.85rem; margin-bottom: 0.5rem; line-height: 1.4; }
+.project-meta { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.8rem; color: #6495ED; margin-bottom: 0.5rem; }
+.project-progress { margin-bottom: 0.5rem; max-width: 420px; }
 .project-manager { font-size: 0.8rem; color: #6495ED; margin-bottom: 0.4rem; }
+.form-row { display: flex; gap: 1rem; }
 .project-link a { color: #6495ED; text-decoration: none; font-size: 0.8rem; word-break: break-all; }
 .project-link a:hover { text-decoration: underline; }
 .project-uncat { font-size: 0.78rem; color: #faad14; margin-top: 0.35rem; }

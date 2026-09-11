@@ -112,6 +112,50 @@ router.post('/files', async (req, res) => {
   }
 });
 
+// 批量把多个文件归入/移出某个资料分类
+// ⚠️ 必须注册在 /files/:id/category 之前：Express 按注册顺序匹配路由，
+//    否则 /files/batch/category 会被 /files/:id/category 抢先捕获（id='batch'），返回 404「文件不存在」。
+// 逐条按「上传者本人或管理员」校验，无权限的条目跳过而不是整批失败，返回成功/跳过数量供前端提示
+router.put('/files/batch/category', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { ids, categoryId } = req.body || {};
+  const list = Array.isArray(ids) ? ids.map((n) => Number(n)).filter((n) => Number.isInteger(n) && n > 0) : [];
+  if (list.length === 0) {
+    return res.status(400).json({ success: false, message: '未选择任何文件' });
+  }
+  const username = req.user?.name || req.user?.username || '系统';
+  const roleName = req.user?.roleName || '';
+  const isGM = roleName === '总经理' || roleName === '系统管理员' || username === '管理员' || username === '总经理' || /^admin$/i.test(username) || username === '李智鑫';
+  const nextCategoryId = categoryId === null || categoryId === '' || categoryId === undefined ? null : Number(categoryId);
+  try {
+    const placeholders = list.map(() => '?').join(',');
+    const [rows] = await pool.execute(`SELECT * FROM files WHERE id IN (${placeholders})`, list);
+    const allowed = rows.filter((f) => isGM || isOwner(req, f.uploaderId, f.uploaderName));
+    if (allowed.length === 0) {
+      return res.status(403).json({ success: false, message: '所选文件均无权调整分类' });
+    }
+    for (const f of allowed) {
+      await pool.execute('UPDATE files SET categoryId = ? WHERE id = ?', [nextCategoryId, f.id]);
+    }
+    await createOperationLog(pool, {
+      username,
+      action: 'update',
+      module: 'file',
+      targetName: `${allowed.length} 个文件`,
+      detail: `批量调整文件分类 -> ${nextCategoryId === null ? '未分类' : '分类ID ' + nextCategoryId}（成功 ${allowed.length}，跳过 ${list.length - allowed.length}）`,
+      ipAddress: req.ip
+    });
+    res.json({
+      success: true,
+      message: `已归入分类 ${allowed.length} 个${list.length - allowed.length > 0 ? `，跳过 ${list.length - allowed.length} 个（无权限）` : ''}`,
+      data: { updated: allowed.length, skipped: list.length - allowed.length }
+    });
+  } catch (error) {
+    console.error('批量调整文件分类失败:', error);
+    res.status(500).json({ success: false, message: '批量调整分类失败' });
+  }
+});
+
 // 把文件归入/移出某个资料分类（用于「未分类」文件的整理；非破坏性，上传者本人或管理员可操作）
 router.put('/files/:id/category', async (req, res) => {
   const { pool } = req.app.locals;
@@ -147,6 +191,39 @@ router.put('/files/:id/category', async (req, res) => {
   }
 });
 
+// 批量删除文件（权限与单条删除一致：仅总经理/系统管理员/李智鑫）
+router.post('/files/batch-delete', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { ids } = req.body || {};
+  const list = Array.isArray(ids) ? ids.map((n) => Number(n)).filter((n) => Number.isInteger(n) && n > 0) : [];
+  if (list.length === 0) {
+    return res.status(400).json({ success: false, message: '未选择任何文件' });
+  }
+  const username = req.user?.name || req.user?.username || '系统';
+  const roleName = req.user?.roleName || '';
+  const isGM = roleName === '总经理' || roleName === '系统管理员' || username === '管理员' || username === '总经理' || /^admin$/i.test(username);
+  if (!isGM && username !== '李智鑫') {
+    return res.status(403).json({ success: false, message: '无权删除文件' });
+  }
+  try {
+    const placeholders = list.map(() => '?').join(',');
+    const [result] = await pool.execute(`DELETE FROM files WHERE id IN (${placeholders})`, list);
+    await createOperationLog(pool, {
+      userId: req.user?.id || null,
+      username,
+      action: 'delete',
+      module: 'file',
+      targetName: `${result.affectedRows} 个文件`,
+      detail: `批量删除文件 ID: ${list.join(',')}`,
+      ipAddress: req.ip
+    });
+    res.json({ success: true, message: `已删除 ${result.affectedRows} 个文件`, data: { deleted: result.affectedRows } });
+  } catch (error) {
+    console.error('批量删除文件失败:', error);
+    res.status(500).json({ success: false, message: '批量删除文件失败' });
+  }
+});
+
 router.delete('/files/:id', async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
@@ -168,7 +245,8 @@ router.delete('/files/:id', async (req, res) => {
     }
     await pool.execute('DELETE FROM files WHERE id = ?', [id]);
     await createOperationLog(pool, {
-      userId: req.user?.id || uploaderId,
+      // 修复：此处原先引用了未定义的 uploaderId，当 token 未携带 id 时会抛 ReferenceError 导致删除失败
+      userId: req.user?.id || null,
       username,
       action: 'delete',
       module: 'file',

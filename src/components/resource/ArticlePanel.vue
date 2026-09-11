@@ -11,7 +11,7 @@
     <div class="article-list" v-loading="loading">
       <div v-if="articles.length === 0" class="empty-state">
         <span class="empty-icon">📭</span>
-        <p>该分类下暂无文章</p>
+        <p>{{ props.all ? '暂无文章' : '该分类下暂无文章' }}</p>
         <el-button type="primary" size="small" class="empty-cta" @click="openNewArticle">在这里写第一篇文章</el-button>
       </div>
       <div v-for="article in articles" :key="article.id" class="article-card" @click="openArticle(article)">
@@ -198,6 +198,8 @@ import { getFileCategories } from '../../services/api'
 const props = defineProps<{
   categoryId: number | null
   categoryName: string
+  /** true = 跨分类「全部」视图（忽略 categoryId，展示所有文章） */
+  all?: boolean
 }>()
 
 const { isOwnerOrManager, refresh: refreshRole } = useRoleGuard()
@@ -280,7 +282,8 @@ const fetchArticles = async () => {
   loading.value = true
   try {
     const params = new URLSearchParams({ page: String(currentPage.value), pageSize: String(pageSize), username: getUsername() })
-    if (props.categoryId === null) params.set('uncategorized', '1')
+    if (props.all) { /* 全部视图：不过滤分类 */ }
+    else if (props.categoryId === null) params.set('uncategorized', '1')
     else params.set('resourceCategoryId', String(props.categoryId))
     if (keyword.value.trim()) params.set('keyword', keyword.value.trim())
     const res = await fetch('/api/knowledge/articles?' + params.toString()).then(r => r.json())
@@ -431,7 +434,7 @@ const previewFile = async (file: any) => {
   previewVisible.value = true
 }
 
-watch(() => props.categoryId, () => { currentPage.value = 1; keyword.value = ''; fetchArticles() })
+watch(() => [props.categoryId, props.all], () => { currentPage.value = 1; keyword.value = ''; fetchArticles() })
 
 onMounted(() => {
   refreshRole(); fetchCategories(); fetchUnifiedCategories(); fetchUsers(); fetchRoles(); fetchTags(); fetchArticles()

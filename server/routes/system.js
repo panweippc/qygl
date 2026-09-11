@@ -7,15 +7,8 @@ const router = express.Router();
 // 系统管理接口仅限管理员/总经理等管理角色
 const ADMIN_ROLES = ['系统管理员', '总经理'];
 
-// 资料中心合并后：菜单管理/权限管理里旧名称统一显示为「资料中心」
-const RC_NAMES = new Set(['知识库', '文件存储', '产品分类']);
-const RC_PATHS = new Set(['/knowledge-base', '/file-storage', '/project-category']);
-function normalizeResourceCenterMenu(menu) {
-  if (RC_NAMES.has(menu.name) && RC_PATHS.has(menu.path)) {
-    return { ...menu, name: '资料中心', path: '/resource-center', component: 'ResourceCenterView' };
-  }
-  return menu;
-}
+// 资料中心菜单已在 server.js 启动迁移中合并为单条 /resource-center，
+// 这里不再需要「旧名称统一显示为资料中心」的映射 hack。
 
 // 获取所有角色
 router.get('/roles', requireRole(...ADMIN_ROLES), async (req, res) => {
@@ -153,8 +146,6 @@ router.get('/menus', requireRole(...ADMIN_ROLES), async (req, res) => {
   try {
     const [menus] = await pool.execute('SELECT * FROM menus ORDER BY sort, id');
 
-    const normalizedMenus = menus.map(normalizeResourceCenterMenu);
-
     const buildTree = (menus, parentId = 0) => {
       return menus
         .filter(menu => menu.parentId === parentId)
@@ -164,7 +155,7 @@ router.get('/menus', requireRole(...ADMIN_ROLES), async (req, res) => {
         }));
     };
 
-    const menuTree = buildTree(normalizedMenus);
+    const menuTree = buildTree(menus);
     res.json({ success: true, data: menuTree });
   } catch (error) {
     console.error('获取菜单列表失败:', error);
@@ -181,7 +172,7 @@ router.get('/menus/:id', async (req, res) => {
     if (menus.length === 0) {
       return res.status(404).json({ success: false, message: '菜单不存在' });
     }
-    res.json({ success: true, data: normalizeResourceCenterMenu(menus[0]) });
+    res.json({ success: true, data: menus[0] });
   } catch (error) {
     console.error('获取菜单失败:', error);
     res.status(500).json({ success: false, message: '获取菜单失败' });

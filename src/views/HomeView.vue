@@ -8,18 +8,11 @@
       <main class="content">
         <div class="dashboard">
           <div class="dashboard-cards">
-            <DashboardCard title="文件存储" to="/file-storage" :stats="[{ value: fileStats.total, label: '总文件数' }, { value: fileStats.categories, label: '分类数' }]">
+            <!-- 文件存储与产品分类已合并为「资料中心」单一入口 -->
+            <DashboardCard title="资料中心" to="/resource-center" :stats="[{ value: fileStats.total, label: '文件数' }, { value: projectStats.total, label: '项目数' }, { value: fileStats.categories, label: '分类数' }]">
               <template #icon>
                 <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M13 9H11V7H13V9ZM13 13H11V11H13V13ZM13 17H11V15H13V17ZM21 3H3C1.9 3 1 3.9 1 5V19C1 20.1 1.9 21 3 21H21C22.1 21 23 20.1 23 19V5C23 3.9 22.1 3 21 3ZM21 19H3V5H21V19Z"/>
-                </svg>
-              </template>
-            </DashboardCard>
-
-            <DashboardCard title="产品分类" to="/project-category" :stats="[{ value: projectStats.total, label: '总项目数' }, { value: projectStats.categories, label: '分类数' }]">
-              <template #icon>
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM9 17H7V10H9V17ZM13 17H11V7H13V17ZM17 17H15V13H17V17Z"/>
+                  <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2zm0 4h8v2h-8V8zm0 3h8v2h-8v-2zm0 3h5v2h-5v-2z"/>
                 </svg>
               </template>
             </DashboardCard>

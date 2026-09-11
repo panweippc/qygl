@@ -12,6 +12,18 @@
         <span>文章 {{ stats.totals.articles }}</span>
         <span>项目 {{ stats.totals.projects }}</span>
       </div>
+      <!-- 全局搜索框：一次跨 文件 / 文章 / 项目 三类聚合 -->
+      <div class="rc-search">
+        <el-input
+          v-model="searchKeyword"
+          placeholder="搜索文件 / 文章 / 项目"
+          prefix-icon="Search"
+          clearable
+          size="small"
+          class="rc-search-input"
+        />
+        <el-button v-if="showSearch" size="small" text class="rc-search-clear" @click="clearSearch">退出搜索</el-button>
+      </div>
       <el-button class="manage-btn" size="small" @click="showAddCatDialog = true">管理分类</el-button>
     </header>
 
@@ -23,6 +35,21 @@
           <span class="count-hint">仅显示{{ segmentLabel }}计数</span>
         </div>
         <div class="cat-tree">
+          <!-- 全部：跨分类聚合视图 -->
+          <div
+            class="cat-node all-node"
+            :class="{ active: selected.id === 'all', dim: allTotal === 0 }"
+            @click="selectAll"
+          >
+            <div class="cat-node-main">
+              <span class="cat-dot all-dot"></span>
+              <span class="cat-node-name">全部</span>
+            </div>
+            <div class="cat-node-counts">
+              <span :class="{ zero: allTotal === 0 }">📦 {{ allTotal }}</span>
+            </div>
+          </div>
+
           <div
             v-for="cat in stats.categories"
             :key="cat.id"
@@ -64,23 +91,67 @@
 
       <!-- 右侧内容区 -->
       <main class="rc-main">
-        <nav class="rc-segments">
-          <button
-            v-for="s in visibleSegments"
-            :key="s.key"
-            class="rc-seg-btn"
-            :class="{ active: activeSegment === s.key }"
-            @click="activeSegment = s.key"
-          >
-            {{ s.label }}
-          </button>
-        </nav>
+        <!-- 搜索结果三段视图 -->
+        <div v-if="showSearch" class="rc-search-results" v-loading="searching">
+          <div class="search-summary">
+            搜索「<b>{{ searchKeyword }}</b>」：文件 {{ searchResult?.counts.files || 0 }} 条 · 文章 {{ searchResult?.counts.articles || 0 }} 条 · 项目 {{ searchResult?.counts.projects || 0 }} 条
+          </div>
 
-        <div class="rc-content">
-          <FilePanel v-if="activeSegment === 'files'" :categoryId="selected.id" :categoryName="selected.name" />
-          <ArticlePanel v-else-if="activeSegment === 'articles'" :categoryId="selected.id" :categoryName="selected.name" />
-          <ProjectPanel v-else-if="activeSegment === 'projects'" :categoryId="selected.id" :categoryName="selected.name" />
+          <section class="search-section">
+            <h4 class="search-section-title">📄 文件（{{ searchResult?.files.length || 0 }}）</h4>
+            <div v-if="(searchResult?.files || []).length === 0" class="search-empty">无匹配文件</div>
+            <div v-else class="search-list">
+              <a v-for="f in searchResult.files" :key="'f'+f.id" class="search-item" :href="f.url" target="_blank" rel="noopener">
+                <span class="si-main">{{ displayName(f.name) }}</span>
+                <span class="si-sub">{{ f.categoryName || '未分类' }} · {{ formatSize(f.size) }}</span>
+              </a>
+            </div>
+          </section>
+
+          <section class="search-section">
+            <h4 class="search-section-title">📚 文章（{{ searchResult?.articles.length || 0 }}）</h4>
+            <div v-if="(searchResult?.articles || []).length === 0" class="search-empty">无匹配文章</div>
+            <div v-else class="search-list">
+              <div v-for="a in searchResult.articles" :key="'a'+a.id" class="search-item" @click="openSearchArticle(a)">
+                <span class="si-main">{{ a.title }}</span>
+                <span class="si-sub">{{ a.author || '未知' }} · {{ a.categoryName || '未分类' }} · 👁️ {{ a.views || 0 }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="search-section">
+            <h4 class="search-section-title">📦 项目（{{ searchResult?.projects.length || 0 }}）</h4>
+            <div v-if="(searchResult?.projects || []).length === 0" class="search-empty">无匹配项目</div>
+            <div v-else class="search-list">
+              <div v-for="p in searchResult.projects" :key="'p'+p.id" class="search-item" @click="selectProjectCategory(p)">
+                <span class="si-main">{{ p.project_name }}</span>
+                <span class="si-sub">{{ p.category_name || '未分类' }} · {{ p.manager || p.applicant_name || '' }} · {{ p.status || '未开始' }}</span>
+              </div>
+            </div>
+          </section>
         </div>
+
+        <!-- 常规分类视图 -->
+        <template v-else>
+          <nav class="rc-segments">
+            <button
+              v-for="s in visibleSegments"
+              :key="s.key"
+              class="rc-seg-btn"
+              :class="{ active: activeSegment === s.key }"
+              @click="activeSegment = s.key"
+            >
+              {{ s.label }}
+            </button>
+          </nav>
+
+          <div class="rc-content">
+            <FilePanel v-if="activeSegment === 'files'" :all="scope === 'all'" :categoryId="scope === 'category' ? (selected.id as number) : null" :categoryName="selected.name" />
+            <ArticlePanel v-else-if="activeSegment === 'articles'" :all="scope === 'all'" :categoryId="scope === 'category' ? (selected.id as number) : null" :categoryName="selected.name" />
+            <ProjectPanel v-else-if="activeSegment === 'projects'" :all="scope === 'all'" :categoryId="scope === 'category' ? (selected.id as number) : null" :categoryName="selected.name" />
+            <div v-else class="rc-no-segment">当前账号无资料中心访问权限</div>
+          </div>
+        </template>
       </main>
     </div>
 
@@ -108,7 +179,8 @@ import { useRouter } from 'vue-router'
 import { Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useMenuPermission } from '@/composables/useMenuPermission'
-import { getResourceCenterCategories, getFileCategories, addFileCategory, deleteFileCategory } from '../services/api'
+import { getResourceCenterCategories, getFileCategories, addFileCategory, deleteFileCategory, searchResourceCenter } from '../services/api'
+import type { ResourceSearchResult } from '../services/api'
 import FilePanel from '../components/resource/FilePanel.vue'
 import ArticlePanel from '../components/resource/ArticlePanel.vue'
 import ProjectPanel from '../components/resource/ProjectPanel.vue'
@@ -130,12 +202,20 @@ const stats = ref<{ categories: CategoryStat[]; uncategorized: { fileCount: numb
   totals: { files: 0, articles: 0, projects: 0 }
 })
 
-const selected = ref<{ id: number | null; name: string }>({ id: null, name: '未分类' })
+// 选中的分类节点：id 可为 数字(具体分类) / 'all'(跨分类全部) / null(未分类)
+const selected = ref<{ id: number | null | string; name: string }>({ id: null, name: '未分类' })
+const scope = computed<'all' | 'uncategorized' | 'category'>(() => {
+  if (selected.value.id === 'all') return 'all'
+  if (selected.value.id === null) return 'uncategorized'
+  return 'category'
+})
+const allTotal = computed(() => stats.value.totals.files + stats.value.totals.articles + stats.value.totals.projects)
 
+// 资料中心合并为单条菜单权限后，三个分段均受 /resource-center 控制
 const segments = [
-  { key: 'files', label: '文件', perm: '/file-storage' },
-  { key: 'articles', label: '文章', perm: '/knowledge-base' },
-  { key: 'projects', label: '项目信息', perm: '/project-category' }
+  { key: 'files', label: '文件', perm: '/resource-center' },
+  { key: 'articles', label: '文章', perm: '/resource-center' },
+  { key: 'projects', label: '项目信息', perm: '/resource-center' }
 ]
 const visibleSegments = computed(() => segments.filter(s => hasMenu(s.perm)))
 const activeSegment = ref('files')
@@ -161,6 +241,7 @@ const uncategorizedCount = computed(() => {
 const showAddCatDialog = ref(false)
 const newCat = ref({ name: '', description: '' })
 
+const selectAll = () => { selected.value = { id: 'all', name: '全部' } }
 const selectCategory = (id: number | null, name: string) => { selected.value = { id, name } }
 
 const loadCategories = async () => {
@@ -169,7 +250,7 @@ const loadCategories = async () => {
     if (res.success && res.data) stats.value = res.data
   } catch (e) { console.error('加载资料分类失败:', e) }
   // 若当前选中分类已不存在，回退到 未分类
-  if (selected.value.id !== null && !stats.value.categories.some(c => c.id === selected.value.id)) {
+  if (typeof selected.value.id === 'number' && !stats.value.categories.some(c => c.id === selected.value.id)) {
     selected.value = { id: null, name: '未分类' }
   }
 }
@@ -213,6 +294,63 @@ const removeCategory = async (cat: CategoryStat) => {
   }
 }
 
+// ===== 全局搜索 =====
+const searchKeyword = ref('')
+const searchResult = ref<ResourceSearchResult | null>(null)
+const searching = ref(false)
+const showSearch = computed(() => searchKeyword.value.trim().length > 0)
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+const doSearch = async () => {
+  const kw = searchKeyword.value.trim()
+  if (!kw) { searchResult.value = null; return }
+  searching.value = true
+  try {
+    const res = await searchResourceCenter(kw, localStorage.getItem('username') || '')
+    if (res.success) searchResult.value = res.data
+  } catch (e) { console.error('搜索失败:', e) }
+  finally { searching.value = false }
+}
+watch(searchKeyword, () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(doSearch, 300)
+})
+const clearSearch = () => { searchKeyword.value = ''; searchResult.value = null }
+
+const displayName = (raw: string) => {
+  if (!raw) return raw
+  if (!raw.includes('%')) return raw
+  try { return decodeURIComponent(raw) } catch { return raw }
+}
+const formatSize = (s: number) => {
+  if (!s) return '0 B'
+  if (s < 1024) return s + ' B'
+  if (s < 1048576) return (s / 1024).toFixed(1) + ' KB'
+  return (s / 1048576).toFixed(1) + ' MB'
+}
+const openSearchArticle = (a: any) => {
+  // 定位到该文章所属分类的文章分段，退出搜索态
+  const name = (a.categoryName || '').trim()
+  clearSearch()
+  if (name && stats.value.categories.some(c => c.name === name)) {
+    const cat = stats.value.categories.find(c => c.name === name)!
+    selectCategory(cat.id, cat.name)
+  } else {
+    selectCategory(null, '未分类')
+  }
+  activeSegment.value = 'articles'
+}
+const selectProjectCategory = (p: any) => {
+  const name = (p.category_name || '').trim()
+  clearSearch()
+  if (name && stats.value.categories.some(c => c.name === name)) {
+    const cat = stats.value.categories.find(c => c.name === name)!
+    selectCategory(cat.id, cat.name)
+  } else {
+    selectAll()
+  }
+  activeSegment.value = 'projects'
+}
+
 // 权限加载完成后校正可见段落与默认选中
 watch(visibleSegments, (vs) => {
   if (!vs.find(s => s.key === activeSegment.value) && vs.length > 0) activeSegment.value = vs[0].key
@@ -222,7 +360,7 @@ const goBack = () => router.push('/')
 
 onMounted(() => {
   loadCategories()
-  // 默认选中第一个分类（若有），否则未分类
+  // 默认选中第一个分类（若有），否则全部
   getFileCategories().then(res => {
     if (res.success && res.data && res.data.length > 0) selected.value = { id: res.data[0].id, name: res.data[0].name }
   }).catch(() => {})
@@ -231,13 +369,16 @@ onMounted(() => {
 
 <style scoped>
 .resource-center { display: flex; flex-direction: column; height: 100vh; background: #E4EDF2; overflow: hidden; }
-.rc-header { background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(100,149,237,0.3); padding: 0.6rem 1.5rem; display: flex; align-items: center; gap: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 100; }
+.rc-header { background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(100,149,237,0.3); padding: 0.6rem 1.5rem; display: flex; align-items: center; gap: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 100; flex-wrap: wrap; }
 .back-btn { color: #666; }
 .rc-title { font-size: 1.25rem; font-weight: 600; color: #333; display: flex; align-items: center; gap: 0.5rem; margin: 0; }
 .title-icon { font-size: 1.4rem; }
 .rc-spacer { flex: 1; }
 .rc-totals { display: flex; gap: 1rem; font-size: 0.85rem; color: #555; }
 .rc-totals span { background: rgba(100,149,237,0.1); padding: 0.25rem 0.6rem; border-radius: 12px; }
+.rc-search { display: flex; align-items: center; gap: 0.5rem; }
+.rc-search-input { width: 240px; }
+.rc-search-clear { color: #6495ED !important; }
 .manage-btn { background: linear-gradient(45deg,#6495ED,#87CEEB) !important; border: none !important; color: #fff !important; }
 
 .rc-body { flex: 1; min-height: 0; display: flex; }
@@ -252,6 +393,8 @@ onMounted(() => {
 .cat-node.dim:hover { opacity: 1; }
 .cat-node-main { display: flex; align-items: center; gap: 0.5rem; }
 .cat-dot { width: 8px; height: 8px; border-radius: 50%; background: #6495ED; flex-shrink: 0; }
+.cat-node.all-node { background: rgba(100,149,237,0.06); }
+.cat-node.all-node .all-dot { background: linear-gradient(45deg,#6495ED,#87CEEB); }
 .cat-node.uncat .uncat-dot { background: #faad14; }
 .cat-node-name { font-weight: 500; color: #333; font-size: 0.95rem; flex: 1; }
 .cat-del-btn { margin-left: auto; color: #d32f2f !important; opacity: 0.35; transition: opacity 0.2s; padding: 0 !important; height: auto !important; }
@@ -266,4 +409,16 @@ onMounted(() => {
 .rc-seg-btn:hover { background: rgba(100,149,237,0.08); color: #4169E1; }
 .rc-seg-btn.active { color: #4169E1; font-weight: 600; border-bottom-color: #6495ED; background: rgba(100,149,237,0.12); }
 .rc-content { flex: 1; min-height: 0; overflow-y: auto; padding: 1.25rem 1.5rem; }
+.rc-no-segment { color: #999; text-align: center; padding: 3rem; }
+
+.rc-search-results { flex: 1; min-height: 0; overflow-y: auto; padding: 1.25rem 1.5rem; }
+.search-summary { font-size: 0.9rem; color: #555; margin-bottom: 1rem; padding: 0.5rem 0.75rem; background: rgba(100,149,237,0.08); border-radius: 8px; }
+.search-section { margin-bottom: 1.5rem; }
+.search-section-title { font-size: 1rem; font-weight: 600; color: #333; margin: 0 0 0.6rem; border-left: 3px solid #6495ED; padding-left: 0.6rem; }
+.search-empty { color: #999; font-size: 0.85rem; padding: 0.5rem 0; }
+.search-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.search-item { display: flex; flex-direction: column; gap: 2px; padding: 0.6rem 0.8rem; background: #fff; border: 1px solid rgba(100,149,237,0.15); border-radius: 8px; cursor: pointer; transition: all 0.2s; text-decoration: none; color: inherit; }
+.search-item:hover { background: rgba(100,149,237,0.1); border-color: rgba(100,149,237,0.4); }
+.si-main { font-weight: 500; color: #333; font-size: 0.95rem; }
+.si-sub { font-size: 0.78rem; color: #8a94a6; }
 </style>

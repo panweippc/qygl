@@ -1750,6 +1750,40 @@ const initDatabase = async () => {
       console.log('检查/添加 resourceCategoryId 字段:', error.message);
     }
 
+    // 文件表结构补齐：upload.js 的上传入库依赖 mime_type / ext 两列，
+    // 若历史库缺列会导致「文件已落盘但入库报错」。此处幂等补齐，保证表结构与上传接口一致。
+    try {
+      for (const [col, ddl] of Object.entries({ mime_type: 'VARCHAR(255) DEFAULT NULL', ext: 'VARCHAR(20) DEFAULT NULL' })) {
+        const [exists] = await connection.execute('SHOW COLUMNS FROM files WHERE Field = ?', [col]);
+        if (exists.length === 0) {
+          await connection.execute(`ALTER TABLE files ADD COLUMN ${col} ${ddl}`);
+          console.log(`files.${col} 字段添加成功`);
+        }
+      }
+    } catch (error) {
+      console.log('检查/添加 files 扩展字段:', error.message);
+    }
+
+    // 文件名 URL 解码清洗：历史数据里可能存在形如 %E7%BB%BC%E5%90%88... 的未解码文件名，
+    // 统一还原为中文原名（逐行 try，非法转义序列的行跳过，不影响其它行）。
+    try {
+      const [allFiles] = await connection.execute('SELECT id, name FROM files');
+      const encodedFiles = allFiles.filter((f) => f.name && String(f.name).includes('%'));
+      let fixedCount = 0;
+      for (const row of encodedFiles) {
+        try {
+          const decoded = decodeURIComponent(row.name);
+          if (decoded && decoded !== row.name) {
+            await connection.execute('UPDATE files SET name = ? WHERE id = ?', [decoded, row.id]);
+            fixedCount += 1;
+          }
+        } catch (e) { /* 单行解码失败跳过 */ }
+      }
+      if (fixedCount > 0) console.log(`文件名 URL 解码清洗完成：修复 ${fixedCount} 条`);
+    } catch (error) {
+      console.log('文件名 URL 解码清洗失败:', error.message);
+    }
+
     // 初始化知识库示例分类
     const [existingKbCategories] = await connection.execute('SELECT * FROM knowledge_categories');
     if (existingKbCategories.length === 0) {
@@ -2018,16 +2052,15 @@ const initDatabase = async () => {
       const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
       // 所有侧边栏菜单定义（path → 菜单信息）
+      // 资料中心已合并为单条菜单（原 文件存储/知识库/产品分类 三条路径收敛为 /resource-center 一条权限）
       const allMenus = [
         // 办公管理
         { name: '审批中心', path: '/oa-office', component: 'OAWorkflowView', icon: '📝', sort: 1 },
         { name: '月报', path: '/monthly-report', component: 'MonthlyReportView', icon: '📅', sort: 2 },
         { name: '物资管理', path: '/tool-inventory', component: 'ToolInventoryView', icon: '🔧', sort: 3 },
-        { name: '文件存储', path: '/file-storage', component: 'FileStorageView', icon: '📁', sort: 4 },
-        { name: '知识库', path: '/knowledge-base', component: 'KnowledgeBaseView', icon: '📚', sort: 5 },
-        { name: '消息中心', path: '/message-center', component: 'MessageCenterView', icon: '💬', sort: 6 },
+        { name: '资料中心', path: '/resource-center', component: 'ResourceCenterView', icon: '📁', sort: 4 },
+        { name: '消息中心', path: '/message-center', component: 'MessageCenterView', icon: '💬', sort: 5 },
         // 业务管理
-        { name: '产品分类', path: '/project-category', component: 'ProjectCategoryView', icon: '📦', sort: 7 },
         { name: '销售漏斗', path: '/sales-funnel', component: 'SalesFunnelView', icon: '🔻', sort: 8 },
         { name: '销售目标', path: '/sales-target', component: 'SalesTargetView', icon: '🎯', sort: 9 },
         { name: '客户管理', path: '/customer-management', component: 'CustomerManagementView', icon: '👥', sort: 10 },
@@ -2071,6 +2104,48 @@ const initDatabase = async () => {
         }
       }
 
+      // 资料中心菜单合并（幂等）：把「文件存储 / 知识库 / 产品分类」三个旧菜单收敛为单个「资料中心」权限入口。
+      // 角色授权按并集迁移：原先拥有任一旧菜单的角色，合并后继续拥有资料中心。
+      try {
+        const [rcMenu] = await connection.execute('SELECT id FROM menus WHERE path = ?', ['/resource-center']);
+        const legacyPaths = ['/file-storage', '/knowledge-base', '/project-category'];
+        const legacyPh = legacyPaths.map(() => '?').join(',');
+        const [legacyMenus] = await connection.execute(`SELECT id, name FROM menus WHERE path IN (${legacyPh})`, legacyPaths);
+        if (rcMenu.length > 0 && legacyMenus.length > 0) {
+          const rcId = rcMenu[0].id;
+          const legacyIds = legacyMenus.map((m) => m.id);
+          const legacyIdPh = legacyIds.map(() => '?').join(',');
+
+          const [grantedRoles] = await connection.execute(
+            `SELECT DISTINCT roleId FROM role_permissions WHERE menuId IN (${legacyIdPh})`, legacyIds
+          );
+          for (const r of grantedRoles) {
+            await connection.execute(
+              'INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt) VALUES (?, ?, ?)',
+              [r.roleId, rcId, now]
+            );
+          }
+
+          const [grantedBtns] = await connection.execute(
+            `SELECT DISTINCT roleId, buttonKey FROM role_button_permissions WHERE menuId IN (${legacyIdPh})`, legacyIds
+          );
+          for (const b of grantedBtns) {
+            await connection.execute(
+              'INSERT IGNORE INTO role_button_permissions (roleId, menuId, buttonKey, createdAt) VALUES (?, ?, ?, ?)',
+              [b.roleId, rcId, b.buttonKey, now]
+            );
+          }
+
+          // 注意：role_button_permissions.menuId 没有外键，不会随菜单删除级联，必须显式清理
+          await connection.execute(`DELETE FROM role_button_permissions WHERE menuId IN (${legacyIdPh})`, legacyIds);
+          await connection.execute(`DELETE FROM role_permissions WHERE menuId IN (${legacyIdPh})`, legacyIds);
+          await connection.execute(`DELETE FROM menus WHERE id IN (${legacyIdPh})`, legacyIds);
+          console.log(`资料中心菜单合并完成：${legacyMenus.map((m) => m.name).join('、')} → 资料中心（迁移授权角色 ${grantedRoles.length} 个、按钮权限 ${grantedBtns.length} 条）`);
+        }
+      } catch (error) {
+        console.log('资料中心菜单合并失败:', error.message);
+      }
+
       // 为系统管理员和总经理角色分配所有菜单权限（仅首次运行时）
       // 如果 role_permissions 表中已有该角色的权限记录，说明已被手动配置过，跳过
       const [adminRoles] = await connection.execute(
@@ -2101,7 +2176,7 @@ const initDatabase = async () => {
         'SELECT id, name FROM roles WHERE name NOT IN (?, ?)',
         ['系统管理员', '总经理']
       );
-      const basicMenuPaths = ['/oa-office', '/monthly-report', '/tool-inventory', '/file-storage', '/knowledge-base', '/message-center'];
+      const basicMenuPaths = ['/oa-office', '/monthly-report', '/tool-inventory', '/resource-center', '/message-center'];
       for (const role of otherRoles) {
         const [existingPerms] = await connection.execute(
           'SELECT COUNT(*) as cnt FROM role_permissions WHERE roleId = ?',

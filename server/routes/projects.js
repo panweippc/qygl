@@ -172,9 +172,40 @@ async function ensureCategoryProjectsTable(pool) {
     manager VARCHAR(255),
     project_link VARCHAR(255),
     applicant_name VARCHAR(255),
+    status VARCHAR(50) DEFAULT '未开始',
+    progress INT DEFAULT 0,
+    start_date VARCHAR(20),
+    end_date VARCHAR(20),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   )`);
+  await ensureCategoryProjectColumns(pool);
+}
+
+// 已存在的旧表需要补列（CREATE TABLE IF NOT EXISTS 不会改结构），逐列幂等添加
+let cpColumnsReady = null;
+async function ensureCategoryProjectColumns(pool) {
+  if (cpColumnsReady) return cpColumnsReady;
+  cpColumnsReady = (async () => {
+    const columns = {
+      status: "VARCHAR(50) DEFAULT '未开始'",
+      progress: 'INT DEFAULT 0',
+      start_date: 'VARCHAR(20)',
+      end_date: 'VARCHAR(20)'
+    };
+    for (const [col, ddl] of Object.entries(columns)) {
+      try {
+        await pool.execute(`ALTER TABLE category_projects ADD COLUMN ${col} ${ddl}`);
+      } catch (e) {
+        if (e.code !== 'ER_DUP_FIELDNAME') {
+          console.error('[projects] 补列失败:', col, e.message);
+          cpColumnsReady = null; // 允许下次重试
+          return;
+        }
+      }
+    }
+  })();
+  return cpColumnsReady;
 }
 
 // 产品分类页卡统计（与产品分类菜单页同源：category_projects 表）
@@ -213,19 +244,21 @@ router.get('/project-categories/projects', async (req, res) => {
 // 新增分类下的项目（不写 project_applications，不进 OA 审批流）
 router.post('/project-categories/projects', async (req, res) => {
   const { pool } = req.app.locals;
-  const { categoryId, categoryName, projectName, description, link } = req.body;
+  const { categoryId, categoryName, projectName, description, link, manager, status, progress, startDate, endDate } = req.body;
   try {
     await ensureCategoryProjectsTable(pool);
     if (!projectName || !categoryName) {
       return res.status(400).json({ success: false, message: '缺少项目名或分类名' });
     }
     const applicant = getRealName(req) || '';
-    // 单负责人场景：负责人默认取当前登录用户（新增时不再手动选择）
-    const manager = applicant;
+    // 负责人：优先取前端选择的值；未选时默认当前登录用户（保持历史行为）
+    const owner = (manager && String(manager).trim()) || applicant;
+    const safeProgress = Math.min(100, Math.max(0, Number(progress) || 0));
     const [result] = await pool.execute(
-      `INSERT INTO category_projects (category_id, category_name, project_name, description, manager, project_link, applicant_name, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [categoryId || 0, categoryName, projectName, description || '', manager, link || '', applicant]
+      `INSERT INTO category_projects (category_id, category_name, project_name, description, manager, project_link, applicant_name, status, progress, start_date, end_date, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [categoryId || 0, categoryName, projectName, description || '', owner, link || '', applicant,
+        status || '未开始', safeProgress, startDate || null, endDate || null]
     );
     await createOperationLog(pool, {
       username: getOperator(req),
@@ -244,15 +277,34 @@ router.post('/project-categories/projects', async (req, res) => {
 router.put('/project-categories/projects/:id', requireOwnerOrRole(getCategoryProjectOwner, ...MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
-  const { projectName, description, link } = req.body;
+  const { projectName, description, link, manager, status, progress, startDate, endDate } = req.body;
   try {
     await ensureCategoryProjectsTable(pool);
-    // 单负责人场景：负责人始终为当前登录用户，编辑时不可修改（前端不再提交 manager）
-    const manager = getRealName(req) || '';
-    await pool.execute(
-      'UPDATE category_projects SET project_name = ?, description = ?, manager = ?, project_link = ?, updated_at = NOW() WHERE id = ?',
-      [projectName, description || '', manager, link || '', id]
-    );
+    // 动态组装更新字段：未提交的字段保持原值，避免把历史数据覆盖为空
+    const fields = ['project_name = ?', 'description = ?', 'project_link = ?', 'updated_at = NOW()'];
+    const params = [projectName, description || '', link || ''];
+    if (manager !== undefined && manager !== null && String(manager).trim() !== '') {
+      fields.push('manager = ?');
+      params.push(String(manager).trim());
+    }
+    if (status !== undefined) {
+      fields.push('status = ?');
+      params.push(status || '未开始');
+    }
+    if (progress !== undefined) {
+      fields.push('progress = ?');
+      params.push(Math.min(100, Math.max(0, Number(progress) || 0)));
+    }
+    if (startDate !== undefined) {
+      fields.push('start_date = ?');
+      params.push(startDate || null);
+    }
+    if (endDate !== undefined) {
+      fields.push('end_date = ?');
+      params.push(endDate || null);
+    }
+    params.push(id);
+    await pool.execute(`UPDATE category_projects SET ${fields.join(', ')} WHERE id = ?`, params);
     res.json({ success: true, message: '分类项目更新成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '更新分类项目失败' });

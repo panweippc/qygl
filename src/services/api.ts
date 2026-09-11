@@ -217,6 +217,31 @@ export const deleteFile = async (id: number): Promise<ApiResponse> => {
   return response.data;
 };
 
+// 批量把多个文件归入/移出资料分类（后端逐条校验，返回成功与跳过数量）
+export const batchUpdateFileCategory = async (ids: number[], categoryId: number | null): Promise<ApiResponse<{ updated: number; skipped: number }>> => {
+  const response = await api.put('/files/batch/category', { ids, categoryId });
+  return response.data;
+};
+
+// 批量删除文件（权限与单条删除一致）
+export const batchDeleteFiles = async (ids: number[]): Promise<ApiResponse<{ deleted: number }>> => {
+  const response = await api.post('/files/batch-delete', { ids });
+  return response.data;
+};
+
+// 资料中心全局搜索：一次请求跨 文件 / 文章 / 项目
+export interface ResourceSearchResult {
+  keyword: string;
+  files: any[];
+  articles: any[];
+  projects: any[];
+  counts: { files: number; articles: number; projects: number };
+}
+export const searchResourceCenter = async (keyword: string, username?: string): Promise<ApiResponse<ResourceSearchResult>> => {
+  const response = await api.get('/resource-center/search', { params: { keyword, username } });
+  return response.data;
+};
+
 // 产品分类管理
 export const getProjectCategories = async (): Promise<ApiResponse<Project[]>> => {
   const response = await api.get('/project-categories');
