@@ -293,6 +293,14 @@ function getReportMonth(reportDate) {
   return d.slice(0, 7);
 }
 
+// 按进展状态百分比归属到对应表：10-40%意向漏斗 / 41-90%重点漏斗 / 91-100%成交用户
+function destTypeByProgress(p) {
+  if (p >= 91 && p <= 100) return 'deal';
+  if (p >= 41 && p <= 90) return 'key';
+  if (p >= 10 && p <= 40) return 'intention';
+  return 'intention'; // 0 或无效值默认归意向漏斗
+}
+
 // 当前用户销售四表权限（供前端统一判断）
 router.get('/sales-four-tables/permission', requireSalesView, async (req, res) => {
   res.json({ success: true, data: req.salesPerm });
@@ -561,29 +569,32 @@ router.post('/sales-four-tables/:type', requireSalesWriter, async (req, res) => 
     await ensureSchema(pool);
     const createdBy = cleanOwner(req.user?.username);
     let table, body, columns, values, params;
+    let destType = type;
     if (type === 'project') {
       table = 'sales_project_analysis';
       body = extractProjectBody(req);
-      columns = Object.keys(body);
-      values = columns.map(() => '?');
-      params = Object.values(body);
     } else if (type === 'deal') {
       table = meta.table;
       body = extractDealBody(req);
-      columns = Object.keys(body);
-      values = columns.map(() => '?');
-      params = Object.values(body);
     } else {
-      table = meta.table;
-      body = extractFunnelBody(req, type);
-      columns = Object.keys(body);
-      values = columns.map(() => '?');
-      params = Object.values(body);
+      // 意向/重点漏斗：按进展百分比自动归属到对应表（10-40%意向 / 41-90%重点 / 91-100%成交）
+      const progress = parseNum(req.body.progress_percent);
+      destType = destTypeByProgress(progress);
+      if (destType === 'deal') {
+        table = 'sales_deal_customers';
+        body = extractDealBody(req);
+      } else {
+        table = TABLE_META[destType].table;
+        body = extractFunnelBody(req, destType);
+      }
     }
+    columns = Object.keys(body);
+    values = columns.map(() => '?');
+    params = Object.values(body);
     const sql = `INSERT INTO ${table} (${columns.join(', ')}, created_by) VALUES (${values.join(', ')}, ?)`;
     const [result] = await pool.execute(sql, [...params, createdBy]);
     const recordId = result.insertId;
-    await insertVersion(pool, type, recordId, { ...body, created_by: createdBy }, createdBy);
+    await insertVersion(pool, destType, recordId, { ...body, created_by: createdBy }, createdBy);
 
     // 大项目子表
     if (type === 'project') {
@@ -611,7 +622,7 @@ router.post('/sales-four-tables/:type', requireSalesWriter, async (req, res) => 
     }
 
     createOperationLog(pool, { username: getOperator(req), action: 'create', module: 'sales-four-tables', targetId: recordId, targetName: `${type} 数据`, detail: `创建${type}记录` });
-    res.json({ success: true, message: '创建成功', data: { id: recordId } });
+    res.json({ success: true, message: '创建成功', data: { id: recordId, destType } });
   } catch (error) {
     console.error('创建销售数据失败:', error);
     res.status(500).json({ success: false, message: '创建失败' });

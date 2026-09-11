@@ -157,13 +157,6 @@ function openEdit(row?: any) {
   editVisible.value = true
 }
 
-function targetTabByProgress(p: number): string | null {
-  if (p >= 10 && p <= 40) return 'intention'
-  if (p >= 41 && p <= 90) return 'key'
-  if (p >= 91 && p <= 100) return 'deal'
-  return null
-}
-
 async function save() {
   saving.value = true
   try {
@@ -174,8 +167,9 @@ async function save() {
       ElMessage.success('保存成功')
       editVisible.value = false
       load()
-      const target = targetTabByProgress(Number(editForm.value.progress_percent || 0))
-      if (target && target !== props.type) emit('progress-jump', target)
+      // 后端已按进展百分比把记录归属到对应表，跳转到该表页签即可看到刚保存的记录
+      const dest = json.data?.destType
+      if (dest && dest !== props.type) emit('progress-jump', dest)
     } else { ElMessage.error(json.message || '保存失败') }
   } catch (e: any) { ElMessage.error('保存失败: ' + e.message) }
   finally { saving.value = false }
