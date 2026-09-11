@@ -107,6 +107,9 @@ router.get('/knowledge/articles', async (req, res) => {
   const { pool } = req.app.locals;
   const username = req.query.username || '';
   const categoryId = req.query.categoryId ? Number(req.query.categoryId) : null;
+  // 资料中心：按统一分类（业务线 / file_categories）过滤；uncategorized=1 查未归类文章
+  const resourceCategoryId = req.query.resourceCategoryId ? Number(req.query.resourceCategoryId) : null;
+  const uncategorized = req.query.uncategorized === '1';
   const keyword = req.query.keyword || '';
   const page = Math.max(1, Number(req.query.page) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
@@ -117,6 +120,12 @@ router.get('/knowledge/articles', async (req, res) => {
     if (categoryId) {
       whereClauses.push('ka.categoryId = ?');
       params.push(categoryId);
+    }
+    if (uncategorized) {
+      whereClauses.push('ka.resourceCategoryId IS NULL');
+    } else if (resourceCategoryId) {
+      whereClauses.push('ka.resourceCategoryId = ?');
+      params.push(resourceCategoryId);
     }
     if (keyword) {
       whereClauses.push('(ka.title LIKE ? OR ka.summary LIKE ? OR ka.content LIKE ?)');
@@ -172,13 +181,13 @@ router.get('/knowledge/articles/:id', async (req, res) => {
 // 创建文章
 router.post('/knowledge/articles', requireRole(...MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
-  const { categoryId, title, content, summary, author, tags, sort, files, permission_type, permission_targets } = req.body;
+  const { categoryId, resourceCategoryId, title, content, summary, author, tags, sort, files, permission_type, permission_targets } = req.body;
   if (!title) return res.status(400).json({ success: false, message: '文章标题不能为空' });
   try {
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const [result] = await pool.execute(
-      'INSERT INTO knowledge_articles (categoryId, title, content, files, permission_type, permission_targets, summary, author, tags, sort, status, views, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [categoryId || null, title, content || '', JSON.stringify(files || []), permission_type || 'public', permission_targets || null, summary || '', author || '', tags || '', sort || 0, 'published', 0, now, now]
+      'INSERT INTO knowledge_articles (categoryId, resourceCategoryId, title, content, files, permission_type, permission_targets, summary, author, tags, sort, status, views, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [categoryId || null, resourceCategoryId || null, title, content || '', JSON.stringify(files || []), permission_type || 'public', permission_targets || null, summary || '', author || '', tags || '', sort || 0, 'published', 0, now, now]
     );
     res.json({ success: true, message: '文章创建成功', data: { id: result.insertId } });
   } catch (error) {
@@ -191,17 +200,17 @@ router.post('/knowledge/articles', requireRole(...MANAGER_ROLES), async (req, re
 router.put('/knowledge/articles/:id', requireRole(...MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
-  const { categoryId, title, content, summary, author, tags, sort, files, permission_type, permission_targets } = req.body;
+  const { categoryId, resourceCategoryId, title, content, summary, author, tags, sort, files, permission_type, permission_targets } = req.body;
   try {
-    const beforeValue = await getRecordBefore(pool, 'knowledge_articles', id, { categoryId: 1, title: 1, content: 1, permission_type: 1, summary: 1, author: 1, tags: 1, sort: 1 });
+    const beforeValue = await getRecordBefore(pool, 'knowledge_articles', id, { categoryId: 1, resourceCategoryId: 1, title: 1, content: 1, permission_type: 1, summary: 1, author: 1, tags: 1, sort: 1 });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await pool.execute(
-      'UPDATE knowledge_articles SET categoryId = ?, title = ?, content = ?, files = ?, permission_type = ?, permission_targets = ?, summary = ?, author = ?, tags = ?, sort = ?, updatedAt = ? WHERE id = ?',
-      [categoryId || null, title, content || '', JSON.stringify(files || []), permission_type || 'public', permission_targets || null, summary || '', author || '', tags || '', sort || 0, now, id]
+      'UPDATE knowledge_articles SET categoryId = ?, resourceCategoryId = ?, title = ?, content = ?, files = ?, permission_type = ?, permission_targets = ?, summary = ?, author = ?, tags = ?, sort = ?, updatedAt = ? WHERE id = ?',
+      [categoryId || null, resourceCategoryId || null, title, content || '', JSON.stringify(files || []), permission_type || 'public', permission_targets || null, summary || '', author || '', tags || '', sort || 0, now, id]
     );
     await logDataChange(pool, {
       module: 'knowledge', username: getOperator(req), targetId: id, targetName: `文章: ${title}`,
-      beforeValue, afterValue: { categoryId: categoryId || null, title, content: content || '', permission_type: permission_type || 'public', summary: summary || '', author: author || '', tags: tags || '', sort: sort || 0 }, ipAddress: req.ip
+      beforeValue, afterValue: { categoryId: categoryId || null, resourceCategoryId: resourceCategoryId || null, title, content: content || '', permission_type: permission_type || 'public', summary: summary || '', author: author || '', tags: tags || '', sort: sort || 0 }, ipAddress: req.ip
     });
     res.json({ success: true, message: '文章更新成功' });
   } catch (error) {

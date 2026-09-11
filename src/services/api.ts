@@ -182,6 +182,31 @@ export const getFiles = async (): Promise<ApiResponse<FileItem[]>> => {
   return response.data;
 };
 
+// 资料中心：统一分类（业务线）及每类的 文件/文章/项目 计数 + 未分类桶
+export interface ResourceCategoryStat {
+  id: number;
+  name: string;
+  description?: string;
+  fileCount: number;
+  articleCount: number;
+  projectCount: number;
+}
+export interface ResourceCenterCategories {
+  categories: ResourceCategoryStat[];
+  uncategorized: { fileCount: number; articleCount: number; projectCount: number };
+  totals: { files: number; articles: number; projects: number };
+}
+export const getResourceCenterCategories = async (): Promise<ApiResponse<ResourceCenterCategories>> => {
+  const response = await api.get('/resource-center/categories');
+  return response.data;
+};
+
+// 把文件归入/移出资料分类（整理未分类文件）
+export const updateFileCategory = async (fileId: number, categoryId: number | null): Promise<ApiResponse> => {
+  const response = await api.put(`/files/${fileId}/category`, { categoryId });
+  return response.data;
+};
+
 export const addFile = async (file: FormData | any): Promise<ApiResponse> => {
   const response = await api.post('/files', file);
   return response.data;

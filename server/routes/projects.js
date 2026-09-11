@@ -249,6 +249,22 @@ router.put('/project-categories/projects/:id', async (req, res) => {
   }
 });
 
+// 将项目重新归入其它资料分类（用于「未分类」项目整理）
+router.put('/project-categories/projects/:id/category', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id } = req.params;
+  const { categoryId, categoryName } = req.body;
+  try {
+    await ensureCategoryProjectsTable(pool);
+    if (!categoryName) return res.status(400).json({ success: false, message: '缺少分类名' });
+    await pool.execute('UPDATE category_projects SET category_id = ?, category_name = ? WHERE id = ?', [categoryId || 0, categoryName, id]);
+    res.json({ success: true, message: '已归入分类' });
+  } catch (error) {
+    console.error('归入分类失败:', error);
+    res.status(500).json({ success: false, message: '归入分类失败' });
+  }
+});
+
 // 删除分类下的项目
 router.delete('/project-categories/projects/:id', async (req, res) => {
   const { pool } = req.app.locals;

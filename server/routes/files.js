@@ -108,6 +108,41 @@ router.post('/files', async (req, res) => {
   }
 });
 
+// 把文件归入/移出某个资料分类（用于「未分类」文件的整理；非破坏性，上传者本人或管理员可操作）
+router.put('/files/:id/category', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id } = req.params;
+  const { categoryId } = req.body;
+  const username = req.user?.name || req.user?.username || '系统';
+  try {
+    const [fileRows] = await pool.execute('SELECT * FROM files WHERE id = ?', [id]);
+    if (fileRows.length === 0) {
+      return res.status(404).json({ success: false, message: '文件不存在' });
+    }
+    const file = fileRows[0];
+    const roleName = req.user?.roleName || '';
+    const isGM = roleName === '总经理' || roleName === '系统管理员' || username === '管理员' || username === '总经理' || /^admin$/i.test(username) || username === '李智鑫';
+    if (!isGM && !isOwner(req, file.uploaderId, file.uploaderName)) {
+      return res.status(403).json({ success: false, message: '无权调整该文件的分类' });
+    }
+    const nextCategoryId = categoryId === null || categoryId === '' || categoryId === undefined ? null : Number(categoryId);
+    await pool.execute('UPDATE files SET categoryId = ? WHERE id = ?', [nextCategoryId, id]);
+    await createOperationLog(pool, {
+      username,
+      action: 'update',
+      module: 'file',
+      targetId: id,
+      targetName: file.name,
+      detail: `调整文件分类: ${file.name} -> ${nextCategoryId === null ? '未分类' : '分类ID ' + nextCategoryId}`,
+      ipAddress: req.ip
+    });
+    res.json({ success: true, message: '分类已更新' });
+  } catch (error) {
+    console.error('调整文件分类失败:', error);
+    res.status(500).json({ success: false, message: '调整文件分类失败' });
+  }
+});
+
 router.delete('/files/:id', async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;

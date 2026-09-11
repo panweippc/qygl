@@ -57,6 +57,7 @@ import entertainmentRouter from './server/routes/entertainment.js';
 import salesImportRouter from './server/routes/sales-import.js';
 import salesFourTablesRouter from './server/routes/sales-four-tables.js';
 import knowledgeRouter from './server/routes/knowledge.js';
+import resourceCenterRouter from './server/routes/resource-center.js';
 import userProfileRouter from './server/routes/user-profile.js';
 import backupRouter from './server/routes/backup.js';
 import monitorRouter from './server/routes/monitor.js';
@@ -289,6 +290,7 @@ app.use('/api', entertainmentRouter);
 app.use('/api', salesImportRouter);
 app.use('/api', salesFourTablesRouter);
 app.use('/api', knowledgeRouter);
+app.use('/api', resourceCenterRouter);
 app.use('/api', userProfileRouter);
 app.use('/api', backupRouter);
 app.use('/api', monitorRouter);
@@ -1735,6 +1737,17 @@ const initDatabase = async () => {
       }
     } catch (error) {
       console.log('检查/添加 permission_targets 字段:', error.message);
+    }
+
+    // 资料中心统一分类：文章挂到「业务线分类」(file_categories) 上，原知识分类降级为类型标签
+    try {
+      const [resCatCol] = await connection.execute('SHOW COLUMNS FROM knowledge_articles WHERE Field = ?', ['resourceCategoryId']);
+      if (resCatCol.length === 0) {
+        await connection.execute('ALTER TABLE knowledge_articles ADD COLUMN resourceCategoryId INT NULL AFTER categoryId');
+        console.log('knowledge_articles.resourceCategoryId 字段添加成功');
+      }
+    } catch (error) {
+      console.log('检查/添加 resourceCategoryId 字段:', error.message);
     }
 
     // 初始化知识库示例分类
