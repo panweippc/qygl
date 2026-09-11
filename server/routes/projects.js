@@ -1,7 +1,17 @@
 import express from 'express';
 import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 import { getRealName } from '../utils/identity.js';
+import { requireOwnerOrRole } from '../middleware/auth.js';
 const router = express.Router();
+
+// 与 knowledge.js 保持同一套管理员白名单口径
+const MANAGER_ROLES = ['系统管理员', '总经理', '技术部经理', '销售部经理', '财务总监'];
+
+// 供「创建人本人或管理员」校验使用：取分类项目的 applicant_name 字段
+const getCategoryProjectOwner = async (pool, req) => {
+  const [rows] = await pool.execute('SELECT applicant_name FROM category_projects WHERE id = ?', [req.params.id]);
+  return rows.length > 0 ? rows[0].applicant_name : null;
+};
 
 router.get('/project-categories', async (req, res) => {
   const { pool } = req.app.locals;
@@ -230,8 +240,8 @@ router.post('/project-categories/projects', async (req, res) => {
   }
 });
 
-// 编辑分类下的项目
-router.put('/project-categories/projects/:id', async (req, res) => {
+// 编辑分类下的项目（创建人本人或管理员）
+router.put('/project-categories/projects/:id', requireOwnerOrRole(getCategoryProjectOwner, ...MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   const { projectName, description, link } = req.body;
@@ -265,8 +275,8 @@ router.put('/project-categories/projects/:id/category', async (req, res) => {
   }
 });
 
-// 删除分类下的项目
-router.delete('/project-categories/projects/:id', async (req, res) => {
+// 删除分类下的项目（创建人本人或管理员）
+router.delete('/project-categories/projects/:id', requireOwnerOrRole(getCategoryProjectOwner, ...MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   try {

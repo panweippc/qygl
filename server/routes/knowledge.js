@@ -1,9 +1,15 @@
 import express from 'express';
-import { requireRole } from '../middleware/auth.js';
+import { requireRole, requireOwnerOrRole } from '../middleware/auth.js';
 import { getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
 const MANAGER_ROLES = ['系统管理员', '总经理', '技术部经理', '销售部经理', '财务总监'];
+
+// 供「创建人本人或管理员」校验使用：取文章的 author 字段
+const getArticleAuthor = async (pool, req) => {
+  const [rows] = await pool.execute('SELECT author FROM knowledge_articles WHERE id = ?', [req.params.id]);
+  return rows.length > 0 ? rows[0].author : null;
+};
 
 async function getUserRole(pool, username) {
   if (!username) return null;
@@ -178,8 +184,8 @@ router.get('/knowledge/articles/:id', async (req, res) => {
   }
 });
 
-// 创建文章
-router.post('/knowledge/articles', requireRole(...MANAGER_ROLES), async (req, res) => {
+// 创建文章（所有可登录用户均可投稿，权限由全局 requireAuth 保证）
+router.post('/knowledge/articles', async (req, res) => {
   const { pool } = req.app.locals;
   const { categoryId, resourceCategoryId, title, content, summary, author, tags, sort, files, permission_type, permission_targets } = req.body;
   if (!title) return res.status(400).json({ success: false, message: '文章标题不能为空' });
@@ -196,8 +202,8 @@ router.post('/knowledge/articles', requireRole(...MANAGER_ROLES), async (req, re
   }
 });
 
-// 更新文章
-router.put('/knowledge/articles/:id', requireRole(...MANAGER_ROLES), async (req, res) => {
+// 更新文章（创建人本人或管理员）
+router.put('/knowledge/articles/:id', requireOwnerOrRole(getArticleAuthor, ...MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   const { categoryId, resourceCategoryId, title, content, summary, author, tags, sort, files, permission_type, permission_targets } = req.body;
@@ -219,8 +225,8 @@ router.put('/knowledge/articles/:id', requireRole(...MANAGER_ROLES), async (req,
   }
 });
 
-// 删除文章
-router.delete('/knowledge/articles/:id', requireRole(...MANAGER_ROLES), async (req, res) => {
+// 删除文章（创建人本人或管理员）
+router.delete('/knowledge/articles/:id', requireOwnerOrRole(getArticleAuthor, ...MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   try {

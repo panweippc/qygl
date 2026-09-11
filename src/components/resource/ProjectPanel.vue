@@ -2,7 +2,7 @@
   <div class="project-panel">
     <div class="pp-toolbar">
       <span class="pp-title">{{ categoryId !== null ? '「' + categoryName + '」' : '未分类 - ' }}项目信息 <span class="count-badge">{{ visibleProjects.length }}</span></span>
-      <el-button v-if="canManage" type="primary" size="small" @click="openAddProject">新增项目</el-button>
+      <el-button type="primary" size="small" @click="openAddProject">新增项目</el-button>
     </div>
 
     <el-alert
@@ -19,6 +19,7 @@
       <div v-if="visibleProjects.length === 0" class="empty-state">
         <span class="empty-icon">📦</span>
         <p>该分类下暂无项目信息</p>
+        <el-button type="primary" size="small" class="empty-cta" @click="openAddProject">在这里新增第一条项目信息</el-button>
       </div>
 
       <div v-for="project in visibleProjects" :key="project.id" class="project-item">
@@ -44,10 +45,10 @@
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <el-button v-if="canManage" size="small" @click="editProject(project)" class="action-btn">
+          <el-button v-if="isOwnerOrManager(project.applicant_name)" size="small" @click="editProject(project)" class="action-btn">
             <el-icon><Edit /></el-icon>
           </el-button>
-          <el-button v-if="canManage" size="small" @click="handleDeleteProject(project)" class="action-btn delete">
+          <el-button v-if="isOwnerOrManager(project.applicant_name)" size="small" @click="handleDeleteProject(project)" class="action-btn delete">
             <el-icon><Delete /></el-icon>
           </el-button>
         </div>
@@ -107,6 +108,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { Edit, Delete, Link, FolderOpened } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getCategoryProjects, addCategoryProject, updateCategoryProject, deleteCategoryProject, getFileCategories } from '../../services/api'
+import { useRoleGuard } from '@/composables/useRoleGuard'
 
 const props = defineProps<{
   categoryId: number | null
@@ -117,12 +119,9 @@ const loading = ref(false)
 const projects = ref<any[]>([])
 const categoryOptions = ref<{ id: number; name: string }[]>([])
 
-const currentUsername = computed(() => localStorage.getItem('username') || '当前用户')
-const canManage = computed(() => {
-  const role = (localStorage.getItem('roleName') || localStorage.getItem('role') || '').toLowerCase()
-  const uname = localStorage.getItem('username') || ''
-  return uname === '管理员' || ['总经理', '系统管理员'].includes(role) || role.includes('admin') || role.includes('gm')
-})
+const { userName, isOwnerOrManager, refresh: refreshRole } = useRoleGuard()
+
+const currentUsername = computed(() => userName.value || '当前用户')
 
 const validNames = computed(() => new Set(categoryOptions.value.map(c => c.name)))
 
@@ -212,7 +211,7 @@ const assignProject = async (project: any, categoryName: string) => {
 
 watch(() => props.categoryId, () => { /* visibleProjects 自动重算 */ })
 
-onMounted(() => { loadProjects(); loadCategories() })
+onMounted(() => { refreshRole(); loadProjects(); loadCategories() })
 </script>
 
 <style scoped>
@@ -239,4 +238,5 @@ onMounted(() => { loadProjects(); loadCategories() })
 .empty-state { text-align: center; padding: 3rem; color: #999; }
 .empty-icon { font-size: 3rem; display: block; margin-bottom: 0.5rem; }
 .empty-state p { margin: 0; }
+.empty-cta { margin-top: 0.9rem; }
 </style>

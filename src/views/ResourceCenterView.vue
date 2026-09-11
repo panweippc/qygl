@@ -12,44 +12,40 @@
         <span>文章 {{ stats.totals.articles }}</span>
         <span>项目 {{ stats.totals.projects }}</span>
       </div>
-      <el-button class="manage-btn" size="small" v-if="!isLiZhiXin" @click="showAddCatDialog = true">管理分类</el-button>
+      <el-button class="manage-btn" size="small" @click="showAddCatDialog = true">管理分类</el-button>
     </header>
 
     <div class="rc-body">
       <!-- 左侧统一分类树 -->
       <aside class="rc-sidebar">
-        <div class="sidebar-title">资料分类</div>
+        <div class="sidebar-title">
+          资料分类
+          <span class="count-hint">仅显示{{ segmentLabel }}计数</span>
+        </div>
         <div class="cat-tree">
           <div
             v-for="cat in stats.categories"
             :key="cat.id"
             class="cat-node"
-            :class="{ active: selected.id === cat.id }"
+            :class="{ active: selected.id === cat.id, dim: countOf(cat) === 0 }"
             @click="selectCategory(cat.id, cat.name)"
           >
             <div class="cat-node-main">
               <span class="cat-dot"></span>
               <span class="cat-node-name">{{ cat.name }}</span>
-              <el-dropdown v-if="isLiZhiXin" trigger="click" @command="() => removeCategory(cat)" class="cat-del">
-                <el-button text size="small" class="cat-del-btn"><el-icon><Delete /></el-icon></el-button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="del">删除分类</el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
+              <el-button text size="small" class="cat-del-btn" title="删除分类" @click.stop="removeCategory(cat)">
+                <el-icon><Delete /></el-icon>
+              </el-button>
             </div>
             <div class="cat-node-counts">
-              <span>📄 {{ cat.fileCount }}</span>
-              <span>📚 {{ cat.articleCount }}</span>
-              <span>📦 {{ cat.projectCount }}</span>
+              <span :class="{ zero: countOf(cat) === 0 }">{{ countIcon }} {{ countOf(cat) }}</span>
             </div>
           </div>
 
           <!-- 未分类桶 -->
           <div
             class="cat-node uncat"
-            :class="{ active: selected.id === null }"
+            :class="{ active: selected.id === null, dim: uncategorizedCount === 0 }"
             @click="selectCategory(null, '未分类')"
           >
             <div class="cat-node-main">
@@ -57,9 +53,7 @@
               <span class="cat-node-name">未分类</span>
             </div>
             <div class="cat-node-counts">
-              <span>📄 {{ stats.uncategorized.fileCount }}</span>
-              <span>📚 {{ stats.uncategorized.articleCount }}</span>
-              <span>📦 {{ stats.uncategorized.projectCount }}</span>
+              <span :class="{ zero: uncategorizedCount === 0 }">{{ countIcon }} {{ uncategorizedCount }}</span>
             </div>
           </div>
         </div>
@@ -146,13 +140,26 @@ const segments = [
 const visibleSegments = computed(() => segments.filter(s => hasMenu(s.perm)))
 const activeSegment = ref('files')
 
+// 侧边栏计数跟随当前段落，避免每个分类都堆三个数字（截图里 4 个分类都是「3 0 0」噪音很大）
+const segmentMeta: Record<string, { label: string; icon: string; key: 'fileCount' | 'articleCount' | 'projectCount' }> = {
+  files: { label: '文件', icon: '📄', key: 'fileCount' },
+  articles: { label: '文章', icon: '📚', key: 'articleCount' },
+  projects: { label: '项目信息', icon: '📦', key: 'projectCount' }
+}
+const segmentLabel = computed(() => segmentMeta[activeSegment.value]?.label || '文件')
+const countIcon = computed(() => segmentMeta[activeSegment.value]?.icon || '📄')
+const countOf = (cat: CategoryStat): number => {
+  const meta = segmentMeta[activeSegment.value]
+  return meta ? Number((cat as unknown as Record<string, unknown>)[meta.key] || 0) : 0
+}
+const uncategorizedCount = computed(() => {
+  const meta = segmentMeta[activeSegment.value]
+  if (!meta) return 0
+  return Number((stats.value.uncategorized as unknown as Record<string, unknown>)[meta.key] || 0)
+})
+
 const showAddCatDialog = ref(false)
 const newCat = ref({ name: '', description: '' })
-
-const currentUserName = (): string => {
-  try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u.name || u.username || localStorage.getItem('username') || '' } catch { return localStorage.getItem('username') || '' }
-}
-const isLiZhiXin = computed(() => currentUserName() === '李智鑫')
 
 const selectCategory = (id: number | null, name: string) => { selected.value = { id, name } }
 
@@ -182,14 +189,28 @@ const createCategory = async () => {
 
 const removeCategory = async (cat: CategoryStat) => {
   try {
-    await ElMessageBox.confirm(`确定删除分类「${cat.name}」吗？该分类下的文件也会被删除（文章/项目仅解除归属）。`, '警告', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
+    // 删除分类会连带删除该分类下的全部文件，且不可恢复；当前所有用户都可管理分类，
+    // 因此这里强制「输入分类名」二次确认，避免误点。
+    await ElMessageBox.prompt(
+      `分类「${cat.name}」下的 ${cat.fileCount} 个文件会被一并删除且无法恢复；该分类下的文章会转入「未分类」，项目信息会变为未归属。请输入分类名称以确认：`,
+      '删除分类（不可恢复）',
+      {
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        inputPlaceholder: cat.name,
+        inputValidator: (v: string) => (v || '').trim() === cat.name || '输入的分类名称不一致'
+      }
+    )
     const res = await deleteFileCategory(cat.id)
     if (res.success) {
       await loadCategories()
       if (selected.value.id === cat.id) selected.value = { id: null, name: '未分类' }
-      ElMessage.success('分类删除成功')
+      ElMessage.success('分类已删除')
     } else ElMessage.error(res.message || '删除分类失败')
-  } catch (e: any) { if (e !== 'cancel') ElMessage.error(e.message || '删除分类失败') }
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '删除分类失败')
+  }
 }
 
 // 权限加载完成后校正可见段落与默认选中
@@ -222,17 +243,21 @@ onMounted(() => {
 .rc-body { flex: 1; min-height: 0; display: flex; }
 .rc-sidebar { width: 260px; flex-shrink: 0; background: rgba(255,255,255,0.85); backdrop-filter: blur(5px); border-right: 1px solid rgba(100,149,237,0.2); padding: 1rem 0.75rem; overflow-y: auto; }
 .sidebar-title { padding: 0 0.5rem 0.75rem; font-size: 0.85rem; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 1px; }
+.count-hint { display: block; margin-top: 3px; font-size: 0.72rem; font-weight: 400; letter-spacing: 0; text-transform: none; color: #bbb; }
 .cat-tree { display: flex; flex-direction: column; gap: 0.5rem; }
 .cat-node { padding: 0.65rem 0.75rem; border-radius: 10px; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; }
 .cat-node:hover { background: rgba(100,149,237,0.1); }
 .cat-node.active { background: rgba(100,149,237,0.16); border-color: rgba(100,149,237,0.4); }
+.cat-node.dim { opacity: 0.55; }
+.cat-node.dim:hover { opacity: 1; }
 .cat-node-main { display: flex; align-items: center; gap: 0.5rem; }
 .cat-dot { width: 8px; height: 8px; border-radius: 50%; background: #6495ED; flex-shrink: 0; }
 .cat-node.uncat .uncat-dot { background: #faad14; }
 .cat-node-name { font-weight: 500; color: #333; font-size: 0.95rem; flex: 1; }
-.cat-del { margin-left: auto; }
-.cat-del-btn { color: #d32f2f !important; }
+.cat-del-btn { margin-left: auto; color: #d32f2f !important; opacity: 0.35; transition: opacity 0.2s; padding: 0 !important; height: auto !important; }
+.cat-node:hover .cat-del-btn { opacity: 1; }
 .cat-node-counts { display: flex; gap: 0.75rem; margin-top: 0.35rem; padding-left: 1.1rem; font-size: 0.75rem; color: #888; }
+.cat-node-counts span.zero { color: #c8ccd4; }
 .cat-empty { padding: 1.5rem 0.5rem; color: #999; font-size: 0.85rem; text-align: center; }
 
 .rc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }

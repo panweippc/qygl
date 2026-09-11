@@ -45,12 +45,16 @@ router.post('/file-categories', requireRole(), async (req, res) => {
   }
 });
 
-router.delete('/file-categories/:id', requireRole('系统管理员', '总经理'), async (req, res) => {
+// 删除文件分类（所有登录用户均可管理分类；会连带删除该分类下的文件，前端已加输入分类名二次确认）
+router.delete('/file-categories/:id', requireRole(), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   const username = req.user?.name || req.user?.username || '系统';
   try {
+    // 文件真实存在于该分类下，随分类一起删除
     await pool.execute('DELETE FROM files WHERE categoryId = ?', [id]);
+    // 文章只解除归属：置空后自动落入「未分类」桶，避免变成任何分类都查不到的孤儿数据
+    await pool.execute('UPDATE knowledge_articles SET resourceCategoryId = NULL WHERE resourceCategoryId = ?', [id]);
     await pool.execute('DELETE FROM file_categories WHERE id = ?', [id]);
     await createOperationLog(pool, {
       username,

@@ -5,13 +5,14 @@
         <template #prefix><span>🔍</span></template>
       </el-input>
       <el-button size="small" type="primary" @click="search">搜索</el-button>
-      <el-button v-if="hasPerm('btn_add') && isManager" size="small" type="primary" @click="openNewArticle">写文章</el-button>
+      <el-button size="small" type="primary" @click="openNewArticle">写文章</el-button>
     </div>
 
     <div class="article-list" v-loading="loading">
       <div v-if="articles.length === 0" class="empty-state">
         <span class="empty-icon">📭</span>
         <p>该分类下暂无文章</p>
+        <el-button type="primary" size="small" class="empty-cta" @click="openNewArticle">在这里写第一篇文章</el-button>
       </div>
       <div v-for="article in articles" :key="article.id" class="article-card" @click="openArticle(article)">
         <div class="article-header">
@@ -21,8 +22,8 @@
           </div>
           <div class="article-actions" @click.stop>
             <el-tag size="small" class="cat-tag">{{ article.categoryName || '未分类' }}</el-tag>
-            <el-button v-if="hasPerm('btn_edit') && isManager" text size="small" @click.stop="editArticle(article)">✏️</el-button>
-            <el-popconfirm v-if="hasPerm('btn_delete') && isManager" title="确定删除此文章？" confirm-button-text="删除" @confirm="deleteArticle(article.id)">
+            <el-button v-if="isOwnerOrManager(article.author)" text size="small" @click.stop="editArticle(article)">✏️</el-button>
+            <el-popconfirm v-if="isOwnerOrManager(article.author)" title="确定删除此文章？" confirm-button-text="删除" @confirm="deleteArticle(article.id)">
               <template #reference>
                 <el-button text size="small" type="danger">🗑️</el-button>
               </template>
@@ -57,6 +58,7 @@
             <el-select v-model="articleForm.resourceCategoryId" placeholder="选择资料分类" clearable style="width:100%">
               <el-option v-for="c in unifiedCategories" :key="c.id" :label="c.name" :value="c.id" />
             </el-select>
+            <div class="form-hint">必选：文章会归入该资料分类，便于在左侧分类树中查找</div>
           </el-form-item>
           <el-form-item label="文档类型" style="flex:1">
             <el-select v-model="articleForm.categoryId" placeholder="选择类型标签" clearable style="width:100%">
@@ -185,7 +187,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useButtonPermission } from '@/composables/usePermission'
+import { useRoleGuard } from '@/composables/useRoleGuard'
 import { Plus, Delete, Document, Download } from '@element-plus/icons-vue'
 import * as mammoth from 'mammoth'
 import { QuillEditor } from '@vueup/vue-quill'
@@ -198,29 +200,9 @@ const props = defineProps<{
   categoryName: string
 }>()
 
-const { hasPerm } = useButtonPermission()
+const { isOwnerOrManager, refresh: refreshRole } = useRoleGuard()
 const loading = ref(false)
 const saving = ref(false)
-
-const currentRole = ref(localStorage.getItem('role') || '')
-const isManager = computed(() => {
-  const role = currentRole.value
-  const username = localStorage.getItem('username')
-  return role === 'admin' || username === '总经理' || username === '管理员' ||
-    ['系统管理员', '总经理', '技术部经理', '销售部经理', '财务总监'].includes(role || '')
-})
-
-const fetchCurrentRole = async () => {
-  const username = localStorage.getItem('username')
-  if (!username) return
-  try {
-    const res = await fetch('/api/user/role?username=' + username).then(r => r.json())
-    if (res.success && res.data && res.data.roleName) {
-      currentRole.value = res.data.roleName
-      localStorage.setItem('role', res.data.roleName)
-    }
-  } catch { /* ignore */ }
-}
 
 const uploadRef = ref<any>(null)
 const formRef = ref<any>(null)
@@ -452,7 +434,7 @@ const previewFile = async (file: any) => {
 watch(() => props.categoryId, () => { currentPage.value = 1; keyword.value = ''; fetchArticles() })
 
 onMounted(() => {
-  fetchCurrentRole(); fetchCategories(); fetchUnifiedCategories(); fetchUsers(); fetchRoles(); fetchTags(); fetchArticles()
+  refreshRole(); fetchCategories(); fetchUnifiedCategories(); fetchUsers(); fetchRoles(); fetchTags(); fetchArticles()
 })
 </script>
 
@@ -474,8 +456,10 @@ onMounted(() => {
 .empty-state { text-align: center; padding: 3rem; color: #999; }
 .empty-icon { font-size: 3rem; display: block; margin-bottom: 0.5rem; }
 .empty-state p { margin: 0; }
+.empty-cta { margin-top: 0.9rem; }
 .pagination-bar { display: flex; justify-content: center; padding: 1rem 0; }
 .form-row { display: flex; gap: 1rem; }
+.form-hint { font-size: 0.72rem; color: #aaa; line-height: 1.4; margin-top: 2px; }
 .editor-container { min-height: 400px; }
 .perm-checkboxes { margin-top: 8px; max-height: 160px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 4px 0; }
 .article-detail { }
