@@ -30,7 +30,10 @@
           </div>
           <div class="project-description">{{ project.description || '暂无描述' }}</div>
           <div class="project-meta">
-            <span v-if="project.manager || project.applicant_name">负责人: {{ project.manager || project.applicant_name }}</span>
+            <span v-if="splitManagers(project.manager).length" class="manager-line">负责人:
+              <el-tag v-for="m in splitManagers(project.manager)" :key="m" size="small" class="manager-tag">{{ m }}</el-tag>
+            </span>
+            <span v-else-if="project.applicant_name">负责人: {{ project.applicant_name }}</span>
             <span v-if="project.start_date || project.end_date">周期: {{ project.start_date || '—' }} ~ {{ project.end_date || '—' }}</span>
           </div>
           <div class="project-progress">
@@ -84,7 +87,7 @@
           <el-input v-model="addForm.link" placeholder="请输入项目链接" />
         </el-form-item>
         <el-form-item label="负责人">
-          <el-select v-model="addForm.manager" placeholder="选择负责人（默认当前用户）" filterable clearable style="width:100%">
+          <el-select v-model="addForm.manager" multiple filterable clearable collapse-tags collapse-tags-tooltip placeholder="选择负责人（可多选，默认当前用户）" style="width:100%">
             <el-option v-for="u in userList" :key="u.id" :label="u.name" :value="u.name" />
           </el-select>
         </el-form-item>
@@ -129,7 +132,7 @@
           <el-input v-model="editForm.link" placeholder="请输入项目链接" />
         </el-form-item>
         <el-form-item label="负责人">
-          <el-select v-model="editForm.manager" placeholder="选择负责人" filterable clearable style="width:100%">
+          <el-select v-model="editForm.manager" multiple filterable clearable collapse-tags collapse-tags-tooltip placeholder="选择负责人（可多选）" style="width:100%">
             <el-option v-for="u in userList" :key="u.id" :label="u.name" :value="u.name" />
           </el-select>
         </el-form-item>
@@ -196,6 +199,11 @@ const statusColor = (s: string) => {
     default: return '#8c8c8c'
   }
 }
+// 将逗号分隔的负责人字段拆成数组（兼容历史单值）
+const splitManagers = (m: any): string[] => {
+  if (!m) return []
+  return String(m).split(',').map((s: string) => s.trim()).filter(Boolean)
+}
 
 const validNames = computed(() => new Set(categoryOptions.value.map(c => c.name)))
 
@@ -223,12 +231,12 @@ const loadMembers = async () => {
 }
 
 const addDialogVisible = ref(false)
-const addForm = ref({ name: '', description: '', link: '', categoryName: '', manager: '', status: '未开始', progress: 0, dateRange: [] as string[] })
+const addForm = ref({ name: '', description: '', link: '', categoryName: '', manager: [] as string[], status: '未开始', progress: 0, dateRange: [] as string[] })
 const openAddProject = () => {
   addForm.value = {
     name: '', description: '', link: '',
     categoryName: props.categoryId !== null ? props.categoryName : '',
-    manager: currentUsername.value,
+    manager: [currentUsername.value],
     status: '未开始', progress: 0, dateRange: []
   }
   addDialogVisible.value = true
@@ -257,14 +265,14 @@ const submitAddProject = async () => {
 }
 
 const editDialogVisible = ref(false)
-const editForm = ref({ id: 0, name: '', description: '', link: '', manager: '', status: '未开始', progress: 0, dateRange: [] as string[] })
+const editForm = ref({ id: 0, name: '', description: '', link: '', manager: [] as string[], status: '未开始', progress: 0, dateRange: [] as string[] })
 const editProject = (project: any) => {
   editForm.value = {
     id: project.id,
     name: project.project_name,
     description: project.description || '',
     link: project.project_link || '',
-    manager: project.manager || project.applicant_name || currentUsername.value,
+    manager: project.manager ? String(project.manager).split(',').map((s: string) => s.trim()).filter(Boolean) : [],
     status: project.status || '未开始',
     progress: Number(project.progress) || 0,
     dateRange: [project.start_date, project.end_date].filter(Boolean)
@@ -334,6 +342,8 @@ onMounted(() => { refreshRole(); loadProjects(); loadCategories(); loadMembers()
 .status-tag { color: #fff; font-size: 0.72rem; padding: 0.1rem 0.5rem; border-radius: 10px; font-weight: 600; }
 .project-description { color: rgba(51,51,51,0.7); font-size: 0.85rem; margin-bottom: 0.5rem; line-height: 1.4; }
 .project-meta { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.8rem; color: #6495ED; margin-bottom: 0.5rem; }
+.manager-line { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.manager-tag { margin-left: 2px; }
 .project-progress { margin-bottom: 0.5rem; max-width: 420px; }
 .project-manager { font-size: 0.8rem; color: #6495ED; margin-bottom: 0.4rem; }
 .form-row { display: flex; gap: 1rem; }

@@ -208,6 +208,13 @@ async function ensureCategoryProjectColumns(pool) {
   return cpColumnsReady;
 }
 
+// 负责人归一化：支持多选（数组）或单值/逗号串，统一转成逗号分隔字符串存储；空值返回 ''
+function normalizeManager(m) {
+  if (Array.isArray(m)) return m.map(s => String(s).trim()).filter(Boolean).join(',');
+  if (m === undefined || m === null) return '';
+  return String(m).split(',').map(s => s.trim()).filter(Boolean).join(',');
+}
+
 // 产品分类页卡统计（与产品分类菜单页同源：category_projects 表）
 router.get('/project-categories/stats', async (req, res) => {
   const { pool } = req.app.locals;
@@ -222,15 +229,16 @@ router.get('/project-categories/stats', async (req, res) => {
   }
 });
 
-// 列出某分类（或全部）下的项目
-// 列表某分类（或全部）下的项目
+// 列出某分类（或全部）下的项目；?manager=姓名 按负责人精确筛选（manager 逗号分隔多人，FIND_IN_SET 匹配单人）
 router.get('/project-categories/projects', async (req, res) => {
   const { pool } = req.app.locals;
   try {
     await ensureCategoryProjectsTable(pool);
-    const { category } = req.query;
+    const { category, manager } = req.query;
     let rows;
-    if (category) {
+    if (manager) {
+      [rows] = await pool.execute('SELECT * FROM category_projects WHERE FIND_IN_SET(?, manager) ORDER BY id DESC', [manager]);
+    } else if (category) {
       [rows] = await pool.execute('SELECT * FROM category_projects WHERE category_name = ? ORDER BY id DESC', [category]);
     } else {
       [rows] = await pool.execute('SELECT * FROM category_projects ORDER BY id DESC');
@@ -251,8 +259,8 @@ router.post('/project-categories/projects', async (req, res) => {
       return res.status(400).json({ success: false, message: '缺少项目名或分类名' });
     }
     const applicant = getRealName(req) || '';
-    // 负责人：优先取前端选择的值；未选时默认当前登录用户（保持历史行为）
-    const owner = (manager && String(manager).trim()) || applicant;
+    // 负责人：支持多选（数组），逗号拼接存储；未选时默认当前登录用户（保持历史行为）
+    const owner = normalizeManager(manager) || applicant;
     const safeProgress = Math.min(100, Math.max(0, Number(progress) || 0));
     const [result] = await pool.execute(
       `INSERT INTO category_projects (category_id, category_name, project_name, description, manager, project_link, applicant_name, status, progress, start_date, end_date, created_at, updated_at)
@@ -283,9 +291,10 @@ router.put('/project-categories/projects/:id', requireOwnerOrRole(getCategoryPro
     // 动态组装更新字段：未提交的字段保持原值，避免把历史数据覆盖为空
     const fields = ['project_name = ?', 'description = ?', 'project_link = ?', 'updated_at = NOW()'];
     const params = [projectName, description || '', link || ''];
-    if (manager !== undefined && manager !== null && String(manager).trim() !== '') {
+    if (manager !== undefined && manager !== null) {
+      // 支持多选（数组）或清空（空串/空数组 -> 置空）
       fields.push('manager = ?');
-      params.push(String(manager).trim());
+      params.push(normalizeManager(manager));
     }
     if (status !== undefined) {
       fields.push('status = ?');
