@@ -23,8 +23,8 @@ router.get('/customers', async (req, res) => {
     const offset = (page - 1) * pageSize;
 
     const [customers] = await pool.execute(
-      'SELECT * FROM customers' + whereStr + ' ORDER BY createdAt DESC LIMIT ? OFFSET ?',
-      [...params, pageSize, offset]
+      'SELECT * FROM customers' + whereStr + ` ORDER BY createdAt DESC LIMIT ${pageSize} OFFSET ${offset}`,
+      params
     );
     res.json({ success: true, data: { list: customers, total, page, pageSize } });
   } catch (error) {

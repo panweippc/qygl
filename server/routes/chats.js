@@ -33,9 +33,11 @@ router.get('/chats/:chatId/messages', async (req, res) => {
   const { limit = 50, offset = 0 } = req.query;
 
   try {
+    const limitNum = parseInt(limit) || 50;
+    const offsetNum = parseInt(offset) || 0;
     const [messages] = await pool.execute(
-      'SELECT * FROM messages WHERE chatId = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?',
-      [chatId, parseInt(limit), parseInt(offset)]
+      `SELECT * FROM messages WHERE chatId = ? ORDER BY createdAt DESC LIMIT ${limitNum} OFFSET ${offsetNum}`,
+      [chatId]
     );
 
     res.json({ success: true, messages: messages.reverse() });

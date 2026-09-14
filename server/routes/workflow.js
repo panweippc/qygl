@@ -88,8 +88,7 @@ router.get('/projects', async (req, res) => {
     if (hasPagination) {
       const page = parseInt(req.query.page, 10) || 1;
       const pageSize = parseInt(req.query.pageSize, 10) || 10;
-      sql += ' LIMIT ? OFFSET ?';
-      params.push(pageSize, (page - 1) * pageSize);
+      sql += ` LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`;
     }
 
     const [projects] = await pool.query(sql, params);
@@ -619,8 +618,7 @@ router.get('/business-trips', async (req, res) => {
       params.push(status);
     }
 
-    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    params.push(size, offset);
+    sql += ` ORDER BY created_at DESC LIMIT ${size} OFFSET ${offset}`;
 
     const [trips] = await pool.query(sql, params);
 

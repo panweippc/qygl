@@ -42,8 +42,9 @@ router.get('/business-trips', async (req, res) => {
     }
 
     sql += ' AND (is_deleted = 0 OR is_deleted IS NULL)';
-    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(pageSize), (parseInt(page) - 1) * parseInt(pageSize));
+    const btPage = parseInt(page) || 1;
+    const btSize = parseInt(pageSize) || 10;
+    sql += ` ORDER BY created_at DESC LIMIT ${btSize} OFFSET ${(btPage - 1) * btSize}`;
 
     const [trips] = await pool.query(sql, params);
 

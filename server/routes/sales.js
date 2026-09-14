@@ -366,8 +366,8 @@ router.get('/sales-opportunities', async (req, res) => {
     const offset = (page - 1) * pageSize;
 
     const [rows] = await pool.execute(
-      'SELECT ts.id, ts.name as townName, ts.contactPerson, ts.contactPhone, ts.manager, ts.intention, ts.sales, ts.countyId, cs.cityId, cs.name as countyName FROM town_sales ts LEFT JOIN county_sales cs ON ts.countyId = cs.id' + whereStr + ' ORDER BY ts.createdAt DESC LIMIT ? OFFSET ?',
-      [...params, pageSize, offset]
+      'SELECT ts.id, ts.name as townName, ts.contactPerson, ts.contactPhone, ts.manager, ts.intention, ts.sales, ts.countyId, cs.cityId, cs.name as countyName FROM town_sales ts LEFT JOIN county_sales cs ON ts.countyId = cs.id' + whereStr + ` ORDER BY ts.createdAt DESC LIMIT ${pageSize} OFFSET ${offset}`,
+      params
     );
 
     // 获取每个乡镇的最后一条拜访记录
