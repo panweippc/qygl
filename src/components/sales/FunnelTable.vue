@@ -13,7 +13,7 @@
     </div>
 
     <div class="ft-table-wrapper">
-      <el-table :data="list" v-loading="loading" stripe style="width:100%" @row-click="(_, __, e) => e && openEdit(_)">
+      <el-table :data="list" v-loading="loading" stripe style="width:100%" @row-click="(_, __, e) => (e && perm.canWrite) && openEdit(_)">
         <el-table-column type="index" width="50" />
         <el-table-column prop="owner" label="owner" width="100" />
         <el-table-column prop="customer_name" label="客户名单" min-width="140" show-overflow-tooltip>

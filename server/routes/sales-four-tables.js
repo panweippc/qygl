@@ -18,6 +18,10 @@ const VIEW_ROLES = ['系统管理员', '总经理', '销售部经理', '业务�
 // 判断是否是销售数据写入者（总经理仅查看）
 async function getSalesPermission(pool, username) {
   if (!username) return { canWrite: false, canView: false };
+  // 李智鑫（总经理）在销售漏斗仅查看、不写入
+  if (username === '李智鑫') {
+    return { canWrite: false, canView: true, isAdmin: true };
+  }
   if (username === '管理员' || /^admin$/i.test(username)) {
     return { canWrite: true, canView: true, isAdmin: true };
   }
@@ -89,6 +93,102 @@ const TABLE_META = {
     headers: ['owner', '销售类型', '收入类型', '申报日期', '产品类型', '客户名单', '联系人', '电话', '站点数', '合同额', '实际金额', '回款金额', '未回款金额', '备注']
   }
 };
+
+// 漏斗类（意向/重点/成交）DB 字段 → 中文标签
+const FUNNEL_FIELD_LABELS = {
+  owner: '负责人',
+  sales_type: '销售类型',
+  revenue_type: '收入类型',
+  report_date: '申报日期',
+  product_type: '产品类型',
+  partner_name: '合作伙伴名称',
+  competitor: '主要竞争对手',
+  customer_name: '客户名单',
+  contact: '联系人',
+  phone: '电话',
+  site_count: '站点数',
+  monthly_repayment: '本月回款金额',
+  monthly_confidence: '本月回款把握度',
+  estimated_total: '预计总回款额',
+  progress_percent: '进展状态百分比',
+  sales_status: '销售状态',
+  estimated_repay_month: '预计回款月份',
+  opportunity_assessment: '主观机会度判断',
+  success_or_giveup: '成功/放弃',
+  company_support: '公司级支持需求',
+  remark: '备注',
+  report_month: '申报月份',
+  created_by: '提交人',
+  created_at: '创建时间',
+  updated_at: '更新时间'
+};
+
+// 大项目进展 DB 字段 → 中文标签
+const PROJECT_FIELD_LABELS = {
+  customer_name: '客户名称',
+  report_date: '申报日期',
+  unit_nature: '单位性质',
+  staff_size: '人员规模',
+  financial_status: '资金状况',
+  network_coverage: '现有网络覆盖',
+  server_room: '服务器及机房',
+  is_uf_customer: '是否用友老客户',
+  informatization_plan: '信息化规划',
+  plan_3_5_years: '3-5年规划',
+  project_budget: '项目预算',
+  other_intro: '客户其他情况',
+  project_start_time: '项目启动时间',
+  project_owner: '项目负责人',
+  leader_attention: '领导关注',
+  planned_online_modules: '计划上线模块',
+  is_bidding: '是否招标',
+  expandable_modules: '可扩展模块',
+  project_value: '项目价值',
+  current_progress: '当前进展',
+  customer_evaluation: '客户评价',
+  our_pros_cons: '我方优劣势',
+  current_difficulties: '当前困难',
+  pre_support_content: '前期支持内容',
+  risk_customer_demand: '风险-客户需求',
+  risk_business_relationship: '风险-商务关系',
+  risk_competitor: '风险-竞争对手',
+  risk_project_online: '风险-项目上线',
+  action_plan_business: '行动计划-商务',
+  action_plan_product: '行动计划-产品',
+  action_plan_solution: '行动计划-方案',
+  action_plan_meeting: '行动计划-会议',
+  support_time: '支持时间',
+  sales_plan: '销售计划',
+  next_plan_arrangement: '下步安排',
+  filler: '填写人',
+  report_month: '申报月份',
+  created_by: '提交人',
+  created_at: '创建时间',
+  updated_at: '更新时间'
+};
+
+function fieldLabelOf(type, key) {
+  const map = type === 'project' ? PROJECT_FIELD_LABELS : FUNNEL_FIELD_LABELS;
+  return map[key] || key;
+}
+
+function buildDiff(oldData, newData, type) {
+  const diffs = [];
+  const keys = new Set([...Object.keys(oldData || {}), ...Object.keys(newData || {})]);
+  for (const k of keys) {
+    const oldVal = oldData?.[k] ?? '';
+    const newVal = newData?.[k] ?? '';
+    if (String(oldVal) !== String(newVal)) {
+      diffs.push({ field: k, label: fieldLabelOf(type, k), old: oldVal, new: newVal });
+    }
+  }
+  return diffs;
+}
+
+function safeParseJSON(str) {
+  try { return str ? JSON.parse(str) : {}; } catch { return {}; }
+}
+
 
 async function ensureSchema(pool) {
   const commonCols = `
@@ -735,42 +835,59 @@ router.get('/sales-four-tables/:type/:id/versions', requireSalesView, async (req
   }
 });
 
-// diff 对比
+// diff 对比：支持 mode=chain（每次提交与上一版链式差异）与显式 oldVersion/newVersion 任意两版对比
 router.get('/sales-four-tables/:type/:id/diff', requireSalesView, async (req, res) => {
   const { pool } = req.app.locals;
   const { type, id } = req.params;
-  const { v1, v2 } = req.query;
+  const { oldVersion, newVersion, mode } = req.query;
   try {
     await ensureSchema(pool);
-    let a, b;
-    if (!v1 && !v2) {
-      // 默认对比最新两个版本
-      const [rows] = await pool.execute(
-        'SELECT data_json FROM sales_table_versions WHERE table_type = ? AND record_id = ? ORDER BY version DESC LIMIT 2',
-        [type, id]
-      );
-      if (rows.length < 2) return res.json({ success: true, data: [] });
-      a = JSON.parse(rows[0].data_json);
-      b = JSON.parse(rows[1].data_json);
-    } else {
-      const [rows] = await pool.execute(
-        'SELECT version, data_json FROM sales_table_versions WHERE table_type = ? AND record_id = ? AND version IN (?, ?) ORDER BY version',
-        [type, id, parseInt(v1 || 0), parseInt(v2 || 0)]
-      );
-      if (rows.length < 2) return res.json({ success: true, data: [] });
-      a = JSON.parse(rows[0].data_json);
-      b = JSON.parse(rows[1].data_json);
-    }
-    const diffs = [];
-    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-    for (const k of keys) {
-      const oldVal = b[k] ?? '';
-      const newVal = a[k] ?? '';
-      if (String(oldVal) !== String(newVal)) {
-        diffs.push({ field: k, old: oldVal, new: newVal });
+    const [rows] = await pool.execute(
+      'SELECT version, data_json, created_by, created_at FROM sales_table_versions WHERE table_type = ? AND record_id = ? ORDER BY version ASC',
+      [type, id]
+    );
+    if (rows.length === 0) return res.json({ success: true, data: [], chain: [] });
+    const versionsData = rows.map(r => ({
+      version: r.version,
+      created_by: r.created_by,
+      created_at: r.created_at,
+      data: safeParseJSON(r.data_json)
+    }));
+
+    // 链式对比：返回每个版本相对上一版的差异（覆盖每一次提交）
+    if (mode === 'chain') {
+      const chain = [];
+      for (let i = 0; i < versionsData.length; i++) {
+        const cur = versionsData[i];
+        const prev = i > 0 ? versionsData[i - 1] : null;
+        const changes = prev ? buildDiff(prev.data, cur.data, type) : [];
+        chain.push({
+          version: cur.version,
+          created_by: cur.created_by,
+          created_at: cur.created_at,
+          prevVersion: prev ? prev.version : null,
+          changedCount: changes.length,
+          changes
+        });
       }
+      return res.json({ success: true, chain });
     }
-    res.json({ success: true, data: diffs });
+
+    // 显式两版对比：oldVersion → 旧值，newVersion → 新值（方向由调用方决定）
+    let a, b;
+    if (oldVersion != null && newVersion != null) {
+      const pick = (v) => versionsData.find(x => x.version === parseInt(v));
+      a = pick(oldVersion);
+      b = pick(newVersion);
+      if (!a || !b) return res.json({ success: true, data: [] });
+    } else {
+      // 默认：最新两版（次新为旧值，最新为新值）
+      if (versionsData.length < 2) return res.json({ success: true, data: [] });
+      a = versionsData[versionsData.length - 2];
+      b = versionsData[versionsData.length - 1];
+    }
+    const data = buildDiff(a.data, b.data, type);
+    res.json({ success: true, data });
   } catch (error) {
     console.error('diff 失败:', error);
     res.status(500).json({ success: false, message: '对比失败' });
