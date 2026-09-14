@@ -24,6 +24,11 @@
         <el-table-column prop="project_owner" label="项目负责人" width="120" />
         <el-table-column prop="project_budget" label="项目预算" width="120" />
         <el-table-column prop="report_month" label="申报月份" width="100" />
+        <el-table-column label="拜访记录" width="90">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click.stop="emit('open-visit-records', row.customer_name)">{{ Number(row.visit_count || 0) }} 条</el-button>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="170" fixed="right">
           <template #default="{ row }">
             <div class="op-cell">
@@ -152,7 +157,7 @@ import { salesFetchJSON } from './salesApi'
 import DiffDialog from './DiffDialog.vue'
 
 const props = defineProps<{ perm: any }>()
-const emit = defineEmits(['customer-click', 'refresh-stats'])
+const emit = defineEmits(['customer-click', 'refresh-stats', 'open-visit-records'])
 const list = ref<any[]>([])
 const loading = ref(false)
 const total = ref(0)

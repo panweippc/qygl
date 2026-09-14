@@ -797,7 +797,11 @@ const initDatabase = async () => {
         FOREIGN KEY (townId) REFERENCES town_sales(id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
-    
+
+    // 拜访记录支持「按客户维度」关联：townId 改为可空，并预留 customer_id 用于后续精确统计
+    try { await connection.execute('ALTER TABLE visit_records MODIFY COLUMN townId INT NULL'); } catch (e) {}
+    try { await connection.execute('ALTER TABLE visit_records ADD COLUMN customer_id INT NULL'); } catch (e) {}
+
     // 检查并添加manager字段（如果表已存在但缺少该字段）
     try {
       // 先检查字段是否存在

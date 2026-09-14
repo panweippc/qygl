@@ -2,6 +2,18 @@ import express from 'express';
 import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
+// 按客户名获取拜访记录（销售漏斗联动）
+router.get('/visit-records/customer/:customerName', async (req, res) => {
+  const { customerName } = req.params;
+  try {
+    const { pool } = req.app.locals;
+    const [data] = await pool.execute('SELECT * FROM visit_records WHERE customerName = ? ORDER BY visitDate DESC, id DESC', [customerName]);
+    res.json({ success: true, data: data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: '获取拜访记录失败' });
+  }
+});
+
 // 获取乡镇的拜访记录
 router.get('/visit-records/:townId', async (req, res) => {
   const { townId } = req.params;
@@ -26,16 +38,31 @@ router.get('/visit-records/town/:townId', async (req, res) => {
   }
 });
 
-// 添加拜访记录
+// 添加拜访记录（支持按客户维度，townId 可空；自动解析 customer_id 为后续精确统计预留）
 router.post('/visit-records', async (req, res) => {
   const { townId, customerName, address, visitDate, visitPerson, visitContent, nextPlan } = req.body;
   try {
     const { pool } = req.app.locals;
-    const [[maxRow]] = await pool.execute('SELECT COALESCE(MAX(visitNo), 0) AS maxNo FROM visit_records WHERE townId = ?', [townId]);
+    if (!customerName || !visitDate || !visitPerson || !visitContent) {
+      return res.status(400).json({ success: false, message: '客户名称、拜访日期、拜访人、拜访内容为必填' });
+    }
+    // 解析客户主数据 id（customers 为空时写 NULL，为后续精确统计预留）
+    let customerId = null;
+    try {
+      const [cust] = await pool.execute('SELECT id FROM customers WHERE name = ? LIMIT 1', [customerName]);
+      if (cust.length) customerId = cust[0].id;
+    } catch {}
+    const tid = townId != null && townId !== '' ? Number(townId) : null;
+    let maxRow;
+    if (tid) {
+      [[maxRow]] = await pool.execute('SELECT COALESCE(MAX(visitNo), 0) AS maxNo FROM visit_records WHERE townId = ?', [tid]);
+    } else {
+      [[maxRow]] = await pool.execute('SELECT COALESCE(MAX(visitNo), 0) AS maxNo FROM visit_records WHERE customerName = ?', [customerName]);
+    }
     const visitNo = Number(maxRow.maxNo) + 1;
     await pool.execute(
-      'INSERT INTO visit_records (townId, customerName, address, visitDate, visitPerson, visitContent, nextPlan, visitNo, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [townId, customerName, address, visitDate, visitPerson, visitContent, nextPlan || null, visitNo, new Date().toISOString().replace('T', ' ').replace('Z', '')]
+      'INSERT INTO visit_records (townId, customer_id, customerName, address, visitDate, visitPerson, visitContent, nextPlan, visitNo, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [tid, customerId, customerName, address || '', visitDate, visitPerson, visitContent, nextPlan || null, visitNo, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
     await createOperationLog(pool, {
       username: getOperator(req),

@@ -34,6 +34,11 @@
         </el-table-column>
         <el-table-column prop="sales_status" label="销售状态" width="100" />
         <el-table-column prop="report_month" label="申报月份" width="100" />
+        <el-table-column label="拜访记录" width="90">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click.stop="emit('open-visit-records', row.customer_name)">{{ Number(row.visit_count || 0) }} 条</el-button>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="170" fixed="right">
           <template #default="{ row }">
             <div class="op-cell">
@@ -112,7 +117,7 @@ import ImportDialog from './ImportDialog.vue'
 import DiffDialog from './DiffDialog.vue'
 
 const props = defineProps<{ type: 'intention' | 'key', title: string, perm: any }>()
-const emit = defineEmits(['customer-click', 'progress-jump', 'refresh-stats'])
+const emit = defineEmits(['customer-click', 'progress-jump', 'refresh-stats', 'open-visit-records'])
 
 const salesStatusMap: Record<string, string[]> = {
   intention: ['确认意向', '引导立项', '方案提交'],

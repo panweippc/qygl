@@ -21,20 +21,21 @@
 
     <el-tabs v-model="activeTab" class="sft-tabs" @tab-change="onTabChange">
       <el-tab-pane label="意向漏斗" name="intention">
-        <FunnelTable type="intention" title="意向漏斗" :perm="perm" @customer-click="openCrossRef" @progress-jump="activeTab = $event" @refresh-stats="refreshStats" />
+        <FunnelTable type="intention" title="意向漏斗" :perm="perm" @customer-click="openCrossRef" @progress-jump="activeTab = $event" @refresh-stats="refreshStats" @open-visit-records="openVisitRecords" />
       </el-tab-pane>
       <el-tab-pane label="重点漏斗" name="key">
-        <FunnelTable type="key" title="重点漏斗" :perm="perm" @customer-click="openCrossRef" @progress-jump="activeTab = $event" @refresh-stats="refreshStats" />
+        <FunnelTable type="key" title="重点漏斗" :perm="perm" @customer-click="openCrossRef" @progress-jump="activeTab = $event" @refresh-stats="refreshStats" @open-visit-records="openVisitRecords" />
       </el-tab-pane>
       <el-tab-pane label="成交用户" name="deal">
-        <DealTable :perm="perm" @customer-click="openCrossRef" @refresh-stats="refreshStats" />
+        <DealTable :perm="perm" @customer-click="openCrossRef" @refresh-stats="refreshStats" @open-visit-records="openVisitRecords" />
       </el-tab-pane>
       <el-tab-pane label="大项目进展" name="project">
-        <ProjectTable :perm="perm" @customer-click="openCrossRef" @refresh-stats="refreshStats" />
+        <ProjectTable :perm="perm" @customer-click="openCrossRef" @refresh-stats="refreshStats" @open-visit-records="openVisitRecords" />
       </el-tab-pane>
     </el-tabs>
 
     <CrossReferenceDialog v-model="crossVisible" :customer="crossCustomer" @jump="onCrossJump" />
+    <VisitRecordsDialog v-model="visitRecordsVisible" :customer-name="visitCustomer" :can-write="perm.canWrite" />
   </div>
 </template>
 
@@ -47,6 +48,7 @@ import CrossReferenceDialog from '../components/sales/CrossReferenceDialog.vue'
 import FunnelTable from '../components/sales/FunnelTable.vue'
 import DealTable from '../components/sales/DealTable.vue'
 import ProjectTable from '../components/sales/ProjectTable.vue'
+import VisitRecordsDialog from '../components/sales/VisitRecordsDialog.vue'
 
 const router = useRouter()
 const activeTab = ref('intention')
@@ -54,6 +56,13 @@ const perm = ref({ canWrite: false, canView: false, isAdmin: false })
 const crossVisible = ref(false)
 const crossCustomer = ref('')
 const statsPanelRef = ref<any>(null)
+const visitRecordsVisible = ref(false)
+const visitCustomer = ref('')
+
+function openVisitRecords(name: string) {
+  visitCustomer.value = name
+  visitRecordsVisible.value = true
+}
 
 function refreshStats() {
   statsPanelRef.value?.load()
