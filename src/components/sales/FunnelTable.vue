@@ -37,7 +37,7 @@
         <el-table-column label="操作" width="170" fixed="right">
           <template #default="{ row }">
             <div class="op-cell">
-              <el-button text size="small" @click.stop="openEdit(row)">编辑</el-button>
+              <el-button v-if="perm.canWrite" text size="small" @click.stop="openEdit(row)">编辑</el-button>
               <el-button text size="small" @click.stop="openVersions(row)">版本</el-button>
               <el-button v-if="perm.canWrite" text size="small" type="danger" @click.stop="remove(row)">删除</el-button>
             </div>

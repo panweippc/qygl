@@ -754,6 +754,39 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
     }
     const [check] = await pool.execute(`SELECT created_by FROM ${table} WHERE id = ?`, [id]);
     if (check.length === 0) return res.status(404).json({ success: false, message: '记录不存在' });
+
+    // 意向/重点漏斗：按进展百分比重新归属到对应表
+    let destType = type;
+    let recordId = parseInt(id);
+    if ((type === 'intention' || type === 'key') && req.body.progress_percent !== undefined) {
+      destType = destTypeByProgress(parseNum(req.body.progress_percent));
+    }
+
+    if (destType !== type) {
+      // 迁移到目标表
+      const destTable = destType === 'deal' ? 'sales_deal_customers' : TABLE_META[destType].table;
+      const destBody = destType === 'deal' ? extractDealBody(req) : extractFunnelBody(req, destType);
+      const destColumns = Object.keys(destBody);
+      const destValues = destColumns.map(() => '?');
+      const originalCreator = check[0].created_by || createdBy;
+      const insertSql = `INSERT INTO ${destTable} (${destColumns.join(', ')}, created_by) VALUES (${destValues.join(', ')}, ?)`;
+      const [insertResult] = await pool.execute(insertSql, [...Object.values(destBody), originalCreator]);
+      recordId = insertResult.insertId;
+
+      // 迁移历史版本快照到新记录
+      await pool.execute(
+        'UPDATE sales_table_versions SET table_type = ?, record_id = ? WHERE table_type = ? AND record_id = ?',
+        [destType, recordId, type, id]
+      );
+      // 追加当前状态版本
+      await insertVersion(pool, destType, recordId, { ...destBody, id: recordId, created_by: originalCreator }, createdBy);
+      // 删除原表记录
+      await pool.execute(`DELETE FROM ${table} WHERE id = ?`, [id]);
+
+      createOperationLog(pool, { username: getOperator(req), action: 'update', module: 'sales-four-tables', targetId: recordId, targetName: `${type} 数据`, detail: `更新${type}记录并迁移到${destType}(原id=${id})` });
+      return res.json({ success: true, message: '更新成功', data: { id: recordId, destType } });
+    }
+
     const sets = Object.keys(body).map(k => `${k} = ?`).join(', ');
     const params = [...Object.values(body), id];
     await pool.execute(`UPDATE ${table} SET ${sets} WHERE id = ?`, params);
