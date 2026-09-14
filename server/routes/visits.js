@@ -64,6 +64,17 @@ router.post('/visit-records', async (req, res) => {
       'INSERT INTO visit_records (townId, customer_id, customerName, address, visitDate, visitPerson, visitContent, nextPlan, visitNo, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [tid, customerId, customerName, address || '', visitDate, visitPerson, visitContent, nextPlan || null, visitNo, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
+    // 同步到大项目进展的拜访记录子表（若该客户已建项目）
+    try {
+      const [proj] = await pool.execute('SELECT id FROM sales_project_analysis WHERE customer_name = ? LIMIT 1', [customerName]);
+      if (proj.length) {
+        const [[mx]] = await pool.execute('SELECT COALESCE(MAX(seq),0) AS m FROM sales_project_visit_records WHERE analysis_id = ?', [proj[0].id]);
+        await pool.execute(
+          'INSERT INTO sales_project_visit_records (analysis_id, seq, visit_time, communication_record, next_strategy) VALUES (?, ?, ?, ?, ?)',
+          [proj[0].id, mx.m + 1, visitDate, visitContent, nextPlan || '']
+        );
+      }
+    } catch (e) { console.error('同步项目拜访记录失败(不影响主流程):', e); }
     await createOperationLog(pool, {
       username: getOperator(req),
       action: 'create',

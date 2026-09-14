@@ -646,6 +646,49 @@ function extractProjectBody(req) {
   };
 }
 
+// 按客户名把全局拜访记录镜像到大项目进展的拜访记录子表（新建项目时一次性带出历史拜访）
+async function mirrorVisitsToProject(pool, customerName, analysisId) {
+  await pool.execute('DELETE FROM sales_project_visit_records WHERE analysis_id = ?', [analysisId]);
+  const [visits] = await pool.execute(
+    'SELECT visitDate, visitContent, nextPlan FROM visit_records WHERE customerName = ? ORDER BY visitDate DESC, id DESC',
+    [customerName]
+  );
+  let seq = 1;
+  for (const v of visits) {
+    await pool.execute(
+      'INSERT INTO sales_project_visit_records (analysis_id, seq, visit_time, communication_record, next_strategy) VALUES (?, ?, ?, ?, ?)',
+      [analysisId, seq++, v.visitDate || '', v.visitContent || '', v.nextPlan || '']
+    );
+  }
+}
+
+// 漏斗保存后：按 customer_name 自动带出/同步大项目进展记录 + 拜访记录
+// 返回 analysisId（无客户名时返回 null）。失败不影响主流程。
+async function ensureProjectForFunnel(pool, funnelBody, createdBy) {
+  const customerName = funnelBody.customer_name;
+  if (!customerName) return null;
+  const [existing] = await pool.execute('SELECT id FROM sales_project_analysis WHERE customer_name = ? LIMIT 1', [customerName]);
+  let analysisId;
+  if (existing.length === 0) {
+    // 新建：带出客户名/负责人/申报日期/申报月份，其余项目字段留空待用户在「大项目进展」补充
+    const cols = ['customer_name', 'report_date', 'project_owner', 'report_month'];
+    const vals = [customerName, funnelBody.report_date || null, funnelBody.owner || '', funnelBody.report_month || ''];
+    const sql = `INSERT INTO sales_project_analysis (${cols.join(', ')}, created_by) VALUES (${cols.map(() => '?').join(', ')}, ?)`;
+    const [r] = await pool.execute(sql, [...vals, createdBy]);
+    analysisId = r.insertId;
+    // 新建即把该客户已有的全局拜访记录带出到大项目进展
+    await mirrorVisitsToProject(pool, customerName, analysisId);
+  } else {
+    analysisId = existing[0].id;
+    // 轻量同步漏斗派生字段：仅覆盖项目_owner/report_date/report_month，不触碰项目自身丰富字段、不覆盖手动录入的拜访记录
+    await pool.execute(
+      'UPDATE sales_project_analysis SET project_owner = COALESCE(NULLIF(?, ""), project_owner), report_date = COALESCE(NULLIF(?, ""), report_date), report_month = COALESCE(NULLIF(?, ""), report_month) WHERE id = ?',
+      [funnelBody.owner || '', funnelBody.report_date || '', funnelBody.report_month || '', analysisId]
+    );
+  }
+  return analysisId;
+}
+
 async function insertVersion(pool, tableType, recordId, data, createdBy) {
   try {
     const [max] = await pool.execute(
@@ -698,6 +741,12 @@ router.post('/sales-four-tables/:type', requireSalesWriter, async (req, res) => 
     const [result] = await pool.execute(sql, [...params, createdBy]);
     const recordId = result.insertId;
     await insertVersion(pool, destType, recordId, { ...body, created_by: createdBy }, createdBy);
+
+    // 漏斗保存后自动带出大项目进展 + 同步拜访记录（仅 funnel 类型）
+    if (type === 'intention' || type === 'key' || type === 'deal') {
+      try { await ensureProjectForFunnel(pool, body, createdBy); }
+      catch (e) { console.error('同步大项目进展失败(不影响主流程):', e); }
+    }
 
     // 大项目子表
     if (type === 'project') {
@@ -760,6 +809,12 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
     let recordId = parseInt(id);
     if ((type === 'intention' || type === 'key') && req.body.progress_percent !== undefined) {
       destType = destTypeByProgress(parseNum(req.body.progress_percent));
+    }
+
+    // 漏斗保存后自动带出大项目进展 + 同步拜访记录（仅 funnel 类型，迁移前后都执行）
+    if (type === 'intention' || type === 'key' || type === 'deal') {
+      try { await ensureProjectForFunnel(pool, body, createdBy); }
+      catch (e) { console.error('同步大项目进展失败(不影响主流程):', e); }
     }
 
     if (destType !== type) {
