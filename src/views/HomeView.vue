@@ -48,6 +48,7 @@
                   <div class="contact-contact">
                     <div class="contact-line"><span class="contact-label">邮箱</span><span class="contact-value">{{ c.email || '—' }}</span></div>
                     <div class="contact-line"><span class="contact-label">电话</span><span class="contact-value">{{ c.phone || '—' }}</span></div>
+                    <div v-if="c.projects && c.projects.length" class="contact-line contact-projects"><span class="contact-label">负责项目</span><span class="contact-value">{{ c.projects.map(p => p.name).join('、') }}</span></div>
                   </div>
                 </div>
                 <div v-if="contactsList.length === 0" class="contact-empty">暂无通讯录数据</div>

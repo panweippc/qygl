@@ -48,7 +48,7 @@
           :action="'/api/upload'"
           :auto-upload="true"
           :headers="uploadHeaders"
-          :data="{ categoryId: effectiveUploadCategoryId, uploaderId: getUserId() }"
+          :data="{ categoryId: effectiveUploadCategoryId, uploaderId: getUserId(), uploaderName: currentUserName() }"
           :on-success="handleUploadSuccess"
           :on-error="handleUploadError"
           name="file"
@@ -173,6 +173,7 @@
                 <div class="file-card-meta">
                   <span class="file-card-size">{{ formatFileSize(file.size) }}</span>
                   <span class="file-card-date">{{ formatDate(file.createdAt) }}</span>
+                  <span v-if="isManager" class="file-card-uploader">上传人：{{ file.uploaderName || '—' }}</span>
                 </div>
                 <div v-if="scope === 'all'" class="file-card-cat">
                   归属：{{ file.category || '未分类' }}
@@ -195,6 +196,9 @@
                       </el-dropdown-menu>
                     </template>
                   </el-dropdown>
+                  <el-button v-if="isManager" size="small" @click="editUploader(file)" class="action-btn change-uploader">
+                    <el-icon><Edit /></el-icon>改上传人
+                  </el-button>
                   <el-button v-if="canDelete" size="small" @click="deleteFile(file.id)" class="action-btn delete">
                     <el-icon><Delete /></el-icon>删除
                   </el-button>
@@ -248,7 +252,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { Plus, Delete, Download, Document, View, FolderOpened } from '@element-plus/icons-vue'
+import { Plus, Delete, Download, Document, View, FolderOpened, Edit } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getFiles, deleteFile as apiDeleteFile, getFileCategories, updateFileCategory,
@@ -256,6 +260,7 @@ import {
 } from '../../services/api'
 import { previewKindOf, isVideo, extOf, groupOf, GROUP_LABEL } from '../../utils/fileTypes'
 import { highlightCode, extToLang } from '../../utils/codeHighlight'
+import { useRoleGuard } from '@/composables/useRoleGuard'
 
 const props = defineProps<{
   categoryId: number | null
@@ -263,6 +268,9 @@ const props = defineProps<{
   /** true = 跨分类「全部」视图（忽略 categoryId） */
   all?: boolean
 }>()
+
+// 上传人字段：仅管理员/审批权限用户可见（普通用户不上传人信息）
+const { isManager } = useRoleGuard()
 
 interface FileItem {
   id: number
@@ -273,6 +281,8 @@ interface FileItem {
   uploaderId: number
   categoryId: number | null
   createdAt: string
+  /** 上传人姓名（系统按当前登录用户自动记录，普通用户不可见） */
+  uploaderName?: string
   /** 后端 files 表的扩展名列（历史库可能不存在，取不到时用文件名推断） */
   ext?: string
   /** 列表接口 LEFT JOIN 出来的分类名 */
@@ -574,6 +584,29 @@ const deleteFile = async (id: number) => {
   }
 }
 
+// 管理员修改文件上传人（普通用户不可见此入口）
+const editUploader = async (file: FileItem) => {
+  try {
+    const { value } = await ElMessageBox.prompt('修改该文件的上传人', '改上传人', {
+      inputValue: file.uploaderName || '',
+      inputPlaceholder: '请输入上传人姓名',
+      confirmButtonText: '确定',
+      cancelButtonText: '取消'
+    })
+    const name = String(value || '').trim()
+    if (!name) { ElMessage.warning('上传人姓名不能为空'); return }
+    const res = await fetch('/api/files/' + file.id + '/uploader', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uploaderName: name })
+    }).then(r => r.json())
+    if (res.success) { ElMessage.success('上传人已更新'); await loadFiles() }
+    else ElMessage.error(res.message || '修改失败')
+  } catch (e: any) {
+    if (e !== 'cancel') ElMessage.error(e.message || '修改失败')
+  }
+}
+
 const getUserId = (): number => {
   try { return parseInt(localStorage.getItem('userId') || '1') } catch { return 1 }
 }
@@ -675,6 +708,7 @@ onMounted(() => { loadFiles(); loadCategories() })
 .file-card-name { font-weight: 500; color: #333; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .file-card-meta { display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; color: rgba(51,51,51,0.6); }
 .file-card-cat { font-size: 0.75rem; color: #8a94a6; }
+.file-card-uploader { font-size: 0.75rem; color: #8a94a6; }
 .file-card-actions { display: flex; gap: 0.4rem; margin-top: 0.25rem; flex-wrap: wrap; }
 .action-btn { flex: 1; background: rgba(100,149,237,0.15) !important; color: #6495ED !important; border: 1px solid rgba(100,149,237,0.3) !important; border-radius: 6px !important; transition: all 0.3s ease !important; font-size: 0.78rem !important; padding: 0.4rem !important; }
 .action-btn:hover { background: rgba(100,149,237,0.25) !important; box-shadow: 0 0 10px rgba(100,149,237,0.3) !important; }

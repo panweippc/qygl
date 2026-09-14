@@ -38,6 +38,7 @@
           </div>
           <div class="project-progress">
             <el-progress :percentage="Math.min(100, Math.max(0, Number(project.progress) || 0))" :stroke-width="8" />
+            <span class="stage-tag">{{ progressStageLabel(project.progress) }}</span>
           </div>
           <div v-if="project.project_link" class="project-link">
             <a :href="project.project_link" target="_blank" rel="noopener noreferrer">
@@ -98,6 +99,9 @@
             </el-select>
           </el-form-item>
           <el-form-item label="完成进度" style="flex:1">
+            <el-select v-model="addForm.stage" placeholder="选择阶段" style="width:100%; margin-bottom:0.5rem" @change="(v) => addForm.progress = Number(v)">
+              <el-option v-for="s in PROGRESS_STAGES" :key="s.label" :label="s.label" :value="s.value" />
+            </el-select>
             <el-slider v-model="addForm.progress" :min="0" :max="100" :step="5" show-input />
           </el-form-item>
         </div>
@@ -143,6 +147,9 @@
             </el-select>
           </el-form-item>
           <el-form-item label="完成进度" style="flex:1">
+            <el-select v-model="editForm.stage" placeholder="选择阶段" style="width:100%; margin-bottom:0.5rem" @change="(v) => editForm.progress = Number(v)">
+              <el-option v-for="s in PROGRESS_STAGES" :key="s.label" :label="s.label" :value="s.value" />
+            </el-select>
             <el-slider v-model="editForm.progress" :min="0" :max="100" :step="5" show-input />
           </el-form-item>
         </div>
@@ -190,6 +197,35 @@ const { userName, isOwnerOrManager, refresh: refreshRole } = useRoleGuard()
 const currentUsername = computed(() => userName.value || '当前用户')
 
 const STATUS_OPTIONS = ['未开始', '进行中', '已完成', '已暂停', '已取消']
+
+// 进度文字档位：与数字进度联动（不新增数据库列，前端映射）
+const PROGRESS_STAGES = [
+  { label: '未开始', value: 0 },
+  { label: '初期', value: 15 },
+  { label: '中期', value: 50 },
+  { label: '收尾', value: 85 },
+  { label: '已完成', value: 100 }
+]
+// 数字 -> 文字阶段
+const progressStageLabel = (p: any): string => {
+  const v = Math.min(100, Math.max(0, Number(p) || 0))
+  if (v <= 0) return '未开始'
+  if (v <= 30) return '初期'
+  if (v <= 70) return '中期'
+  if (v < 100) return '收尾'
+  return '已完成'
+}
+// 数字 -> 最接近的文字档位值（用于表单下拉回显）
+const nearestStageValue = (p: any): number => {
+  const v = Math.min(100, Math.max(0, Number(p) || 0))
+  let best = PROGRESS_STAGES[0].value
+  let bestDiff = Infinity
+  for (const s of PROGRESS_STAGES) {
+    const d = Math.abs(s.value - v)
+    if (d < bestDiff) { bestDiff = d; best = s.value }
+  }
+  return best
+}
 const statusColor = (s: string) => {
   switch (s) {
     case '进行中': return '#1890ff'
@@ -231,7 +267,7 @@ const loadMembers = async () => {
 }
 
 const addDialogVisible = ref(false)
-const addForm = ref({ name: '', description: '', link: '', categoryName: '', manager: [] as string[], status: '未开始', progress: 0, dateRange: [] as string[] })
+const addForm = ref({ name: '', description: '', link: '', categoryName: '', manager: [] as string[], status: '未开始', progress: 0, stage: 0, dateRange: [] as string[] })
 const openAddProject = () => {
   addForm.value = {
     name: '', description: '', link: '',
@@ -265,7 +301,7 @@ const submitAddProject = async () => {
 }
 
 const editDialogVisible = ref(false)
-const editForm = ref({ id: 0, name: '', description: '', link: '', manager: [] as string[], status: '未开始', progress: 0, dateRange: [] as string[] })
+const editForm = ref({ id: 0, name: '', description: '', link: '', manager: [] as string[], status: '未开始', progress: 0, stage: 0, dateRange: [] as string[] })
 const editProject = (project: any) => {
   editForm.value = {
     id: project.id,
@@ -275,6 +311,7 @@ const editProject = (project: any) => {
     manager: project.manager ? String(project.manager).split(',').map((s: string) => s.trim()).filter(Boolean) : [],
     status: project.status || '未开始',
     progress: Number(project.progress) || 0,
+    stage: nearestStageValue(project.progress),
     dateRange: [project.start_date, project.end_date].filter(Boolean)
   }
   editDialogVisible.value = true
@@ -325,6 +362,10 @@ const assignProject = async (project: any, categoryName: string) => {
 
 watch(() => [props.categoryId, props.all], () => { /* visibleProjects 自动重算 */ })
 
+// 拖动进度滑块时，同步回显最接近的进度阶段
+watch(() => addForm.value.progress, (v) => { addForm.value.stage = nearestStageValue(v) })
+watch(() => editForm.value.progress, (v) => { editForm.value.stage = nearestStageValue(v) })
+
 onMounted(() => { refreshRole(); loadProjects(); loadCategories(); loadMembers() })
 </script>
 
@@ -344,7 +385,8 @@ onMounted(() => { refreshRole(); loadProjects(); loadCategories(); loadMembers()
 .project-meta { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.8rem; color: #6495ED; margin-bottom: 0.5rem; }
 .manager-line { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .manager-tag { margin-left: 2px; }
-.project-progress { margin-bottom: 0.5rem; max-width: 420px; }
+.project-progress { margin-bottom: 0.5rem; max-width: 420px; display: flex; align-items: center; gap: 0.5rem; }
+.stage-tag { font-size: 0.78rem; color: #fff; background: #4169E1; padding: 0.1rem 0.5rem; border-radius: 10px; font-weight: 600; white-space: nowrap; }
 .project-manager { font-size: 0.8rem; color: #6495ED; margin-bottom: 0.4rem; }
 .form-row { display: flex; gap: 1rem; }
 .project-link a { color: #6495ED; text-decoration: none; font-size: 0.8rem; word-break: break-all; }

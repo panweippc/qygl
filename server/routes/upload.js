@@ -175,7 +175,8 @@ const ensureUploadSchema = async (pool) => {
   uploadSchemaReady = (async () => {
     for (const [col, ddl] of Object.entries({
       mime_type: 'VARCHAR(255) DEFAULT NULL',
-      ext: 'VARCHAR(20) DEFAULT NULL'
+      ext: 'VARCHAR(20) DEFAULT NULL',
+      uploaderName: 'VARCHAR(100) DEFAULT NULL'
     })) {
       try {
         await pool.execute(`ALTER TABLE files ADD COLUMN \`${col}\` ${ddl}`);
@@ -200,6 +201,8 @@ router.post('/upload', upload.array('file', 10), async (req, res) => {
     await ensureUploadSchema(pool);
     const categoryId = req.body.categoryId || null;
     const uploaderId = req.body.uploaderId ? parseInt(req.body.uploaderId) : null;
+    // 上传人姓名：前端随当前登录用户自动带出（用户不手动选择），缺省回退到操作人
+    const uploaderName = req.body.uploaderName || getOperator(req) || null;
     const now = new Date().toISOString().replace('T', ' ').replace('Z', '');
 
     const fileList = [];
@@ -248,8 +251,8 @@ router.post('/upload', upload.array('file', 10), async (req, res) => {
       }
       const mime = getMime(ext);
       await pool.execute(
-        'INSERT INTO files (name, size, type, url, uploaderId, categoryId, createdAt, mime_type, ext) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [originalName, f.size, ext, url, uploaderId, categoryId, now, mime, ext]
+        'INSERT INTO files (name, size, type, url, uploaderId, categoryId, createdAt, mime_type, ext, uploaderName) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [originalName, f.size, ext, url, uploaderId, categoryId, now, mime, ext, uploaderName]
       );
       fileList.push({ name: originalName, url, size: f.size, ext, mime, group: meta.group });
     }

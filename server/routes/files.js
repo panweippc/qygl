@@ -191,6 +191,43 @@ router.put('/files/:id/category', async (req, res) => {
   }
 });
 
+// 修改文件上传人（仅管理员/总经理/李智鑫等有权限者；上传人由系统按当前登录用户自动记录，普通用户不可改）
+router.put('/files/:id/uploader', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id } = req.params;
+  const { uploaderName } = req.body || {};
+  const username = req.user?.name || req.user?.username || '系统';
+  const roleName = req.user?.roleName || '';
+  const isGM = roleName === '总经理' || roleName === '系统管理员' || username === '管理员' || username === '总经理' || /^admin$/i.test(username) || username === '李智鑫';
+  if (!isGM) {
+    return res.status(403).json({ success: false, message: '无权限修改上传人' });
+  }
+  if (!uploaderName || !String(uploaderName).trim()) {
+    return res.status(400).json({ success: false, message: '上传人姓名不能为空' });
+  }
+  try {
+    const [fileRows] = await pool.execute('SELECT * FROM files WHERE id = ?', [id]);
+    if (fileRows.length === 0) {
+      return res.status(404).json({ success: false, message: '文件不存在' });
+    }
+    const newName = String(uploaderName).trim();
+    await pool.execute('UPDATE files SET uploaderName = ? WHERE id = ?', [newName, id]);
+    await createOperationLog(pool, {
+      username,
+      action: 'update',
+      module: 'file',
+      targetId: id,
+      targetName: fileRows[0].name,
+      detail: `修改上传人 -> ${newName}`,
+      ipAddress: req.ip
+    });
+    res.json({ success: true, message: '上传人已更新' });
+  } catch (error) {
+    console.error('修改上传人失败:', error);
+    res.status(500).json({ success: false, message: '修改上传人失败' });
+  }
+});
+
 // 批量删除文件（权限与单条删除一致：仅总经理/系统管理员/李智鑫）
 router.post('/files/batch-delete', async (req, res) => {
   const { pool } = req.app.locals;

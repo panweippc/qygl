@@ -1753,7 +1753,7 @@ const initDatabase = async () => {
     // 文件表结构补齐：upload.js 的上传入库依赖 mime_type / ext 两列，
     // 若历史库缺列会导致「文件已落盘但入库报错」。此处幂等补齐，保证表结构与上传接口一致。
     try {
-      for (const [col, ddl] of Object.entries({ mime_type: 'VARCHAR(255) DEFAULT NULL', ext: 'VARCHAR(20) DEFAULT NULL' })) {
+      for (const [col, ddl] of Object.entries({ mime_type: 'VARCHAR(255) DEFAULT NULL', ext: 'VARCHAR(20) DEFAULT NULL', uploaderName: 'VARCHAR(100) DEFAULT NULL' })) {
         const [exists] = await connection.execute('SHOW COLUMNS FROM files WHERE Field = ?', [col]);
         if (exists.length === 0) {
           await connection.execute(`ALTER TABLE files ADD COLUMN ${col} ${ddl}`);

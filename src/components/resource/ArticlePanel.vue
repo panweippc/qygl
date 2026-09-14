@@ -32,7 +32,7 @@
         </div>
         <div class="article-summary">{{ article.summary || '暂无摘要' }}</div>
         <div class="article-meta">
-          <span>👤 {{ article.author || '未知' }}</span>
+          <span v-if="isManager">👤 上传人：{{ article.author || '未知' }}</span>
           <span>👁️ {{ article.views || 0 }}</span>
           <span>📅 {{ formatDate(article.createdAt) }}</span>
           <span v-if="article.files && parseFiles(article.files).length" class="file-badge">📎 {{ parseFiles(article.files).length }}</span>
@@ -65,10 +65,13 @@
               <el-option v-for="cat in knowledgeCategories" :key="cat.id" :label="cat.name" :value="cat.id" />
             </el-select>
           </el-form-item>
-          <el-form-item label="作者" style="flex:1">
-            <el-select v-model="articleForm.author" placeholder="选择作者" clearable filterable style="width:100%">
+          <el-form-item label="上传人" style="flex:1" v-if="isManager">
+            <el-select v-model="articleForm.author" placeholder="选择上传人" clearable filterable style="width:100%">
               <el-option v-for="u in userList" :key="u.id" :label="u.name" :value="u.name" />
             </el-select>
+          </el-form-item>
+          <el-form-item label="上传人" style="flex:1" v-else>
+            <el-input :model-value="articleForm.author || getUsername()" disabled />
           </el-form-item>
         </div>
         <el-form-item label="标签">
@@ -132,7 +135,7 @@
       <div class="article-detail">
         <div class="detail-meta">
           <el-tag size="small">{{ detailArticle.categoryName || '未分类' }}</el-tag>
-          <span>👤 {{ detailArticle.author || '未知' }}</span>
+          <span v-if="isManager">👤 上传人：{{ detailArticle.author || '未知' }}</span>
           <span>👁️ {{ detailArticle.views }}</span>
           <span>📅 {{ formatDate(detailArticle.createdAt) }}</span>
         </div>
@@ -202,7 +205,7 @@ const props = defineProps<{
   all?: boolean
 }>()
 
-const { isOwnerOrManager, refresh: refreshRole } = useRoleGuard()
+const { isOwnerOrManager, isManager, refresh: refreshRole } = useRoleGuard()
 const loading = ref(false)
 const saving = ref(false)
 

@@ -99,8 +99,20 @@ router.get('/employees/directory', async (req, res) => {
     const [rows] = await connection.execute(
       'SELECT name, department, position, email, phone FROM employees ORDER BY department, name'
     );
+    // 关联「负责项目」：category_projects.manager 为逗号分隔多人，按姓名聚合每人负责的项目名
+    let projectsByManager = {};
+    try {
+      const [projects] = await connection.execute('SELECT id, project_name, category_name, manager FROM category_projects');
+      for (const p of projects) {
+        const managers = String(p.manager || '').split(',').map((s) => s.trim()).filter(Boolean);
+        for (const m of managers) {
+          (projectsByManager[m] = projectsByManager[m] || []).push({ id: p.id, name: p.project_name, category: p.category_name });
+        }
+      }
+    } catch (e) { /* category_projects 不存在时降级：不附项目信息 */ }
+    const data = rows.map((e) => ({ ...e, projects: projectsByManager[e.name] || [] }));
     connection.release();
-    res.json({ success: true, data: rows });
+    res.json({ success: true, data });
   } catch (error) {
     console.error('获取通讯录失败:', error);
     res.status(500).json({ success: false, message: '获取通讯录失败' });
