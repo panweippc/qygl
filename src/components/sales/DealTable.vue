@@ -37,8 +37,12 @@
       <el-table-column prop="unreceived_amount" label="未回款" width="110">
         <template #default="{ row }">{{ Number(row.unreceived_amount || 0).toLocaleString() }}</template>
       </el-table-column>
-      <el-table-column prop="report_month" label="申报月份" width="100" />
-      <el-table-column label="操作" width="160" fixed="right">
+          <el-table-column prop="report_month" label="申报月份" width="100" />
+          <el-table-column prop="contact" label="联系人" width="110" />
+          <el-table-column prop="phone" label="电话" width="130" />
+          <el-table-column prop="site_count" label="站点数" width="80" />
+          <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+          <el-table-column label="操作" width="160" fixed="right">
         <template #default="{ row }">
           <el-button text size="small" @click="openEdit(row)">编辑</el-button>
           <el-button text size="small" @click="openVersions(row)">版本</el-button>

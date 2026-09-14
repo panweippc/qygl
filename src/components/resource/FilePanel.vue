@@ -185,20 +185,6 @@
                   <el-button size="small" @click="downloadFile(file)" class="action-btn">
                     <el-icon><Download /></el-icon>下载
                   </el-button>
-                  <el-dropdown trigger="click" @command="(id) => assignCategory(file, id)" class="assign-drop">
-                    <el-button size="small" class="action-btn assign">
-                      <el-icon><FolderOpened /></el-icon>归类
-                    </el-button>
-                    <template #dropdown>
-                      <el-dropdown-menu>
-                        <el-dropdown-item :command="-1">移出分类（未分类）</el-dropdown-item>
-                        <el-dropdown-item v-for="c in categoryOptions" :key="c.id" :command="c.id">{{ c.name }}</el-dropdown-item>
-                      </el-dropdown-menu>
-                    </template>
-                  </el-dropdown>
-                  <el-button v-if="isManager" size="small" @click="editUploader(file)" class="action-btn change-uploader">
-                    <el-icon><Edit /></el-icon>改上传人
-                  </el-button>
                   <el-button v-if="canDelete" size="small" @click="deleteFile(file.id)" class="action-btn delete">
                     <el-icon><Delete /></el-icon>删除
                   </el-button>
@@ -252,7 +238,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { Plus, Delete, Download, Document, View, FolderOpened, Edit } from '@element-plus/icons-vue'
+import { Plus, Delete, Download, Document, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getFiles, deleteFile as apiDeleteFile, getFileCategories, updateFileCategory,
@@ -493,22 +479,6 @@ const downloadFile = (file: FileItem) => {
   document.body.removeChild(a)
 }
 
-const assignCategory = async (file: FileItem, cmd: number) => {
-  const categoryId = cmd === -1 ? null : Number(cmd)
-  try {
-    const res = await updateFileCategory(file.id, categoryId)
-    if (res.success) {
-      const label = categoryId === null ? '未分类' : (categoryOptions.value.find(c => c.id === categoryId)?.name || '')
-      ElMessage.success(`已归入「${label}」`)
-      await loadFiles()
-    } else {
-      ElMessage.error(res.message || '归入分类失败')
-    }
-  } catch (e: any) {
-    ElMessage.error(e.message || '归入分类失败')
-  }
-}
-
 const handleBatchAssign = async (cmd: number) => {
   const categoryId = cmd === -1 ? null : Number(cmd)
   const label = categoryId === null ? '未分类' : (categoryOptions.value.find(c => c.id === categoryId)?.name || '')
@@ -581,29 +551,6 @@ const deleteFile = async (id: number) => {
     else ElMessage.error('删除文件失败')
   } catch (e: any) {
     if (e !== 'cancel') ElMessage.error(e.message || '删除文件失败')
-  }
-}
-
-// 管理员修改文件上传人（普通用户不可见此入口）
-const editUploader = async (file: FileItem) => {
-  try {
-    const { value } = await ElMessageBox.prompt('修改该文件的上传人', '改上传人', {
-      inputValue: file.uploaderName || '',
-      inputPlaceholder: '请输入上传人姓名',
-      confirmButtonText: '确定',
-      cancelButtonText: '取消'
-    })
-    const name = String(value || '').trim()
-    if (!name) { ElMessage.warning('上传人姓名不能为空'); return }
-    const res = await fetch('/api/files/' + file.id + '/uploader', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uploaderName: name })
-    }).then(r => r.json())
-    if (res.success) { ElMessage.success('上传人已更新'); await loadFiles() }
-    else ElMessage.error(res.message || '修改失败')
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e.message || '修改失败')
   }
 }
 

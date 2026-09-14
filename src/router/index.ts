@@ -53,7 +53,7 @@ const router = createRouter({
     {
       path: '/closing-project',
       name: 'closing-project',
-      component: () => import('../views/ProjectClassificationView.vue')
+      component: () => import('../views/ClosingProjectView.vue')
     },
     {
       path: '/sales-funnel',

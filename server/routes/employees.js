@@ -99,14 +99,26 @@ router.get('/employees/directory', async (req, res) => {
     const [rows] = await connection.execute(
       'SELECT name, department, position, email, phone FROM employees ORDER BY department, name'
     );
-    // 关联「负责项目」：category_projects.manager 为逗号分隔多人，按姓名聚合每人负责的项目名
+    // 关联「负责项目」：category_projects.manager 为逗号分隔多人，按姓名聚合每人负责的项目（含全字段）
     let projectsByManager = {};
     try {
-      const [projects] = await connection.execute('SELECT id, project_name, category_name, manager FROM category_projects');
+      const [projects] = await connection.execute('SELECT id, project_name, category_name, manager, status, progress, start_date, end_date, description, project_link, applicant_name FROM category_projects');
       for (const p of projects) {
         const managers = String(p.manager || '').split(',').map((s) => s.trim()).filter(Boolean);
         for (const m of managers) {
-          (projectsByManager[m] = projectsByManager[m] || []).push({ id: p.id, name: p.project_name, category: p.category_name });
+          (projectsByManager[m] = projectsByManager[m] || []).push({
+            id: p.id,
+            name: p.project_name,
+            category: p.category_name,
+            manager: p.manager,
+            status: p.status || '未开始',
+            progress: Number(p.progress) || 0,
+            startDate: p.start_date || '',
+            endDate: p.end_date || '',
+            description: p.description || '',
+            link: p.project_link || '',
+            applicant: p.applicant_name || ''
+          });
         }
       }
     } catch (e) { /* category_projects 不存在时降级：不附项目信息 */ }

@@ -40,7 +40,7 @@
                 </svg>
               </template>
               <div class="contacts-list">
-                <div v-for="c in contactsList" :key="c.name + '|' + c.department" class="contact-row">
+                <div v-for="c in contactsList" :key="c.name + '|' + c.department" class="contact-row" @click="openContact(c)">
                   <div class="contact-main">
                     <span class="contact-name">{{ c.name }}</span>
                     <span class="contact-dept">{{ c.department }} · {{ c.position }}</span>
@@ -58,6 +58,39 @@
         </div>
       </main>
     </div>
+
+    <!-- 通讯录个人详情弹窗 -->
+    <el-dialog v-model="contactDialogVisible" :title="selectedContact ? (selectedContact.name + ' · 详细信息') : '通讯录详情'" width="640px" align-center destroy-on-close>
+      <div v-if="selectedContact" class="contact-detail">
+        <div class="cd-section">
+          <div class="cd-row"><span class="cd-label">姓名</span><span class="cd-value">{{ selectedContact.name }}</span></div>
+          <div class="cd-row"><span class="cd-label">部门</span><span class="cd-value">{{ selectedContact.department || '—' }}</span></div>
+          <div class="cd-row"><span class="cd-label">职位</span><span class="cd-value">{{ selectedContact.position || '—' }}</span></div>
+          <div class="cd-row"><span class="cd-label">邮箱</span><span class="cd-value">{{ selectedContact.email || '—' }}</span></div>
+          <div class="cd-row"><span class="cd-label">电话</span><span class="cd-value">{{ selectedContact.phone || '—' }}</span></div>
+        </div>
+        <div class="cd-subtitle">负责项目（{{ selectedContact.projects?.length || 0 }}）</div>
+        <div v-if="selectedContact.projects && selectedContact.projects.length" class="cd-projects">
+          <div v-for="p in selectedContact.projects" :key="p.id" class="cd-project">
+            <div class="cd-project-head">
+              <span class="cd-project-name">{{ p.name }}</span>
+              <el-tag size="small" :type="progressTagType(p.progress)">{{ progressStageText(p.progress) }}</el-tag>
+            </div>
+            <div class="cd-project-meta">
+              <span>分类：{{ p.category || '未分类' }}</span>
+              <span>负责人：{{ p.manager || '—' }}</span>
+              <span>状态：{{ p.status }}</span>
+              <span>进度：{{ p.progress }}%</span>
+              <span v-if="p.startDate || p.endDate">周期：{{ p.startDate || '—' }} ~ {{ p.endDate || '—' }}</span>
+              <span v-if="p.applicant">申请人：{{ p.applicant }}</span>
+            </div>
+            <div v-if="p.description" class="cd-project-desc">{{ p.description }}</div>
+            <div v-if="p.link" class="cd-project-link"><a :href="p.link" target="_blank" rel="noopener">项目链接</a></div>
+          </div>
+        </div>
+        <div v-else class="contact-empty">暂无负责项目</div>
+      </div>
+    </el-dialog>
 
     <DashboardFooter />
   </div>
@@ -135,6 +168,26 @@ const loadContactsData = async () => {
       contactsList.value = res.data
     }
   } catch { /* 忽略：不影响主面板 */ }
+}
+
+// 通讯录个人详情弹窗
+const selectedContact = ref<any>(null)
+const contactDialogVisible = ref(false)
+function openContact(c: any) {
+  selectedContact.value = c
+  contactDialogVisible.value = true
+}
+function progressStageText(p: number): string {
+  if (!p || p <= 0) return '未开始'
+  if (p <= 30) return '初期'
+  if (p <= 70) return '中期'
+  if (p < 100) return '收尾'
+  return '已完成'
+}
+function progressTagType(p: number): 'info' | 'warning' | 'success' {
+  if (!p || p <= 0) return 'info'
+  if (p < 100) return 'warning'
+  return 'success'
 }
 </script>
 
@@ -262,6 +315,12 @@ const loadContactsData = async () => {
   flex: 1 1 320px;
   min-width: 300px;
   max-width: 480px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.contact-row:hover {
+  background: rgba(100, 149, 237, 0.16);
+  border-color: rgba(100, 149, 237, 0.45);
 }
 
 .contact-main {
@@ -318,6 +377,22 @@ const loadContactsData = async () => {
   padding: 1rem 0;
   width: 100%;
 }
+
+/* 通讯录详情弹窗 */
+.contact-detail { display: flex; flex-direction: column; gap: 1rem; }
+.cd-section { display: flex; flex-direction: column; gap: 0.5rem; }
+.cd-row { display: flex; gap: 0.75rem; font-size: 0.92rem; }
+.cd-label { flex: 0 0 48px; color: #6495ED; font-weight: 600; }
+.cd-value { color: #333; word-break: break-all; }
+.cd-subtitle { font-size: 0.98rem; font-weight: 600; color: #333; border-top: 1px dashed rgba(100,149,237,0.3); padding-top: 0.75rem; }
+.cd-projects { display: flex; flex-direction: column; gap: 0.75rem; }
+.cd-project { background: rgba(100,149,237,0.06); border: 1px solid rgba(100,149,237,0.2); border-radius: 10px; padding: 0.6rem 0.8rem; }
+.cd-project-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.4rem; }
+.cd-project-name { font-weight: 600; color: #333; font-size: 0.95rem; }
+.cd-project-meta { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; font-size: 0.82rem; color: rgba(51,51,51,0.75); }
+.cd-project-desc { margin-top: 0.4rem; font-size: 0.82rem; color: rgba(51,51,51,0.7); line-height: 1.5; }
+.cd-project-link { margin-top: 0.3rem; font-size: 0.82rem; }
+.cd-project-link a { color: #4169E1; }
 
 .contacts-list::-webkit-scrollbar { width: 6px; }
 .contacts-list::-webkit-scrollbar-thumb { background: rgba(100, 149, 237, 0.5); border-radius: 4px; }
