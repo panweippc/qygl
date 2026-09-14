@@ -409,10 +409,13 @@ router.get('/sales-four-tables/:type', requireSalesView, async (req, res) => {
     const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
     const [countRows] = await pool.execute(`SELECT COUNT(*) AS total FROM ${table} ${where}`, params);
     const total = countRows[0].total;
-    const offset = (Math.max(1, parseInt(page)) - 1) * parseInt(pageSize);
+    const pageNum = Math.max(1, parseInt(page));
+    const sizeNum = parseInt(pageSize);
+    const offset = (pageNum - 1) * sizeNum;
+    // MySQL 5.7 在 prepared statement 中对 LIMIT/OFFSET 占位符校验严格，这里直接拼接整数
     const [rows] = await pool.execute(
-      `SELECT * FROM ${table} ${where} ORDER BY updated_at DESC LIMIT ? OFFSET ?`,
-      [...params, parseInt(pageSize), offset]
+      `SELECT * FROM ${table} ${where} ORDER BY updated_at DESC LIMIT ${sizeNum} OFFSET ${offset}`,
+      params
     );
     res.json({ success: true, data: { list: rows, total, page: parseInt(page), pageSize: parseInt(pageSize) } });
   } catch (error) {
