@@ -99,7 +99,7 @@
       </template>
     </el-dialog>
 
-    <ImportDialog v-model="importVisible" :type="type" @success="load" />
+    <ImportDialog v-model="importVisible" :type="type" @success="onImportSuccess" />
     <DiffDialog v-model="diffVisible" :type="type" :record-id="diffRecordId" />
   </div>
 </template>
@@ -112,7 +112,7 @@ import ImportDialog from './ImportDialog.vue'
 import DiffDialog from './DiffDialog.vue'
 
 const props = defineProps<{ type: 'intention' | 'key', title: string, perm: any }>()
-const emit = defineEmits(['customer-click', 'progress-jump'])
+const emit = defineEmits(['customer-click', 'progress-jump', 'refresh-stats'])
 
 const salesStatusMap: Record<string, string[]> = {
   intention: ['确认意向', '引导立项', '方案提交'],
@@ -171,6 +171,7 @@ async function save() {
       ElMessage.success('保存成功')
       editVisible.value = false
       load()
+      emit('refresh-stats')
       // 后端已按进展百分比把记录归属到对应表，跳转到该表页签即可看到刚保存的记录
       const dest = json.data?.destType
       if (dest && dest !== props.type) emit('progress-jump', dest)
@@ -183,7 +184,7 @@ async function remove(row: any) {
   try {
     await ElMessageBox.confirm('确定删除该记录吗？', '提示', { type: 'warning' })
     const json = await salesFetchJSON(`/api/sales-four-tables/${props.type}/${row.id}`, { method: 'DELETE' })
-    if (json.success) { ElMessage.success('删除成功'); load() }
+    if (json.success) { ElMessage.success('删除成功'); load(); emit('refresh-stats') }
     else ElMessage.error(json.message || '删除失败')
   } catch {}
 }
@@ -191,6 +192,11 @@ async function remove(row: any) {
 function openVersions(row: any) {
   diffRecordId.value = row.id
   diffVisible.value = true
+}
+
+function onImportSuccess() {
+  load()
+  emit('refresh-stats')
 }
 
 onMounted(load)

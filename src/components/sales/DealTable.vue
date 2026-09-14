@@ -101,7 +101,7 @@
       </template>
     </el-dialog>
 
-    <ImportDialog v-model="importVisible" type="deal" @success="load" />
+    <ImportDialog v-model="importVisible" type="deal" @success="onImportSuccess" />
     <DiffDialog v-model="diffVisible" type="deal" :record-id="diffRecordId" />
   </div>
 </template>
@@ -114,7 +114,7 @@ import ImportDialog from './ImportDialog.vue'
 import DiffDialog from './DiffDialog.vue'
 
 const props = defineProps<{ perm: any }>()
-const emit = defineEmits(['customer-click'])
+const emit = defineEmits(['customer-click', 'refresh-stats'])
 const list = ref<any[]>([])
 const loading = ref(false)
 const total = ref(0)
@@ -153,7 +153,7 @@ async function save() {
     const url = '/api/sales-four-tables/deal' + (editForm.value.id ? `/${editForm.value.id}` : '')
     const method = editForm.value.id ? 'PUT' : 'POST'
     const json = await salesFetchJSON(url, { method, body: JSON.stringify(editForm.value) })
-    if (json.success) { ElMessage.success('保存成功'); editVisible.value = false; load() }
+    if (json.success) { ElMessage.success('保存成功'); editVisible.value = false; load(); emit('refresh-stats') }
     else ElMessage.error(json.message || '保存失败')
   } catch (e: any) { ElMessage.error('保存失败: ' + e.message) }
   finally { saving.value = false }
@@ -162,11 +162,12 @@ async function remove(row: any) {
   try {
     await ElMessageBox.confirm('确定删除该记录吗？', '提示', { type: 'warning' })
     const json = await salesFetchJSON(`/api/sales-four-tables/deal/${row.id}`, { method: 'DELETE' })
-    if (json.success) { ElMessage.success('删除成功'); load() }
+    if (json.success) { ElMessage.success('删除成功'); load(); emit('refresh-stats') }
     else ElMessage.error(json.message || '删除失败')
   } catch {}
 }
 function openVersions(row: any) { diffRecordId.value = row.id; diffVisible.value = true }
+function onImportSuccess() { load(); emit('refresh-stats') }
 onMounted(load)
 </script>
 

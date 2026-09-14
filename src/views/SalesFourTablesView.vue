@@ -11,7 +11,7 @@
       </div>
     </header>
 
-    <StatsPanel />
+    <StatsPanel ref="statsPanelRef" />
 
     <div class="sft-guide">
       <el-alert title="销售四表使用说明" type="info" :closable="false" show-icon>
@@ -21,16 +21,16 @@
 
     <el-tabs v-model="activeTab" class="sft-tabs" @tab-change="onTabChange">
       <el-tab-pane label="意向漏斗" name="intention">
-        <FunnelTable type="intention" title="意向漏斗" :perm="perm" @customer-click="openCrossRef" @progress-jump="activeTab = $event" />
+        <FunnelTable type="intention" title="意向漏斗" :perm="perm" @customer-click="openCrossRef" @progress-jump="activeTab = $event" @refresh-stats="refreshStats" />
       </el-tab-pane>
       <el-tab-pane label="重点漏斗" name="key">
-        <FunnelTable type="key" title="重点漏斗" :perm="perm" @customer-click="openCrossRef" @progress-jump="activeTab = $event" />
+        <FunnelTable type="key" title="重点漏斗" :perm="perm" @customer-click="openCrossRef" @progress-jump="activeTab = $event" @refresh-stats="refreshStats" />
       </el-tab-pane>
       <el-tab-pane label="成交用户" name="deal">
-        <DealTable :perm="perm" @customer-click="openCrossRef" />
+        <DealTable :perm="perm" @customer-click="openCrossRef" @refresh-stats="refreshStats" />
       </el-tab-pane>
       <el-tab-pane label="大项目进展" name="project">
-        <ProjectTable :perm="perm" @customer-click="openCrossRef" />
+        <ProjectTable :perm="perm" @customer-click="openCrossRef" @refresh-stats="refreshStats" />
       </el-tab-pane>
     </el-tabs>
 
@@ -53,6 +53,11 @@ const activeTab = ref('intention')
 const perm = ref({ canWrite: false, canView: false, isAdmin: false })
 const crossVisible = ref(false)
 const crossCustomer = ref('')
+const statsPanelRef = ref<any>(null)
+
+function refreshStats() {
+  statsPanelRef.value?.load()
+}
 
 async function loadPerm() {
   try {

@@ -52,6 +52,7 @@ async function load() {
 }
 
 onMounted(load)
+defineExpose({ load })
 </script>
 
 <style scoped>
