@@ -11,26 +11,30 @@
       </div>
     </div>
 
-    <el-table :data="list" v-loading="loading" stripe style="width:100%">
-      <el-table-column type="index" width="50" />
-      <el-table-column prop="customer_name" label="客户名称" min-width="160" show-overflow-tooltip>
-        <template #default="{ row }">
-          <el-button link size="small" @click.stop="emit('customer-click', row.customer_name)">{{ row.customer_name }}</el-button>
-        </template>
-      </el-table-column>
-      <el-table-column prop="unit_nature" label="单位性质" width="120" />
-      <el-table-column prop="report_date" label="日期" width="110" />
-      <el-table-column prop="project_owner" label="项目负责人" width="120" />
-      <el-table-column prop="project_budget" label="项目预算" width="120" />
-      <el-table-column prop="report_month" label="申报月份" width="100" />
-      <el-table-column label="操作" width="160" fixed="right">
-        <template #default="{ row }">
-          <el-button text size="small" @click="openEdit(row)">编辑</el-button>
-          <el-button text size="small" @click="openVersions(row)">版本</el-button>
-          <el-button v-if="perm.canWrite" text size="small" type="danger" @click="remove(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="ft-table-wrapper">
+      <el-table :data="list" v-loading="loading" stripe style="width:100%">
+        <el-table-column type="index" width="50" />
+        <el-table-column prop="customer_name" label="客户名称" min-width="160" show-overflow-tooltip>
+          <template #default="{ row }">
+            <el-button link size="small" @click.stop="emit('customer-click', row.customer_name)">{{ row.customer_name }}</el-button>
+          </template>
+        </el-table-column>
+        <el-table-column prop="unit_nature" label="单位性质" width="120" />
+        <el-table-column prop="report_date" label="日期" width="110" />
+        <el-table-column prop="project_owner" label="项目负责人" width="120" />
+        <el-table-column prop="project_budget" label="项目预算" width="120" />
+        <el-table-column prop="report_month" label="申报月份" width="100" />
+        <el-table-column label="操作" width="170" fixed="right">
+          <template #default="{ row }">
+            <div class="op-cell">
+              <el-button text size="small" @click="openEdit(row)">编辑</el-button>
+              <el-button text size="small" @click="openVersions(row)">版本</el-button>
+              <el-button v-if="perm.canWrite" text size="small" type="danger" @click="remove(row)">删除</el-button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
 
     <el-pagination v-if="total > pageSize" v-model:current-page="page" :page-size="pageSize" :total="total" layout="prev,pager,next" class="ft-pagination" @current-change="load" />
 
@@ -239,4 +243,8 @@ onMounted(load)
 .sub-title { font-weight: 600; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
 .dialog-body { max-height: 60vh; overflow-y: auto; padding-right: 0.5rem; }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 0.5rem; }
+.ft-table-wrapper { width: 100%; overflow-x: auto; border: 1px solid #ebeef5; border-radius: 4px; }
+.ft-table-wrapper :deep(.el-table) { min-width: max-content; }
+.op-cell { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; white-space: nowrap; }
+.op-cell :deep(.el-button) { padding: 0 4px; margin-left: 0 !important; margin-right: 0; }
 </style>

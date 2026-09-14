@@ -12,35 +12,39 @@
       </div>
     </div>
 
-    <el-table :data="list" v-loading="loading" stripe style="width:100%" @row-click="(_, __, e) => e && openEdit(_)">
-      <el-table-column type="index" width="50" />
-      <el-table-column prop="owner" label="owner" width="100" />
-      <el-table-column prop="customer_name" label="客户名单" min-width="140" show-overflow-tooltip>
-        <template #default="{ row }">
-          <el-button link size="small" @click.stop="emit('customer-click', row.customer_name)">{{ row.customer_name }}</el-button>
-        </template>
-      </el-table-column>
-      <el-table-column prop="partner_name" label="合作伙伴" min-width="120" show-overflow-tooltip />
-      <el-table-column prop="sales_type" label="销售类型" width="100" />
-      <el-table-column prop="revenue_type" label="代理类型" width="100" />
-      <el-table-column prop="report_date" label="申报日期" width="110" />
-      <el-table-column prop="product_type" label="产品类型" min-width="120" show-overflow-tooltip />
-      <el-table-column prop="monthly_repayment" label="本月回款" width="110">
-        <template #default="{ row }">{{ Number(row.monthly_repayment || 0).toLocaleString() }}</template>
-      </el-table-column>
-      <el-table-column prop="estimated_total" label="预计总额" width="110">
-        <template #default="{ row }">{{ Number(row.estimated_total || 0).toLocaleString() }}</template>
-      </el-table-column>
-      <el-table-column prop="sales_status" label="销售状态" width="100" />
-      <el-table-column prop="report_month" label="申报月份" width="100" />
-      <el-table-column label="操作" width="160" fixed="right">
-        <template #default="{ row }">
-          <el-button text size="small" @click.stop="openEdit(row)">编辑</el-button>
-          <el-button text size="small" @click.stop="openVersions(row)">版本</el-button>
-          <el-button v-if="perm.canWrite" text size="small" type="danger" @click.stop="remove(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="ft-table-wrapper">
+      <el-table :data="list" v-loading="loading" stripe style="width:100%" @row-click="(_, __, e) => e && openEdit(_)">
+        <el-table-column type="index" width="50" />
+        <el-table-column prop="owner" label="owner" width="100" />
+        <el-table-column prop="customer_name" label="客户名单" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">
+            <el-button link size="small" @click.stop="emit('customer-click', row.customer_name)">{{ row.customer_name }}</el-button>
+          </template>
+        </el-table-column>
+        <el-table-column prop="partner_name" label="合作伙伴" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="sales_type" label="销售类型" width="100" />
+        <el-table-column prop="revenue_type" label="代理类型" width="100" />
+        <el-table-column prop="report_date" label="申报日期" width="110" />
+        <el-table-column prop="product_type" label="产品类型" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="monthly_repayment" label="本月回款" width="110">
+          <template #default="{ row }">{{ Number(row.monthly_repayment || 0).toLocaleString() }}</template>
+        </el-table-column>
+        <el-table-column prop="estimated_total" label="预计总额" width="110">
+          <template #default="{ row }">{{ Number(row.estimated_total || 0).toLocaleString() }}</template>
+        </el-table-column>
+        <el-table-column prop="sales_status" label="销售状态" width="100" />
+        <el-table-column prop="report_month" label="申报月份" width="100" />
+        <el-table-column label="操作" width="170" fixed="right">
+          <template #default="{ row }">
+            <div class="op-cell">
+              <el-button text size="small" @click.stop="openEdit(row)">编辑</el-button>
+              <el-button text size="small" @click.stop="openVersions(row)">版本</el-button>
+              <el-button v-if="perm.canWrite" text size="small" type="danger" @click.stop="remove(row)">删除</el-button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
 
     <el-pagination v-if="total > pageSize" v-model:current-page="page" :page-size="pageSize" :total="total" layout="prev,pager,next" class="ft-pagination" @current-change="load" />
 
@@ -201,4 +205,8 @@ watch(() => props.type, load)
 .ft-pagination { margin-top: 1rem; justify-content: flex-end; }
 .dialog-body { max-height: 60vh; overflow-y: auto; padding-right: 0.5rem; }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 0.5rem; }
+.ft-table-wrapper { width: 100%; overflow-x: auto; border: 1px solid #ebeef5; border-radius: 4px; }
+.ft-table-wrapper :deep(.el-table) { min-width: max-content; }
+.op-cell { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; white-space: nowrap; }
+.op-cell :deep(.el-button) { padding: 0 4px; margin-left: 0 !important; margin-right: 0; }
 </style>
