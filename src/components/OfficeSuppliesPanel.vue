@@ -335,7 +335,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'update:badge': [count: number]
+  'update:badge': [payload: { appliedTotal: number; appliedReturned: number; receivedTotal: number; receivedPendingUnread: number }]
   'stat-update': []
   'approve': [row: any, type: string]
   'terminate': [row: any, type: string]
@@ -360,7 +360,7 @@ const projectSubTab = ref(props.subTab || 'applied')
 const appliedProjectCount = computed(() => {
   const base = props.isAdmin ? allProjectRecords.value : projectRecords.value
   const applied = base.filter(isMyProjectApplication)
-  return { total: applied.length, pending: applied.filter(r => isPending(r)).length }
+  return { total: applied.length, pending: applied.filter(r => isPending(r)).length, returned: applied.filter(r => isReturned(r)).length }
 })
 const receivedProjectCount = computed(() => {
   const base = props.isAdmin ? allProjectRecords.value : projectRecords.value
@@ -369,10 +369,20 @@ const receivedProjectCount = computed(() => {
   const unread = received.filter(r => isItemDistributedToMe(r, 'project') && !getDistributionRead(r, 'project')).length
   return { total: received.length, pendingUnread: pending + unread }
 })
+// 「我申请的」高亮已退回条数，提示申请人需要修改重提；无退回时显示总数灰色
 const projectSubTabs = computed(() => [
-  { label: '我申请的', value: 'applied', badge: appliedProjectCount.value.pending > 0 ? appliedProjectCount.value.pending : appliedProjectCount.value.total, badgeType: appliedProjectCount.value.pending > 0 ? 'red' : 'gray' },
+  { label: '我申请的', value: 'applied', badge: appliedProjectCount.value.returned > 0 ? appliedProjectCount.value.returned : appliedProjectCount.value.total, badgeType: appliedProjectCount.value.returned > 0 ? 'red' : 'gray' },
   { label: '我收到的', value: 'received', badge: receivedProjectCount.value.pendingUnread > 0 ? receivedProjectCount.value.pendingUnread : receivedProjectCount.value.total, badgeType: receivedProjectCount.value.pendingUnread > 0 ? 'red' : 'gray' }
 ])
+
+// 向父组件同步徽标口径，用于顶部主页签计数
+const projectBadgePayload = computed(() => ({
+  appliedTotal: appliedProjectCount.value.total,
+  appliedReturned: appliedProjectCount.value.returned,
+  receivedTotal: receivedProjectCount.value.total,
+  receivedPendingUnread: receivedProjectCount.value.pendingUnread
+}))
+watch(() => projectBadgePayload.value, (v) => emit('update:badge', v), { immediate: true })
 
 // 下发给我的记录（按当前用户拉取，不依赖全局 allDistributedRecords）
 const myDistributedRecords = ref<any[]>([])

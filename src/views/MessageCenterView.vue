@@ -50,38 +50,55 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 
 const router = useRouter()
 
+// 从标题/内容推断审批类型
+function inferTypeFromText(item: any): string | null {
+  const hay = `${item?.title || ''} ${item?.content || ''}`.toLowerCase()
+  if (/请假/.test(hay)) return 'leave'
+  if (/报销/.test(hay)) return 'reimbursement'
+  if (/会议/.test(hay)) return 'meeting'
+  if (/出差/.test(hay)) return 'businessTrip'
+  if (/招待|业务招待/.test(hay)) return 'entertainment'
+  if (/协同|办公用品|项目申请|项目/.test(hay)) return 'project'
+  if (/下发|分派|分发/.test(hay)) return 'distributed'
+  return null
+}
+
 /**
  * 根据消息类型/内容计算跳转目标路由
  * 规则：
- *   - 标题或内容含 "请假" → /oa-office?tab=leave
- *   - 标题或内容含 "报销" → /oa-office?tab=reimbursement
- *   - 标题或内容含 "出差" → /oa-office?tab=businessTrip
- *   - 标题或内容含 "招待" → /oa-office?tab=entertainment
- *   - 标题或内容含 "项目" → /oa-office?tab=project
- *   - 标题或内容含 "会议" → /oa-office?tab=meeting
- *   - 标题或内容含 "下发"/"分派" → /oa-office?tab=distributed
+ *   - 审批提醒/撤回/退回通知 → /oa-office?tab=<类型>&subTab=received
+ *   - 下发已读回执 → /oa-office?tab=distributedByMe
+ *   - 普通下发 → /oa-office?tab=<类型>&subTab=received
  *   - 默认 /（首页）
  */
 function resolveJumpRoute(item: any): string {
-  const hay = `${item?.type || ''} ${item?.title || ''} ${item?.content || ''}`.toLowerCase()
-  // 下发记录通知：统一跳转到对应申请页签的「我收到的」子页签（不再跳转已下线的"我收到的下发"）
+  const t = item?.applicationType || inferTypeFromText(item)
+
+  // 下发类通知：已读回执跳「我下发的」，其余跳对应申请页签的「我收到的」
   if (item?.relatedType === 'distributed' && item?.relatedId) {
-    const t = item.applicationType
+    const hay = `${item?.title || ''} ${item?.content || ''}`.toLowerCase()
+    if (/已读回执|已读您下发|已查看/.test(hay)) {
+      return '/oa-office?tab=distributedByMe'
+    }
     if (['leave', 'reimbursement', 'meeting', 'project', 'businessTrip', 'entertainment'].includes(t)) {
       return `/oa-office?tab=${t}&subTab=received`
     }
     return '/oa-office?tab=distributed'
   }
-  if (/请假/.test(item?.title || '') || /请假/.test(item?.content || '')) return '/oa-office?tab=leave'
-  if (/报销/.test(item?.title || '') || /报销/.test(item?.content || '')) return '/oa-office?tab=reimbursement'
-  if (/出差/.test(item?.title || '') || /出差/.test(item?.content || '')) return '/oa-office?tab=businessTrip'
-  if (/招待/.test(item?.title || '') || /招待/.test(item?.content || '')) return '/oa-office?tab=entertainment'
-  if (/项目|工程|立项/.test(item?.title || '') || /项目|工程|立项/.test(item?.content || '')) return '/oa-office?tab=project'
-  if (/会议/.test(item?.title || '') || /会议/.test(item?.content || '')) return '/oa-office?tab=meeting'
-  if (/下发|分派|分发/.test(item?.title || '') || /下发|分派|分发/.test(item?.content || '')) return '/oa-office?tab=distributed'
-  // approval 审批类型兜底 → 进入 OA 办公
-  if (item?.type === 'approval') return '/oa-office'
-  // mention 提及类、task 任务类 → 返回首页
+
+  // 审批类通知统一进入对应类型的「我收到的」子页签
+  if (item?.type === 'approval' || item?.type === 'notify') {
+    if (['leave', 'reimbursement', 'meeting', 'project', 'businessTrip', 'entertainment'].includes(t)) {
+      return `/oa-office?tab=${t}&subTab=received`
+    }
+    return '/oa-office'
+  }
+
+  // 关键词兜底
+  const dt = inferTypeFromText(item)
+  if (dt && dt !== 'distributed') return `/oa-office?tab=${dt}&subTab=received`
+  if (dt === 'distributed') return '/oa-office?tab=distributedByMe'
+
   if (item?.type === 'mention' || item?.type === 'task') return '/'
   return '/'
 }

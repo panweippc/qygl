@@ -420,7 +420,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'update:badge': [count: number]
+  'update:badge': [payload: { appliedTotal: number; appliedReturned: number; receivedTotal: number; receivedPendingUnread: number }]
   'stat-update': []
   'approve': [row: any, type: string]
   'terminate': [row: any, type: string]
@@ -434,7 +434,11 @@ const meetingSubTab = ref(props.subTab || 'applied')
 const appliedMeetingCount = computed(() => {
   const base = props.isAdmin ? allMeetingRecords.value : meetingRecords.value
   const applied = base.filter(isMyMeetingApplication)
-  return { total: applied.length, pending: applied.filter(r => isPending(r)).length }
+  return {
+    total: applied.length,
+    pending: applied.filter(r => isPending(r)).length,
+    returned: applied.filter(r => isReturned(r)).length
+  }
 })
 const receivedMeetingCount = computed(() => {
   const base = props.isAdmin ? allMeetingRecords.value : meetingRecords.value
@@ -533,7 +537,8 @@ const isReceivedMeeting = (r: any) => {
 
 // 撤回/退回/重新提交/删除 显示条件
 const isPending = (r: any) => ['审批中', '待审批', '待审核', 'pending'].includes(r.status)
-const isWithdrawnOrDraft = (r: any) => ['已撤回', '草稿', 'withdrawn', 'draft'].includes(r.status)
+const isReturned = (r: any) => ['已退回', 'returned'].includes(r.status)
+const isWithdrawnOrDraft = (r: any) => ['已撤回', '已退回', '草稿', 'withdrawn', 'draft', 'returned'].includes(r.status)
 const canApprove = (row: any) => isPending(row) && (props.isAdmin || extractRealName(row.approver) === extractRealName(currentUsername.value))
 const canReturn = (row: any) => isPending(row) && (props.isAdmin || extractRealName(row.approver) === extractRealName(currentUsername.value))
 const canWithdraw = (row: any) => isPending(row) && !props.isAdmin && isMyMeetingApplication(row)

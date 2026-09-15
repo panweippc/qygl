@@ -4,6 +4,7 @@ const router = express.Router();
 import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
 import { resubmitApplication } from '../utils/resubmitHelper.js';
 import { getRealName } from '../utils/identity.js';
+import { appendReturnHistory } from '../utils/returnHistory.js';
 
 // 办公用品数据访问控制：普通员工只看自己
 const isManagerUser = async (req) => {
@@ -96,6 +97,7 @@ router.post('/office-supplies/:id/return', async (req, res) => {
       return res.status(400).json({ success: false, message: '当前状态不可退回' });
     }
     await pool.execute('UPDATE office_supplies_applications SET status = ?, result = ?, return_reason = ? WHERE id = ?', ['已退回', '已退回', reason, id]);
+    await appendReturnHistory(pool, 'office_supplies_applications', id, operator, reason);
     await createNotification(pool, { userId: rec.applicant, title: '办公用品申请被退回', content: `您申请的${rec.itemName || ''}被${operator}退回，原因：${reason}`, type: 'approval' });
     await createOperationLog(pool, { username: operator, action: 'return', module: 'office_supplies', targetName: `${rec.itemName || ''}申请`, detail: reason });
     res.json({ success: true, message: '已退回' });

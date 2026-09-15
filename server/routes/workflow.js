@@ -7,6 +7,7 @@ import { createNotification, createOperationLog } from '../utils/audit.js';
 import { resubmitApplication } from '../utils/resubmitHelper.js';
 import { getRealName } from '../utils/identity.js';
 import { requireRole } from '../middleware/auth.js';
+import { appendReturnHistory } from '../utils/returnHistory.js';
 
 const router = express.Router();
 
@@ -495,6 +496,7 @@ router.post('/projects/:id/return', async (req, res) => {
       return res.status(400).json({ success: false, message: '当前状态不可退回' });
     }
     await pool.query('UPDATE project_applications SET status = ?, return_reason = ? WHERE id = ?', ['已退回', reason, id]);
+    await appendReturnHistory(pool, 'project_applications', id, operator, reason);
     await createNotification(pool, { userId: rec.applicant_name, title: '项目申请被退回', content: `您的${rec.project_name}项目申请(${rec.project_code})被${operator}退回，原因：${reason}`, type: 'approval', relatedId: parseInt(id), relatedType: 'project' });
     await createOperationLog(pool, { username: operator, action: 'return', module: 'project', targetName: `${rec.project_name}项目(${rec.project_code})`, detail: reason });
     res.json({ success: true, message: '已退回' });

@@ -3,6 +3,7 @@ const router = express.Router();
 
 import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
 import { resubmitApplication } from '../utils/resubmitHelper.js';
+import { appendReturnHistory } from '../utils/returnHistory.js';
 
 // ---- 报销/招待费数据访问控制：申请人本人 + 财务/总经理 可见 ----
 const FINANCE_ROLES = ['财务总监', '财务经理', '总经理', '系统管理员'];
@@ -131,6 +132,7 @@ router.post('/reimbursements/:id/return', async (req, res) => {
       return res.status(400).json({ success: false, message: '当前状态不可退回' });
     }
     await pool.execute('UPDATE reimbursements SET status = ?, result = ?, return_reason = ? WHERE id = ?', ['已退回', '已退回', reason, id]);
+    await appendReturnHistory(pool, 'reimbursements', id, operator, reason);
     await createNotification(pool, { userId: rec.applicant, title: '报销申请被退回', content: `您的${rec.reimburseType || ''}报销被${operator}退回，原因：${reason}`, type: 'approval' });
     await createOperationLog(pool, { username: operator, action: 'return', module: 'reimbursement', targetName: `${rec.reimburseType || ''}报销`, detail: reason });
     res.json({ success: true, message: '已退回' });

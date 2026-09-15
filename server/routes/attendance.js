@@ -4,6 +4,7 @@ const router = express.Router();
 import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
 import { resubmitApplication } from '../utils/resubmitHelper.js';
 import { getRealName } from '../utils/identity.js';
+import { appendReturnHistory } from '../utils/returnHistory.js';
 
 // 请假审批：仅当前审批人或管理角色可操作
 const isManagerUser = async (req) => {
@@ -91,6 +92,7 @@ router.post('/leave-applications/:id/return', async (req, res) => {
       return res.status(400).json({ success: false, message: '当前状态不可退回' });
     }
     await pool.execute('UPDATE leave_applications SET status = ?, result = ?, return_reason = ? WHERE id = ?', ['已退回', '已退回', reason, id]);
+    await appendReturnHistory(pool, 'leave_applications', id, operator, reason);
     await createNotification(pool, { userId: rec.applicant, title: '请假申请被退回', content: `您的${rec.leaveType || ''}请假被${operator}退回，原因：${reason}`, type: 'approval' });
     await createOperationLog(pool, { username: operator, action: 'return', module: 'attendance', targetName: `${rec.leaveType || ''}请假`, detail: reason });
     res.json({ success: true, message: '已退回' });

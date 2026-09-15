@@ -4,6 +4,7 @@ const router = express.Router();
 import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
 import { resubmitApplication } from '../utils/resubmitHelper.js';
 import { getRealName } from '../utils/identity.js';
+import { appendReturnHistory } from '../utils/returnHistory.js';
 
 // 仅当前审批人或管理角色可操作（退回/软删判断用）
 const isManagerUser = async (req) => {
@@ -408,6 +409,7 @@ router.post('/business-trips/:id/return', async (req, res) => {
       return res.status(400).json({ success: false, message: '当前状态不可退回' });
     }
     await pool.execute('UPDATE business_trip_applications SET status = ?, return_reason = ? WHERE id = ?', ['已退回', reason, id]);
+    await appendReturnHistory(pool, 'business_trip_applications', id, operator, reason);
     await createNotification(pool, { userId: rec.applicant_name, title: '出差申请被退回', content: `您的${rec.destination}出差申请(${rec.trip_code})被${operator}退回，原因：${reason}`, type: 'approval', relatedId: parseInt(id), relatedType: 'business_trip' });
     await createOperationLog(pool, { username: operator, action: 'return', module: 'business_trip', targetName: `${rec.destination}出差(${rec.trip_code})`, detail: reason });
     res.json({ success: true, message: '已退回' });

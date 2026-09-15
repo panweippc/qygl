@@ -443,7 +443,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'update:badge': [count: number]
+  'update:badge': [payload: { appliedTotal: number; appliedReturned: number; receivedTotal: number; receivedPendingUnread: number }]
   'stat-update': []
   'approve': [row: any, type: string]
   'terminate': [row: any, type: string]
@@ -507,7 +507,11 @@ const leaveSubTab = ref(props.subTab || 'applied')
 const appliedLeaveCount = computed(() => {
   const base = props.isAdmin ? allLeaveRecords.value : leaveRecords.value
   const applied = base.filter(isMyLeaveApplication)
-  return { total: applied.length, pending: applied.filter(r => isPending(r)).length }
+  return {
+    total: applied.length,
+    pending: applied.filter(r => isPending(r)).length,
+    returned: applied.filter(r => isReturned(r)).length
+  }
 })
 const receivedLeaveCount = computed(() => {
   const base = props.isAdmin ? allLeaveRecords.value : leaveRecords.value
@@ -516,10 +520,20 @@ const receivedLeaveCount = computed(() => {
   const unread = received.filter(r => isItemDistributedToMe(r, 'leave') && !getDistributionRead(r, 'leave')).length
   return { total: received.length, pendingUnread: pending + unread }
 })
+// 「我申请的」高亮已退回条数，提示申请人需要修改重提；无退回时显示总数灰色
 const leaveSubTabs = computed(() => [
-  { label: '我申请的', value: 'applied', badge: appliedLeaveCount.value.pending > 0 ? appliedLeaveCount.value.pending : appliedLeaveCount.value.total, badgeType: appliedLeaveCount.value.pending > 0 ? 'red' : 'gray' },
+  { label: '我申请的', value: 'applied', badge: appliedLeaveCount.value.returned > 0 ? appliedLeaveCount.value.returned : appliedLeaveCount.value.total, badgeType: appliedLeaveCount.value.returned > 0 ? 'red' : 'gray' },
   { label: '我收到的', value: 'received', badge: receivedLeaveCount.value.pendingUnread > 0 ? receivedLeaveCount.value.pendingUnread : receivedLeaveCount.value.total, badgeType: receivedLeaveCount.value.pendingUnread > 0 ? 'red' : 'gray' }
 ])
+
+// 向父组件同步徽标口径，用于顶部主页签计数
+const leaveBadgePayload = computed(() => ({
+  appliedTotal: appliedLeaveCount.value.total,
+  appliedReturned: appliedLeaveCount.value.returned,
+  receivedTotal: receivedLeaveCount.value.total,
+  receivedPendingUnread: receivedLeaveCount.value.pendingUnread
+}))
+watch(() => leaveBadgePayload.value, (v) => emit('update:badge', v), { immediate: true })
 
 // 下发给我的记录（按当前用户拉取，不依赖全局 allDistributedRecords）
 const myDistributedRecords = ref<any[]>([])
@@ -805,7 +819,8 @@ const handleApprove = (row: any) => {
 
 // 撤回/退回/重新提交/删除 显示条件
 const isPending = (r: any) => ['审批中', '待审批', '待审核', 'pending'].includes(r.status)
-const isWithdrawnOrDraft = (r: any) => ['已撤回', '草稿', 'withdrawn', 'draft'].includes(r.status)
+const isReturned = (r: any) => ['已退回', 'returned'].includes(r.status)
+const isWithdrawnOrDraft = (r: any) => ['已撤回', '已退回', '草稿', 'withdrawn', 'draft', 'returned'].includes(r.status)
 const canApprove = (row: any) => isPending(row) && (props.isAdmin || extractRealName(row.approver) === extractRealName(currentUsername.value))
 const canReturn = (row: any) => isPending(row) && (props.isAdmin || extractRealName(row.approver) === extractRealName(currentUsername.value))
 const canWithdraw = (row: any) => isPending(row) && !props.isAdmin && extractRealName(row.applicant) === extractRealName(currentUsername.value)

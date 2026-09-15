@@ -276,7 +276,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'update:badge': [count: number]
+  'update:badge': [payload: { appliedTotal: number; appliedReturned: number; receivedTotal: number; receivedPendingUnread: number }]
   'stat-update': []
   'approve': [row: any, type: string]
   'terminate': [row: any, type: string]
@@ -519,7 +519,8 @@ const handleApprove = (row: any) => emit('approve', row, 'entertainment')
 
 // 撤回/退回/重新提交/删除 显示条件
 const isPending = (r: any) => ['审批中', '待审批', '待审核', 'pending'].includes(r.status)
-const isWithdrawnOrDraft = (r: any) => ['已撤回', '草稿', 'withdrawn', 'draft'].includes(r.status)
+const isReturned = (r: any) => ['已退回', 'returned'].includes(r.status)
+const isWithdrawnOrDraft = (r: any) => ['已撤回', '已退回', '草稿', 'withdrawn', 'draft', 'returned'].includes(r.status)
 const canApprove = (row: any) => isPending(row) && (props.isAdmin || extractRealName(row.approver) === extractRealName(currentUsername.value))
 const canReturn = (row: any) => isPending(row) && (props.isAdmin || extractRealName(row.approver) === extractRealName(currentUsername.value))
 const canWithdraw = (row: any) => isPending(row) && !props.isAdmin && extractRealName(row.applicant) === extractRealName(currentUsername.value)

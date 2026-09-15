@@ -1379,6 +1379,8 @@ const initDatabase = async () => {
     for (const t of oaTables) {
       try { await connection.execute(`ALTER TABLE ${t} ADD COLUMN is_deleted TINYINT NOT NULL DEFAULT 0`); } catch (e) {}
       try { await connection.execute(`ALTER TABLE ${t} ADD COLUMN return_reason TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`); } catch (e) {}
+      // 迁移：补充 return_history（TEXT 存储 JSON 文本），结构化记录每次退回的「退回人/理由/时间」，解决多审批人时看不清谁退回的问题
+      try { await connection.execute(`ALTER TABLE ${t} ADD COLUMN return_history TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`); } catch (e) {}
     }
     
     // 创建oa_approval_flows表（OA审批流程定义）

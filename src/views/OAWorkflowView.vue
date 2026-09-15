@@ -83,6 +83,7 @@
             <div v-show="activeTab === 'leave'" class="tab-panel">
               <LeavePanel
                 ref="leavePanelRef"
+                @update:badge="(p) => onPanelBadge('leave', p)"
                 :isAdmin="isAdminComputed"
                 :canDistribute="canDistribute"
                 :currentUser="currentUsername"
@@ -103,6 +104,7 @@
             <div v-show="activeTab === 'reimbursement'" class="tab-panel">
               <ReimbursementPanel
                 ref="reimbursementPanelRef"
+                @update:badge="(p) => onPanelBadge('reimbursement', p)"
                 :isAdmin="isAdminComputed"
                 :canDistribute="canDistribute"
                 :currentUser="currentUsername"
@@ -123,6 +125,7 @@
             <div v-show="activeTab === 'meeting'" class="tab-panel">
               <MeetingPanel
                 ref="meetingPanelRef"
+                @update:badge="(p) => onPanelBadge('meeting', p)"
                 :isAdmin="isAdminComputed"
                 :canDistribute="canDistribute"
                 :currentUser="currentUsername"
@@ -143,6 +146,7 @@
             <div v-show="activeTab === 'project'" class="tab-panel">
               <OfficeSuppliesPanel
                 ref="projectPanelRef"
+                @update:badge="(p) => onPanelBadge('project', p)"
                 :isAdmin="isAdminComputed"
                 :canDistribute="canDistribute"
                 :currentUser="currentUsername"
@@ -163,6 +167,7 @@
             <div v-show="activeTab === 'businessTrip'" class="tab-panel">
               <BusinessTripPanel
                 ref="businessTripPanelRef"
+                @update:badge="(p) => onPanelBadge('businessTrip', p)"
                 :isAdmin="isAdminComputed"
                 :canDistribute="canDistribute"
                 :currentUser="currentUsername"
@@ -183,6 +188,7 @@
             <div v-show="activeTab === 'entertainment'" class="tab-panel">
               <EntertainmentPanel
                 ref="entertainmentPanelRef"
+                @update:badge="(p) => onPanelBadge('entertainment', p)"
                 :isAdmin="isAdminComputed"
                 :canDistribute="canDistribute"
                 :currentUser="currentUsername"
@@ -556,6 +562,25 @@
               <span class="detail-value result-chain">{{ currentDetailItem.result }}</span>
             </div>
           </div>
+          <div class="detail-section return-history-block" v-if="returnHistoryRows.length > 0">
+            <div class="detail-row return-history-head">
+              <span class="detail-label">退回记录</span>
+              <span class="detail-value return-history-count">共 {{ returnHistoryRows.length }} 次退回</span>
+            </div>
+            <div class="return-history-list">
+              <div
+                class="return-history-item"
+                v-for="(rh, idx) in returnHistoryRows"
+                :key="idx"
+              >
+                <div class="return-history-meta">
+                  <span class="return-history-who">{{ rh.returnedBy }}</span>
+                  <span class="return-history-when" v-if="rh.returnedAt">{{ rh.returnedAt }}</span>
+                </div>
+                <div class="return-history-reason">{{ rh.reason }}</div>
+              </div>
+            </div>
+          </div>
           <div class="detail-section" v-if="currentAttachments.length > 0">
             <div class="detail-row">
               <span class="detail-label">附件</span>
@@ -696,6 +721,28 @@ const loading = ref(false)
 const activeTab = ref('project')
 const defaultSubTab = ref('applied')
 const viewMode = ref('list')
+
+// 各审批子面板在「我申请的/我收到的」口径下计算的徽标数据，回传后由父级聚合为顶部主页签角标
+// 口径：appliedReturned(已退回待我修改重提) + receivedPendingUnread(我收到未读/未处理) 为红色待办；否则灰色显示总数
+type PanelBadgePayload = { appliedTotal: number; appliedReturned: number; receivedTotal: number; receivedPendingUnread: number }
+const emptyBadge: PanelBadgePayload = { appliedTotal: 0, appliedReturned: 0, receivedTotal: 0, receivedPendingUnread: 0 }
+const panelBadgePayloads = reactive<Record<string, PanelBadgePayload>>({
+  leave: { ...emptyBadge },
+  reimbursement: { ...emptyBadge },
+  meeting: { ...emptyBadge },
+  project: { ...emptyBadge },
+  businessTrip: { ...emptyBadge },
+  entertainment: { ...emptyBadge }
+})
+const onPanelBadge = (type: string, payload: any) => {
+  if (!type) return
+  panelBadgePayloads[type] = {
+    appliedTotal: Number(payload?.appliedTotal) || 0,
+    appliedReturned: Number(payload?.appliedReturned) || 0,
+    receivedTotal: Number(payload?.receivedTotal) || 0,
+    receivedPendingUnread: Number(payload?.receivedPendingUnread) || 0
+  }
+}
 const searchKeyword = ref('')
 
 const leavePanelRef = ref()
@@ -1064,14 +1111,20 @@ const tabs = computed(() => {
     index === self.findIndex(t => t.id === item.id)
   )
 
-  console.log('[tabs计算] 请假: pending=' + pendingLeaveCount.value + ', total=' + totalLeaveCount.value + ', badgeType=' + (pendingLeaveCount.value > 0 ? 'red' : 'gray'))
+  // 顶部主页签角标：由各子面板回传的口径聚合——「已退回(需我修改重提) + 我收到未读未处理」为红色待办；否则灰色显示总数
+  const tabBadgeOf = (type: string) => {
+    const p = panelBadgePayloads[type] || { appliedTotal: 0, appliedReturned: 0, receivedTotal: 0, receivedPendingUnread: 0 }
+    const red = p.appliedReturned + p.receivedPendingUnread
+    const gray = p.appliedTotal + p.receivedTotal
+    return { badge: red > 0 ? red : gray, badgeType: red > 0 ? 'red' : 'gray' }
+  }
   const baseTabs = [
-    { name: 'leave', label: '请假申请', icon: '📝', badge: pendingLeaveCount.value > 0 ? pendingLeaveCount.value : totalLeaveCount.value, badgeType: pendingLeaveCount.value > 0 ? 'red' : 'gray' },
-    { name: 'reimbursement', label: '报销管理', icon: '💰', badge: pendingReimbursementCount.value > 0 ? pendingReimbursementCount.value : totalReimbursementCount.value, badgeType: pendingReimbursementCount.value > 0 ? 'red' : 'gray' },
-    { name: 'meeting', label: '会议管理', icon: '📅', badge: pendingMeetingCount.value > 0 ? pendingMeetingCount.value : totalMeetingCount.value, badgeType: pendingMeetingCount.value > 0 ? 'red' : 'gray' },
-    { name: 'project', label: '协同申请', icon: '📊', badge: pendingProjectCount.value > 0 ? pendingProjectCount.value : totalProjectCount.value, badgeType: pendingProjectCount.value > 0 ? 'red' : 'gray' },
-    { name: 'businessTrip', label: '出差申请', icon: '✈️', badge: pendingBusinessTripCount.value > 0 ? pendingBusinessTripCount.value : totalBusinessTripCount.value, badgeType: pendingBusinessTripCount.value > 0 ? 'red' : 'gray' },
-    { name: 'entertainment', label: '业务招待费', icon: '🍽️', badge: pendingEntertainmentCount.value > 0 ? pendingEntertainmentCount.value : totalEntertainmentCount.value, badgeType: pendingEntertainmentCount.value > 0 ? 'red' : 'gray' }
+    { name: 'leave', label: '请假申请', icon: '📝', ...tabBadgeOf('leave') },
+    { name: 'reimbursement', label: '报销管理', icon: '💰', ...tabBadgeOf('reimbursement') },
+    { name: 'meeting', label: '会议管理', icon: '📅', ...tabBadgeOf('meeting') },
+    { name: 'project', label: '协同申请', icon: '📊', ...tabBadgeOf('project') },
+    { name: 'businessTrip', label: '出差申请', icon: '✈️', ...tabBadgeOf('businessTrip') },
+    { name: 'entertainment', label: '业务招待费', icon: '🍽️', ...tabBadgeOf('entertainment') }
   ]
 
   if (isCurrentUserZhang.value) {
@@ -1305,8 +1358,12 @@ const detailFieldRows = computed(() => {
   if (!currentDetailItem.value) return []
   const fields = getDetailFields(currentDetailItem.value, currentDetailType.value, currentUsername.value) || {}
   const rows = Object.entries(fields).map(([label, value]) => ({ label, value, highlight: false }))
+  // 退回理由：若存在结构化 return_history，则由下方「退回记录」段统一展示（含退回人/时间），此处仅作旧数据兜底
+  const rawHistory = currentDetailItem.value.return_history
+  let hasStructuredReturn = false
+  try { const h = rawHistory ? (typeof rawHistory === 'string' ? JSON.parse(rawHistory) : rawHistory) : null; hasStructuredReturn = Array.isArray(h) && h.length > 0 } catch {}
   const reason = currentDetailItem.value.return_reason || currentDetailItem.value.returnReason
-  if (reason) rows.push({ label: '退回理由', value: reason, highlight: true })
+  if (reason && !hasStructuredReturn) rows.push({ label: '退回理由', value: reason, highlight: true })
   return rows
 })
 
@@ -1351,6 +1408,30 @@ const getBusinessTripApprovalChain = (item: any) => {
     return `当前审批人:${extractRealName(item.approver)}`
   }
   return ''
+}
+
+// 退回记录：结构化展示每次退回的「退回人 / 时间 / 理由」，解决多审批人时申请人看不清是谁退回、因何退回的问题
+const returnHistoryRows = computed(() => {
+  const item = currentDetailItem.value
+  if (!item) return []
+  const raw = item.return_history
+  if (!raw) return []
+  let list: any[] = []
+  try { list = typeof raw === 'string' ? JSON.parse(raw) : raw } catch { list = [] }
+  if (!Array.isArray(list)) return []
+  return list.map((h: any) => ({
+    returnedBy: h.returnedBy || h.operator || '未知审批人',
+    reason: h.reason || '',
+    returnedAt: h.returnedAt ? formatReturnTime(h.returnedAt) : ''
+  }))
+})
+
+const formatReturnTime = (t: string) => {
+  if (!t) return ''
+  const d = new Date(t)
+  if (isNaN(d.getTime())) return t
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 const distributeDialogVisible = ref(false)
@@ -2032,7 +2113,7 @@ const handleBack = () => {
 
 watch(() => route.query, (query) => {
   if (query.tab) {
-    const validTabs = ['leave', 'reimbursement', 'meeting', 'project', 'businessTrip', 'entertainment', 'distributed']
+    const validTabs = ['leave', 'reimbursement', 'meeting', 'project', 'businessTrip', 'entertainment', 'distributed', 'distributedByMe']
     if (validTabs.includes(query.tab as string)) {
       activeTab.value = query.tab as string
     }
@@ -2847,5 +2928,49 @@ onUnmounted(() => {
 .return-reason-text {
   color: #FF7043;
   font-weight: 600;
+}
+.return-history-block {
+  border-top: 1px dashed #eee;
+  padding-top: 10px;
+}
+.return-history-head {
+  align-items: center;
+}
+.return-history-count {
+  color: #FF7043;
+  font-weight: 600;
+}
+.return-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.return-history-item {
+  background: #FFF3E0;
+  border: 1px solid #FFCCBC;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.return-history-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.return-history-who {
+  color: #E64A19;
+  font-weight: 600;
+}
+.return-history-when {
+  color: rgba(51, 51, 51, 0.5);
+  font-size: 0.8rem;
+}
+.return-history-reason {
+  color: #333;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 </style>
