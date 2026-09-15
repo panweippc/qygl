@@ -23,6 +23,10 @@
  *     之前用 `environment { SKIP_DEPLOY='0' }` + `when { environment name:'SKIP_DEPLOY', value:'0' }` 失效——
  *     pipeline 级 environment 会在每个阶段开始前把 SKIP_DEPLOY 重新注入成 '0'，覆盖阶段1里的赋值，导致无提交也全量执行。
  *   - 阶段6 启动 vite 前先清掉 3003 上的陈旧监听进程，避免新实例 EADDRINUSE 退出（此前 qygl-dev 一直 errored/stopped）。
+ *
+ * v1.2.33 修复：
+ *   - 阶段6 启动 dev server 由 `pm2 start npm -- run dev` 改为 `pm2 start <NODE_HOME>/node.exe -- ./node_modules/vite/bin/vite.js`：
+ *     Windows 下 pm2 无法解析 npm.cmd，`qygl-dev` 进程从未注册、3003 长期不可用（流水线"假绿"）。直接调 node.exe 可靠拉起。
  */
 boolean skipDeploy = false   // 顶层 Groovy 变量，供 when{expression} 实时读取（比 environment 条件可靠）
 
@@ -132,8 +136,10 @@ pipeline {
         //      也不能用 taskkill 直接清（失败即非零退出码→拖垮阶段）。统一用 powershell + try/catch + 强制 exit 0
         bat "powershell -Command \"try { \$ps=(Get-NetTCPConnection -LocalPort ${DEV_PORT} -ErrorAction SilentlyContinue | Where-Object { \$_.State -eq 'Listen' }).OwningProcess; foreach(\$p in \$ps){ Stop-Process -Id \$p -Force -ErrorAction SilentlyContinue }; Write-Host ('cleared stale listener on port ${DEV_PORT}') } catch { Write-Host ('clear port error: ' + \$_.Exception.Message) }; exit 0\""
         bat "ping -n 2 127.0.0.1 >nul"
-        // dev server 启动失败【不应】阻断后端重启：用 || 兜底并 exit 0，避免阶段6失败导致阶段7(重启后端)被整条流水线跳过
-        bat "pm2 start npm --name ${DEV_PM2} --cwd \"${PROJECT_DIR}\" -- run dev || echo [warn] dev server 启动失败，不影响后端部署（可稍后手动 pm2 start ${DEV_PM2}）"
+        // dev server 启动失败【不应】阻断后端重启：用 || 兜底，避免阶段6失败导致阶段7(重启后端)被整条流水线跳过
+        // ⚠️ 关键修复(v1.2.33)：Windows 下 `pm2 start npm` 无法正确解析 npm.cmd，qygl-dev 从未真正拉起、3003 长期不可用。
+        //   改为直接用 NODE_HOME 的 node.exe 运行 vite 的 bin 脚本（绝对路径跨用户可靠，pm2 守护进程按用户隔离）。
+        bat "pm2 start \"${NODE_HOME}/node.exe\" --name ${DEV_PM2} --cwd \"${PROJECT_DIR}\" -- ./node_modules/vite/bin/vite.js --host --port ${DEV_PORT} || echo [warn] dev server 启动失败，不影响后端部署（可稍后手动 pm2 start ${DEV_PM2}）"
         echo '✅ dev server 阶段完成 (3003)'
       }
     }
