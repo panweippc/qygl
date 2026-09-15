@@ -190,6 +190,209 @@ function safeParseJSON(str) {
 }
 
 
+// ============================================================
+// 幂等补列：兼容部署机 MySQL 5.7
+// 说明：CREATE TABLE IF NOT EXISTS 只建新表、不改旧表结构。当部署机已有旧表、
+//      而代码后续新增了字段时，旧表缺列会导致查询 500。此处在建表后做【列对齐】，
+//      对每张表对照 SCHEMA 期望列，缺失则 ALTER TABLE ADD COLUMN（已存在列报
+//      1060/ER_DUP_FIELDNAME 静默跳过）。所有 DDL 仅用 MySQL 5.7 兼容类型
+//      （无 JSON 类型；TEXT/VARCHAR/DATETIME 等），新增字段务必沿用此清单。
+// ============================================================
+const CS = ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
+const col = (name, ddl) => ({ name, ddl });
+
+// 意向漏斗 / 重点漏斗 共用列（与 ensureSchema 内 commonCols 一致）
+const COMMON_COLS = [
+  col('owner', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('sales_type', `VARCHAR(50)${CS} DEFAULT ''`),
+  col('revenue_type', `VARCHAR(50)${CS} DEFAULT ''`),
+  col('report_date', `DATE`),
+  col('product_type', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('partner_name', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('competitor', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('customer_name', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('contact', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('phone', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('site_count', `INT DEFAULT 0`),
+  col('monthly_repayment', `DECIMAL(18,2) DEFAULT 0`),
+  col('monthly_confidence', `VARCHAR(50)${CS} DEFAULT ''`),
+  col('estimated_total', `DECIMAL(18,2) DEFAULT 0`),
+  col('progress_percent', `INT DEFAULT 0`),
+  col('sales_status', `VARCHAR(50)${CS} DEFAULT ''`),
+  col('estimated_repay_month', `VARCHAR(50)${CS} DEFAULT ''`),
+  col('opportunity_assessment', `VARCHAR(50)${CS} DEFAULT ''`),
+  col('success_or_giveup', `VARCHAR(50)${CS} DEFAULT ''`),
+  col('company_support', `TEXT${CS}`),
+  col('remark', `TEXT${CS}`),
+  col('report_month', `VARCHAR(20)${CS} DEFAULT ''`),
+  col('created_by', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('created_at', `DATETIME DEFAULT CURRENT_TIMESTAMP`),
+  col('updated_at', `DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`)
+];
+
+// 成交用户（common 去 company_support/competitor/partner_name 等 + 4 个金额列）
+const DEAL_COLS = [
+  col('owner', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('sales_type', `VARCHAR(50)${CS} DEFAULT ''`),
+  col('revenue_type', `VARCHAR(50)${CS} DEFAULT ''`),
+  col('report_date', `DATE`),
+  col('product_type', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('customer_name', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('contact', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('phone', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('site_count', `INT DEFAULT 0`),
+  col('contract_amount', `DECIMAL(18,2) DEFAULT 0`),
+  col('actual_amount', `DECIMAL(18,2) DEFAULT 0`),
+  col('received_amount', `DECIMAL(18,2) DEFAULT 0`),
+  col('unreceived_amount', `DECIMAL(18,2) DEFAULT 0`),
+  col('remark', `TEXT${CS}`),
+  col('report_month', `VARCHAR(20)${CS} DEFAULT ''`),
+  col('created_by', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('created_at', `DATETIME DEFAULT CURRENT_TIMESTAMP`),
+  col('updated_at', `DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`)
+];
+
+// 大项目进展
+const PROJECT_COLS = [
+  col('customer_name', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('report_date', `DATE`),
+  col('unit_nature', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('staff_size', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('financial_status', `TEXT${CS}`),
+  col('network_coverage', `TEXT${CS}`),
+  col('server_room', `TEXT${CS}`),
+  col('is_uf_customer', `VARCHAR(50)${CS} DEFAULT ''`),
+  col('informatization_plan', `TEXT${CS}`),
+  col('plan_3_5_years', `TEXT${CS}`),
+  col('project_budget', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('other_intro', `TEXT${CS}`),
+  col('project_start_time', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('project_owner', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('leader_attention', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('planned_online_modules', `TEXT${CS}`),
+  col('is_bidding', `VARCHAR(50)${CS} DEFAULT ''`),
+  col('expandable_modules', `TEXT${CS}`),
+  col('project_value', `TEXT${CS}`),
+  col('current_progress', `TEXT${CS}`),
+  col('customer_evaluation', `TEXT${CS}`),
+  col('our_pros_cons', `TEXT${CS}`),
+  col('current_difficulties', `TEXT${CS}`),
+  col('pre_support_content', `TEXT${CS}`),
+  col('risk_customer_demand', `TEXT${CS}`),
+  col('risk_business_relationship', `TEXT${CS}`),
+  col('risk_competitor', `TEXT${CS}`),
+  col('risk_project_online', `TEXT${CS}`),
+  col('action_plan_business', `TEXT${CS}`),
+  col('action_plan_product', `TEXT${CS}`),
+  col('action_plan_solution', `TEXT${CS}`),
+  col('action_plan_meeting', `TEXT${CS}`),
+  col('support_time', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('sales_plan', `TEXT${CS}`),
+  col('next_plan_arrangement', `TEXT${CS}`),
+  col('filler', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('report_month', `VARCHAR(20)${CS} DEFAULT ''`),
+  col('created_by', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('created_at', `DATETIME DEFAULT CURRENT_TIMESTAMP`),
+  col('updated_at', `DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`)
+];
+
+const KEY_PERSONS_COLS = [
+  col('analysis_id', `INT NOT NULL`),
+  col('role_type', `VARCHAR(50)${CS} DEFAULT ''`),
+  col('position', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('name', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('phone', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('office', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('support_level', `VARCHAR(50)${CS} DEFAULT ''`),
+  col('influenced_by', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('can_influence', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('focus', `TEXT${CS}`),
+  col('relationship', `TEXT${CS}`),
+  col('personal_hobby', `TEXT${CS}`)
+];
+
+const COMPETITORS_COLS = [
+  col('analysis_id', `INT NOT NULL`),
+  col('seq', `INT DEFAULT 1`),
+  col('name', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('recognition', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('price', `TEXT${CS}`),
+  col('relationship', `TEXT${CS}`),
+  col('advantage', `TEXT${CS}`),
+  col('disadvantage', `TEXT${CS}`)
+];
+
+const VISIT_REC_COLS = [
+  col('analysis_id', `INT NOT NULL`),
+  col('seq', `INT DEFAULT 1`),
+  col('visit_time', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('communication_record', `TEXT${CS}`),
+  col('next_strategy', `TEXT${CS}`)
+];
+
+const VERSIONS_COLS = [
+  col('table_type', `VARCHAR(50)${CS} NOT NULL`),
+  col('record_id', `INT NOT NULL`),
+  col('version', `INT NOT NULL`),
+  col('data_json', `LONGTEXT${CS}`),
+  col('created_by', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('created_at', `DATETIME DEFAULT CURRENT_TIMESTAMP`)
+];
+
+// 期望列清单（与 CREATE TABLE 完全一致；未来新增字段须同步更新此处）
+const SCHEMA = {
+  sales_intention_funnel: COMMON_COLS,
+  sales_key_funnel: COMMON_COLS,
+  sales_deal_customers: DEAL_COLS,
+  sales_project_analysis: PROJECT_COLS,
+  sales_project_key_persons: KEY_PERSONS_COLS,
+  sales_project_competitors: COMPETITORS_COLS,
+  sales_project_visit_records: VISIT_REC_COLS,
+  sales_table_versions: VERSIONS_COLS
+};
+
+// 模块级缓存：补列只需在首次成功执行后生效一次（结构变更极少）
+let columnsEnsured = false;
+
+async function ensureMissingColumns(pool) {
+  if (columnsEnsured) return;
+  let db = null;
+  try {
+    const [[dbRow]] = await pool.execute('SELECT DATABASE() AS db');
+    db = dbRow && dbRow.db;
+  } catch (e) {
+    console.error('[ensureMissingColumns] 获取数据库名失败:', e.message);
+    return;
+  }
+  if (!db) {
+    console.error('[ensureMissingColumns] 无法获取数据库名，跳过补列');
+    return;
+  }
+  for (const [table, cols] of Object.entries(SCHEMA)) {
+    try {
+      const [rows] = await pool.execute(
+        'SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = ? AND table_name = ?',
+        [db, table]
+      );
+      const existing = new Set(rows.map(r => r.COLUMN_NAME));
+      for (const c of cols) {
+        if (existing.has(c.name)) continue;
+        try {
+          await pool.execute(`ALTER TABLE \`${table}\` ADD COLUMN \`${c.name}\` ${c.ddl}`);
+          console.log(`[ensureMissingColumns] ${table} 补列 ${c.name}`);
+        } catch (e) {
+          // 1060 = ER_DUP_FIELDNAME（列已存在/并发竞态），静默忽略
+          if (e.code === 'ER_DUP_FIELDNAME' || e.errno === 1060) continue;
+          console.error(`[ensureMissingColumns] ${table}.${c.name} 补列失败:`, e.message);
+        }
+      }
+    } catch (e) {
+      console.error(`[ensureMissingColumns] 读取 ${table} 列信息失败:`, e.message);
+    }
+  }
+  columnsEnsured = true;
+}
+
 async function ensureSchema(pool) {
   const commonCols = `
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -349,6 +552,13 @@ async function ensureSchema(pool) {
     } catch (error) {
       console.error('销售四表建表失败:', error.message);
     }
+  }
+  // 部署机旧表补列（MySQL 5.7 兼容）：CREATE TABLE IF NOT EXISTS 不会改旧表结构，
+  // 旧表缺列会导致查询 500。幂等补列，已存在列 ALTER 报 1060 静默跳过。
+  try {
+    await ensureMissingColumns(pool);
+  } catch (error) {
+    console.error('销售四表补列失败:', error.message);
   }
 }
 
