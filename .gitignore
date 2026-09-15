@@ -68,3 +68,13 @@ scripts/check-users.mjs
 
 # IDE 助手临时目录
 .workbuddy/
+
+# IDE 助手调试/验证脚本与临时构建产物（开发用，不入库）
+_*.mjs
+_*.ts
+_*.cjs
+*.mjs.done
+vue_check_*.mjs
+dist_*/
+vite.*.config.mjs
+_recolor.ps1

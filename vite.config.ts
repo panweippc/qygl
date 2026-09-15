@@ -39,6 +39,12 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src')
     }
   },
+  // 注入 Vue feature flags，消除 dev 控制台 "Feature flag __VUE_PROD_* is not explicitly defined" 警告
+  define: {
+    __VUE_OPTIONS_API__: JSON.stringify(true),
+    __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: JSON.stringify(false),
+    __VUE_PROD_DEVTOOLS__: JSON.stringify(false)
+  },
   optimizeDeps: {
     include: [
       'vue',
