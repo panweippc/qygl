@@ -533,7 +533,6 @@ const leaveBadgePayload = computed(() => ({
   receivedTotal: receivedLeaveCount.value.total,
   receivedPendingUnread: receivedLeaveCount.value.pendingUnread
 }))
-watch(() => leaveBadgePayload.value, (v) => emit('update:badge', v), { immediate: true })
 
 // 下发给我的记录（按当前用户拉取，不依赖全局 allDistributedRecords）
 const myDistributedRecords = ref<any[]>([])
@@ -892,6 +891,9 @@ const printRow = (row) => {
 onMounted(() => {
   fetchData()
 })
+
+// 向父组件回传徽标口径：置于所有 helper(const 箭头)定义之后，避免 setup 期 TDZ 使 emit 抛错整页白屏
+watch(() => leaveBadgePayload.value, (v) => emit('update:badge', v), { immediate: true })
 
 defineExpose({ fetchData })
 </script>
