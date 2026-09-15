@@ -213,7 +213,7 @@ onMounted(() => {
 <style scoped>
 .management-section {
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(100, 149, 237, 0.2);
+  border: 1px solid rgba(30, 90, 168, 0.2);
   border-radius: 16px;
   padding: 1.5rem;
   backdrop-filter: blur(5px);
@@ -235,18 +235,18 @@ onMounted(() => {
 }
 
 .add-btn {
-  background: linear-gradient(45deg, #6495ED, #87CEEB) !important;
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB) !important;
   border: none !important;
   border-radius: 8px !important;
   padding: 0.5rem 1.5rem !important;
   font-weight: 600 !important;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.4) !important;
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.4) !important;
   transition: all 0.3s ease !important;
 }
 
 .add-btn:hover {
   transform: translateY(-2px) !important;
-  box-shadow: 0 6px 20px rgba(100, 149, 237, 0.6) !important;
+  box-shadow: 0 6px 20px rgba(30, 90, 168, 0.6) !important;
 }
 
 .table-container {
@@ -261,32 +261,32 @@ onMounted(() => {
 }
 
 .data-table th {
-  background: rgba(100, 149, 237, 0.2) !important;
+  background: rgba(30, 90, 168, 0.2) !important;
   color: #333 !important;
   font-weight: 600 !important;
-  border-bottom: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border-bottom: 1px solid rgba(30, 90, 168, 0.3) !important;
 }
 
 .data-table td {
   color: rgba(51, 51, 51, 0.8) !important;
-  border-bottom: 1px solid rgba(100, 149, 237, 0.2) !important;
+  border-bottom: 1px solid rgba(30, 90, 168, 0.2) !important;
 }
 
 .data-table tr:hover {
-  background: rgba(100, 149, 237, 0.1) !important;
+  background: rgba(30, 90, 168, 0.1) !important;
 }
 
 .edit-btn {
-  background: rgba(100, 149, 237, 0.2) !important;
-  color: #6495ED !important;
-  border: 1px solid rgba(100, 149, 237, 0.4) !important;
+  background: rgba(30, 90, 168, 0.2) !important;
+  color: #1E5AA8 !important;
+  border: 1px solid rgba(30, 90, 168, 0.4) !important;
   border-radius: 6px !important;
   transition: all 0.3s ease !important;
 }
 
 .edit-btn:hover {
-  background: rgba(100, 149, 237, 0.3) !important;
-  box-shadow: 0 0 10px rgba(100, 149, 237, 0.4) !important;
+  background: rgba(30, 90, 168, 0.3) !important;
+  box-shadow: 0 0 10px rgba(30, 90, 168, 0.4) !important;
 }
 
 .perm-btn {
@@ -317,7 +317,7 @@ onMounted(() => {
 
 .dialog {
   background: rgba(255, 255, 255, 0.95) !important;
-  border: 1px solid rgba(100, 149, 237, 0.4) !important;
+  border: 1px solid rgba(30, 90, 168, 0.4) !important;
   border-radius: 12px !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
 }
@@ -325,7 +325,7 @@ onMounted(() => {
 .dialog .el-dialog__title {
   color: #333 !important;
   font-weight: 600 !important;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3) !important;
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3) !important;
 }
 
 .dialog .el-form-item__label {
@@ -336,24 +336,24 @@ onMounted(() => {
 .dialog .dialog-footer .el-button {
   background: rgba(255, 255, 255, 0.8) !important;
   color: #333 !important;
-  border: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border: 1px solid rgba(30, 90, 168, 0.3) !important;
   border-radius: 6px !important;
   transition: all 0.3s ease !important;
 }
 
 .dialog .dialog-footer .el-button:hover {
   background: rgba(255, 255, 255, 1) !important;
-  box-shadow: 0 0 10px rgba(100, 149, 237, 0.2) !important;
+  box-shadow: 0 0 10px rgba(30, 90, 168, 0.2) !important;
 }
 
 .dialog .dialog-footer .el-button--primary {
-  background: linear-gradient(45deg, #6495ED, #87CEEB) !important;
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB) !important;
   border: none !important;
-  box-shadow: 0 4px 10px rgba(100, 149, 237, 0.4) !important;
+  box-shadow: 0 4px 10px rgba(30, 90, 168, 0.4) !important;
 }
 
 .dialog .dialog-footer .el-button--primary:hover {
   transform: translateY(-2px) !important;
-  box-shadow: 0 6px 15px rgba(100, 149, 237, 0.6) !important;
+  box-shadow: 0 6px 15px rgba(30, 90, 168, 0.6) !important;
 }
 </style>

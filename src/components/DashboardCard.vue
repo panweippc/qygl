@@ -38,11 +38,11 @@ const navigate = () => {
 <style scoped>
 .dashboard-card {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 248, 255, 0.95));
-  border: 1px solid rgba(100, 149, 237, 0.4);
+  border: 1px solid rgba(30, 90, 168, 0.4);
   border-radius: 16px;
   padding: 1.8rem;
   backdrop-filter: blur(15px);
-  box-shadow: 0 4px 20px rgba(100, 149, 237, 0.2);
+  box-shadow: 0 4px 20px rgba(30, 90, 168, 0.2);
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   position: relative;
   overflow: hidden;
@@ -61,7 +61,7 @@ const navigate = () => {
   left: -2px;
   right: -2px;
   bottom: -2px;
-  background: linear-gradient(45deg, #6495ED, #87CEFA, #6495ED);
+  background: linear-gradient(45deg, #1E5AA8, #5B8FC9, #1E5AA8);
   border-radius: 18px;
   z-index: -1;
   opacity: 0;
@@ -84,23 +84,23 @@ const navigate = () => {
 
 .dashboard-card:hover {
   transform: translateY(-8px) scale(1.03);
-  box-shadow: 0 8px 30px rgba(100, 149, 237, 0.4);
-  border-color: rgba(100, 149, 237, 0.8);
+  box-shadow: 0 8px 30px rgba(30, 90, 168, 0.4);
+  border-color: rgba(30, 90, 168, 0.8);
 }
 
 .dashboard-card:hover .card-icon {
   transform: scale(1.15) rotate(5deg);
-  box-shadow: 0 6px 20px rgba(100, 149, 237, 0.6);
+  box-shadow: 0 6px 20px rgba(30, 90, 168, 0.6);
 }
 
 .dashboard-card:hover .stat-value {
   transform: translateY(-3px);
-  text-shadow: 0 0 15px rgba(100, 149, 237, 0.8);
+  text-shadow: 0 0 15px rgba(30, 90, 168, 0.8);
 }
 
 .dashboard-card:hover .stat-item {
-  background: rgba(100, 149, 237, 0.15);
-  border-color: rgba(100, 149, 237, 0.4);
+  background: rgba(30, 90, 168, 0.15);
+  border-color: rgba(30, 90, 168, 0.4);
 }
 
 .card-header {
@@ -115,19 +115,19 @@ const navigate = () => {
   font-weight: 600;
   color: #333;
   margin: 0;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .card-icon {
   width: 40px;
   height: 40px;
-  background: linear-gradient(45deg, #6495ED, #87CEFA);
+  background: linear-gradient(45deg, #1E5AA8, #5B8FC9);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  box-shadow: 0 4px 10px rgba(100, 149, 237, 0.4);
+  box-shadow: 0 4px 10px rgba(30, 90, 168, 0.4);
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -153,9 +153,9 @@ const navigate = () => {
   flex: 1;
   text-align: center;
   padding: 1rem;
-  background: rgba(100, 149, 237, 0.1);
+  background: rgba(30, 90, 168, 0.1);
   border-radius: 8px;
-  border: 1px solid rgba(100, 149, 237, 0.2);
+  border: 1px solid rgba(30, 90, 168, 0.2);
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -163,8 +163,8 @@ const navigate = () => {
   display: block;
   font-size: 1.8rem;
   font-weight: 700;
-  color: #6495ED;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.4);
+  color: #1E5AA8;
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.4);
   margin-bottom: 0.5rem;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }

@@ -276,7 +276,7 @@ onMounted(() => {
 .header {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(100, 149, 237, 0.2);
+  border-bottom: 1px solid rgba(30, 90, 168, 0.2);
   padding: 0 2rem;
   height: 60px;
   display: flex;
@@ -297,7 +297,7 @@ onMounted(() => {
   font-size: 1.5rem;
   font-weight: bold;
   color: #333;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .logo-glow {
@@ -306,7 +306,7 @@ onMounted(() => {
   left: -20%;
   width: 140%;
   height: 200%;
-  background: linear-gradient(45deg, transparent, rgba(100, 149, 237, 0.3), transparent);
+  background: linear-gradient(45deg, transparent, rgba(30, 90, 168, 0.3), transparent);
   filter: blur(20px);
   animation: glow 3s ease-in-out infinite;
 }
@@ -342,8 +342,8 @@ onMounted(() => {
 
 .nav-item:hover {
   color: #333;
-  background: rgba(100, 149, 237, 0.2);
-  box-shadow: 0 0 15px rgba(100, 149, 237, 0.3);
+  background: rgba(30, 90, 168, 0.2);
+  box-shadow: 0 0 15px rgba(30, 90, 168, 0.3);
 }
 
 .logout-btn {
@@ -393,19 +393,19 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .title-icon {
   width: 40px;
   height: 40px;
-  background: linear-gradient(45deg, #6495ED, #87CEEB);
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.3);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.3);
 }
 
 .title-icon svg {
@@ -429,7 +429,7 @@ onMounted(() => {
 
 .stat-card {
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(100, 149, 237, 0.2);
+  border: 1px solid rgba(30, 90, 168, 0.2);
   border-radius: 12px;
   padding: 1.5rem;
   display: flex;
@@ -442,7 +442,7 @@ onMounted(() => {
 
 .stat-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 25px rgba(100, 149, 237, 0.15);
+  box-shadow: 0 8px 25px rgba(30, 90, 168, 0.15);
 }
 
 .stat-icon {
@@ -503,7 +503,7 @@ onMounted(() => {
 
 .module-card {
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(100, 149, 237, 0.2);
+  border: 1px solid rgba(30, 90, 168, 0.2);
   border-radius: 16px;
   padding: 1.5rem;
   backdrop-filter: blur(5px);
@@ -516,12 +516,12 @@ onMounted(() => {
 
 .module-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 12px 30px rgba(100, 149, 237, 0.2);
-  border-color: rgba(100, 149, 237, 0.4);
+  box-shadow: 0 12px 30px rgba(30, 90, 168, 0.2);
+  border-color: rgba(30, 90, 168, 0.4);
 }
 
 .module-card.primary {
-  border: 2px solid rgba(100, 149, 237, 0.4);
+  border: 2px solid rgba(30, 90, 168, 0.4);
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 248, 255, 0.95));
 }
 
@@ -532,7 +532,7 @@ onMounted(() => {
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #6495ED, #87CEEB);
+  background: linear-gradient(90deg, #1E5AA8, #87CEEB);
 }
 
 .module-header {
@@ -549,9 +549,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #6495ED, #87CEEB);
+  background: linear-gradient(135deg, #1E5AA8, #87CEEB);
   color: #fff;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.3);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.3);
 }
 
 .module-icon.blue {
@@ -617,17 +617,17 @@ onMounted(() => {
 }
 
 .feature-tag {
-  background: rgba(100, 149, 237, 0.1);
-  color: #6495ED;
+  background: rgba(30, 90, 168, 0.1);
+  color: #1E5AA8;
   font-size: 0.75rem;
   padding: 0.25rem 0.75rem;
   border-radius: 20px;
-  border: 1px solid rgba(100, 149, 237, 0.2);
+  border: 1px solid rgba(30, 90, 168, 0.2);
 }
 
 .module-button {
   width: 100%;
-  background: linear-gradient(45deg, #6495ED, #87CEEB);
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB);
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -636,30 +636,30 @@ onMounted(() => {
   transition: all 0.3s ease;
   font-size: 14px;
   font-weight: 500;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.3);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.3);
 }
 
 .module-button.secondary {
-  background: rgba(100, 149, 237, 0.1);
-  color: #6495ED;
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  background: rgba(30, 90, 168, 0.1);
+  color: #1E5AA8;
+  border: 1px solid rgba(30, 90, 168, 0.3);
   box-shadow: none;
 }
 
 .module-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(100, 149, 237, 0.4);
+  box-shadow: 0 6px 20px rgba(30, 90, 168, 0.4);
 }
 
 .module-button.secondary:hover {
-  background: rgba(100, 149, 237, 0.2);
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.2);
+  background: rgba(30, 90, 168, 0.2);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.2);
 }
 
 /* 快捷操作 */
 .quick-actions {
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(100, 149, 237, 0.2);
+  border: 1px solid rgba(30, 90, 168, 0.2);
   border-radius: 16px;
   padding: 1.5rem;
   backdrop-filter: blur(5px);
@@ -684,7 +684,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(100, 149, 237, 0.2);
+  border: 1px solid rgba(30, 90, 168, 0.2);
   border-radius: 10px;
   padding: 0.75rem 1.25rem;
   cursor: pointer;
@@ -694,10 +694,10 @@ onMounted(() => {
 }
 
 .quick-btn:hover {
-  background: rgba(100, 149, 237, 0.1);
-  border-color: rgba(100, 149, 237, 0.4);
+  background: rgba(30, 90, 168, 0.1);
+  border-color: rgba(30, 90, 168, 0.4);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(100, 149, 237, 0.15);
+  box-shadow: 0 4px 12px rgba(30, 90, 168, 0.15);
 }
 
 .quick-icon {
@@ -708,7 +708,7 @@ onMounted(() => {
 .footer {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(100, 149, 237, 0.2);
+  border-top: 1px solid rgba(30, 90, 168, 0.2);
   padding: 1rem 2rem;
   text-align: center;
   color: rgba(51, 51, 51, 0.6);
@@ -734,12 +734,12 @@ onMounted(() => {
 }
 
 .main-content::-webkit-scrollbar-thumb {
-  background: rgba(100, 149, 237, 0.4);
+  background: rgba(30, 90, 168, 0.4);
   border-radius: 4px;
 }
 
 .main-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 149, 237, 0.6);
+  background: rgba(30, 90, 168, 0.6);
 }
 
 /* 响应式设计 */

@@ -176,6 +176,12 @@ export const deleteFileCategory = async (id: number): Promise<ApiResponse> => {
   return response.data;
 };
 
+// 编辑文件分类（改名/改描述）
+export const renameFileCategory = async (id: number, data: { name: string; description?: string }): Promise<ApiResponse> => {
+  const response = await api.put(`/file-categories/${id}`, data);
+  return response.data;
+};
+
 // 文件管理
 export const getFiles = async (): Promise<ApiResponse<FileItem[]>> => {
   const response = await api.get('/files');

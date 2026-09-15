@@ -82,7 +82,7 @@ const getServiceFeeText = (nextYearFeeStatus: string) => {
 <style scoped>
 .project-card {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95));
-  border: 1px solid rgba(100, 149, 237, 0.25);
+  border: 1px solid rgba(30, 90, 168, 0.25);
   border-radius: 16px;
   padding: 2rem;
   backdrop-filter: blur(10px);
@@ -100,7 +100,7 @@ const getServiceFeeText = (nextYearFeeStatus: string) => {
   left: -2px;
   right: -2px;
   bottom: -2px;
-  background: linear-gradient(45deg, #6495ED, #87CEEB, #6495ED, #87CEEB);
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB, #1E5AA8, #87CEEB);
   border-radius: 18px;
   z-index: -1;
   opacity: 0;
@@ -115,8 +115,8 @@ const getServiceFeeText = (nextYearFeeStatus: string) => {
 
 .project-card:hover {
   transform: translateY(-6px) scale(1.01);
-  box-shadow: 0 12px 30px rgba(100, 149, 237, 0.35);
-  border-color: rgba(100, 149, 237, 0.6);
+  box-shadow: 0 12px 30px rgba(30, 90, 168, 0.35);
+  border-color: rgba(30, 90, 168, 0.6);
 }
 
 .project-header {
@@ -180,13 +180,13 @@ const getServiceFeeText = (nextYearFeeStatus: string) => {
 }
 
 .action-btn.edit-btn {
-  background: linear-gradient(135deg, #6495ED, #4169E1);
+  background: linear-gradient(135deg, #1E5AA8, #2E6FB8);
   color: white;
 }
 
 .action-btn.edit-btn:hover {
   transform: scale(1.1);
-  box-shadow: 0 5px 15px rgba(100, 149, 237, 0.4);
+  box-shadow: 0 5px 15px rgba(30, 90, 168, 0.4);
 }
 
 .action-btn.delete-btn {
@@ -282,7 +282,7 @@ const getServiceFeeText = (nextYearFeeStatus: string) => {
   flex-wrap: wrap;
   gap: 1.25rem;
   padding-top: 1.25rem;
-  border-top: 1px solid rgba(100, 149, 237, 0.25);
+  border-top: 1px solid rgba(30, 90, 168, 0.25);
   position: relative;
   z-index: 1;
 }
@@ -302,7 +302,7 @@ const getServiceFeeText = (nextYearFeeStatus: string) => {
 
 .meta-item:hover {
   background: rgba(240, 244, 255, 0.9);
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.2);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.2);
   transform: translateY(-3px);
   color: rgba(44, 62, 80, 0.9);
 }
@@ -310,7 +310,7 @@ const getServiceFeeText = (nextYearFeeStatus: string) => {
 .meta-icon {
   font-style: normal;
   font-size: 1.1rem;
-  color: #6495ED;
+  color: #1E5AA8;
 }
 
 .empty-message {
@@ -321,14 +321,14 @@ const getServiceFeeText = (nextYearFeeStatus: string) => {
   font-weight: 500;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.9));
   border-radius: 16px;
-  border: 2px dashed rgba(100, 149, 237, 0.4);
+  border: 2px dashed rgba(30, 90, 168, 0.4);
   transition: all 0.3s ease;
   animation: fadeInUp 0.6s ease-out;
 }
 
 .empty-message:hover {
-  border-color: rgba(100, 149, 237, 0.6);
-  box-shadow: 0 4px 20px rgba(100, 149, 237, 0.2);
+  border-color: rgba(30, 90, 168, 0.6);
+  box-shadow: 0 4px 20px rgba(30, 90, 168, 0.2);
   transform: translateY(-5px);
 }
 

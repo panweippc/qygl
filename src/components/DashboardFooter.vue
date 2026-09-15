@@ -10,7 +10,7 @@
 .footer {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(100, 149, 237, 0.3);
+  border-top: 1px solid rgba(30, 90, 168, 0.3);
   padding: 1rem 2rem;
   text-align: center;
   color: rgba(51, 51, 51, 0.6);

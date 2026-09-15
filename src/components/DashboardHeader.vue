@@ -153,7 +153,7 @@ onUnmounted(() => {
 .header {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(100, 149, 237, 0.3);
+  border-bottom: 1px solid rgba(30, 90, 168, 0.3);
   padding: 0 2rem;
   height: 60px;
   display: flex;
@@ -181,7 +181,7 @@ onUnmounted(() => {
   font-size: 1.5rem;
   font-weight: bold;
   color: #333;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
   position: relative;
   z-index: 2;
   transition: all 0.3s ease;
@@ -189,7 +189,7 @@ onUnmounted(() => {
 
 .logo-text:hover {
   transform: scale(1.05);
-  text-shadow: 0 0 20px rgba(100, 149, 237, 0.6);
+  text-shadow: 0 0 20px rgba(30, 90, 168, 0.6);
 }
 
 .logo-glow {
@@ -199,7 +199,7 @@ onUnmounted(() => {
   transform: translate(-50%, -50%);
   width: 120%;
   height: 120%;
-  background: radial-gradient(circle, rgba(100, 149, 237, 0.4), transparent 70%);
+  background: radial-gradient(circle, rgba(30, 90, 168, 0.4), transparent 70%);
   filter: blur(20px);
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -245,7 +245,7 @@ onUnmounted(() => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(100, 149, 237, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(30, 90, 168, 0.2), transparent);
   transition: left 0.3s ease;
 }
 
@@ -257,8 +257,8 @@ onUnmounted(() => {
 .nav-item:hover,
 .nav-item.active {
   color: #333;
-  background: rgba(100, 149, 237, 0.2);
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.4);
+  background: rgba(30, 90, 168, 0.2);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.4);
   transform: translateY(-2px);
 }
 
@@ -269,7 +269,7 @@ onUnmounted(() => {
   transform: translateX(-50%) scaleX(0);
   width: 80%;
   height: 2px;
-  background: linear-gradient(90deg, #6495ED, #87CEFA);
+  background: linear-gradient(90deg, #1E5AA8, #5B8FC9);
   border-radius: 1px;
   transition: transform 0.3s ease;
 }
@@ -287,13 +287,13 @@ onUnmounted(() => {
   border-radius: 20px;
   cursor: pointer;
   transition: all 0.3s;
-  background: rgba(100, 149, 237, 0.1);
-  border: 1px solid rgba(100, 149, 237, 0.2);
+  background: rgba(30, 90, 168, 0.1);
+  border: 1px solid rgba(30, 90, 168, 0.2);
 }
 
 .user-info:hover {
-  background: rgba(100, 149, 237, 0.2);
-  box-shadow: 0 2px 12px rgba(100, 149, 237, 0.3);
+  background: rgba(30, 90, 168, 0.2);
+  box-shadow: 0 2px 12px rgba(30, 90, 168, 0.3);
 }
 
 .user-info .username {

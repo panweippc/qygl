@@ -277,7 +277,7 @@ onMounted(() => {
   width: 187px;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
-  border-right: 1px solid rgba(100, 149, 237, 0.3);
+  border-right: 1px solid rgba(30, 90, 168, 0.3);
   padding: 1.5rem 1rem;
   overflow-y: auto;
   position: relative;
@@ -319,12 +319,12 @@ onMounted(() => {
   border-radius: 8px;
   transition: background 0.2s;
   user-select: none;
-  border-bottom: 1px solid rgba(100, 149, 237, 0.12);
+  border-bottom: 1px solid rgba(30, 90, 168, 0.12);
   margin-bottom: 0.15rem;
 }
 
 .group-header:hover {
-  background: rgba(100, 149, 237, 0.08);
+  background: rgba(30, 90, 168, 0.08);
 }
 
 .group-arrow {
@@ -380,7 +380,7 @@ onMounted(() => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(100, 149, 237, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(30, 90, 168, 0.2), transparent);
   transition: left 0.3s ease;
 }
 
@@ -392,8 +392,8 @@ onMounted(() => {
 .sidebar-item:hover,
 .sidebar-item.active {
   color: #333;
-  background: rgba(100, 149, 237, 0.2);
-  box-shadow: 0 6px 20px rgba(100, 149, 237, 0.4);
+  background: rgba(30, 90, 168, 0.2);
+  box-shadow: 0 6px 20px rgba(30, 90, 168, 0.4);
   transform: translateX(8px);
 }
 
@@ -404,7 +404,7 @@ onMounted(() => {
   transform: translateY(-50%) scaleY(0);
   width: 3px;
   height: 60%;
-  background: linear-gradient(180deg, #6495ED, #87CEFA);
+  background: linear-gradient(180deg, #1E5AA8, #5B8FC9);
   border-radius: 0 2px 2px 0;
   transition: transform 0.3s ease;
 }
@@ -417,14 +417,14 @@ onMounted(() => {
 .sidebar-icon {
   width: 32px;
   height: 32px;
-  background: linear-gradient(45deg, #6495ED, #87CEFA);
+  background: linear-gradient(45deg, #1E5AA8, #5B8FC9);
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   flex-shrink: 0;
-  box-shadow: 0 4px 10px rgba(100, 149, 237, 0.4);
+  box-shadow: 0 4px 10px rgba(30, 90, 168, 0.4);
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   position: relative;
   overflow: hidden;
@@ -433,7 +433,7 @@ onMounted(() => {
 .sidebar-icon-sm {
   width: 26px;
   height: 26px;
-  box-shadow: 0 2px 6px rgba(100, 149, 237, 0.3);
+  box-shadow: 0 2px 6px rgba(30, 90, 168, 0.3);
 }
 
 .sidebar-icon-sm svg {
@@ -462,7 +462,7 @@ onMounted(() => {
 .sidebar-item:hover .sidebar-icon,
 .sidebar-item.active .sidebar-icon {
   transform: scale(1.15) rotate(5deg);
-  box-shadow: 0 8px 20px rgba(100, 149, 237, 0.6);
+  box-shadow: 0 8px 20px rgba(30, 90, 168, 0.6);
 }
 
 .sidebar-item:hover .sidebar-icon-sm,

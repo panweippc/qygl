@@ -657,7 +657,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
@@ -1572,7 +1572,7 @@ const getDistributedAttachmentsHtml = (row: any) => {
     const links = files
       .map((f: any) => {
         const url = `/api/attachments/download?file=${encodeURIComponent(f.url || '')}&name=${encodeURIComponent(f.name || '')}`
-        return `<a href="${url}" style="color:#6495ED;font-weight:500;text-decoration:underline;word-break:break-all;">📎 ${esc(f.name || '附件')}</a>`
+        return `<a href="${url}" style="color:#1E5AA8;font-weight:500;text-decoration:underline;word-break:break-all;">📎 ${esc(f.name || '附件')}</a>`
       })
       .join('<br/>')
     return `<p><strong>附件：</strong><br/>${links}</p>`
@@ -2185,7 +2185,7 @@ onUnmounted(() => {
 .header {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(100, 149, 237, 0.2);
+  border-bottom: 1px solid rgba(30, 90, 168, 0.2);
   padding: 0 2rem;
   height: 60px;
   display: flex;
@@ -2204,7 +2204,7 @@ onUnmounted(() => {
   font-size: 1.5rem;
   font-weight: bold;
   color: #333;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 .logo-glow {
   position: absolute;
@@ -2212,7 +2212,7 @@ onUnmounted(() => {
   left: -20%;
   width: 140%;
   height: 200%;
-  background: linear-gradient(45deg, transparent, rgba(100, 149, 237, 0.3), transparent);
+  background: linear-gradient(45deg, transparent, rgba(30, 90, 168, 0.3), transparent);
   filter: blur(20px);
   animation: glow 3s ease-in-out infinite;
 }
@@ -2245,8 +2245,8 @@ onUnmounted(() => {
 .nav-item:hover,
 .nav-item.active {
   color: #333;
-  background: rgba(100, 149, 237, 0.2);
-  box-shadow: 0 0 15px rgba(100, 149, 237, 0.3);
+  background: rgba(30, 90, 168, 0.2);
+  box-shadow: 0 0 15px rgba(30, 90, 168, 0.3);
 }
 .logout-btn {
   background: rgba(244, 67, 54, 0.1);
@@ -2297,13 +2297,13 @@ onUnmounted(() => {
 .title-icon {
   width: 36px;
   height: 36px;
-  background: linear-gradient(45deg, #6495ED, #87CEEB);
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.3);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.3);
 }
 .title-icon svg {
   width: 20px;
@@ -2341,7 +2341,7 @@ onUnmounted(() => {
 }
 .stat-item:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 25px rgba(100, 149, 237, 0.15);
+  box-shadow: 0 8px 25px rgba(30, 90, 168, 0.15);
 }
 .stat-icon-wrapper {
   width: 48px;
@@ -2381,7 +2381,7 @@ onUnmounted(() => {
 }
 .tabs-container {
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(100, 149, 237, 0.2);
+  border: 1px solid rgba(30, 90, 168, 0.2);
   border-radius: 16px;
   overflow: hidden;
   backdrop-filter: blur(5px);
@@ -2392,8 +2392,8 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid rgba(100, 149, 237, 0.1);
-  background: rgba(100, 149, 237, 0.05);
+  border-bottom: 1px solid rgba(30, 90, 168, 0.1);
+  background: rgba(30, 90, 168, 0.05);
 }
 .custom-tabs {
   display: flex;
@@ -2414,12 +2414,12 @@ onUnmounted(() => {
 }
 .tab-item:hover {
   background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(100, 149, 237, 0.3);
+  border-color: rgba(30, 90, 168, 0.3);
 }
 .tab-item.active {
-  background: linear-gradient(45deg, #6495ED, #87CEEB);
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB);
   color: #fff;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.3);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.3);
 }
 .tab-icon {
   font-size: 1.1rem;
@@ -2448,7 +2448,7 @@ onUnmounted(() => {
 .toggle-btn {
   width: 36px;
   height: 36px;
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
   background: rgba(255, 255, 255, 0.8);
   border-radius: 8px;
   display: flex;
@@ -2463,11 +2463,11 @@ onUnmounted(() => {
   height: 18px;
 }
 .toggle-btn:hover {
-  border-color: rgba(100, 149, 237, 0.5);
-  color: #6495ED;
+  border-color: rgba(30, 90, 168, 0.5);
+  color: #1E5AA8;
 }
 .toggle-btn.active {
-  background: linear-gradient(45deg, #6495ED, #87CEEB);
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB);
   border-color: transparent;
   color: #fff;
 }
@@ -2482,8 +2482,8 @@ onUnmounted(() => {
   to { opacity: 1; transform: translateY(0); }
 }
 .id-badge {
-  background: rgba(100, 149, 237, 0.1);
-  color: #6495ED;
+  background: rgba(30, 90, 168, 0.1);
+  color: #1E5AA8;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   font-size: 0.85rem;
@@ -2580,8 +2580,8 @@ onUnmounted(() => {
   border-radius: 10px;
   font-size: 12px;
   color: #5B7FBF;
-  background: rgba(100, 149, 237, 0.08);
-  border: 1px solid rgba(100, 149, 237, 0.25);
+  background: rgba(30, 90, 168, 0.08);
+  border: 1px solid rgba(30, 90, 168, 0.25);
 }
 .receiver-count {
   font-size: 12px;
@@ -2606,7 +2606,7 @@ onUnmounted(() => {
   gap: 0.5rem;
 }
 .action-btn-small {
-  background: linear-gradient(45deg, #6495ED, #87CEEB) !important;
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB) !important;
   border: none !important;
 }
 .terminate-btn {
@@ -2619,9 +2619,9 @@ onUnmounted(() => {
 }
 .view-btn,
 .cancel-btn {
-  background: rgba(100, 149, 237, 0.1) !important;
-  color: #6495ED !important;
-  border: 1px solid rgba(100, 149, 237, 0.3) !important;
+  background: rgba(30, 90, 168, 0.1) !important;
+  color: #1E5AA8 !important;
+  border: 1px solid rgba(30, 90, 168, 0.3) !important;
 }
 .header-actions {
   display: flex;
@@ -2658,7 +2658,7 @@ onUnmounted(() => {
   font-size: 0.9rem;
 }
 .approval-info {
-  background: rgba(100, 149, 237, 0.05);
+  background: rgba(30, 90, 168, 0.05);
   border-radius: 8px;
   padding: 1rem;
   margin-bottom: 1.5rem;
@@ -2692,11 +2692,11 @@ onUnmounted(() => {
   align-items: center;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
-  border-bottom: 2px solid rgba(100, 149, 237, 0.1);
+  border-bottom: 2px solid rgba(30, 90, 168, 0.1);
 }
 .detail-id {
   font-size: 1rem;
-  color: #6495ED;
+  color: #1E5AA8;
   font-weight: 600;
 }
 .detail-status {
@@ -2713,7 +2713,7 @@ onUnmounted(() => {
 .detail-row {
   display: flex;
   padding: 0.75rem;
-  background: rgba(100, 149, 237, 0.03);
+  background: rgba(30, 90, 168, 0.03);
   border-radius: 8px;
 }
 .detail-label {
@@ -2732,7 +2732,7 @@ onUnmounted(() => {
   gap: 6px;
 }
 .attachment-link {
-  color: #6495ED;
+  color: #1E5AA8;
   font-weight: 500;
   text-decoration: underline;
   word-break: break-all;
@@ -2743,7 +2743,7 @@ onUnmounted(() => {
 .detail-footer {
   margin-top: 1.5rem;
   padding-top: 1rem;
-  border-top: 1px solid rgba(100, 149, 237, 0.1);
+  border-top: 1px solid rgba(30, 90, 168, 0.1);
 }
 .comment-box {
   background: rgba(255, 152, 0, 0.05);
@@ -2763,7 +2763,7 @@ onUnmounted(() => {
   padding: 0.5rem;
 }
 .process-info {
-  background: rgba(100, 149, 237, 0.05);
+  background: rgba(30, 90, 168, 0.05);
   border-radius: 8px;
   padding: 1rem;
   margin-bottom: 1.5rem;
@@ -2792,7 +2792,7 @@ onUnmounted(() => {
 .footer {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(100, 149, 237, 0.2);
+  border-top: 1px solid rgba(30, 90, 168, 0.2);
   padding: 1rem 2rem;
   text-align: center;
   color: rgba(51, 51, 51, 0.6);
@@ -2813,11 +2813,11 @@ onUnmounted(() => {
   border-radius: 4px;
 }
 .main-content::-webkit-scrollbar-thumb {
-  background: rgba(100, 149, 237, 0.4);
+  background: rgba(30, 90, 168, 0.4);
   border-radius: 4px;
 }
 .main-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 149, 237, 0.6);
+  background: rgba(30, 90, 168, 0.6);
 }
 @media (max-width: 1200px) {
   .stats-bar {
@@ -2829,7 +2829,7 @@ onUnmounted(() => {
   gap: 0.5rem;
   padding: 0.5rem 1rem;
   background: rgba(255,255,255,0.8);
-  border-bottom: 1px solid rgba(100, 149, 237, 0.2);
+  border-bottom: 1px solid rgba(30, 90, 168, 0.2);
   flex-wrap: wrap;
 }
 .sub-tab-item {
@@ -2841,13 +2841,13 @@ onUnmounted(() => {
   cursor: pointer;
   font-size: 13px;
   transition: all 0.3s;
-  background: rgba(100, 149, 237, 0.08);
+  background: rgba(30, 90, 168, 0.08);
   color: rgba(51,51,51,0.7);
 }
-.sub-tab-item:hover { background: rgba(100, 149, 237, 0.15); }
+.sub-tab-item:hover { background: rgba(30, 90, 168, 0.15); }
 .sub-tab-item.active {
-  background: rgba(100, 149, 237, 0.2);
-  color: #6495ED;
+  background: rgba(30, 90, 168, 0.2);
+  color: #1E5AA8;
   font-weight: 600;
 }
 .sub-tab-badge.sub-tab-badge-gray {
@@ -2864,7 +2864,7 @@ onUnmounted(() => {
 }
 
 .sub-tab-badge {
-  background: #6495ED;
+  background: #1E5AA8;
   color: #fff;
   font-size: 10px;
   min-width: 16px;
@@ -2902,7 +2902,7 @@ onUnmounted(() => {
 }
 
 .print-row-btn {
-  background: linear-gradient(45deg, #6495ED, #87CEEB) !important;
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB) !important;
   border: none !important;
   color: #fff !important;
 }

@@ -594,6 +594,6 @@ onMounted(async () => {
 .segment-title {
   font-size: 14px;
   font-weight: 600;
-  color: #6495ED;
+  color: #1E5AA8;
 }
 </style>

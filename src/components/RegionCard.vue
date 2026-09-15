@@ -43,7 +43,7 @@ defineEmits<{
 <style scoped>
 .classification-card {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95));
-  border: 1px solid rgba(100, 149, 237, 0.25);
+  border: 1px solid rgba(30, 90, 168, 0.25);
   border-radius: 16px;
   padding: 2rem;
   backdrop-filter: blur(10px);
@@ -62,7 +62,7 @@ defineEmits<{
   left: -2px;
   right: -2px;
   bottom: -2px;
-  background: linear-gradient(45deg, #6495ED, #87CEEB, #6495ED, #87CEEB);
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB, #1E5AA8, #87CEEB);
   border-radius: 18px;
   z-index: -1;
   opacity: 0;
@@ -77,8 +77,8 @@ defineEmits<{
 
 .classification-card:hover {
   transform: translateY(-8px) scale(1.02);
-  box-shadow: 0 12px 30px rgba(100, 149, 237, 0.35);
-  border-color: rgba(100, 149, 237, 0.6);
+  box-shadow: 0 12px 30px rgba(30, 90, 168, 0.35);
+  border-color: rgba(30, 90, 168, 0.6);
 }
 
 .card-content {
@@ -109,20 +109,20 @@ defineEmits<{
 }
 
 .project-count {
-  background: linear-gradient(135deg, #6495ED, #4169E1);
+  background: linear-gradient(135deg, #1E5AA8, #2E6FB8);
   color: #fff;
   padding: 0.3rem 0.9rem;
   border-radius: 20px;
   font-size: 0.85rem;
   font-weight: 500;
-  box-shadow: 0 2px 8px rgba(100, 149, 237, 0.3);
+  box-shadow: 0 2px 8px rgba(30, 90, 168, 0.3);
   transition: all 0.3s ease;
   white-space: nowrap;
 }
 
 .project-count:hover {
   transform: scale(1.05);
-  box-shadow: 0 5px 15px rgba(100, 149, 237, 0.4);
+  box-shadow: 0 5px 15px rgba(30, 90, 168, 0.4);
 }
 
 .card-body {
@@ -189,13 +189,13 @@ defineEmits<{
 }
 
 .action-btn.edit-btn {
-  background: linear-gradient(135deg, #6495ED, #4169E1);
+  background: linear-gradient(135deg, #1E5AA8, #2E6FB8);
   color: white;
 }
 
 .action-btn.edit-btn:hover {
   transform: scale(1.1);
-  box-shadow: 0 5px 15px rgba(100, 149, 237, 0.4);
+  box-shadow: 0 5px 15px rgba(30, 90, 168, 0.4);
 }
 
 .action-btn.delete-btn {

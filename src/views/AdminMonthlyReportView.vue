@@ -463,7 +463,7 @@ const previewFile = (file: any) => {
 .header {
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(100, 149, 237, 0.3);
+  border-bottom: 1px solid rgba(30, 90, 168, 0.3);
   padding: 0 2rem;
   height: 60px;
   display: flex;
@@ -484,7 +484,7 @@ const previewFile = (file: any) => {
   font-size: 1.5rem;
   font-weight: bold;
   color: #333;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .logo-glow {
@@ -493,7 +493,7 @@ const previewFile = (file: any) => {
   left: -20%;
   width: 140%;
   height: 200%;
-  background: linear-gradient(45deg, transparent, rgba(100, 149, 237, 0.3), transparent);
+  background: linear-gradient(45deg, transparent, rgba(30, 90, 168, 0.3), transparent);
   filter: blur(20px);
   animation: glow 3s ease-in-out infinite;
 }
@@ -534,7 +534,7 @@ const previewFile = (file: any) => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(100, 149, 237, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(30, 90, 168, 0.2), transparent);
   transition: left 0.3s ease;
 }
 
@@ -546,8 +546,8 @@ const previewFile = (file: any) => {
 .nav-item:hover,
 .nav-item.active {
   color: #333;
-  background: rgba(100, 149, 237, 0.2);
-  box-shadow: 0 0 15px rgba(100, 149, 237, 0.3);
+  background: rgba(30, 90, 168, 0.2);
+  box-shadow: 0 0 15px rgba(30, 90, 168, 0.3);
 }
 
 .logout-btn {
@@ -608,19 +608,19 @@ const previewFile = (file: any) => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .title-icon {
   width: 32px;
   height: 32px;
-  background: linear-gradient(45deg, #6495ED, #87CEEB);
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.3);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.3);
 }
 
 .title-icon svg {
@@ -633,7 +633,7 @@ const previewFile = (file: any) => {
   font-weight: 600;
   color: #333;
   margin-bottom: 1rem;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 /* 月份选择 */
@@ -657,7 +657,7 @@ const previewFile = (file: any) => {
 /* 历史周报 */
 .history-section {
   background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
   border-radius: 12px;
   padding: 2rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -672,7 +672,7 @@ const previewFile = (file: any) => {
 
 .report-item {
   background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
   border-radius: 8px;
   padding: 1.5rem;
   transition: all 0.3s ease;
@@ -688,13 +688,13 @@ const previewFile = (file: any) => {
   left: 0;
   width: 4px;
   height: 100%;
-  background: linear-gradient(180deg, #6495ED, #87CEEB);
+  background: linear-gradient(180deg, #1E5AA8, #87CEEB);
 }
 
 .report-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.2);
-  border-color: rgba(100, 149, 237, 0.4);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.2);
+  border-color: rgba(30, 90, 168, 0.4);
 }
 
 .report-header {
@@ -722,9 +722,9 @@ const previewFile = (file: any) => {
 }
 
 .report-date {
-  color: rgba(100, 149, 237, 0.8);
+  color: rgba(30, 90, 168, 0.8);
   font-size: 0.9rem;
-  background: rgba(100, 149, 237, 0.1);
+  background: rgba(30, 90, 168, 0.1);
   padding: 0.25rem 0.75rem;
   border-radius: 12px;
 }
@@ -753,14 +753,14 @@ const previewFile = (file: any) => {
 
 .report-section {
   background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(100, 149, 237, 0.2);
+  border: 1px solid rgba(30, 90, 168, 0.2);
   border-radius: 8px;
   padding: 0.75rem 1rem;
 }
 
 .report-section-title {
   font-weight: 600;
-  color: #6495ED;
+  color: #1E5AA8;
   font-size: 0.85rem;
   margin-bottom: 0.35rem;
 }
@@ -776,7 +776,7 @@ const previewFile = (file: any) => {
 .report-footer {
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 1px solid rgba(100, 149, 237, 0.2);
+  border-top: 1px solid rgba(30, 90, 168, 0.2);
 }
 
 /* 附件样式 */
@@ -785,13 +785,13 @@ const previewFile = (file: any) => {
   padding: 1rem;
   background: rgba(255, 255, 255, 0.6);
   border-radius: 8px;
-  border: 1px solid rgba(100, 149, 237, 0.2);
+  border: 1px solid rgba(30, 90, 168, 0.2);
 }
 
 .files-title {
   font-size: 0.9rem;
   font-weight: 600;
-  color: #6495ED;
+  color: #1E5AA8;
   margin-bottom: 0.5rem;
 }
 
@@ -814,7 +814,7 @@ const previewFile = (file: any) => {
   height: 80px;
   object-fit: cover;
   border-radius: 6px;
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
@@ -822,7 +822,7 @@ const previewFile = (file: any) => {
 
 .files-list .file-preview:hover {
   transform: scale(1.05);
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.3);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.3);
 }
 
 .files-list .file-actions {
@@ -864,9 +864,9 @@ const previewFile = (file: any) => {
 }
 
 .files-list .download-btn {
-  background: rgba(100, 149, 237, 0.1) !important;
-  color: #6495ED !important;
-  border: 1px solid rgba(100, 149, 237, 0.3) !important;
+  background: rgba(30, 90, 168, 0.1) !important;
+  color: #1E5AA8 !important;
+  border: 1px solid rgba(30, 90, 168, 0.3) !important;
   border-radius: 4px !important;
   font-size: 0.7rem !important;
   padding: 0.25rem 0.5rem !important;
@@ -874,8 +874,8 @@ const previewFile = (file: any) => {
 }
 
 .files-list .download-btn:hover {
-  background: rgba(100, 149, 237, 0.2) !important;
-  box-shadow: 0 0 10px rgba(100, 149, 237, 0.3) !important;
+  background: rgba(30, 90, 168, 0.2) !important;
+  box-shadow: 0 0 10px rgba(30, 90, 168, 0.3) !important;
   transform: translateY(-1px) !important;
 }
 
@@ -885,11 +885,11 @@ const previewFile = (file: any) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(100, 149, 237, 0.1);
-  color: #6495ED;
+  background: rgba(30, 90, 168, 0.1);
+  color: #1E5AA8;
   font-size: 24px;
   border-radius: 6px;
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
@@ -899,14 +899,14 @@ const previewFile = (file: any) => {
   padding: 3rem;
   background: rgba(255, 255, 255, 0.6);
   border-radius: 8px;
-  border: 1px dashed rgba(100, 149, 237, 0.3);
+  border: 1px dashed rgba(30, 90, 168, 0.3);
 }
 
 /* 页脚 */
 .footer {
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(100, 149, 237, 0.3);
+  border-top: 1px solid rgba(30, 90, 168, 0.3);
   padding: 1rem 2rem;
   text-align: center;
   color: rgba(51, 51, 51, 0.6);
@@ -930,18 +930,18 @@ const previewFile = (file: any) => {
 }
 
 .main-content::-webkit-scrollbar-thumb {
-  background: rgba(100, 149, 237, 0.5);
+  background: rgba(30, 90, 168, 0.5);
   border-radius: 4px;
 }
 
 .main-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 149, 237, 0.7);
+  background: rgba(30, 90, 168, 0.7);
 }
 
 /* 选择器样式 */
 .el-select .el-input__wrapper {
   background: rgba(255, 255, 255, 0.8) !important;
-  border: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border: 1px solid rgba(30, 90, 168, 0.3) !important;
   border-radius: 8px !important;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05) !important;
 }
@@ -956,7 +956,7 @@ const previewFile = (file: any) => {
 
 .el-select-dropdown {
   background: rgba(255, 255, 255, 0.95) !important;
-  border: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border: 1px solid rgba(30, 90, 168, 0.3) !important;
   border-radius: 8px !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
@@ -966,18 +966,18 @@ const previewFile = (file: any) => {
 }
 
 .el-select-dropdown__item:hover {
-  background: rgba(100, 149, 237, 0.1) !important;
+  background: rgba(30, 90, 168, 0.1) !important;
 }
 
 .el-select-dropdown__item.selected {
-  background: rgba(100, 149, 237, 0.2) !important;
-  color: #6495ED !important;
+  background: rgba(30, 90, 168, 0.2) !important;
+  color: #1E5AA8 !important;
 }
 
 /* 预览对话框样式 */
 .preview-dialog .el-dialog__header {
   background: rgba(255, 255, 255, 0.8);
-  border-bottom: 1px solid rgba(100, 149, 237, 0.3);
+  border-bottom: 1px solid rgba(30, 90, 168, 0.3);
 }
 
 .preview-dialog .el-dialog__title {
@@ -995,7 +995,7 @@ const previewFile = (file: any) => {
 
 .preview-dialog .el-dialog__footer {
   background: rgba(255, 255, 255, 0.8);
-  border-top: 1px solid rgba(100, 149, 237, 0.3);
+  border-top: 1px solid rgba(30, 90, 168, 0.3);
   padding: 1rem 1.5rem;
 }
 
@@ -1011,7 +1011,7 @@ const previewFile = (file: any) => {
   max-width: 100%;
   max-height: 500px;
   border-radius: 8px;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.3);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.3);
 }
 
 .text-preview {
@@ -1019,7 +1019,7 @@ const previewFile = (file: any) => {
   max-height: 500px;
   overflow-y: auto;
   background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
   border-radius: 8px;
   padding: 1rem;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
@@ -1037,7 +1037,7 @@ const previewFile = (file: any) => {
   width: 100%;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
@@ -1053,7 +1053,7 @@ const previewFile = (file: any) => {
 
 .other-preview .file-icon {
   font-size: 48px;
-  color: #6495ED;
+  color: #1E5AA8;
   margin-bottom: 1rem;
 }
 
@@ -1073,11 +1073,11 @@ const previewFile = (file: any) => {
 }
 
 .preview-dialog .el-dialog__body::-webkit-scrollbar-thumb {
-  background: rgba(100, 149, 237, 0.5);
+  background: rgba(30, 90, 168, 0.5);
   border-radius: 3px;
 }
 
 .preview-dialog .el-dialog__body::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 149, 237, 0.7);
+  background: rgba(30, 90, 168, 0.7);
 }
 </style>

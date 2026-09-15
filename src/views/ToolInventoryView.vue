@@ -456,7 +456,7 @@ const handleCurrentChange = (current: number) => {
 .header {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(100, 149, 237, 0.3);
+  border-bottom: 1px solid rgba(30, 90, 168, 0.3);
   padding: 0 2rem;
   height: 60px;
   display: flex;
@@ -477,7 +477,7 @@ const handleCurrentChange = (current: number) => {
   font-size: 1.5rem;
   font-weight: bold;
   color: #333;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .logo-glow {
@@ -486,7 +486,7 @@ const handleCurrentChange = (current: number) => {
   left: -20%;
   width: 140%;
   height: 200%;
-  background: linear-gradient(45deg, transparent, rgba(100, 149, 237, 0.3), transparent);
+  background: linear-gradient(45deg, transparent, rgba(30, 90, 168, 0.3), transparent);
   filter: blur(20px);
   animation: glow 3s ease-in-out infinite;
 }
@@ -527,7 +527,7 @@ const handleCurrentChange = (current: number) => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(100, 149, 237, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(30, 90, 168, 0.2), transparent);
   transition: left 0.3s ease;
 }
 
@@ -539,8 +539,8 @@ const handleCurrentChange = (current: number) => {
 .nav-item:hover,
 .nav-item.active {
   color: #333;
-  background: rgba(100, 149, 237, 0.2);
-  box-shadow: 0 0 15px rgba(100, 149, 237, 0.3);
+  background: rgba(30, 90, 168, 0.2);
+  box-shadow: 0 0 15px rgba(30, 90, 168, 0.3);
 }
 
 .logout-btn {
@@ -592,7 +592,7 @@ const handleCurrentChange = (current: number) => {
 /* 物资入库管理 */
 .inventory-section {
   background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
   border-radius: 12px;
   padding: 2rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -614,19 +614,19 @@ const handleCurrentChange = (current: number) => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .title-icon {
   width: 32px;
   height: 32px;
-  background: linear-gradient(45deg, #6495ED, #87CEFA);
+  background: linear-gradient(45deg, #1E5AA8, #5B8FC9);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.4);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.4);
 }
 
 .title-icon svg {
@@ -635,18 +635,18 @@ const handleCurrentChange = (current: number) => {
 }
 
 .add-btn {
-  background: linear-gradient(45deg, #6495ED, #87CEFA) !important;
+  background: linear-gradient(45deg, #1E5AA8, #5B8FC9) !important;
   border: none !important;
   border-radius: 8px !important;
   padding: 0.5rem 1.5rem !important;
   font-weight: 600 !important;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.4) !important;
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.4) !important;
   transition: all 0.3s ease !important;
 }
 
 .add-btn:hover {
   transform: translateY(-2px) !important;
-  box-shadow: 0 6px 20px rgba(100, 149, 237, 0.6) !important;
+  box-shadow: 0 6px 20px rgba(30, 90, 168, 0.6) !important;
 }
 
 /* 搜索和筛�?*/
@@ -669,7 +669,7 @@ const handleCurrentChange = (current: number) => {
 .el-input__wrapper,
 .el-select .el-input__wrapper {
   background: rgba(255, 255, 255, 0.8) !important;
-  border: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border: 1px solid rgba(30, 90, 168, 0.3) !important;
   border-radius: 8px !important;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05) !important;
 }
@@ -698,33 +698,33 @@ const handleCurrentChange = (current: number) => {
 }
 
 .tool-table th {
-  background: rgba(100, 149, 237, 0.2) !important;
+  background: rgba(30, 90, 168, 0.2) !important;
   color: #333 !important;
   font-weight: 600 !important;
-  border-bottom: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border-bottom: 1px solid rgba(30, 90, 168, 0.3) !important;
 }
 
 .tool-table td {
   color: rgba(51, 51, 51, 0.8) !important;
-  border-bottom: 1px solid rgba(100, 149, 237, 0.2) !important;
+  border-bottom: 1px solid rgba(30, 90, 168, 0.2) !important;
 }
 
 .tool-table tr:hover {
-  background: rgba(100, 149, 237, 0.1) !important;
+  background: rgba(30, 90, 168, 0.1) !important;
 }
 
 .edit-btn {
-  background: rgba(100, 149, 237, 0.2) !important;
-  color: #6495ED !important;
-  border: 1px solid rgba(100, 149, 237, 0.4) !important;
+  background: rgba(30, 90, 168, 0.2) !important;
+  color: #1E5AA8 !important;
+  border: 1px solid rgba(30, 90, 168, 0.4) !important;
   border-radius: 6px !important;
   margin-right: 8px !important;
   transition: all 0.3s ease !important;
 }
 
 .edit-btn:hover {
-  background: rgba(100, 149, 237, 0.3) !important;
-  box-shadow: 0 0 10px rgba(100, 149, 237, 0.4) !important;
+  background: rgba(30, 90, 168, 0.3) !important;
+  box-shadow: 0 0 10px rgba(30, 90, 168, 0.4) !important;
 }
 
 .delete-btn {
@@ -764,19 +764,19 @@ const handleCurrentChange = (current: number) => {
 }
 
 .el-pager li.active {
-  background: linear-gradient(45deg, #6495ED, #87CEFA) !important;
+  background: linear-gradient(45deg, #1E5AA8, #5B8FC9) !important;
   color: #fff !important;
   border: none !important;
 }
 
 .el-pager li:hover {
-  color: #6495ED !important;
+  color: #1E5AA8 !important;
 }
 
 /* 对话�?*/
 .dialog {
   background: rgba(255, 255, 255, 0.95) !important;
-  border: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border: 1px solid rgba(30, 90, 168, 0.3) !important;
   border-radius: 12px !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
 }
@@ -797,7 +797,7 @@ const handleCurrentChange = (current: number) => {
 
 .dialog .el-date-picker__header {
   background: rgba(255, 255, 255, 0.9) !important;
-  border-bottom: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border-bottom: 1px solid rgba(30, 90, 168, 0.3) !important;
 }
 
 .dialog .el-date-picker__body {
@@ -813,26 +813,26 @@ const handleCurrentChange = (current: number) => {
 }
 
 .dialog .el-date-table td.available:hover {
-  background: rgba(100, 149, 237, 0.2) !important;
+  background: rgba(30, 90, 168, 0.2) !important;
 }
 
 .dialog .el-date-table td.today {
-  color: #6495ED !important;
+  color: #1E5AA8 !important;
 }
 
 .dialog .el-date-table td.in-range div {
-  background: rgba(100, 149, 237, 0.2) !important;
+  background: rgba(30, 90, 168, 0.2) !important;
 }
 
 .dialog .el-date-table td.start-date div,
 .dialog .el-date-table td.end-date div {
-  background: linear-gradient(45deg, #6495ED, #87CEFA) !important;
+  background: linear-gradient(45deg, #1E5AA8, #5B8FC9) !important;
 }
 
 .dialog .dialog-footer .el-button {
   background: rgba(240, 242, 245, 0.8) !important;
   color: #333 !important;
-  border: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border: 1px solid rgba(30, 90, 168, 0.3) !important;
   border-radius: 6px !important;
   transition: all 0.3s ease !important;
 }
@@ -843,21 +843,21 @@ const handleCurrentChange = (current: number) => {
 }
 
 .dialog .dialog-footer .el-button--primary {
-  background: linear-gradient(45deg, #6495ED, #87CEFA) !important;
+  background: linear-gradient(45deg, #1E5AA8, #5B8FC9) !important;
   border: none !important;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.4) !important;
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.4) !important;
 }
 
 .dialog .dialog-footer .el-button--primary:hover {
   transform: translateY(-2px) !important;
-  box-shadow: 0 6px 20px rgba(100, 149, 237, 0.6) !important;
+  box-shadow: 0 6px 20px rgba(30, 90, 168, 0.6) !important;
 }
 
 /* 页脚 */
 .footer {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(100, 149, 237, 0.3);
+  border-top: 1px solid rgba(30, 90, 168, 0.3);
   padding: 1rem 2rem;
   text-align: center;
   color: rgba(51, 51, 51, 0.6);
@@ -880,11 +880,11 @@ const handleCurrentChange = (current: number) => {
 }
 
 .main-content::-webkit-scrollbar-thumb {
-  background: rgba(100, 149, 237, 0.5);
+  background: rgba(30, 90, 168, 0.5);
   border-radius: 4px;
 }
 
 .main-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 149, 237, 0.7);
+  background: rgba(30, 90, 168, 0.7);
 }
 </style>

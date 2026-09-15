@@ -373,28 +373,28 @@ onMounted(() => { refreshRole(); loadProjects(); loadCategories(); loadMembers()
 .project-panel { display: flex; flex-direction: column; gap: 1rem; padding: 0.5rem 0.25rem; }
 .pp-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 .pp-title { font-size: 1.1rem; font-weight: 600; color: #333; display: flex; align-items: center; gap: 0.5rem; }
-.count-badge { background: rgba(100,149,237,0.15); color: #4169E1; font-size: 0.8rem; padding: 0.1rem 0.55rem; border-radius: 10px; font-weight: 600; }
+.count-badge { background: rgba(30, 90, 168,0.15); color: #2E6FB8; font-size: 0.8rem; padding: 0.1rem 0.55rem; border-radius: 10px; font-weight: 600; }
 .project-list { display: flex; flex-direction: column; gap: 0.75rem; }
-.project-item { padding: 1rem 1.25rem; background: rgba(255,255,255,0.9); border: 1px solid rgba(100,149,237,0.2); border-left: 3px solid rgba(100,149,237,0.5); border-radius: 8px; font-size: 0.9rem; transition: all 0.3s ease; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
-.project-item:hover { background: rgba(100,149,237,0.12); transform: translateX(4px); }
+.project-item { padding: 1rem 1.25rem; background: rgba(255,255,255,0.9); border: 1px solid rgba(30, 90, 168,0.2); border-left: 3px solid rgba(30, 90, 168,0.5); border-radius: 8px; font-size: 0.9rem; transition: all 0.3s ease; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.project-item:hover { background: rgba(30, 90, 168,0.12); transform: translateX(4px); }
 .project-content { flex: 1; min-width: 0; }
 .project-name { font-weight: 600; color: #333; }
 .project-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
 .status-tag { color: #fff; font-size: 0.72rem; padding: 0.1rem 0.5rem; border-radius: 10px; font-weight: 600; }
 .project-description { color: rgba(51,51,51,0.7); font-size: 0.85rem; margin-bottom: 0.5rem; line-height: 1.4; }
-.project-meta { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.8rem; color: #6495ED; margin-bottom: 0.5rem; }
+.project-meta { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.8rem; color: #1E5AA8; margin-bottom: 0.5rem; }
 .manager-line { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .manager-tag { margin-left: 2px; }
 .project-progress { margin-bottom: 0.5rem; max-width: 420px; display: flex; align-items: center; gap: 0.5rem; }
-.stage-tag { font-size: 0.78rem; color: #fff; background: #4169E1; padding: 0.1rem 0.5rem; border-radius: 10px; font-weight: 600; white-space: nowrap; }
-.project-manager { font-size: 0.8rem; color: #6495ED; margin-bottom: 0.4rem; }
+.stage-tag { font-size: 0.78rem; color: #fff; background: #2E6FB8; padding: 0.1rem 0.5rem; border-radius: 10px; font-weight: 600; white-space: nowrap; }
+.project-manager { font-size: 0.8rem; color: #1E5AA8; margin-bottom: 0.4rem; }
 .form-row { display: flex; gap: 1rem; }
-.project-link a { color: #6495ED; text-decoration: none; font-size: 0.8rem; word-break: break-all; }
+.project-link a { color: #1E5AA8; text-decoration: none; font-size: 0.8rem; word-break: break-all; }
 .project-link a:hover { text-decoration: underline; }
 .project-uncat { font-size: 0.78rem; color: #faad14; margin-top: 0.35rem; }
 .project-actions { display: flex; gap: 0.4rem; align-items: flex-start; flex-shrink: 0; }
-.action-btn { background: rgba(100,149,237,0.15) !important; color: #6495ED !important; border: 1px solid rgba(100,149,237,0.3) !important; border-radius: 6px !important; width: 32px !important; height: 32px !important; padding: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; transition: all 0.3s ease !important; }
-.action-btn:hover { background: rgba(100,149,237,0.25) !important; box-shadow: 0 0 10px rgba(100,149,237,0.3) !important; }
+.action-btn { background: rgba(30, 90, 168,0.15) !important; color: #1E5AA8 !important; border: 1px solid rgba(30, 90, 168,0.3) !important; border-radius: 6px !important; width: 32px !important; height: 32px !important; padding: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; transition: all 0.3s ease !important; }
+.action-btn:hover { background: rgba(30, 90, 168,0.25) !important; box-shadow: 0 0 10px rgba(30, 90, 168,0.3) !important; }
 .action-btn.assign { width: auto !important; padding: 0 0.6rem !important; gap: 0.25rem; }
 .action-btn.delete { background: rgba(244,67,54,0.1) !important; color: #d32f2f !important; border: 1px solid rgba(244,67,54,0.3) !important; }
 .action-btn.delete:hover { background: rgba(244,67,54,0.2) !important; box-shadow: 0 0 10px rgba(244,67,54,0.2) !important; }

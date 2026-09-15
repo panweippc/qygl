@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="town-detail-container">
     <!-- 顶部导航 -->
     <header class="header">
@@ -387,7 +387,7 @@ onMounted(async () => {
 .header {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(100, 149, 237, 0.3);
+  border-bottom: 1px solid rgba(30, 90, 168, 0.3);
   padding: 0 2rem;
   height: 60px;
   display: flex;
@@ -408,7 +408,7 @@ onMounted(async () => {
   font-size: 1.5rem;
   font-weight: bold;
   color: #333;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .logo-glow {
@@ -417,7 +417,7 @@ onMounted(async () => {
   left: -20%;
   width: 140%;
   height: 200%;
-  background: linear-gradient(45deg, transparent, rgba(100, 149, 237, 0.3), transparent);
+  background: linear-gradient(45deg, transparent, rgba(30, 90, 168, 0.3), transparent);
   filter: blur(20px);
   animation: glow 3s ease-in-out infinite;
 }
@@ -458,7 +458,7 @@ onMounted(async () => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(100, 149, 237, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(30, 90, 168, 0.2), transparent);
   transition: left 0.3s ease;
 }
 
@@ -470,8 +470,8 @@ onMounted(async () => {
 .nav-item:hover,
 .nav-item.active {
   color: #333;
-  background: rgba(100, 149, 237, 0.2);
-  box-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  background: rgba(30, 90, 168, 0.2);
+  box-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .logout-btn {
@@ -534,19 +534,19 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .title-icon {
   width: 32px;
   height: 32px;
-  background: linear-gradient(45deg, #6495ED, #87CEFA);
+  background: linear-gradient(45deg, #1E5AA8, #5B8FC9);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  box-shadow: 0 4px 10px rgba(100, 149, 237, 0.4);
+  box-shadow: 0 4px 10px rgba(30, 90, 168, 0.4);
 }
 
 .title-icon svg {
@@ -559,13 +559,13 @@ onMounted(async () => {
   font-weight: 600;
   color: #333;
   margin-bottom: 1rem;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 /* 乡镇信息卡片 */
 .town-info-card {
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(100, 149, 237, 0.4);
+  border: 1px solid rgba(30, 90, 168, 0.4);
   border-radius: 12px;
   padding: 2rem;
   backdrop-filter: blur(10px);
@@ -575,9 +575,9 @@ onMounted(async () => {
 .card-title {
   font-size: 1.2rem;
   font-weight: 600;
-  color: #6495ED;
+  color: #1E5AA8;
   margin: 0 0 1.5rem 0;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .card-details {
@@ -610,7 +610,7 @@ onMounted(async () => {
 /* 客户列表 */
 .customer-section {
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(100, 149, 237, 0.4);
+  border: 1px solid rgba(30, 90, 168, 0.4);
   border-radius: 12px;
   padding: 2rem;
   backdrop-filter: blur(10px);
@@ -665,17 +665,17 @@ onMounted(async () => {
 }
 
 .customer-card {
-  background: rgba(100, 149, 237, 0.1);
-  border: 1px solid rgba(100, 149, 237, 0.2);
+  background: rgba(30, 90, 168, 0.1);
+  border: 1px solid rgba(30, 90, 168, 0.2);
   border-radius: 8px;
   padding: 1.5rem;
   transition: all 0.3s ease;
 }
 
 .customer-card:hover {
-  background: rgba(100, 149, 237, 0.2);
-  border-color: rgba(100, 149, 237, 0.4);
-  box-shadow: 0 4px 10px rgba(100, 149, 237, 0.3);
+  background: rgba(30, 90, 168, 0.2);
+  border-color: rgba(30, 90, 168, 0.4);
+  box-shadow: 0 4px 10px rgba(30, 90, 168, 0.3);
   transform: translateY(-2px);
 }
 
@@ -703,14 +703,14 @@ onMounted(async () => {
 }
 
 .edit-btn {
-  background: rgba(100, 149, 237, 0.2);
-  color: #6495ED;
-  border: 1px solid rgba(100, 149, 237, 0.4);
+  background: rgba(30, 90, 168, 0.2);
+  color: #1E5AA8;
+  border: 1px solid rgba(30, 90, 168, 0.4);
 }
 
 .edit-btn:hover {
-  background: rgba(100, 149, 237, 0.3);
-  box-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  background: rgba(30, 90, 168, 0.3);
+  box-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .delete-btn {
@@ -754,7 +754,7 @@ onMounted(async () => {
 
 .modal-content {
   background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(100, 149, 237, 0.4);
+  border: 1px solid rgba(30, 90, 168, 0.4);
   border-radius: 12px;
   padding: 2rem;
   width: 90%;
@@ -772,9 +772,9 @@ onMounted(async () => {
 .modal-header h3 {
   font-size: 1.2rem;
   font-weight: 600;
-  color: #6495ED;
+  color: #1E5AA8;
   margin: 0;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .close-btn {
@@ -807,7 +807,7 @@ onMounted(async () => {
 .form-group select {
   width: 100%;
   padding: 0.8rem;
-  border: 1px solid rgba(100, 149, 237, 0.4);
+  border: 1px solid rgba(30, 90, 168, 0.4);
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.8);
   color: #333;
@@ -819,8 +819,8 @@ onMounted(async () => {
 .form-group textarea:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #6495ED;
-  box-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  border-color: #1E5AA8;
+  box-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .form-actions {
@@ -832,7 +832,7 @@ onMounted(async () => {
 
 .cancel-btn {
   padding: 0.8rem 1.5rem;
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.8);
   color: rgba(51, 51, 51, 0.8);
@@ -845,15 +845,15 @@ onMounted(async () => {
 .cancel-btn:hover {
   background: rgba(255, 255, 255, 1);
   color: #333;
-  box-shadow: 0 0 10px rgba(100, 149, 237, 0.2);
+  box-shadow: 0 0 10px rgba(30, 90, 168, 0.2);
 }
 
 .submit-btn {
   padding: 0.8rem 1.5rem;
-  border: 1px solid rgba(100, 149, 237, 0.4);
+  border: 1px solid rgba(30, 90, 168, 0.4);
   border-radius: 6px;
-  background: rgba(100, 149, 237, 0.2);
-  color: #6495ED;
+  background: rgba(30, 90, 168, 0.2);
+  color: #1E5AA8;
   cursor: pointer;
   transition: all 0.3s ease;
   font-size: 1rem;
@@ -861,8 +861,8 @@ onMounted(async () => {
 }
 
 .submit-btn:hover {
-  background: rgba(100, 149, 237, 0.3);
-  box-shadow: 0 0 15px rgba(100, 149, 237, 0.3);
+  background: rgba(30, 90, 168, 0.3);
+  box-shadow: 0 0 15px rgba(30, 90, 168, 0.3);
   color: #333;
 }
 
@@ -870,7 +870,7 @@ onMounted(async () => {
 .footer {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(100, 149, 237, 0.3);
+  border-top: 1px solid rgba(30, 90, 168, 0.3);
   padding: 1rem 2rem;
   text-align: center;
   color: rgba(51, 51, 51, 0.6);
@@ -891,17 +891,17 @@ onMounted(async () => {
 }
 
 .main-content::-webkit-scrollbar-track {
-  background: rgba(100, 149, 237, 0.1);
+  background: rgba(30, 90, 168, 0.1);
   border-radius: 4px;
 }
 
 .main-content::-webkit-scrollbar-thumb {
-  background: rgba(100, 149, 237, 0.5);
+  background: rgba(30, 90, 168, 0.5);
   border-radius: 4px;
 }
 
 .main-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 149, 237, 0.7);
+  background: rgba(30, 90, 168, 0.7);
 }
 
 /* 响应式设计 */

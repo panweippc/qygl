@@ -191,9 +191,9 @@ onMounted(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle at 30% 20%, rgba(100, 149, 237, 0.1) 0%, transparent 50%),
+  background: radial-gradient(circle at 30% 20%, rgba(30, 90, 168, 0.1) 0%, transparent 50%),
               radial-gradient(circle at 70% 80%, rgba(135, 206, 235, 0.1) 0%, transparent 50%),
-              radial-gradient(circle at 50% 50%, rgba(100, 149, 237, 0.05) 0%, transparent 50%);
+              radial-gradient(circle at 50% 50%, rgba(30, 90, 168, 0.05) 0%, transparent 50%);
   z-index: 0;
 }
 
@@ -218,7 +218,7 @@ onMounted(() => {
 .shape-1 {
   width: 300px;
   height: 300px;
-  background: linear-gradient(45deg, #6495ED, #87CEEB);
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB);
   top: -50px;
   left: -50px;
   animation-delay: 0s;
@@ -227,7 +227,7 @@ onMounted(() => {
 .shape-2 {
   width: 200px;
   height: 200px;
-  background: linear-gradient(45deg, #87CEEB, #6495ED);
+  background: linear-gradient(45deg, #87CEEB, #1E5AA8);
   bottom: -30px;
   right: -30px;
   animation-delay: 5s;
@@ -236,7 +236,7 @@ onMounted(() => {
 .shape-3 {
   width: 150px;
   height: 150px;
-  background: linear-gradient(45deg, #6495ED, #87CEEB);
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB);
   top: 50%;
   right: 10%;
   animation-delay: 10s;
@@ -252,7 +252,7 @@ onMounted(() => {
 .header {
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(100, 149, 237, 0.3);
+  border-bottom: 1px solid rgba(30, 90, 168, 0.3);
   padding: 0 2rem;
   height: 60px;
   display: flex;
@@ -273,7 +273,7 @@ onMounted(() => {
   font-size: 1.5rem;
   font-weight: bold;
   color: #333;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .logo-glow {
@@ -282,7 +282,7 @@ onMounted(() => {
   left: -20%;
   width: 140%;
   height: 200%;
-  background: linear-gradient(45deg, transparent, rgba(100, 149, 237, 0.3), transparent);
+  background: linear-gradient(45deg, transparent, rgba(30, 90, 168, 0.3), transparent);
   filter: blur(20px);
   animation: glow 3s ease-in-out infinite;
 }
@@ -323,7 +323,7 @@ onMounted(() => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(100, 149, 237, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(30, 90, 168, 0.2), transparent);
   transition: left 0.3s ease;
 }
 
@@ -335,8 +335,8 @@ onMounted(() => {
 .nav-item:hover,
 .nav-item.active {
   color: #333;
-  background: rgba(100, 149, 237, 0.2);
-  box-shadow: 0 0 15px rgba(100, 149, 237, 0.3);
+  background: rgba(30, 90, 168, 0.2);
+  box-shadow: 0 0 15px rgba(30, 90, 168, 0.3);
 }
 
 .logout-btn {
@@ -397,19 +397,19 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .title-icon {
   width: 32px;
   height: 32px;
-  background: linear-gradient(45deg, #6495ED, #87CEEB);
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.3);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.3);
 }
 
 .title-icon svg {
@@ -422,7 +422,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
   border-radius: 12px;
   padding: 1rem 1.5rem;
   backdrop-filter: blur(5px);
@@ -436,7 +436,7 @@ onMounted(() => {
 
 .table-section {
   background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
   border-radius: 16px;
   padding: 1.5rem;
   backdrop-filter: blur(5px);
@@ -445,7 +445,7 @@ onMounted(() => {
 
 .actual-value {
   font-weight: 600;
-  color: #4169E1;
+  color: #2E6FB8;
 }
 
 .progress-cell {
@@ -454,7 +454,7 @@ onMounted(() => {
 
 .our-manager-value {
   font-weight: 500;
-  color: #4169E1;
+  color: #2E6FB8;
 }
 
 .our-manager-empty {
@@ -474,7 +474,7 @@ onMounted(() => {
 .footer {
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(100, 149, 237, 0.3);
+  border-top: 1px solid rgba(30, 90, 168, 0.3);
   padding: 1rem 2rem;
   text-align: center;
   color: rgba(51, 51, 51, 0.6);
@@ -499,11 +499,11 @@ onMounted(() => {
 }
 
 .main-content::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #6495ED, #4169E1);
+  background: linear-gradient(135deg, #1E5AA8, #2E6FB8);
   border-radius: 4px;
 }
 
 .main-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 149, 237, 0.7);
+  background: rgba(30, 90, 168, 0.7);
 }
 </style>

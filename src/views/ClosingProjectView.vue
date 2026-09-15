@@ -102,7 +102,7 @@ onMounted(() => { loadPerm(); loadSummary() })
 .closing-page { background: #E4EDF2; min-height: 100vh; display: flex; flex-direction: column; }
 .cl-header {
   background: rgba(255,255,255,0.9);
-  border-bottom: 1px solid rgba(100,149,237,0.3);
+  border-bottom: 1px solid rgba(30, 90, 168,0.3);
   padding: 0.6rem 1.5rem;
   display: flex;
   align-items: center;
@@ -120,7 +120,7 @@ onMounted(() => { loadPerm(); loadSummary() })
 .cl-stat {
   flex: 1 1 160px;
   background: rgba(255,255,255,0.95);
-  border: 1px solid rgba(100,149,237,0.25);
+  border: 1px solid rgba(30, 90, 168,0.25);
   border-radius: 10px;
   padding: 0.8rem 1rem;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);

@@ -348,7 +348,7 @@ onMounted(() => {
 .header {
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(100, 149, 237, 0.3);
+  border-bottom: 1px solid rgba(30, 90, 168, 0.3);
   padding: 0 2rem;
   height: 60px;
   display: flex;
@@ -369,7 +369,7 @@ onMounted(() => {
   font-size: 1.5rem;
   font-weight: bold;
   color: #333;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .logo-glow {
@@ -378,7 +378,7 @@ onMounted(() => {
   left: -20%;
   width: 140%;
   height: 200%;
-  background: linear-gradient(45deg, transparent, rgba(100, 149, 237, 0.3), transparent);
+  background: linear-gradient(45deg, transparent, rgba(30, 90, 168, 0.3), transparent);
   filter: blur(20px);
   animation: glow 3s ease-in-out infinite;
 }
@@ -419,7 +419,7 @@ onMounted(() => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(100, 149, 237, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(30, 90, 168, 0.2), transparent);
   transition: left 0.3s ease;
 }
 
@@ -431,8 +431,8 @@ onMounted(() => {
 .nav-item:hover,
 .nav-item.active {
   color: #333;
-  background: rgba(100, 149, 237, 0.2);
-  box-shadow: 0 0 15px rgba(100, 149, 237, 0.3);
+  background: rgba(30, 90, 168, 0.2);
+  box-shadow: 0 0 15px rgba(30, 90, 168, 0.3);
 }
 
 .logout-btn {
@@ -495,26 +495,26 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 1rem;
-  text-shadow: 0 0 15px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 15px rgba(30, 90, 168, 0.3);
   animation: fadeInUp 0.6s ease-out;
 }
 
 .title-icon {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #6495ED, #4169E1);
+  background: linear-gradient(135deg, #1E5AA8, #2E6FB8);
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  box-shadow: 0 6px 20px rgba(100, 149, 237, 0.4);
+  box-shadow: 0 6px 20px rgba(30, 90, 168, 0.4);
   transition: all 0.3s ease;
 }
 
 .title-icon:hover {
   transform: scale(1.1);
-  box-shadow: 0 8px 25px rgba(100, 149, 237, 0.5);
+  box-shadow: 0 8px 25px rgba(30, 90, 168, 0.5);
 }
 
 .title-icon svg {
@@ -525,7 +525,7 @@ onMounted(() => {
 /* 项目详情卡片 */
 .project-detail-card {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95));
-  border: 1px solid rgba(100, 149, 237, 0.25);
+  border: 1px solid rgba(30, 90, 168, 0.25);
   border-radius: 16px;
   padding: 2.5rem;
   backdrop-filter: blur(10px);
@@ -542,7 +542,7 @@ onMounted(() => {
   left: -2px;
   right: -2px;
   bottom: -2px;
-  background: linear-gradient(45deg, #6495ED, #87CEEB, #6495ED, #87CEEB);
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB, #1E5AA8, #87CEEB);
   border-radius: 18px;
   z-index: -1;
   opacity: 0;
@@ -557,8 +557,8 @@ onMounted(() => {
 
 .project-detail-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 12px 30px rgba(100, 149, 237, 0.35);
-  border-color: rgba(100, 149, 237, 0.6);
+  box-shadow: 0 12px 30px rgba(30, 90, 168, 0.35);
+  border-color: rgba(30, 90, 168, 0.6);
 }
 
 .project-detail-title {
@@ -566,9 +566,9 @@ onMounted(() => {
   font-weight: 700;
   color: #2c3e50;
   margin: 0 0 2rem 0;
-  text-shadow: 0 0 15px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 15px rgba(30, 90, 168, 0.3);
   padding-bottom: 1rem;
-  border-bottom: 2px solid rgba(100, 149, 237, 0.2);
+  border-bottom: 2px solid rgba(30, 90, 168, 0.2);
 }
 
 .project-detail-content {
@@ -598,13 +598,13 @@ onMounted(() => {
   left: 0;
   width: 4px;
   height: 100%;
-  background: linear-gradient(135deg, #6495ED, #4169E1);
+  background: linear-gradient(135deg, #1E5AA8, #2E6FB8);
   border-radius: 4px 0 0 4px;
 }
 
 .detail-item:hover {
   transform: translateY(-3px);
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.2);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.2);
   background: rgba(240, 244, 255, 0.9);
 }
 
@@ -629,7 +629,7 @@ onMounted(() => {
   gap: 1.25rem;
   justify-content: flex-end;
   padding-top: 2rem;
-  border-top: 1px solid rgba(100, 149, 237, 0.25);
+  border-top: 1px solid rgba(30, 90, 168, 0.25);
 }
 
 /* 操作按钮样式 */
@@ -688,7 +688,7 @@ onMounted(() => {
 .footer {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.9));
   backdrop-filter: blur(15px);
-  border-top: 1px solid rgba(100, 149, 237, 0.3);
+  border-top: 1px solid rgba(30, 90, 168, 0.3);
   padding: 1.5rem 2rem;
   text-align: center;
   color: rgba(44, 62, 80, 0.6);
@@ -716,13 +716,13 @@ onMounted(() => {
 }
 
 .main-content::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #6495ED, #4169E1);
+  background: linear-gradient(135deg, #1E5AA8, #2E6FB8);
   border-radius: 5px;
   transition: all 0.3s ease;
 }
 
 .main-content::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #4169E1, #6495ED);
+  background: linear-gradient(135deg, #2E6FB8, #1E5AA8);
   transform: scale(1.1);
 }
 
@@ -747,7 +747,7 @@ onMounted(() => {
 /* 对话框样�?*/
 .dialog {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95)) !important;
-  border: 1px solid rgba(100, 149, 237, 0.25) !important;
+  border: 1px solid rgba(30, 90, 168, 0.25) !important;
   border-radius: 16px !important;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2) !important;
   overflow: hidden !important;
@@ -761,7 +761,7 @@ onMounted(() => {
 }
 
 .dialog .el-dialog__header {
-  border-bottom: 1px solid rgba(100, 149, 237, 0.2) !important;
+  border-bottom: 1px solid rgba(30, 90, 168, 0.2) !important;
   padding: 0 !important;
 }
 
@@ -782,7 +782,7 @@ onMounted(() => {
 .dialog .el-input__wrapper,
 .dialog .el-select .el-input__wrapper {
   background: rgba(255, 255, 255, 0.9) !important;
-  border: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border: 1px solid rgba(30, 90, 168, 0.3) !important;
   border-radius: 10px !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
   transition: all 0.3s ease !important;
@@ -790,8 +790,8 @@ onMounted(() => {
 
 .dialog .el-input__wrapper:hover,
 .dialog .el-select .el-input__wrapper:hover {
-  border-color: rgba(100, 149, 237, 0.6) !important;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.2) !important;
+  border-color: rgba(30, 90, 168, 0.6) !important;
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.2) !important;
 }
 
 .dialog .el-input__inner,
@@ -818,7 +818,7 @@ onMounted(() => {
 
 .dialog .el-date-picker__header {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.9)) !important;
-  border-bottom: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border-bottom: 1px solid rgba(30, 90, 168, 0.3) !important;
 }
 
 .dialog .el-date-picker__body {
@@ -836,21 +836,21 @@ onMounted(() => {
 }
 
 .dialog .el-date-table td.available:hover {
-  background: rgba(100, 149, 237, 0.2) !important;
+  background: rgba(30, 90, 168, 0.2) !important;
 }
 
 .dialog .el-date-table td.today {
-  color: #4169E1 !important;
+  color: #2E6FB8 !important;
   font-weight: 600 !important;
 }
 
 .dialog .el-date-table td.in-range div {
-  background: rgba(100, 149, 237, 0.2) !important;
+  background: rgba(30, 90, 168, 0.2) !important;
 }
 
 .dialog .el-date-table td.start-date div,
 .dialog .el-date-table td.end-date div {
-  background: linear-gradient(135deg, #6495ED, #4169E1) !important;
+  background: linear-gradient(135deg, #1E5AA8, #2E6FB8) !important;
   color: white !important;
 }
 
@@ -859,7 +859,7 @@ onMounted(() => {
   gap: 1rem;
   justify-content: flex-end;
   padding: 1rem 1.5rem 1.5rem !important;
-  border-top: 1px solid rgba(100, 149, 237, 0.2) !important;
+  border-top: 1px solid rgba(30, 90, 168, 0.2) !important;
 }
 
 .dialog .dialog-footer .el-button {
@@ -889,23 +889,23 @@ onMounted(() => {
 .dialog .dialog-footer .el-button:not(.el-button--primary) {
   background: rgba(248, 250, 252, 0.9) !important;
   color: #2c3e50 !important;
-  border: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border: 1px solid rgba(30, 90, 168, 0.3) !important;
 }
 
 .dialog .dialog-footer .el-button:not(.el-button--primary):hover {
   background: rgba(240, 244, 255, 0.9) !important;
-  box-shadow: 0 4px 12px rgba(100, 149, 237, 0.2) !important;
+  box-shadow: 0 4px 12px rgba(30, 90, 168, 0.2) !important;
 }
 
 .dialog .dialog-footer .el-button--primary {
-  background: linear-gradient(135deg, #6495ED, #4169E1) !important;
+  background: linear-gradient(135deg, #1E5AA8, #2E6FB8) !important;
   border: none !important;
   color: white !important;
-  box-shadow: 0 4px 12px rgba(100, 149, 237, 0.3) !important;
+  box-shadow: 0 4px 12px rgba(30, 90, 168, 0.3) !important;
 }
 
 .dialog .dialog-footer .el-button--primary:hover {
-  box-shadow: 0 6px 18px rgba(100, 149, 237, 0.4) !important;
+  box-shadow: 0 6px 18px rgba(30, 90, 168, 0.4) !important;
   transform: translateY(-2px);
 }
 
@@ -978,19 +978,19 @@ onMounted(() => {
 }
 
 .dialog .dialog-footer .el-button:hover {
-  background: rgba(100, 149, 237, 0.1) !important;
-  box-shadow: 0 4px 12px rgba(100, 149, 237, 0.2) !important;
+  background: rgba(30, 90, 168, 0.1) !important;
+  box-shadow: 0 4px 12px rgba(30, 90, 168, 0.2) !important;
 }
 
 .dialog .dialog-footer .el-button--primary {
-  background: linear-gradient(45deg, #6495ED, #87CEEB) !important;
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB) !important;
   border: none !important;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.4) !important;
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.4) !important;
   color: #fff !important;
 }
 
 .dialog .dialog-footer .el-button--primary:hover {
   transform: translateY(-2px) !important;
-  box-shadow: 0 6px 20px rgba(100, 149, 237, 0.6) !important;
+  box-shadow: 0 6px 20px rgba(30, 90, 168, 0.6) !important;
 }
 </style>

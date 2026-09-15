@@ -71,6 +71,40 @@ router.delete('/file-categories/:id', requireRole(), async (req, res) => {
   }
 });
 
+// 编辑文件分类（所有登录用户均可管理分类；改名时同步更新项目信息按分类名关联的行，避免项目掉入「未分类」）
+router.put('/file-categories/:id', requireRole(), async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id } = req.params;
+  const { name, description } = req.body;
+  const username = req.user?.name || req.user?.username || '系统';
+  if (!name || !name.trim()) {
+    return res.status(400).json({ success: false, message: '分类名称不能为空' });
+  }
+  try {
+    const [oldRows] = await pool.execute('SELECT name FROM file_categories WHERE id = ?', [id]);
+    if (oldRows.length === 0) {
+      return res.status(404).json({ success: false, message: '分类不存在' });
+    }
+    const oldName = oldRows[0].name;
+    const newName = name.trim();
+    await pool.execute('UPDATE file_categories SET name = ?, description = ? WHERE id = ?', [newName, description || '', id]);
+    // 项目信息按 category_name 字符串关联，改名需同步
+    await pool.execute('UPDATE category_projects SET category_name = ? WHERE category_name = ?', [newName, oldName]);
+    await createOperationLog(pool, {
+      username,
+      action: 'update',
+      module: 'file',
+      targetId: id,
+      targetName: newName,
+      detail: `编辑文件分类: ${oldName} -> ${newName}`,
+      ipAddress: req.ip
+    });
+    res.json({ success: true, message: '文件分类更新成功' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: '更新文件分类失败' });
+  }
+});
+
 router.get('/files', async (req, res) => {
   const { pool } = req.app.locals;
   try {

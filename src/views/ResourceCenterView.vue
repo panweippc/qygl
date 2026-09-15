@@ -60,6 +60,9 @@
             <div class="cat-node-main">
               <span class="cat-dot"></span>
               <span class="cat-node-name">{{ cat.name }}</span>
+              <el-button text size="small" class="cat-edit-btn" title="编辑分类" @click.stop="editCategory(cat)">
+                <el-icon><Edit /></el-icon>
+              </el-button>
               <el-button text size="small" class="cat-del-btn" title="删除分类" @click.stop="removeCategory(cat)">
                 <el-icon><Delete /></el-icon>
               </el-button>
@@ -176,10 +179,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Delete } from '@element-plus/icons-vue'
+import { Delete, Edit } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useMenuPermission } from '@/composables/useMenuPermission'
-import { getResourceCenterCategories, getFileCategories, addFileCategory, deleteFileCategory, searchResourceCenter } from '../services/api'
+import { getResourceCenterCategories, getFileCategories, addFileCategory, deleteFileCategory, renameFileCategory, searchResourceCenter } from '../services/api'
 import type { ResourceSearchResult } from '../services/api'
 import FilePanel from '../components/resource/FilePanel.vue'
 import ArticlePanel from '../components/resource/ArticlePanel.vue'
@@ -294,6 +297,30 @@ const removeCategory = async (cat: CategoryStat) => {
   }
 }
 
+// 编辑分类：改名/改描述。改名会同步项目信息按分类名关联的行（后端已处理）。
+const editCategory = async (cat: CategoryStat) => {
+  try {
+    const { value: newName } = await ElMessageBox.prompt(
+      `修改分类「${cat.name}」的名称：`,
+      '编辑分类',
+      {
+        confirmButtonText: '保存',
+        cancelButtonText: '取消',
+        inputValue: cat.name,
+        inputValidator: (v: string) => (v && v.trim() ? true : '分类名称不能为空')
+      }
+    )
+    const res = await renameFileCategory(cat.id, { name: newName.trim(), description: cat.description || '' })
+    if (res.success) {
+      await loadCategories()
+      if (selected.value.id === cat.id) selected.value = { id: cat.id, name: newName.trim() }
+      ElMessage.success('分类已更新')
+    } else ElMessage.error(res.message || '更新分类失败')
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '更新分类失败')
+  }
+}
+
 // ===== 全局搜索 =====
 const searchKeyword = ref('')
 const searchResult = ref<ResourceSearchResult | null>(null)
@@ -369,32 +396,32 @@ onMounted(() => {
 
 <style scoped>
 .resource-center { display: flex; flex-direction: column; height: 100vh; background: #E4EDF2; overflow: hidden; }
-.rc-header { background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(100,149,237,0.3); padding: 0.6rem 1.5rem; display: flex; align-items: center; gap: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 100; flex-wrap: wrap; }
+.rc-header { background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(30, 90, 168,0.3); padding: 0.6rem 1.5rem; display: flex; align-items: center; gap: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 100; flex-wrap: wrap; }
 .back-btn { color: #666; }
 .rc-title { font-size: 1.25rem; font-weight: 600; color: #333; display: flex; align-items: center; gap: 0.5rem; margin: 0; }
 .title-icon { font-size: 1.4rem; }
 .rc-spacer { flex: 1; }
 .rc-totals { display: flex; gap: 1rem; font-size: 0.85rem; color: #555; }
-.rc-totals span { background: rgba(100,149,237,0.1); padding: 0.25rem 0.6rem; border-radius: 12px; }
+.rc-totals span { background: rgba(30, 90, 168,0.1); padding: 0.25rem 0.6rem; border-radius: 12px; }
 .rc-search { display: flex; align-items: center; gap: 0.5rem; }
 .rc-search-input { width: 240px; }
-.rc-search-clear { color: #6495ED !important; }
-.manage-btn { background: linear-gradient(45deg,#6495ED,#87CEEB) !important; border: none !important; color: #fff !important; }
+.rc-search-clear { color: #1E5AA8 !important; }
+.manage-btn { background: linear-gradient(45deg,#1E5AA8,#87CEEB) !important; border: none !important; color: #fff !important; }
 
 .rc-body { flex: 1; min-height: 0; display: flex; }
-.rc-sidebar { width: 260px; flex-shrink: 0; background: rgba(255,255,255,0.85); backdrop-filter: blur(5px); border-right: 1px solid rgba(100,149,237,0.2); padding: 1rem 0.75rem; overflow-y: auto; }
+.rc-sidebar { width: 260px; flex-shrink: 0; background: rgba(255,255,255,0.85); backdrop-filter: blur(5px); border-right: 1px solid rgba(30, 90, 168,0.2); padding: 1rem 0.75rem; overflow-y: auto; }
 .sidebar-title { padding: 0 0.5rem 0.75rem; font-size: 0.85rem; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 1px; }
 .count-hint { display: block; margin-top: 3px; font-size: 0.72rem; font-weight: 400; letter-spacing: 0; text-transform: none; color: #bbb; }
 .cat-tree { display: flex; flex-direction: column; gap: 0.5rem; }
 .cat-node { padding: 0.65rem 0.75rem; border-radius: 10px; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; }
-.cat-node:hover { background: rgba(100,149,237,0.1); }
-.cat-node.active { background: rgba(100,149,237,0.16); border-color: rgba(100,149,237,0.4); }
+.cat-node:hover { background: rgba(30, 90, 168,0.1); }
+.cat-node.active { background: rgba(30, 90, 168,0.16); border-color: rgba(30, 90, 168,0.4); }
 .cat-node.dim { opacity: 0.55; }
 .cat-node.dim:hover { opacity: 1; }
 .cat-node-main { display: flex; align-items: center; gap: 0.5rem; }
-.cat-dot { width: 8px; height: 8px; border-radius: 50%; background: #6495ED; flex-shrink: 0; }
-.cat-node.all-node { background: rgba(100,149,237,0.06); }
-.cat-node.all-node .all-dot { background: linear-gradient(45deg,#6495ED,#87CEEB); }
+.cat-dot { width: 8px; height: 8px; border-radius: 50%; background: #1E5AA8; flex-shrink: 0; }
+.cat-node.all-node { background: rgba(30, 90, 168,0.06); }
+.cat-node.all-node .all-dot { background: linear-gradient(45deg,#1E5AA8,#87CEEB); }
 .cat-node.uncat .uncat-dot { background: #faad14; }
 .cat-node-name { font-weight: 500; color: #333; font-size: 0.95rem; flex: 1; }
 .cat-del-btn { margin-left: auto; color: #d32f2f !important; opacity: 0.35; transition: opacity 0.2s; padding: 0 !important; height: auto !important; }
@@ -404,21 +431,21 @@ onMounted(() => {
 .cat-empty { padding: 1.5rem 0.5rem; color: #999; font-size: 0.85rem; text-align: center; }
 
 .rc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.rc-segments { display: flex; gap: 0.25rem; padding: 0.75rem 1.5rem 0; background: rgba(255,255,255,0.6); border-bottom: 1px solid rgba(100,149,237,0.2); }
+.rc-segments { display: flex; gap: 0.25rem; padding: 0.75rem 1.5rem 0; background: rgba(255,255,255,0.6); border-bottom: 1px solid rgba(30, 90, 168,0.2); }
 .rc-seg-btn { border: none; background: transparent; padding: 0.6rem 1.25rem; font-size: 0.95rem; color: #666; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; border-radius: 6px 6px 0 0; }
-.rc-seg-btn:hover { background: rgba(100,149,237,0.08); color: #4169E1; }
-.rc-seg-btn.active { color: #4169E1; font-weight: 600; border-bottom-color: #6495ED; background: rgba(100,149,237,0.12); }
+.rc-seg-btn:hover { background: rgba(30, 90, 168,0.08); color: #2E6FB8; }
+.rc-seg-btn.active { color: #2E6FB8; font-weight: 600; border-bottom-color: #1E5AA8; background: rgba(30, 90, 168,0.12); }
 .rc-content { flex: 1; min-height: 0; overflow-y: auto; padding: 1.25rem 1.5rem; }
 .rc-no-segment { color: #999; text-align: center; padding: 3rem; }
 
 .rc-search-results { flex: 1; min-height: 0; overflow-y: auto; padding: 1.25rem 1.5rem; }
-.search-summary { font-size: 0.9rem; color: #555; margin-bottom: 1rem; padding: 0.5rem 0.75rem; background: rgba(100,149,237,0.08); border-radius: 8px; }
+.search-summary { font-size: 0.9rem; color: #555; margin-bottom: 1rem; padding: 0.5rem 0.75rem; background: rgba(30, 90, 168,0.08); border-radius: 8px; }
 .search-section { margin-bottom: 1.5rem; }
-.search-section-title { font-size: 1rem; font-weight: 600; color: #333; margin: 0 0 0.6rem; border-left: 3px solid #6495ED; padding-left: 0.6rem; }
+.search-section-title { font-size: 1rem; font-weight: 600; color: #333; margin: 0 0 0.6rem; border-left: 3px solid #1E5AA8; padding-left: 0.6rem; }
 .search-empty { color: #999; font-size: 0.85rem; padding: 0.5rem 0; }
 .search-list { display: flex; flex-direction: column; gap: 0.4rem; }
-.search-item { display: flex; flex-direction: column; gap: 2px; padding: 0.6rem 0.8rem; background: #fff; border: 1px solid rgba(100,149,237,0.15); border-radius: 8px; cursor: pointer; transition: all 0.2s; text-decoration: none; color: inherit; }
-.search-item:hover { background: rgba(100,149,237,0.1); border-color: rgba(100,149,237,0.4); }
+.search-item { display: flex; flex-direction: column; gap: 2px; padding: 0.6rem 0.8rem; background: #fff; border: 1px solid rgba(30, 90, 168,0.15); border-radius: 8px; cursor: pointer; transition: all 0.2s; text-decoration: none; color: inherit; }
+.search-item:hover { background: rgba(30, 90, 168,0.1); border-color: rgba(30, 90, 168,0.4); }
 .si-main { font-weight: 500; color: #333; font-size: 0.95rem; }
 .si-sub { font-size: 0.78rem; color: #8a94a6; }
 </style>

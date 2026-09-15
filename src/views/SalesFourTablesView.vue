@@ -104,7 +104,7 @@ onMounted(loadPerm)
 .sft-page { background: #E4EDF2; min-height: 100vh; display: flex; flex-direction: column; }
 .sft-header {
   background: rgba(255,255,255,0.9);
-  border-bottom: 1px solid rgba(100,149,237,0.3);
+  border-bottom: 1px solid rgba(30, 90, 168,0.3);
   padding: 0.6rem 1.5rem;
   display: flex;
   align-items: center;

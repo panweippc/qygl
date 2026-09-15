@@ -989,16 +989,16 @@ defineExpose({ fetchData })
   gap: 0.5rem;
 }
 .action-btn {
-  background: linear-gradient(45deg, #6495ED, #87CEEB) !important;
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB) !important;
   border: none !important;
   border-radius: 8px !important;
   padding: 0.75rem 1.5rem !important;
   font-weight: 500 !important;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.3) !important;
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.3) !important;
 }
 .action-btn:hover {
   transform: translateY(-2px) !important;
-  box-shadow: 0 6px 20px rgba(100, 149, 237, 0.4) !important;
+  box-shadow: 0 6px 20px rgba(30, 90, 168, 0.4) !important;
 }
 .btn-icon {
   margin-right: 0.25rem;
@@ -1021,8 +1021,8 @@ defineExpose({ fetchData })
   max-height: 330px;
 }
 .id-badge {
-  background: rgba(100, 149, 237, 0.1);
-  color: #6495ED;
+  background: rgba(30, 90, 168, 0.1);
+  color: #1E5AA8;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   font-size: 0.85rem;
@@ -1114,7 +1114,7 @@ defineExpose({ fetchData })
   gap: 0.5rem;
 }
 .action-btn-small {
-  background: linear-gradient(45deg, #6495ED, #87CEEB) !important;
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB) !important;
   border: none !important;
 }
 .terminate-btn {
@@ -1127,9 +1127,9 @@ defineExpose({ fetchData })
 }
 .view-btn,
 .cancel-btn {
-  background: rgba(100, 149, 237, 0.1) !important;
-  color: #6495ED !important;
-  border: 1px solid rgba(100, 149, 237, 0.3) !important;
+  background: rgba(30, 90, 168, 0.1) !important;
+  color: #1E5AA8 !important;
+  border: 1px solid rgba(30, 90, 168, 0.3) !important;
 }
 .card-view {
   display: grid;
@@ -1138,15 +1138,15 @@ defineExpose({ fetchData })
 }
 .record-card {
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(100, 149, 237, 0.2);
+  border: 1px solid rgba(30, 90, 168, 0.2);
   border-radius: 12px;
   padding: 1.25rem;
   transition: all 0.3s ease;
 }
 .record-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 25px rgba(100, 149, 237, 0.15);
-  border-color: rgba(100, 149, 237, 0.4);
+  box-shadow: 0 8px 25px rgba(30, 90, 168, 0.15);
+  border-color: rgba(30, 90, 168, 0.4);
 }
 .card-header {
   display: flex;
@@ -1154,7 +1154,7 @@ defineExpose({ fetchData })
   align-items: center;
   margin-bottom: 1rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(100, 149, 237, 0.1);
+  border-bottom: 1px solid rgba(30, 90, 168, 0.1);
 }
 .card-id {
   font-size: 0.85rem;
@@ -1212,7 +1212,7 @@ defineExpose({ fetchData })
   justify-content: space-between;
   align-items: center;
   padding-top: 0.75rem;
-  border-top: 1px solid rgba(100, 149, 237, 0.1);
+  border-top: 1px solid rgba(30, 90, 168, 0.1);
 }
 .card-date {
   font-size: 0.8rem;
@@ -1227,14 +1227,14 @@ defineExpose({ fetchData })
   align-items: center;
 }
 .distributed-tag {
-  background: linear-gradient(135deg, rgba(100, 149, 237, 0.1), rgba(135, 206, 235, 0.1));
-  color: #6495ED;
+  background: linear-gradient(135deg, rgba(30, 90, 168, 0.1), rgba(135, 206, 235, 0.1));
+  color: #1E5AA8;
   padding: 0.25rem 0.75rem;
   border-radius: 20px;
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
 }
 .no-distributed {
   color: #999;
@@ -1256,7 +1256,7 @@ defineExpose({ fetchData })
   color: #333;
   margin-bottom: 20px;
   padding-bottom: 12px;
-  border-bottom: 2px solid #6495ED;
+  border-bottom: 2px solid #1E5AA8;
 }
 .dialog-form .el-form-item {
   margin-bottom: 22px;
@@ -1287,7 +1287,7 @@ defineExpose({ fetchData })
 .segment-title {
   font-size: 14px;
   font-weight: 600;
-  color: #6495ED;
+  color: #1E5AA8;
 }
 .days-input {
   display: flex;
@@ -1300,7 +1300,7 @@ defineExpose({ fetchData })
 
 
 .print-row-btn {
-  background: linear-gradient(45deg, #6495ED, #87CEEB) !important;
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB) !important;
   border: none !important;
   color: #fff !important;
 }
@@ -1330,7 +1330,7 @@ defineExpose({ fetchData })
 .sub-tabs {
   display: inline-flex;
   gap: 0.5rem;
-  background: rgba(100, 149, 237, 0.08);
+  background: rgba(30, 90, 168, 0.08);
   border-radius: 8px;
   padding: 0.25rem;
 }
@@ -1346,13 +1346,13 @@ defineExpose({ fetchData })
 }
 .sub-tab-btn.active {
   background: #fff;
-  color: #6495ED;
-  box-shadow: 0 2px 8px rgba(100, 149, 237, 0.2);
+  color: #1E5AA8;
+  box-shadow: 0 2px 8px rgba(30, 90, 168, 0.2);
   font-weight: 600;
 }
 .sub-tab-btn:hover:not(.active) {
   color: #333;
-  background: rgba(100, 149, 237, 0.12);
+  background: rgba(30, 90, 168, 0.12);
 }
 .read-status {
   display: inline-block;
@@ -1379,7 +1379,7 @@ defineExpose({ fetchData })
   margin-left: 6px;
   padding: 0 5px;
   border-radius: 9px;
-  background: #6495ED;
+  background: #1E5AA8;
   color: #fff;
   font-size: 12px;
   font-weight: 600;

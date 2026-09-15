@@ -216,7 +216,7 @@ function progressTagType(p: number): 'info' | 'warning' | 'success' {
   left: -50%;
   width: 200%;
   height: 200%;
-  background: radial-gradient(circle, rgba(100, 149, 237, 0.1) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(30, 90, 168, 0.1) 0%, transparent 70%);
   animation: float 20s ease-in-out infinite;
   z-index: 0;
 }
@@ -309,8 +309,8 @@ function progressTagType(p: number): 'info' | 'warning' | 'success' {
   align-items: center;
   gap: 0.8rem;
   padding: 0.5rem 0.8rem;
-  background: rgba(100, 149, 237, 0.08);
-  border: 1px solid rgba(100, 149, 237, 0.2);
+  background: rgba(30, 90, 168, 0.08);
+  border: 1px solid rgba(30, 90, 168, 0.2);
   border-radius: 10px;
   flex: 1 1 320px;
   min-width: 300px;
@@ -319,8 +319,8 @@ function progressTagType(p: number): 'info' | 'warning' | 'success' {
   transition: background 0.2s, border-color 0.2s;
 }
 .contact-row:hover {
-  background: rgba(100, 149, 237, 0.16);
-  border-color: rgba(100, 149, 237, 0.45);
+  background: rgba(30, 90, 168, 0.16);
+  border-color: rgba(30, 90, 168, 0.45);
 }
 
 .contact-main {
@@ -362,7 +362,7 @@ function progressTagType(p: number): 'info' | 'warning' | 'success' {
 
 .contact-label {
   flex: 0 0 32px;
-  color: #6495ED;
+  color: #1E5AA8;
   font-weight: 600;
 }
 
@@ -382,20 +382,20 @@ function progressTagType(p: number): 'info' | 'warning' | 'success' {
 .contact-detail { display: flex; flex-direction: column; gap: 1rem; }
 .cd-section { display: flex; flex-direction: column; gap: 0.5rem; }
 .cd-row { display: flex; gap: 0.75rem; font-size: 0.92rem; }
-.cd-label { flex: 0 0 48px; color: #6495ED; font-weight: 600; }
+.cd-label { flex: 0 0 48px; color: #1E5AA8; font-weight: 600; }
 .cd-value { color: #333; word-break: break-all; }
-.cd-subtitle { font-size: 0.98rem; font-weight: 600; color: #333; border-top: 1px dashed rgba(100,149,237,0.3); padding-top: 0.75rem; }
+.cd-subtitle { font-size: 0.98rem; font-weight: 600; color: #333; border-top: 1px dashed rgba(30, 90, 168,0.3); padding-top: 0.75rem; }
 .cd-projects { display: flex; flex-direction: column; gap: 0.75rem; }
-.cd-project { background: rgba(100,149,237,0.06); border: 1px solid rgba(100,149,237,0.2); border-radius: 10px; padding: 0.6rem 0.8rem; }
+.cd-project { background: rgba(30, 90, 168,0.06); border: 1px solid rgba(30, 90, 168,0.2); border-radius: 10px; padding: 0.6rem 0.8rem; }
 .cd-project-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.4rem; }
 .cd-project-name { font-weight: 600; color: #333; font-size: 0.95rem; }
 .cd-project-meta { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; font-size: 0.82rem; color: rgba(51,51,51,0.75); }
 .cd-project-desc { margin-top: 0.4rem; font-size: 0.82rem; color: rgba(51,51,51,0.7); line-height: 1.5; }
 .cd-project-link { margin-top: 0.3rem; font-size: 0.82rem; }
-.cd-project-link a { color: #4169E1; }
+.cd-project-link a { color: #2E6FB8; }
 
 .contacts-list::-webkit-scrollbar { width: 6px; }
-.contacts-list::-webkit-scrollbar-thumb { background: rgba(100, 149, 237, 0.5); border-radius: 4px; }
+.contacts-list::-webkit-scrollbar-thumb { background: rgba(30, 90, 168, 0.5); border-radius: 4px; }
 
 .content::-webkit-scrollbar { width: 8px; }
 .content::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); border-radius: 4px; }

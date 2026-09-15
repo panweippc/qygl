@@ -572,7 +572,7 @@ watch(selectedMonth, () => {
 .header {
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(100, 149, 237, 0.3);
+  border-bottom: 1px solid rgba(30, 90, 168, 0.3);
   padding: 0 2rem;
   height: 60px;
   display: flex;
@@ -593,7 +593,7 @@ watch(selectedMonth, () => {
   font-size: 1.5rem;
   font-weight: bold;
   color: #333;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .logo-glow {
@@ -602,7 +602,7 @@ watch(selectedMonth, () => {
   left: -20%;
   width: 140%;
   height: 200%;
-  background: linear-gradient(45deg, transparent, rgba(100, 149, 237, 0.3), transparent);
+  background: linear-gradient(45deg, transparent, rgba(30, 90, 168, 0.3), transparent);
   filter: blur(20px);
   animation: glow 3s ease-in-out infinite;
 }
@@ -643,7 +643,7 @@ watch(selectedMonth, () => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(100, 149, 237, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(30, 90, 168, 0.2), transparent);
   transition: left 0.3s ease;
 }
 
@@ -655,8 +655,8 @@ watch(selectedMonth, () => {
 .nav-item:hover,
 .nav-item.active {
   color: #333;
-  background: rgba(100, 149, 237, 0.2);
-  box-shadow: 0 0 15px rgba(100, 149, 237, 0.3);
+  background: rgba(30, 90, 168, 0.2);
+  box-shadow: 0 0 15px rgba(30, 90, 168, 0.3);
 }
 
 .logout-btn {
@@ -711,7 +711,7 @@ watch(selectedMonth, () => {
 /* 上传表单 */
 .upload-section {
   background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
   border-radius: 12px;
   padding: 2rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -726,19 +726,19 @@ watch(selectedMonth, () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .title-icon {
   width: 32px;
   height: 32px;
-  background: linear-gradient(45deg, #6495ED, #87CEEB);
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.3);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.3);
 }
 
 .title-icon svg {
@@ -750,7 +750,7 @@ watch(selectedMonth, () => {
   background: rgba(255, 255, 255, 0.8);
   border-radius: 8px;
   padding: 1.5rem;
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
   backdrop-filter: blur(5px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
@@ -770,12 +770,12 @@ watch(selectedMonth, () => {
 .monthly-report-table td {
   padding: 1rem;
   text-align: left;
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
 }
 
 .monthly-report-table th {
-  background: rgba(100, 149, 237, 0.1);
-  color: #6495ED;
+  background: rgba(30, 90, 168, 0.1);
+  color: #1E5AA8;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -815,13 +815,13 @@ watch(selectedMonth, () => {
 }
 
 .reminder-banner.reminder-draft {
-  background: rgba(100, 149, 237, 0.15);
-  border-color: rgba(100, 149, 237, 0.5);
+  background: rgba(30, 90, 168, 0.15);
+  border-color: rgba(30, 90, 168, 0.5);
   color: #3a6ea5;
 }
 
 .auto-title {
-  color: #6495ED;
+  color: #1E5AA8;
   font-weight: 600;
   font-size: 15px;
 }
@@ -835,7 +835,7 @@ watch(selectedMonth, () => {
 .el-input__wrapper,
 .el-textarea__wrapper {
   background: rgba(255, 255, 255, 0.8) !important;
-  border: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border: 1px solid rgba(30, 90, 168, 0.3) !important;
   border-radius: 8px !important;
   width: 100% !important;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05) !important;
@@ -864,7 +864,7 @@ watch(selectedMonth, () => {
   border-radius: 8px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
@@ -919,7 +919,7 @@ watch(selectedMonth, () => {
 
 .file-type-icon {
   font-size: 48px;
-  color: #6495ED;
+  color: #1E5AA8;
 }
 
 .file-type-name {
@@ -937,37 +937,37 @@ watch(selectedMonth, () => {
   border-radius: 8px !important;
   padding: 0.75rem 2rem !important;
   font-weight: 600 !important;
-  border: 1px solid rgba(100, 149, 237, 0.6) !important;
-  color: #6495ED !important;
+  border: 1px solid rgba(30, 90, 168, 0.6) !important;
+  color: #1E5AA8 !important;
   background: rgba(255, 255, 255, 0.9) !important;
   transition: all 0.3s ease !important;
 }
 
 .draft-btn:hover {
-  background: rgba(100, 149, 237, 0.1) !important;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.2) !important;
+  background: rgba(30, 90, 168, 0.1) !important;
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.2) !important;
 }
 
 .submit-btn {
-  background: linear-gradient(45deg, #6495ED, #87CEEB) !important;
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB) !important;
   border: none !important;
   border-radius: 8px !important;
   padding: 0.75rem 2rem !important;
   font-weight: 600 !important;
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.4) !important;
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.4) !important;
   transition: all 0.3s ease !important;
   color: #fff !important;
 }
 
 .submit-btn:hover {
   transform: translateY(-2px) !important;
-  box-shadow: 0 6px 20px rgba(100, 149, 237, 0.6) !important;
+  box-shadow: 0 6px 20px rgba(30, 90, 168, 0.6) !important;
 }
 
 /* 历史周报 */
 .history-section {
   background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  border: 1px solid rgba(30, 90, 168, 0.3);
   border-radius: 12px;
   padding: 2rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -980,8 +980,8 @@ watch(selectedMonth, () => {
 
 .history-section:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(100, 149, 237, 0.2);
-  border-color: rgba(100, 149, 237, 0.5);
+  box-shadow: 0 8px 25px rgba(30, 90, 168, 0.2);
+  border-color: rgba(30, 90, 168, 0.5);
 }
 
 .history-section::before {
@@ -991,7 +991,7 @@ watch(selectedMonth, () => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, transparent, rgba(100, 149, 237, 0.1), transparent);
+  background: linear-gradient(135deg, transparent, rgba(30, 90, 168, 0.1), transparent);
   transform: translateX(-100%);
   transition: transform 0.6s ease;
 }
@@ -1012,20 +1012,20 @@ watch(selectedMonth, () => {
 .history-icon {
   width: 64px;
   height: 64px;
-  background: linear-gradient(45deg, #6495ED, #87CEEB);
+  background: linear-gradient(45deg, #1E5AA8, #87CEEB);
   border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  box-shadow: 0 8px 25px rgba(100, 149, 237, 0.3);
+  box-shadow: 0 8px 25px rgba(30, 90, 168, 0.3);
   margin-bottom: 1.5rem;
   transition: all 0.3s ease;
 }
 
 .history-section:hover .history-icon {
   transform: scale(1.1);
-  box-shadow: 0 12px 35px rgba(100, 149, 237, 0.4);
+  box-shadow: 0 12px 35px rgba(30, 90, 168, 0.4);
 }
 
 .history-icon svg {
@@ -1038,7 +1038,7 @@ watch(selectedMonth, () => {
   font-weight: 600;
   color: #333;
   margin: 0 0 0.5rem 0;
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 }
 
 .history-desc {
@@ -1051,20 +1051,20 @@ watch(selectedMonth, () => {
 .history-arrow {
   width: 40px;
   height: 40px;
-  background: rgba(100, 149, 237, 0.2);
-  border: 1px solid rgba(100, 149, 237, 0.4);
+  background: rgba(30, 90, 168, 0.2);
+  border: 1px solid rgba(30, 90, 168, 0.4);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #6495ED;
+  color: #1E5AA8;
   transition: all 0.3s ease;
 }
 
 .history-section:hover .history-arrow {
-  background: rgba(100, 149, 237, 0.3);
+  background: rgba(30, 90, 168, 0.3);
   transform: translateX(5px);
-  box-shadow: 0 4px 15px rgba(100, 149, 237, 0.3);
+  box-shadow: 0 4px 15px rgba(30, 90, 168, 0.3);
 }
 
 .history-arrow svg {
@@ -1076,7 +1076,7 @@ watch(selectedMonth, () => {
 .footer {
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(100, 149, 237, 0.3);
+  border-top: 1px solid rgba(30, 90, 168, 0.3);
   padding: 1rem 2rem;
   text-align: center;
   color: rgba(51, 51, 51, 0.6);
@@ -1100,11 +1100,11 @@ watch(selectedMonth, () => {
 }
 
 .main-content::-webkit-scrollbar-thumb {
-  background: rgba(100, 149, 237, 0.5);
+  background: rgba(30, 90, 168, 0.5);
   border-radius: 4px;
 }
 
 .main-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 149, 237, 0.7);
+  background: rgba(30, 90, 168, 0.7);
 }
 </style>

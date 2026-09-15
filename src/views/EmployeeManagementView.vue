@@ -1936,7 +1936,7 @@ import * as XLSX from 'xlsx'
 
   backdrop-filter: blur(10px);
 
-  border-bottom: 1px solid rgba(100, 149, 237, 0.3);
+  border-bottom: 1px solid rgba(30, 90, 168, 0.3);
 
   padding: 0 2rem;
 
@@ -1978,7 +1978,7 @@ import * as XLSX from 'xlsx'
 
   color: #333;
 
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 
 }
 
@@ -1996,7 +1996,7 @@ import * as XLSX from 'xlsx'
 
   height: 200%;
 
-  background: linear-gradient(45deg, transparent, rgba(100, 149, 237, 0.3), transparent);
+  background: linear-gradient(45deg, transparent, rgba(30, 90, 168, 0.3), transparent);
 
   filter: blur(20px);
 
@@ -2068,7 +2068,7 @@ import * as XLSX from 'xlsx'
 
   height: 100%;
 
-  background: linear-gradient(90deg, transparent, rgba(100, 149, 237, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(30, 90, 168, 0.2), transparent);
 
   transition: left 0.3s ease;
 
@@ -2092,9 +2092,9 @@ import * as XLSX from 'xlsx'
 
   color: #333;
 
-  background: rgba(100, 149, 237, 0.2);
+  background: rgba(30, 90, 168, 0.2);
 
-  box-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  box-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 
 }
 
@@ -2198,7 +2198,7 @@ import * as XLSX from 'xlsx'
 
   background: rgba(255, 255, 255, 0.9);
 
-  border: 1px solid rgba(100, 149, 237, 0.4);
+  border: 1px solid rgba(30, 90, 168, 0.4);
 
   border-radius: 12px;
 
@@ -2240,7 +2240,7 @@ import * as XLSX from 'xlsx'
 
   gap: 0.5rem;
 
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3);
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
 
 }
 
@@ -2252,7 +2252,7 @@ import * as XLSX from 'xlsx'
 
   height: 32px;
 
-  background: linear-gradient(45deg, #6495ED, #87CEFA);
+  background: linear-gradient(45deg, #1E5AA8, #5B8FC9);
 
   border-radius: 8px;
 
@@ -2264,7 +2264,7 @@ import * as XLSX from 'xlsx'
 
   color: #fff;
 
-  box-shadow: 0 4px 10px rgba(100, 149, 237, 0.4);
+  box-shadow: 0 4px 10px rgba(30, 90, 168, 0.4);
 
 }
 
@@ -2282,7 +2282,7 @@ import * as XLSX from 'xlsx'
 
 .add-btn {
 
-  background: linear-gradient(45deg, #6495ED, #87CEFA) !important;
+  background: linear-gradient(45deg, #1E5AA8, #5B8FC9) !important;
 
   border: none !important;
 
@@ -2292,7 +2292,7 @@ import * as XLSX from 'xlsx'
 
   font-weight: 600 !important;
 
-  box-shadow: 0 4px 10px rgba(100, 149, 237, 0.4) !important;
+  box-shadow: 0 4px 10px rgba(30, 90, 168, 0.4) !important;
 
   transition: all 0.3s ease !important;
 
@@ -2304,7 +2304,7 @@ import * as XLSX from 'xlsx'
 
   transform: translateY(-2px) !important;
 
-  box-shadow: 0 6px 15px rgba(100, 149, 237, 0.6) !important;
+  box-shadow: 0 6px 15px rgba(30, 90, 168, 0.6) !important;
 
 }
 
@@ -2350,7 +2350,7 @@ import * as XLSX from 'xlsx'
 
   background: rgba(255, 255, 255, 0.8) !important;
 
-  border: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border: 1px solid rgba(30, 90, 168, 0.3) !important;
 
   border-radius: 8px !important;
 
@@ -2408,13 +2408,13 @@ import * as XLSX from 'xlsx'
 
 .employee-table th {
 
-  background: rgba(100, 149, 237, 0.2) !important;
+  background: rgba(30, 90, 168, 0.2) !important;
 
   color: #333 !important;
 
   font-weight: 600 !important;
 
-  border-bottom: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border-bottom: 1px solid rgba(30, 90, 168, 0.3) !important;
 
 }
 
@@ -2424,7 +2424,7 @@ import * as XLSX from 'xlsx'
 
   color: rgba(51, 51, 51, 0.8) !important;
 
-  border-bottom: 1px solid rgba(100, 149, 237, 0.2) !important;
+  border-bottom: 1px solid rgba(30, 90, 168, 0.2) !important;
 
 }
 
@@ -2432,7 +2432,7 @@ import * as XLSX from 'xlsx'
 
 .employee-table tr:hover {
 
-  background: rgba(100, 149, 237, 0.1) !important;
+  background: rgba(30, 90, 168, 0.1) !important;
 
 }
 
@@ -2440,11 +2440,11 @@ import * as XLSX from 'xlsx'
 
 .edit-btn {
 
-  background: rgba(100, 149, 237, 0.2) !important;
+  background: rgba(30, 90, 168, 0.2) !important;
 
-  color: #6495ED !important;
+  color: #1E5AA8 !important;
 
-  border: 1px solid rgba(100, 149, 237, 0.4) !important;
+  border: 1px solid rgba(30, 90, 168, 0.4) !important;
 
   border-radius: 6px !important;
 
@@ -2458,9 +2458,9 @@ import * as XLSX from 'xlsx'
 
 .edit-btn:hover {
 
-  background: rgba(100, 149, 237, 0.3) !important;
+  background: rgba(30, 90, 168, 0.3) !important;
 
-  box-shadow: 0 0 10px rgba(100, 149, 237, 0.4) !important;
+  box-shadow: 0 0 10px rgba(30, 90, 168, 0.4) !important;
 
 }
 
@@ -2540,7 +2540,7 @@ import * as XLSX from 'xlsx'
 
 .el-pager li.active {
 
-  background: linear-gradient(45deg, #6495ED, #87CEFA) !important;
+  background: linear-gradient(45deg, #1E5AA8, #5B8FC9) !important;
 
   color: #fff !important;
 
@@ -2552,7 +2552,7 @@ import * as XLSX from 'xlsx'
 
 .el-pager li:hover {
 
-  color: #6495ED !important;
+  color: #1E5AA8 !important;
 
 }
 
@@ -2564,7 +2564,7 @@ import * as XLSX from 'xlsx'
 
   background: rgba(255, 255, 255, 0.95) !important;
 
-  border: 1px solid rgba(100, 149, 237, 0.4) !important;
+  border: 1px solid rgba(30, 90, 168, 0.4) !important;
 
   border-radius: 12px !important;
 
@@ -2580,7 +2580,7 @@ import * as XLSX from 'xlsx'
 
   font-weight: 600 !important;
 
-  text-shadow: 0 0 10px rgba(100, 149, 237, 0.3) !important;
+  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3) !important;
 
 }
 
@@ -2650,7 +2650,7 @@ import * as XLSX from 'xlsx'
 
   background: rgba(255, 255, 255, 0.9) !important;
 
-  border-bottom: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border-bottom: 1px solid rgba(30, 90, 168, 0.3) !important;
 
 }
 
@@ -2682,7 +2682,7 @@ import * as XLSX from 'xlsx'
 
 .dialog .el-date-table td.available:hover {
 
-  background: rgba(100, 149, 237, 0.2) !important;
+  background: rgba(30, 90, 168, 0.2) !important;
 
 }
 
@@ -2690,7 +2690,7 @@ import * as XLSX from 'xlsx'
 
 .dialog .el-date-table td.today {
 
-  color: #6495ED !important;
+  color: #1E5AA8 !important;
 
 }
 
@@ -2698,7 +2698,7 @@ import * as XLSX from 'xlsx'
 
 .dialog .el-date-table td.in-range div {
 
-  background: rgba(100, 149, 237, 0.2) !important;
+  background: rgba(30, 90, 168, 0.2) !important;
 
 }
 
@@ -2708,7 +2708,7 @@ import * as XLSX from 'xlsx'
 
 .dialog .el-date-table td.end-date div {
 
-  background: linear-gradient(45deg, #6495ED, #87CEFA) !important;
+  background: linear-gradient(45deg, #1E5AA8, #5B8FC9) !important;
 
 }
 
@@ -2720,7 +2720,7 @@ import * as XLSX from 'xlsx'
 
   color: #333 !important;
 
-  border: 1px solid rgba(100, 149, 237, 0.3) !important;
+  border: 1px solid rgba(30, 90, 168, 0.3) !important;
 
   border-radius: 6px !important;
 
@@ -2734,7 +2734,7 @@ import * as XLSX from 'xlsx'
 
   background: rgba(255, 255, 255, 1) !important;
 
-  box-shadow: 0 0 10px rgba(100, 149, 237, 0.2) !important;
+  box-shadow: 0 0 10px rgba(30, 90, 168, 0.2) !important;
 
 }
 
@@ -2742,11 +2742,11 @@ import * as XLSX from 'xlsx'
 
 .dialog .dialog-footer .el-button--primary {
 
-  background: linear-gradient(45deg, #6495ED, #87CEFA) !important;
+  background: linear-gradient(45deg, #1E5AA8, #5B8FC9) !important;
 
   border: none !important;
 
-  box-shadow: 0 4px 10px rgba(100, 149, 237, 0.4) !important;
+  box-shadow: 0 4px 10px rgba(30, 90, 168, 0.4) !important;
 
 }
 
@@ -2756,7 +2756,7 @@ import * as XLSX from 'xlsx'
 
   transform: translateY(-2px) !important;
 
-  box-shadow: 0 6px 15px rgba(100, 149, 237, 0.6) !important;
+  box-shadow: 0 6px 15px rgba(30, 90, 168, 0.6) !important;
 
 }
 
@@ -2770,7 +2770,7 @@ import * as XLSX from 'xlsx'
 
   backdrop-filter: blur(10px);
 
-  border-top: 1px solid rgba(100, 149, 237, 0.3);
+  border-top: 1px solid rgba(30, 90, 168, 0.3);
 
   padding: 1rem 2rem;
 
@@ -2808,7 +2808,7 @@ import * as XLSX from 'xlsx'
 
 .main-content::-webkit-scrollbar-track {
 
-  background: rgba(100, 149, 237, 0.1);
+  background: rgba(30, 90, 168, 0.1);
 
   border-radius: 4px;
 
@@ -2818,7 +2818,7 @@ import * as XLSX from 'xlsx'
 
 .main-content::-webkit-scrollbar-thumb {
 
-  background: rgba(100, 149, 237, 0.5);
+  background: rgba(30, 90, 168, 0.5);
 
   border-radius: 4px;
 
@@ -2828,7 +2828,7 @@ import * as XLSX from 'xlsx'
 
 .main-content::-webkit-scrollbar-thumb:hover {
 
-  background: rgba(100, 149, 237, 0.7);
+  background: rgba(30, 90, 168, 0.7);
 
 }
 
