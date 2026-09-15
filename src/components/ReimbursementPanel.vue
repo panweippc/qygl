@@ -627,7 +627,7 @@ const reimbursementSubTab = ref(props.subTab || 'applied')
 const appliedReimbursementCount = computed(() => {
   const base = props.isAdmin ? allReimbursementRecords.value : reimbursementRecords.value
   const applied = base.filter(isMyReimbursementApplication)
-  return { total: applied.length, pending: applied.filter(r => isPending(r)).length }
+  return { total: applied.length, pending: applied.filter(r => isPending(r)).length, returned: applied.filter(r => isReturned(r)).length }
 })
 const receivedReimbursementCount = computed(() => {
   const base = props.isAdmin ? allReimbursementRecords.value : reimbursementRecords.value
@@ -950,6 +950,14 @@ const printRow = (row) => {
   const dept = emp?.department || ''
   exportReimbursementFormHTML(row, dept, allEmployees, true)
 }
+
+const reimbursementBadgePayload = computed(() => ({
+  appliedTotal: appliedReimbursementCount.value.total,
+  appliedReturned: appliedReimbursementCount.value.returned,
+  receivedTotal: receivedReimbursementCount.value.total,
+  receivedPendingUnread: receivedReimbursementCount.value.pendingUnread
+}))
+watch(() => reimbursementBadgePayload.value, (v) => emit('update:badge', v), { immediate: true })
 
 onMounted(() => {
   fetchData()

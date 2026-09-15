@@ -864,6 +864,14 @@ const printRow = (row) => {
   if (win) { win.document.open(); win.document.write(html); win.document.close(); win.onload = () => win.print(); }
 }
 
+const meetingBadgePayload = computed(() => ({
+  appliedTotal: appliedMeetingCount.value.total,
+  appliedReturned: appliedMeetingCount.value.returned,
+  receivedTotal: receivedMeetingCount.value.total,
+  receivedPendingUnread: receivedMeetingCount.value.pendingUnread
+}))
+watch(() => meetingBadgePayload.value, (v) => emit('update:badge', v), { immediate: true })
+
 onMounted(() => {
   fetchData()
 })

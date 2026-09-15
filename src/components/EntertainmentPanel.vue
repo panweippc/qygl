@@ -581,6 +581,14 @@ const printRow = (row) => {
   exportEntertainmentFormHTML(row, dept, allEmployees, true)
 }
 
+const entertainmentBadgePayload = computed(() => ({
+  appliedTotal: appliedEntertainmentCount.value.total,
+  appliedReturned: appliedEntertainmentCount.value.returned,
+  receivedTotal: receivedEntertainmentCount.value.total,
+  receivedPendingUnread: receivedEntertainmentCount.value.pendingUnread
+}))
+watch(() => entertainmentBadgePayload.value, (v) => emit('update:badge', v), { immediate: true })
+
 onMounted(() => { fetchData() })
 
 defineExpose({ fetchData })

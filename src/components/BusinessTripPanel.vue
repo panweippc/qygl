@@ -326,7 +326,7 @@ const businessTripSubTab = ref(props.subTab || 'applied')
 const appliedBusinessTripCount = computed(() => {
   const base = props.isAdmin ? allBusinessTripRecords.value : businessTripRecords.value
   const applied = base.filter(isMyBusinessTripApplication)
-  return { total: applied.length, pending: applied.filter(r => isPending(r)).length }
+  return { total: applied.length, pending: applied.filter(r => isPending(r)).length, returned: applied.filter(r => isReturned(r)).length }
 })
 const receivedBusinessTripCount = computed(() => {
   const base = props.isAdmin ? allBusinessTripRecords.value : businessTripRecords.value
@@ -656,6 +656,14 @@ const printRow = (row) => {
   const dept = emp?.department || ''
   exportBusinessTripFormHTML(row, dept, allEmployees, true)
 }
+
+const businessTripBadgePayload = computed(() => ({
+  appliedTotal: appliedBusinessTripCount.value.total,
+  appliedReturned: appliedBusinessTripCount.value.returned,
+  receivedTotal: receivedBusinessTripCount.value.total,
+  receivedPendingUnread: receivedBusinessTripCount.value.pendingUnread
+}))
+watch(() => businessTripBadgePayload.value, (v) => emit('update:badge', v), { immediate: true })
 
 onMounted(() => {
   fetchData()
