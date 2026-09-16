@@ -1,11 +1,8 @@
 <template>
   <div class="resource-center">
+    <PageHeaderBar title="资料中心" />
+
     <header class="rc-header">
-      <el-button text @click="goBack" class="back-btn">← 返回</el-button>
-      <h2 class="rc-title">
-        <span class="title-icon">📁</span>
-        资料中心
-      </h2>
       <div class="rc-spacer"></div>
       <div class="rc-totals">
         <span>文件 {{ stats.totals.files }}</span>
@@ -178,17 +175,16 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { Delete, Edit } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useMenuPermission } from '@/composables/useMenuPermission'
 import { getResourceCenterCategories, getFileCategories, addFileCategory, deleteFileCategory, renameFileCategory, searchResourceCenter } from '../services/api'
 import type { ResourceSearchResult } from '../services/api'
+import PageHeaderBar from '../components/PageHeaderBar.vue'
 import FilePanel from '../components/resource/FilePanel.vue'
 import ArticlePanel from '../components/resource/ArticlePanel.vue'
 import ProjectPanel from '../components/resource/ProjectPanel.vue'
 
-const router = useRouter()
 const { hasMenu } = useMenuPermission()
 
 interface CategoryStat {
@@ -383,8 +379,6 @@ watch(visibleSegments, (vs) => {
   if (!vs.find(s => s.key === activeSegment.value) && vs.length > 0) activeSegment.value = vs[0].key
 }, { immediate: true })
 
-const goBack = () => router.push('/')
-
 onMounted(() => {
   loadCategories()
   // 默认选中第一个分类（若有），否则全部
@@ -397,9 +391,6 @@ onMounted(() => {
 <style scoped>
 .resource-center { display: flex; flex-direction: column; height: 100vh; background: #E4EDF2; overflow: hidden; }
 .rc-header { background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(30, 90, 168,0.3); padding: 0.6rem 1.5rem; display: flex; align-items: center; gap: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 100; flex-wrap: wrap; }
-.back-btn { color: #666; }
-.rc-title { font-size: 1.25rem; font-weight: 600; color: #333; display: flex; align-items: center; gap: 0.5rem; margin: 0; }
-.title-icon { font-size: 1.4rem; }
 .rc-spacer { flex: 1; }
 .rc-totals { display: flex; gap: 1rem; font-size: 0.85rem; color: #555; }
 .rc-totals span { background: rgba(30, 90, 168,0.1); padding: 0.25rem 0.6rem; border-radius: 12px; }

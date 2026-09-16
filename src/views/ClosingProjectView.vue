@@ -1,15 +1,11 @@
 <template>
   <div class="closing-page">
-    <header class="cl-header">
-      <div class="cl-header-left">
-        <el-button text @click="router.push('/')">← 返回</el-button>
-        <h2>成交项目</h2>
-      </div>
-      <div class="cl-header-right">
+    <PageHeaderBar title="成交项目">
+      <template #actions>
         <el-tag v-if="perm.canWrite" type="success">可维护</el-tag>
         <el-tag v-else type="info">仅查看</el-tag>
-      </div>
-    </header>
+      </template>
+    </PageHeaderBar>
 
     <div class="cl-summary" v-loading="summaryLoading">
       <div class="cl-stat">
@@ -46,11 +42,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { salesFetchJSON } from '../components/sales/salesApi'
+import PageHeaderBar from '../components/PageHeaderBar.vue'
 import DealTable from '../components/sales/DealTable.vue'
 
-const router = useRouter()
 const perm = ref({ canWrite: false, canView: false, isAdmin: false })
 const summary = ref({ count: 0, contract: 0, actual: 0, received: 0, unreceived: 0 })
 const summaryLoading = ref(false)
@@ -100,17 +95,6 @@ onMounted(() => { loadPerm(); loadSummary() })
 
 <style scoped>
 .closing-page { background: #E4EDF2; min-height: 100vh; display: flex; flex-direction: column; }
-.cl-header {
-  background: rgba(255,255,255,0.9);
-  border-bottom: 1px solid rgba(30, 90, 168,0.3);
-  padding: 0.6rem 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.cl-header-left { display: flex; align-items: center; gap: 1rem; }
-.cl-header-left h2 { margin: 0; font-size: 1.25rem; color: #333; }
-.cl-header-right { display: flex; gap: 0.5rem; }
 .cl-summary {
   display: flex;
   gap: 1rem;

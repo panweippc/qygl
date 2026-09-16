@@ -1,15 +1,11 @@
 <template>
   <div class="sft-page">
-    <header class="sft-header">
-      <div class="sft-header-left">
-        <el-button text @click="router.push('/')">← 返回</el-button>
-        <h2>销售漏斗</h2>
-      </div>
-      <div class="sft-header-right">
+    <PageHeaderBar title="销售漏斗">
+      <template #actions>
         <el-tag v-if="perm.canWrite" type="success">可写入</el-tag>
         <el-tag v-else type="info">仅查看</el-tag>
-      </div>
-    </header>
+      </template>
+    </PageHeaderBar>
 
     <StatsPanel ref="statsPanelRef" />
 
@@ -41,8 +37,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { salesFetchJSON } from '../components/sales/salesApi'
+import PageHeaderBar from '../components/PageHeaderBar.vue'
 import StatsPanel from '../components/sales/StatsPanel.vue'
 import CrossReferenceDialog from '../components/sales/CrossReferenceDialog.vue'
 import FunnelTable from '../components/sales/FunnelTable.vue'
@@ -50,7 +46,6 @@ import DealTable from '../components/sales/DealTable.vue'
 import ProjectTable from '../components/sales/ProjectTable.vue'
 import VisitRecordsDialog from '../components/sales/VisitRecordsDialog.vue'
 
-const router = useRouter()
 const activeTab = ref('intention')
 const perm = ref({ canWrite: false, canView: false, isAdmin: false })
 const crossVisible = ref(false)
@@ -102,17 +97,6 @@ onMounted(loadPerm)
 
 <style scoped>
 .sft-page { background: #E4EDF2; min-height: 100vh; display: flex; flex-direction: column; }
-.sft-header {
-  background: rgba(255,255,255,0.9);
-  border-bottom: 1px solid rgba(30, 90, 168,0.3);
-  padding: 0.6rem 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.sft-header-left { display: flex; align-items: center; gap: 1rem; }
-.sft-header-left h2 { margin: 0; font-size: 1.25rem; color: #333; }
-.sft-header-right { display: flex; gap: 0.5rem; }
 .sft-guide { padding: 0.75rem 1.5rem; background: rgba(255,255,255,0.6); }
 .sft-guide p { margin: 0.4rem 0 0; line-height: 1.6; color: #4a5568; font-size: 0.9rem; }
 .sft-tabs { flex: 1; padding: 0 1.5rem 1.5rem; background: rgba(255,255,255,0.6); }

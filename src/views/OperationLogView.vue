@@ -1,15 +1,8 @@
 <template>
   <div class="operation-log">
-    <header class="page-header">
-      <div class="header-left">
-        <el-button text @click="$router.push('/')" class="back-btn">← 返回</el-button>
-        <h2 class="page-title">
-          <span class="title-icon">📋</span>
-          操作日志
-        </h2>
-      </div>
-    </header>
+    <PageHeaderBar title="操作日志" />
 
+    <div class="ol-body">
     <div class="filter-bar">
       <div class="filter-group">
         <label>模块</label>
@@ -83,6 +76,7 @@
         <el-pagination layout="total, prev, pager, next" :total="total" :page-size="pageSize" v-model:current-page="currentPage" @current-change="fetchLogs" background small />
       </div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -90,6 +84,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { extractRealName } from '../utils/oaWorkflowUtils'
+import PageHeaderBar from '../components/PageHeaderBar.vue'
 
 const loading = ref(false)
 const logs = ref<any[]>([])
@@ -236,12 +231,8 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.operation-log { padding: 24px; }
-.page-header { margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; }
-.header-left { display: flex; align-items: center; gap: 12px; }
-.back-btn { font-size: 14px; color: #666; }
-.page-title { font-size: 20px; font-weight: 600; color: #1a1a2e; display: flex; align-items: center; gap: 8px; margin: 0; }
-.title-icon { font-size: 24px; }
+.operation-log { min-height: 100vh; display: flex; flex-direction: column; }
+.ol-body { padding: 24px; flex: 1; }
 .filter-bar { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; background: #fff; padding: 16px 20px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
 .filter-group { display: flex; flex-direction: column; gap: 4px; }
 .filter-group label { font-size: 12px; color: #999; }

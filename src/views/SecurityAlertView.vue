@@ -1,17 +1,14 @@
 <template>
   <div class="security-alert">
-    <header class="page-header">
-      <div class="header-left">
-        <el-button text @click="$router.push('/')" class="back-btn">← 返回</el-button>
-        <h2 class="page-title">
-          <span class="title-icon">🛡️</span>
-          安全事件监控
-        </h2>
-      </div>
-      <div class="header-right">
-        <el-button size="small" @click="fetchAlerts">刷新</el-button>
-      </div>
-    </header>
+    <PageHeaderBar title="安全事件监控">
+      <template #actions>
+        <div class="header-actions">
+          <el-button size="small" @click="fetchAlerts">刷新</el-button>
+        </div>
+      </template>
+    </PageHeaderBar>
+
+    <div class="sa-body">
 
     <!-- 统计卡片 -->
     <div class="stats-row" v-loading="statsLoading">
@@ -88,12 +85,14 @@
         </el-table-column>
       </el-table>
     </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import PageHeaderBar from '../components/PageHeaderBar.vue'
 
 const alerts = ref<any[]>([])
 const stats = ref<any>({ total: 0, high: 0, brute_force: 0, new_ip: 0, disabled: 0, inactive: 0 })
@@ -179,26 +178,17 @@ onMounted(() => {
 
 <style scoped>
 .security-alert {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.sa-body {
   padding: 16px 20px;
+  flex: 1;
 }
-.page-header {
+.header-actions {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-.header-left {
-  display: flex;
-  align-items: center;
   gap: 8px;
-}
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
-}
-.title-icon {
-  margin-right: 4px;
 }
 .stats-row {
   display: grid;

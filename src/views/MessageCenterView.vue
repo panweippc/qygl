@@ -1,20 +1,16 @@
 <template>
   <div class="message-center">
-    <header class="page-header">
-      <div class="header-left">
-        <el-button text @click="$router.push('/')" class="back-btn">← 返回</el-button>
-        <h2 class="page-title">
-          <span class="title-icon">🔔</span>
-          消息中心
-        </h2>
-      </div>
-      <div class="header-actions">
-        <el-button size="small" @click="markAllRead" :disabled="unreadCount === 0">全部标记已读</el-button>
-        <el-button size="small" @click="fetchNotifications">刷新</el-button>
-      </div>
-    </header>
+    <PageHeaderBar title="消息中心">
+      <template #actions>
+        <div class="header-actions">
+          <el-button size="small" @click="markAllRead" :disabled="unreadCount === 0">全部标记已读</el-button>
+          <el-button size="small" @click="fetchNotifications">刷新</el-button>
+        </div>
+      </template>
+    </PageHeaderBar>
 
-    <div class="tabs-bar">
+    <div class="mc-body">
+      <div class="tabs-bar">
       <button class="tab-btn" :class="{ active: activeTab === 'all' }" @click="activeTab = 'all'">全部 ({{ total }})</button>
       <button class="tab-btn" :class="{ active: activeTab === 'unread' }" @click="activeTab = 'unread'">未读 ({{ unreadCount }})</button>
     </div>
@@ -40,6 +36,7 @@
         <el-pagination layout="prev, pager, next" :total="total" :page-size="pageSize" v-model:current-page="currentPage" @current-change="fetchNotifications" background small />
       </div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -47,6 +44,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import PageHeaderBar from '../components/PageHeaderBar.vue'
 
 const router = useRouter()
 
@@ -217,13 +215,9 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.message-center { max-width: 800px; margin: 0 auto; padding: 24px; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-title { font-size: 20px; font-weight: 600; color: #1a1a2e; display: flex; align-items: center; gap: 8px; margin: 0; }
-.title-icon { font-size: 24px; }
+.message-center { min-height: 100vh; display: flex; flex-direction: column; }
+.mc-body { width: 100%; max-width: 800px; margin: 0 auto; padding: 24px; flex: 1; }
 .header-actions { display: flex; gap: 8px; }
-.header-left { display: flex; align-items: center; gap: 12px; }
-.back-btn { font-size: 14px; color: #666; }
 .tabs-bar { display: flex; gap: 0; margin-bottom: 16px; background: #f5f7fa; border-radius: 8px; overflow: hidden; }
 .tab-btn { flex: 1; padding: 10px; border: none; background: transparent; cursor: pointer; font-size: 14px; color: #666; transition: all 0.3s; }
 .tab-btn.active { background: #fff; color: #667eea; font-weight: 600; box-shadow: 0 2px 8px rgba(102,126,234,0.15); }
