@@ -157,11 +157,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// 全局鉴权中间件（除 POST /login 外，所有 /api 接口均需有效 token）
-app.use('/api', requireAuth);
-
 // E3: 健康检查接口（公开，无需鉴权，用于运维监控探活）
 // 返回服务状态、数据库、磁盘、内存、CPU、连接池、版本等信息，便于全面监控
+// 注意：本路由注册在全局 requireAuth 之前，确保运维监控免 token 即可探活
+// （不依赖 requireAuth 内 PUBLIC_PATHS 的 '/health' 兜底，可读性更明确）
 app.get('/api/health', async (req, res) => {
   // 1. 数据库连通性 + 延迟
   let dbOk = false, dbLatency = 0;
@@ -255,6 +254,10 @@ app.get('/api/health', async (req, res) => {
     }
   });
 });
+
+// 全局鉴权中间件（除 POST /login、GET /api/health 外，所有 /api 接口均需有效 token）
+// /api/health 已在上方注册（早于本中间件），故免鉴权；其余 /api/* 路由均受本中间件保护
+app.use('/api', requireAuth);
 
 // 挂载工作流路由
 app.use('/api', workflowRouter);
