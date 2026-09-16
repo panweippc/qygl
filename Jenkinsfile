@@ -4,7 +4,7 @@
  * 拓扑：Jenkins 安装在【部署机】(E:\qygl\qygl 所在电脑)，本机本地执行。
  * 模型：原地 git pull（不另 checkout 副本、不 xcopy 到别的目录）。
  * 流程：检测 git 更新 → npm install → 停止 Nginx → 构建前端 →
- *       启动/重载 Nginx(8080) → 重启 dev server(3003) → 重启后端 pm2(qygl) → 健康检查。
+ *       启动 Nginx(8080) → 重载 Nginx 配置 → 启动 dev server(3003, npm run dev) → 重启后端 pm2(qygl) → 健康检查。
  * 触发：每 5 分钟轮询；无新提交则【跳过阶段2~10全部部署动作】。
  *
  * ⚠️ 关键运维前提（务必满足，否则 pm2/nginx 操作会失败）：
@@ -124,22 +124,26 @@ pipeline {
       }
     }
 
-    // 阶段6：重启前端 dev server（3003，普通 npm run dev 进程）—— 同样交 pm2 托管
-    stage('Restart Dev Server (3003)') {
+    // 阶段5.5：重载 Nginx 配置（应用 git pull 带来的 nginx.conf/qygl.conf 变更，如限流调整），零停机
+    stage('Reload Nginx (config)') {
       when { expression { return !skipDeploy } }
       steps {
-        echo '=== 阶段6: 重启前端 dev server (3003)，交由 pm2 常驻托管 ==='
-        // 容忍式删除：qygl-dev 不存在时 pm2 delete 会返回 1，必须 & exit /b 0，否则阶段失败导致后续阶段全部 skip
-        bat "pm2 delete ${DEV_PM2} 2>nul & exit /b 0"
-        // 清掉 3003 上的陈旧监听，避免新 vite 因 EADDRINUSE 退出（此前 qygl-dev 一直 errored/stopped 的根因）
-        // 注意：不能用 bat 的 for/f %a（临时.bat 里 %a 被当环境变量→语法错误退出255）；
-        //      也不能用 taskkill 直接清（失败即非零退出码→拖垮阶段）。统一用 powershell + try/catch + 强制 exit 0
+        echo '=== 阶段5.5: 重载 Nginx 配置 (nginx -s reload) ==='
+        // 阶段5 已重新启动 nginx 并加载新 conf；此处再 reload 一次确保配置生效（幂等，失败不阻断）
+        bat "cd /d ${NGINX_DIR} && \"${NGINX_EXE}\" -s reload || echo [warn] nginx reload 失败（阶段5 已重启 nginx，配置已生效）"
+      }
+    }
+
+    // 阶段6：启动前端 dev server（3003）—— 按部署机实际方式：项目根目录 npm run dev，不纳入 pm2 管理
+    stage('Start Dev Server (3003)') {
+      when { expression { return !skipDeploy } }
+      steps {
+        echo '=== 阶段6: 启动前端 dev server (3003)，使用 npm run dev（不纳入 pm2 管理）==='
+        // 清掉 3003 上的陈旧监听，避免新 vite 因 EADDRINUSE 退出
         bat "powershell -Command \"try { \$ps=(Get-NetTCPConnection -LocalPort ${DEV_PORT} -ErrorAction SilentlyContinue | Where-Object { \$_.State -eq 'Listen' }).OwningProcess; foreach(\$p in \$ps){ Stop-Process -Id \$p -Force -ErrorAction SilentlyContinue }; Write-Host ('cleared stale listener on port ${DEV_PORT}') } catch { Write-Host ('clear port error: ' + \$_.Exception.Message) }; exit 0\""
         bat "ping -n 2 127.0.0.1 >nul"
-        // dev server 启动失败【不应】阻断后端重启：用 || 兜底，避免阶段6失败导致阶段7(重启后端)被整条流水线跳过
-        // ⚠️ 关键修复(v1.2.33)：Windows 下 `pm2 start npm` 无法正确解析 npm.cmd，qygl-dev 从未真正拉起、3003 长期不可用。
-        //   改为直接用 NODE_HOME 的 node.exe 运行 vite 的 bin 脚本（绝对路径跨用户可靠，pm2 守护进程按用户隔离）。
-        bat "pm2 start \"${NODE_HOME}/node.exe\" --name ${DEV_PM2} --cwd \"${PROJECT_DIR}\" -- ./node_modules/vite/bin/vite.js --host --port ${DEV_PORT} || echo [warn] dev server 启动失败，不影响后端部署（可稍后手动 pm2 start ${DEV_PM2}）"
+        // 按部署机实际启动方式：项目根目录 npm run dev；start /b 后台脱离，日志落盘 devserver.log
+        bat "cd /d ${PROJECT_DIR} && start /b cmd /c \"npm run dev > ${PROJECT_DIR}\\devserver.log 2>&1\""
         echo '✅ dev server 阶段完成 (3003)'
       }
     }
