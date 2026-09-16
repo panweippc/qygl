@@ -4,7 +4,7 @@
  * 拓扑：Jenkins 安装在【部署机】(E:\qygl\qygl 所在电脑)，本机本地执行。
  * 模型：原地 git pull（不另 checkout 副本、不 xcopy 到别的目录）。
  * 流程：检测 git 更新 → npm install → 停止 Nginx → 构建前端 →
- *       启动 Nginx(8080) → 重载 Nginx 配置 → 启动 dev server(3003, npm run dev) → 重启后端 pm2(qygl) → 健康检查。
+ *       重启 Nginx(8080, restart 即重新加载配置) → 启动 dev server(3003, npm run dev) → 重启后端 pm2(qygl) → 健康检查。
  * 触发：每 5 分钟轮询；无新提交则【跳过阶段2~10全部部署动作】。
  *
  * ⚠️ 关键运维前提（务必满足，否则 pm2/nginx 操作会失败）：
@@ -27,6 +27,11 @@
  * v1.2.33 修复：
  *   - 阶段6 启动 dev server 由 `pm2 start npm -- run dev` 改为 `pm2 start <NODE_HOME>/node.exe -- ./node_modules/vite/bin/vite.js`：
  *     Windows 下 pm2 无法解析 npm.cmd，`qygl-dev` 进程从未注册、3003 长期不可用（流水线"假绿"）。直接调 node.exe 可靠拉起。
+ *
+ * v1.2.37 修复：
+ *   - 合并 Nginx 重启与配置重载：阶段3 停止时不再 `pm2 delete`（保留 pm2 条目），
+ *     阶段5 改为 `pm2 restart qygl-nginx || pm2 start ...`（restart 即重启并重新读取最新 conf），
+ *     删除原阶段5.5 独立的 `nginx -s reload`（全新启动已加载配置，reload 冗余）。
  */
 boolean skipDeploy = false   // 顶层 Groovy 变量，供 when{expression} 实时读取（比 environment 条件可靠）
 
@@ -97,9 +102,9 @@ pipeline {
     stage('Stop Nginx') {
       when { expression { return !skipDeploy } }
       steps {
-        echo '=== 阶段3: 停止 Nginx（交由 pm2 托管前先清掉旧进程）==='
-        // pm2 stop/delete 失败时静默；再兜底 taskkill，确保 dist 不被占用；无论结果如何 exit 0
-        bat "pm2 stop ${NGINX_PM2} 2>nul & pm2 delete ${NGINX_PM2} 2>nul & taskkill /f /im nginx.exe 2>nul & echo Nginx 已停止/原本未运行 & exit /b 0"
+        echo '=== 阶段3: 停止 Nginx（仅 stop + taskkill，保留 pm2 条目供阶段5 restart 复用）==='
+        // 不再 pm2 delete（否则阶段5 的 restart 无可重启条目）；taskkill 确保 8080 端口释放避免构建 EPERM
+        bat "pm2 stop ${NGINX_PM2} 2>nul & taskkill /f /im nginx.exe 2>nul & echo Nginx 已停止/原本未运行 & exit /b 0"
       }
     }
 
@@ -112,25 +117,15 @@ pipeline {
       }
     }
 
-    // 阶段5：启动 Nginx（生产 8080）—— 由 pm2 托管，构建结束不被 Jenkins 杀掉
+    // 阶段5：重启 Nginx（生产 8080）—— 复用已有 pm2 条目 restart（同时重新加载最新配置），不存在则 start
     stage('Start Nginx (pm2)') {
       when { expression { return !skipDeploy } }
       steps {
-        echo '=== 阶段5: 启动 Nginx(8080)，交由 pm2 常驻托管 ==='
-        // 先容忍式删除旧实例（不存在也不报错），再干净启动，避免 pm2 报 "already exists"
-        bat "pm2 delete ${NGINX_PM2} 2>nul & exit /b 0"
-        bat "pm2 start \"${NGINX_EXE}\" --name ${NGINX_PM2} --cwd \"${NGINX_DIR}\""
+        echo '=== 阶段5: 重启 Nginx(8080)（pm2 restart 即重启+重载配置，零停机应用新 conf）==='
+        // 阶段3 仅 stop+taskkill（保留 pm2 条目），此处 restart 复用条目并重新读取 git pull 来的 nginx 配置；
+        // 条目不存在（首次部署）则回退 start 创建；失败不阻断后续阶段
+        bat "pm2 restart ${NGINX_PM2} 2>nul || pm2 start \"${NGINX_EXE}\" --name ${NGINX_PM2} --cwd \"${NGINX_DIR}\" || exit /b 0"
         bat 'ping -n 3 127.0.0.1 >nul'
-      }
-    }
-
-    // 阶段5.5：重载 Nginx 配置（应用 git pull 带来的 nginx.conf/qygl.conf 变更，如限流调整），零停机
-    stage('Reload Nginx (config)') {
-      when { expression { return !skipDeploy } }
-      steps {
-        echo '=== 阶段5.5: 重载 Nginx 配置 (nginx -s reload) ==='
-        // 阶段5 已重新启动 nginx 并加载新 conf；此处再 reload 一次确保配置生效（幂等，失败不阻断）
-        bat "cd /d ${NGINX_DIR} && \"${NGINX_EXE}\" -s reload || echo [warn] nginx reload 失败（阶段5 已重启 nginx，配置已生效）"
       }
     }
 
