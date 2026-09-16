@@ -4,14 +4,15 @@
  * 拓扑：Jenkins 安装在【部署机】(E:\qygl\qygl 所在电脑)，本机本地执行。
  * 模型：原地 git pull（不另 checkout 副本、不 xcopy 到别的目录）。
  * 流程：检测 git 更新 → npm install → 停止 Nginx → 构建前端 →
- *       重启 Nginx(8080, restart 即重新加载配置) → 启动 dev server(3003, npm run dev) → 重启后端 pm2(qygl) → 健康检查。
+ *       重启 Nginx(8080, restart 即重新加载配置) → 启动 dev server(3003, nssm 服务 npm run dev 常驻) → 重启后端 pm2(qygl) → 健康检查。
  * 触发：每 5 分钟轮询；无新提交则【跳过阶段2~10全部部署动作】。
  *
  * ⚠️ 关键运维前提（务必满足，否则 pm2/nginx 操作会失败）：
  *   1. Jenkins 服务/agent 必须运行在【与平时启动 pm2、nginx 相同的 Windows 用户】下，
  *      pm2 守护进程按用户隔离，跨用户 `pm2 restart qygl` 会找不到进程。
  *   2. 部署机需具备：git(且 E:\qygl\qygl 是可 git pull 的仓库)、node/npm(建议加入 PATH，
- *      否则改 NODE_HOME)、全局 pm2、nginx。
+ *      否则改 NODE_HOME)、全局 pm2、nginx、nssm(nssm.exe 需在 PATH，用于把 vite dev server
+ *      注册为 Windows 服务常驻 3003，避免 start /b 被 Jenkins 会话/进程树清理杀掉)。
  *   3. 流水线用 `bat` 调用 `powershell -Command`，无需额外 Jenkins 插件（仅需默认 Git/Pipeline）。
  *   ⚠️ 部署机系统代码页为 GBK(936)：`powershell -Command "..."` 内的【中文/emoji 会被错误解码成乱码】，
  *      导致 PowerShell 解析失败（如 "Try 缺少与其匹配的 Catch"），整条阶段返回非零并跳过后续所有阶段。
@@ -32,6 +33,13 @@
  *   - 合并 Nginx 重启与配置重载：阶段3 停止时不再 `pm2 delete`（保留 pm2 条目），
  *     阶段5 改为 `pm2 restart qygl-nginx || pm2 start ...`（restart 即重启并重新读取最新 conf），
  *     删除原阶段5.5 独立的 `nginx -s reload`（全新启动已加载配置，reload 冗余）。
+ *
+ * v1.2.38 修复（3003 彻底常驻）：
+ *   - 阶段6 改用 nssm 把 dev server 注册为 Windows 服务(qygl-dev)常驻：首次 nssm install
+ *     (直调 node.exe + npm-cli.js run dev，规避 pm2/Windows 不解析 npm.cmd)，AppExit Default
+ *     Restart 保证崩溃自启、服务器重启也在；每次部署 nssm restart 拉起最新代码。
+ *   - 解决此前 start /b 启动的 dev server 不归 pm2、被 Jenkins 会话/进程树清理杀掉(3003 周期性掉)的问题。
+ *   - 部署机未装 nssm 时自动回退 start /b（不阻断构建，但重启仍会掉，需运维补装 nssm 并赋权）。
  */
 boolean skipDeploy = false   // 顶层 Groovy 变量，供 when{expression} 实时读取（比 environment 条件可靠）
 
@@ -129,16 +137,33 @@ pipeline {
       }
     }
 
-    // 阶段6：启动前端 dev server（3003）—— 按部署机实际方式：项目根目录 npm run dev，不纳入 pm2 管理
-    stage('Start Dev Server (3003)') {
+    // 阶段6：启动前端 dev server（3003）—— 经 nssm 注册为 Windows 服务常驻（等价于 npm run dev，不进 pm2）
+    stage('Start Dev Server (3003, nssm)') {
       when { expression { return !skipDeploy } }
       steps {
-        echo '=== 阶段6: 启动前端 dev server (3003)，使用 npm run dev（不纳入 pm2 管理）==='
-        // 清掉 3003 上的陈旧监听，避免新 vite 因 EADDRINUSE 退出
+        echo '=== 阶段6: 启动前端 dev server (3003)，经 nssm 注册为 Windows 服务常驻（npm run dev）==='
+        // 清掉 3003 上的陈旧监听（历史 start /b 进程可能仍占用），避免 nssm 首次 install/start 时 EADDRINUSE
         bat "powershell -Command \"try { \$ps=(Get-NetTCPConnection -LocalPort ${DEV_PORT} -ErrorAction SilentlyContinue | Where-Object { \$_.State -eq 'Listen' }).OwningProcess; foreach(\$p in \$ps){ Stop-Process -Id \$p -Force -ErrorAction SilentlyContinue }; Write-Host ('cleared stale listener on port ${DEV_PORT}') } catch { Write-Host ('clear port error: ' + \$_.Exception.Message) }; exit 0\""
         bat "ping -n 2 127.0.0.1 >nul"
-        // 按部署机实际启动方式：项目根目录 npm run dev；start /b 后台脱离，日志落盘 devserver.log
-        bat "cd /d ${PROJECT_DIR} && start /b cmd /c \"npm run dev > ${PROJECT_DIR}\\devserver.log 2>&1\""
+        // 通过 nssm 把 dev server 注册为服务常驻：首次 install(node.exe + npm-cli.js run dev)，
+        // AppExit Default Restart 保证崩溃/重启服务器后自启；之后每次部署 nssm restart 拉起最新代码。
+        // 部署机未装 nssm 时回退 start /b（不阻断构建，但重启会掉，需运维补装 nssm 并赋权）。
+        bat """
+          where nssm >nul 2>nul && (
+            nssm get ${DEV_PM2} Application >nul 2>nul || (
+              nssm install ${DEV_PM2} "${NODE_HOME}/node.exe" "${NODE_HOME}/node_modules/npm/bin/npm-cli.js" run dev
+              nssm set ${DEV_PM2} AppDirectory "${PROJECT_DIR}"
+              nssm set ${DEV_PM2} AppStdout "${PROJECT_DIR}/devserver.log"
+              nssm set ${DEV_PM2} AppStderr "${PROJECT_DIR}/devserver.log"
+              nssm set ${DEV_PM2} AppExit Default Restart
+              nssm set ${DEV_PM2} DisplayName "qygl dev server (3003)"
+            )
+            nssm restart ${DEV_PM2} || nssm start ${DEV_PM2}
+          ) || (
+            echo [warn] nssm not installed, fallback to start /b npm run dev (not persistent after reboot)
+            cd /d ${PROJECT_DIR} && start /b cmd /c "npm run dev > ${PROJECT_DIR}/devserver.log 2>&1"
+          )
+        """
         echo '✅ dev server 阶段完成 (3003)'
       }
     }
