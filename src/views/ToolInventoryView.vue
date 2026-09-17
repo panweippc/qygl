@@ -214,12 +214,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useButtonPermission } from '@/composables/usePermission'
 import { getTools, addTool as apiAddTool, deleteTool as apiDeleteTool, updateTool } from '../services/api'
 
 const router = useRouter()
+const route = useRoute()
 const { hasPerm } = useButtonPermission()
 
 const handleBack = () => {
@@ -283,6 +284,10 @@ const loadTools = async () => {
 // 组件挂载时加载数�?
 onMounted(async () => {
   await loadTools()
+  // 首页「添加物资」快捷入口跳转后自动打开弹窗
+  if (route.query.action === 'add') {
+    openAddToolDialog()
+  }
 })
 
 const filteredTools = computed(() => {

@@ -175,6 +175,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { Delete, Edit } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useMenuPermission } from '@/composables/useMenuPermission'
@@ -184,6 +185,8 @@ import PageHeaderBar from '../components/PageHeaderBar.vue'
 import FilePanel from '../components/resource/FilePanel.vue'
 import ArticlePanel from '../components/resource/ArticlePanel.vue'
 import ProjectPanel from '../components/resource/ProjectPanel.vue'
+
+const route = useRoute()
 
 const { hasMenu } = useMenuPermission()
 
@@ -381,6 +384,10 @@ watch(visibleSegments, (vs) => {
 
 onMounted(() => {
   loadCategories()
+  // 首页「资料上传」快捷入口跳转后自动定位到文件分段
+  if (route.query.action === 'upload') {
+    activeSegment.value = 'files'
+  }
   // 默认选中第一个分类（若有），否则全部
   getFileCategories().then(res => {
     if (res.success && res.data && res.data.length > 0) selected.value = { id: res.data[0].id, name: res.data[0].name }
