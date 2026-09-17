@@ -384,14 +384,16 @@ watch(visibleSegments, (vs) => {
 
 onMounted(() => {
   loadCategories()
-  // 首页「资料上传」快捷入口跳转后自动定位到文件分段
   if (route.query.action === 'upload') {
+    // 首页「资料上传」快捷入口：切换到文件分段并默认选中「全部」分类
     activeSegment.value = 'files'
+    selected.value = { id: 'all', name: '全部' }
+  } else {
+    // 默认选中第一个分类（若有），否则全部
+    getFileCategories().then(res => {
+      if (res.success && res.data && res.data.length > 0) selected.value = { id: res.data[0].id, name: res.data[0].name }
+    }).catch(() => {})
   }
-  // 默认选中第一个分类（若有），否则全部
-  getFileCategories().then(res => {
-    if (res.success && res.data && res.data.length > 0) selected.value = { id: res.data[0].id, name: res.data[0].name }
-  }).catch(() => {})
 })
 </script>
 
