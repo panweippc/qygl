@@ -400,40 +400,46 @@ function progressTagType(p: number): 'info' | 'warning' | 'success' {
 .todo-strong .todo-value { color: #c0392b; }
 .todo-strong:hover { background: rgba(192, 57, 43, 0.08); }
 
-/* 常用操作：紧凑横向卡片条 */
+/* 常用操作：紧凑胶囊标签云，自动换行，间距统一 */
 .quick-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.5rem;
+  align-items: center;
 }
 .quick-item {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.55rem 0.9rem;
+  gap: 0.4rem;
+  padding: 0.42rem 0.9rem;
   background: #fff;
-  border: 1px solid rgba(30, 90, 168, 0.15);
-  border-radius: 10px;
+  border: 1px solid rgba(30, 90, 168, 0.18);
+  border-radius: 999px;
   text-decoration: none;
   color: #333;
-  transition: all 0.2s;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.18s ease;
 }
 .quick-item:hover {
   border-color: #1E5AA8;
-  box-shadow: 0 4px 14px rgba(30, 90, 168, 0.15);
-  transform: translateY(-2px);
+  background: rgba(30, 90, 168, 0.06);
+  box-shadow: 0 3px 10px rgba(30, 90, 168, 0.12);
+  transform: translateY(-1px);
+  color: #1E5AA8;
 }
 .quick-icon {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   color: #1E5AA8;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
-.quick-icon :deep(svg) { width: 20px; height: 20px; }
-.quick-label { font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+.quick-icon :deep(svg) { width: 16px; height: 16px; }
+.quick-label { line-height: 1.2; }
 
 /* 通讯录：与上方「常用操作」磁贴样式保持一致 */
 .contacts-grid {
