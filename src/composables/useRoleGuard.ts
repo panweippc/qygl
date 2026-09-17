@@ -21,6 +21,29 @@ export const MANAGER_ROLES = ['系统管理员', '总经理', '技术部经理',
 // 内置管理账号（users 表账号，非 employees 表员工）
 const BUILTIN_ADMIN_NAMES = ['管理员', '总经理', '李智鑫']
 
+// 首页角色分层：与后端 SALES_ROLES / canDistribute / SENSITIVE_ROLES 口径保持一致
+export type RoleTier = 'gm' | 'finance' | 'biz' | 'employee'
+
+const GM_ROLES = ['系统管理员', '总经理']
+const FINANCE_ROLES = ['财务总监']
+// 业务中心经理与销售部经理后端权限几乎一致（SALES_ROLES），合并为 biz 层
+const BIZ_ROLES = ['业务中心经理', '销售部经理']
+
+/**
+ * 将职位字符串映射为首页角色层。
+ * - gm：总经理 / 系统管理员 / 内置管理账号（全局审批·任务下发·项目·员工·经营看板·系统）
+ * - finance：财务总监（财务待审批·月报审核·物资台账·报销/招待查询）
+ * - biz：业务中心经理 / 销售部经理（任务下发·销售漏斗·客户·商机·目标·项目·员工导出）
+ * - employee：其余全部（普通员工，仅本人发起类）
+ */
+export function getRoleTier(roleName: string): RoleTier {
+  const r = (roleName || '').trim()
+  if (GM_ROLES.includes(r) || r.includes('管理员')) return 'gm'
+  if (FINANCE_ROLES.includes(r)) return 'finance'
+  if (BIZ_ROLES.includes(r)) return 'biz'
+  return 'employee'
+}
+
 function readUserName(): string {
   try {
     const raw = localStorage.getItem('user')
@@ -74,6 +97,9 @@ export function useRoleGuard() {
   /** 是否为管理员（可管理他人内容） */
   const isManager = computed(() => judgeManager(roleName.value, userName.value))
 
+  /** 首页角色层（gm / finance / biz / employee） */
+  const roleTier = computed(() => getRoleTier(roleName.value))
+
   /** 是否为内容的创建人本人或管理员 */
   const isOwnerOrManager = (owner?: unknown): boolean =>
     isManager.value || sameUserName(owner, userName.value)
@@ -90,5 +116,5 @@ export function useRoleGuard() {
     reload()
   }
 
-  return { userName, roleName, isManager, isOwnerOrManager, reload, refresh }
+  return { userName, roleName, isManager, roleTier, isOwnerOrManager, reload, refresh }
 }
