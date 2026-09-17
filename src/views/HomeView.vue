@@ -7,24 +7,22 @@
 
       <main class="content">
         <div class="dashboard">
-          <!-- 待办概览：按角色分流（员工无「待我审批/已办」） -->
+          <!-- 待办概览：按角色分流（员工无「待我审批/已办」），等宽卡片网格 -->
           <section class="section-block">
-            <div class="todo-bar">
-              <div class="todo-head">
-                <span class="th-title">{{ isApprover ? '审批概览' : '我的申请' }}</span>
-                <span class="th-sub">{{ tierLabel }}视角</span>
-              </div>
-              <div class="todo-items">
-                <div
-                  v-for="t in todoStats"
-                  :key="t.label"
-                  class="todo-item"
-                  :class="{ 'todo-strong': t.label === '待我审批' && t.value > 0 }"
-                  @click="goOa"
-                >
-                  <span class="todo-value">{{ t.value }}</span>
-                  <span class="todo-label">{{ t.label }}</span>
-                </div>
+            <div class="section-title">
+              {{ isApprover ? '审批概览' : '我的申请' }}
+              <span class="todo-view-sub">{{ tierLabel }}视角</span>
+            </div>
+            <div class="todo-grid">
+              <div
+                v-for="t in todoStats"
+                :key="t.label"
+                class="todo-card"
+                :class="{ 'todo-strong': t.label === '待我审批' && t.value > 0 }"
+                @click="goOa"
+              >
+                <span class="todo-value">{{ t.value }}</span>
+                <span class="todo-label">{{ t.label }}</span>
               </div>
             </div>
           </section>
@@ -363,42 +361,39 @@ function progressTagType(p: number): 'info' | 'warning' | 'success' {
   border-radius: 2px;
 }
 
-/* 待办条 */
-.todo-bar {
-  background: #fff;
-  border: 1px solid rgba(30, 90, 168, 0.15);
-  border-radius: 14px;
-  padding: 1.1rem 1.4rem;
-  box-shadow: 0 2px 12px rgba(30, 90, 168, 0.06);
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  flex-wrap: wrap;
+/* 待办概览：等宽卡片网格（与常用操作风格统一） */
+.todo-view-sub {
+  margin-left: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: rgba(51, 51, 51, 0.55);
 }
-.todo-head { display: flex; flex-direction: column; }
-.todo-head .th-title { font-weight: 700; color: #333; font-size: 1rem; }
-.todo-head .th-sub { font-size: 0.78rem; color: rgba(51, 51, 51, 0.55); }
-.todo-items {
-  display: flex;
-  gap: 1.2rem;
-  flex-wrap: wrap;
-  margin-left: auto;
+.todo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
 }
-.todo-item {
+.todo-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 84px;
-  padding: 0.4rem 0.9rem;
-  border-radius: 10px;
+  gap: 0.25rem;
+  padding: 0.9rem 0.5rem;
+  background: #fff;
+  border: 1px solid rgba(30, 90, 168, 0.15);
+  border-radius: 12px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
 }
-.todo-item:hover { background: rgba(30, 90, 168, 0.08); }
-.todo-value { font-size: 1.5rem; font-weight: 800; color: #1E5AA8; line-height: 1.1; }
-.todo-label { font-size: 0.8rem; color: rgba(51, 51, 51, 0.7); margin-top: 0.2rem; }
+.todo-card:hover {
+  border-color: #1E5AA8;
+  box-shadow: 0 4px 14px rgba(30, 90, 168, 0.15);
+  transform: translateY(-2px);
+}
+.todo-value { font-size: 1.6rem; font-weight: 800; color: #1E5AA8; line-height: 1.1; }
+.todo-label { font-size: 0.82rem; color: rgba(51, 51, 51, 0.7); }
 .todo-strong .todo-value { color: #c0392b; }
-.todo-strong:hover { background: rgba(192, 57, 43, 0.08); }
+.todo-strong:hover { border-color: #c0392b; }
 
 /* 常用操作：4 列等宽网格 */
 .quick-grid {
