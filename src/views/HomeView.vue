@@ -29,15 +29,15 @@
             </div>
           </section>
 
-          <!-- 常用操作：按角色固定映射，直接定位到发起/高频页面 -->
+          <!-- 常用操作：按角色固定映射，4 列等宽网格 -->
           <section class="section-block">
             <div class="section-title">常用操作</div>
-            <div class="quick-list">
+            <div class="quick-grid">
               <router-link
                 v-for="a in quickActions"
                 :key="a.path"
                 :to="a.path"
-                class="quick-item"
+                class="quick-tile"
               >
                 <span class="quick-icon" v-html="a.icon"></span>
                 <span class="quick-label">{{ a.label }}</span>
@@ -400,46 +400,43 @@ function progressTagType(p: number): 'info' | 'warning' | 'success' {
 .todo-strong .todo-value { color: #c0392b; }
 .todo-strong:hover { background: rgba(192, 57, 43, 0.08); }
 
-/* 常用操作：紧凑胶囊标签云，自动换行，间距统一 */
-.quick-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
+/* 常用操作：4 列等宽网格 */
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
 }
-.quick-item {
-  display: inline-flex;
+.quick-tile {
+  display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.42rem 0.9rem;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0.4rem;
   background: #fff;
-  border: 1px solid rgba(30, 90, 168, 0.18);
-  border-radius: 999px;
+  border: 1px solid rgba(30, 90, 168, 0.15);
+  border-radius: 12px;
   text-decoration: none;
   color: #333;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  white-space: nowrap;
-  transition: all 0.18s ease;
+  transition: all 0.2s;
 }
-.quick-item:hover {
+.quick-tile:hover {
   border-color: #1E5AA8;
-  background: rgba(30, 90, 168, 0.06);
-  box-shadow: 0 3px 10px rgba(30, 90, 168, 0.12);
-  transform: translateY(-1px);
-  color: #1E5AA8;
+  box-shadow: 0 4px 14px rgba(30, 90, 168, 0.15);
+  transform: translateY(-2px);
 }
-.quick-icon {
-  width: 18px;
-  height: 18px;
+.quick-tile .quick-icon {
+  width: 22px;
+  height: 22px;
   color: #1E5AA8;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
-.quick-icon :deep(svg) { width: 16px; height: 16px; }
-.quick-label { line-height: 1.2; }
+.quick-tile .quick-icon :deep(svg) { width: 20px; height: 20px; }
+.quick-tile .quick-label { white-space: nowrap; }
 
 /* 通讯录：与上方「常用操作」磁贴样式保持一致 */
 .contacts-grid {
