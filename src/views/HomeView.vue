@@ -29,9 +29,9 @@
             </div>
           </section>
 
-          <!-- 快捷操作：基于真实权限派生，绝不出现未实现入口 -->
+          <!-- 常用操作：按角色固定映射，直接定位到发起/高频页面 -->
           <section class="section-block">
-            <div class="section-title">常用功能</div>
+            <div class="section-title">常用操作</div>
             <div class="quick-grid">
               <router-link
                 v-for="a in quickActions"
@@ -42,11 +42,10 @@
                 <span class="quick-icon" v-html="a.icon"></span>
                 <span class="quick-label">{{ a.label }}</span>
               </router-link>
-              <div v-if="quickActions.length === 0" class="contact-empty">暂无可用功能</div>
             </div>
           </section>
 
-          <!-- 通讯录：与上方「常用功能」磁贴样式一致 -->
+          <!-- 通讯录：与上方「常用操作」磁贴样式保持一致 -->
           <section class="section-block">
             <div class="section-title">通讯录<span class="section-count">（{{ contactsStats.total }} 人）</span></div>
             <div class="contacts-grid">
@@ -117,9 +116,7 @@ import DashboardFooter from '../components/DashboardFooter.vue'
 import { useRoleGuard } from '../composables/useRoleGuard'
 import {
   getEmployeeDirectory,
-  getOaTodoList,
-  getOaMyApplications,
-  getOaDoneList
+  getHomeApprovalSummary
 } from '../services/api'
 
 const router = useRouter()
@@ -135,68 +132,86 @@ const TIER_LABELS: Record<string, string> = {
 }
 const tierLabel = computed(() => TIER_LABELS[roleTier.value] || '普通员工')
 
-// ---------- 待办概览 ----------
-const myApps = ref<any[]>([])
-const todoApps = ref<any[]>([])
-const doneApps = ref<any[]>([])
-
-const normStatus = (s: unknown) => String(s ?? '').trim()
-const isPending = (s: unknown) => ['审批中', '待审批', 'pending'].includes(normStatus(s))
-const isApproved = (s: unknown) => ['已批准', '已审批', 'approved'].includes(normStatus(s))
+// ---------- 待办概览（对接真实业务审批数据） ----------
+const summary = ref({
+  myTotal: 0, myPending: 0, myApproved: 0, myRejected: 0,
+  myReturned: 0, myWithdrawn: 0, todoTotal: 0, doneTotal: 0
+})
 
 const todoStats = computed(() => {
   if (isApprover.value) {
     return [
-      { label: '待我审批', value: todoApps.value.length },
-      { label: '我发起的', value: myApps.value.length },
-      { label: '已办', value: doneApps.value.length }
+      { label: '待我审批', value: summary.value.todoTotal },
+      { label: '我发起的', value: summary.value.myTotal },
+      { label: '已办', value: summary.value.doneTotal }
     ]
   }
   return [
-    { label: '我发起的', value: myApps.value.length },
-    { label: '审批中', value: myApps.value.filter(a => isPending(a.status)).length },
-    { label: '已通过', value: myApps.value.filter(a => isApproved(a.status)).length }
+    { label: '我发起的', value: summary.value.myTotal },
+    { label: '审批中', value: summary.value.myPending },
+    { label: '已通过', value: summary.value.myApproved }
   ]
 })
 
 const goOa = () => router.push('/oa-office')
 
-// ---------- 快捷操作（基于真实权限派生） ----------
-interface HomeAction {
-  path: string
+// ---------- 常用操作：按角色固定映射 ----------
+interface HomeOperation {
   label: string
+  path: string
   icon: string
-  order: number
 }
 
-const HOME_ACTIONS: HomeAction[] = [
-  { path: '/oa-office', label: '审批中心', order: 1, icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>' },
-  { path: '/monthly-report', label: '月报', order: 1, icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>' },
-  { path: '/tool-inventory', label: '物资管理', order: 1, icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 18H4V8h16v12zM4 6V4h16v2H4zm9 9h-2v-2h2v2zm0-4h-2V9h2v2z"/></svg>' },
-  { path: '/resource-center', label: '资料中心', order: 1, icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2zm0 4h8v2h-8V8zm0 3h8v2h-8v-2zm0 3h5v2h-5v-2z"/></svg>' },
-  { path: '/message-center', label: '消息中心', order: 1, icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>' },
-  { path: '/sales-funnel', label: '销售漏斗', order: 2, icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/></svg>' },
-  { path: '/sales-target', label: '销售目标', order: 2, icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16zm0-13a5 5 0 100 10 5 5 0 000-10zm0 8a3 3 0 110-6 3 3 0 010 6zm0-4a1 1 0 100 2 1 1 0 000-2z"/></svg>' },
-  { path: '/customer-management', label: '客户管理', order: 2, icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>' },
-  { path: '/closing-project', label: '成交项目', order: 2, icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' },
-  { path: '/employee-management', label: '员工管理', order: 3, icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 5h-2V3H5v2H3v4c0 4.5 3.5 8 8 8h2c4.5 0 8-3.5 8-8V5zM9 14c-2.76 0-5-2.24-5-5V5h5v9zm10 0c0 2.76-2.24 5-5 5H9.83C11.38 17.23 13 14.56 13 11V5h6v9z"/></svg>' },
-  { path: '/announcement-management', label: '公告管理', order: 3, icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 9H6V9h12v2zm0-4H6V5h12v2z"/></svg>' },
-  { path: '/system', label: '系统管理', order: 3, icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>' }
-]
+const opIcon = (d: string) => `<svg viewBox="0 0 24 24" fill="currentColor"><path d="${d}"/></svg>`
 
-function readPermissions(): any[] {
-  try {
-    const raw = localStorage.getItem('permissions')
-    if (raw) return JSON.parse(raw) || []
-  } catch { /* ignore */ }
-  return []
+const ROLE_OPERATIONS: Record<string, HomeOperation[]> = {
+  employee: [
+    { label: '请假申请', path: '/oa/leave-apply', icon: opIcon('M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z') },
+    { label: '报销申请', path: '/oa/reimbursement-apply', icon: opIcon('M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z') },
+    { label: '会议申请', path: '/oa/meeting-apply', icon: opIcon('M17 12h-5v5h5v-5zM16 1v4H8V1H6v4H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z') },
+    { label: '出差申请', path: '/oa/business-trip', icon: opIcon('M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z') },
+    { label: '招待申请', path: '/oa/entertainment-apply', icon: opIcon('M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5.5-2.5l7.51-3.22-7.52-3.22 7.52 3.22zM12 6c-3.31 0-6 2.69-6 6h2c0-2.21 1.79-4 4-4s4 1.79 4 4h2c0-3.31-2.69-6-6-6z') },
+    { label: '项目申请', path: '/oa/project-apply', icon: opIcon('M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM11 17H7V10H11V17ZM17 17H13V7H17V17Z') },
+    { label: '月报填写', path: '/monthly-report', icon: opIcon('M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM18 19H6V17H18V19ZM18 15H6V13H18V15ZM18 11H6V9H18V11ZM18 7H6V5H18V7Z') },
+    { label: '审批中心', path: '/oa-office', icon: opIcon('M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z') },
+    { label: '资料中心', path: '/resource-center', icon: opIcon('M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2zm0 4h8v2h-8V8zm0 3h8v2h-8v-2zm0 3h5v2h-5v-2z') },
+    { label: '消息中心', path: '/message-center', icon: opIcon('M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z') }
+  ],
+  biz: [
+    { label: '请假申请', path: '/oa/leave-apply', icon: opIcon('M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z') },
+    { label: '报销申请', path: '/oa/reimbursement-apply', icon: opIcon('M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z') },
+    { label: '会议申请', path: '/oa/meeting-apply', icon: opIcon('M17 12h-5v5h5v-5zM16 1v4H8V1H6v4H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z') },
+    { label: '项目申请', path: '/oa/project-apply', icon: opIcon('M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM11 17H7V10H11V17ZM17 17H13V7H17V17Z') },
+    { label: '月报填写', path: '/monthly-report', icon: opIcon('M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM18 19H6V17H18V19ZM18 15H6V13H18V15ZM18 11H6V9H18V11ZM18 7H6V5H18V7Z') },
+    { label: '待我审批', path: '/oa-office?tab=leave&subTab=received', icon: opIcon('M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z') },
+    { label: '销售漏斗', path: '/sales-funnel', icon: opIcon('M3 4h18l-7 8v6l-4 2v-8L3 4z') },
+    { label: '客户管理', path: '/customer-management', icon: opIcon('M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z') },
+    { label: '销售目标', path: '/sales-target', icon: opIcon('M12 2a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16zm0-13a5 5 0 100 10 5 5 0 000-10zm0 8a3 3 0 110-6 3 3 0 010 6zm0-4a1 1 0 100 2 1 1 0 000-2z') },
+    { label: '成交项目', path: '/closing-project', icon: opIcon('M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z') }
+  ],
+  finance: [
+    { label: '待我审批', path: '/oa-office?tab=leave&subTab=received', icon: opIcon('M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z') },
+    { label: '报销查询', path: '/oa-office?tab=reimbursement&subTab=received', icon: opIcon('M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z') },
+    { label: '招待查询', path: '/oa-office?tab=entertainment&subTab=received', icon: opIcon('M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5.5-2.5l7.51-3.22-7.52-3.22 7.52 3.22zM12 6c-3.31 0-6 2.69-6 6h2c0-2.21 1.79-4 4-4s4 1.79 4 4h2c0-3.31-2.69-6-6-6z') },
+    { label: '月报审核', path: '/monthly-report', icon: opIcon('M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM18 19H6V17H18V19ZM18 15H6V13H18V15ZM18 11H6V9H18V11ZM18 7H6V5H18V7Z') },
+    { label: '资料中心', path: '/resource-center', icon: opIcon('M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2zm0 4h8v2h-8V8zm0 3h8v2h-8v-2zm0 3h5v2h-5v-2z') },
+    { label: '消息中心', path: '/message-center', icon: opIcon('M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z') }
+  ],
+  gm: [
+    { label: '待我审批', path: '/oa-office?tab=leave&subTab=received', icon: opIcon('M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z') },
+    { label: '全部申请', path: '/oa-office', icon: opIcon('M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z') },
+    { label: '员工管理', path: '/employee-management', icon: opIcon('M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z') },
+    { label: '公告管理', path: '/announcement-management', icon: opIcon('M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 9H6V9h12v2zm0-4H6V5h12v2z') },
+    { label: '系统管理', path: '/system', icon: opIcon('M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z') },
+    { label: '销售漏斗', path: '/sales-funnel', icon: opIcon('M3 4h18l-7 8v6l-4 2v-8L3 4z') },
+    { label: '客户管理', path: '/customer-management', icon: opIcon('M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z') },
+    { label: '月报审核', path: '/monthly-report', icon: opIcon('M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM18 19H6V17H18V19ZM18 15H6V13H18V15ZM18 11H6V9H18V11ZM18 7H6V5H18V7Z') },
+    { label: '资料中心', path: '/resource-center', icon: opIcon('M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2zm0 4h8v2h-8V8zm0 3h8v2h-8v-2zm0 3h5v2h-5v-2z') }
+  ]
 }
 
-const quickActions = computed<HomeAction[]>(() => {
-  const isAdmin = localStorage.getItem('username') === '管理员'
-  const perms = readPermissions()
-  const allowed = HOME_ACTIONS.filter(a => isAdmin || perms.some(p => p.path === a.path))
-  return allowed.sort((x, y) => x.order - y.order)
+const quickActions = computed<HomeOperation[]>(() => {
+  return ROLE_OPERATIONS[roleTier.value] || ROLE_OPERATIONS.employee
 })
 
 // ---------- 通讯录 ----------
@@ -205,18 +220,14 @@ const contactsStats = computed(() => ({
   total: contactsList.value.length
 }))
 
-const loadTodoData = async (userId: number) => {
+const loadSummary = async () => {
   try {
-    const [todoRes, myRes, doneRes] = await Promise.all([
-      getOaTodoList(userId),
-      getOaMyApplications(userId),
-      getOaDoneList(userId)
-    ])
-    if (todoRes.success) todoApps.value = todoRes.data || []
-    if (myRes.success) myApps.value = myRes.data || []
-    if (doneRes.success) doneApps.value = doneRes.data || []
+    const res = await getHomeApprovalSummary()
+    if (res.success && res.data) {
+      summary.value = { ...summary.value, ...res.data }
+    }
   } catch (error) {
-    console.error('加载待办数据失败:', error)
+    console.error('加载首页审批聚合数据失败:', error)
   }
 }
 
@@ -224,7 +235,7 @@ onMounted(async () => {
   // 校正角色（登录流程可能漏写 role），再加载角色化数据
   await guard.refresh()
   loadContactsData()
-  loadTodoData(Number(localStorage.getItem('userId') || 0))
+  loadSummary()
 })
 
 const loadContactsData = async () => {
@@ -389,7 +400,7 @@ function progressTagType(p: number): 'info' | 'warning' | 'success' {
 .todo-strong .todo-value { color: #c0392b; }
 .todo-strong:hover { background: rgba(192, 57, 43, 0.08); }
 
-/* 快捷操作 */
+/* 常用操作 */
 .quick-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
@@ -424,7 +435,7 @@ function progressTagType(p: number): 'info' | 'warning' | 'success' {
 .quick-icon :deep(svg) { width: 26px; height: 26px; }
 .quick-label { font-size: 0.85rem; font-weight: 600; }
 
-/* 通讯录：与上方「常用功能」磁贴样式保持一致 */
+/* 通讯录：与上方「常用操作」磁贴样式保持一致 */
 .contacts-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

@@ -754,6 +754,22 @@ export const updateSalesTargets = async (targets: any[]): Promise<ApiResponse> =
   return response.data;
 };
 
+// 首页审批数据聚合（跨 7 张业务表，按姓名统计）
+export interface HomeApprovalSummary {
+  myTotal: number
+  myPending: number
+  myApproved: number
+  myRejected: number
+  myReturned: number
+  myWithdrawn: number
+  todoTotal: number
+  doneTotal: number
+}
+export const getHomeApprovalSummary = async (): Promise<ApiResponse<HomeApprovalSummary>> => {
+  const response = await api.get('/home/approval-summary');
+  return response.data;
+};
+
 // 附件上传（OA申请附件）
 export const uploadAttachmentFiles = async (files: File[], uploaderId?: number): Promise<{ success: boolean; data: { name: string; url: string; size: number }[]; message?: string }> => {
   const formData = new FormData();

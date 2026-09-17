@@ -4,6 +4,22 @@ const router = express.Router();
 import { createNotification, createOperationLog } from '../utils/audit.js';
 import { requireRole } from '../middleware/auth.js';
 
+// 将登录账号(users.id)解析为对应的员工(employees.id)
+// OA 审批链路中 currentApproverId / applicantId / approverId 统一使用 employees.id，
+// 而 JWT 与登录态使用的是 users.id，二者需在此转换，否则所有审批查询/处理均错位
+const resolveEmployeeId = async (pool, userId) => {
+  if (userId === undefined || userId === null) return null;
+  const [users] = await pool.execute('SELECT username FROM users WHERE id = ?', [userId]);
+  if (users.length === 0) return null;
+  let name = users[0].username;
+  if (name && name.startsWith('emp_')) {
+    const parts = String(name).split('_');
+    if (parts.length >= 2) name = parts[1];
+  }
+  const [employees] = await pool.execute('SELECT id FROM employees WHERE name = ?', [name]);
+  return employees.length ? employees[0].id : null;
+};
+
 const generateApprovalPath = async (connection, flowCode, applicantDept, applicantPosition) => {
   const approvalPath = [];
   let order = 1;
@@ -280,8 +296,9 @@ router.post('/oa/submit', async (req, res) => {
 router.get('/oa/todo/:userId', async (req, res) => {
   const { pool } = req.app.locals;
   try {
-    // 用户身份统一从 JWT token 获取，忽略 URL 中的 userId（防越权）
-    const userId = req.user?.id !== undefined ? String(req.user.id) : req.params.userId;
+    // OA 审批链路以 employees.id 为审批人标识；JWT/登录态是 users.id，需转换
+    const empId = await resolveEmployeeId(pool, req.user?.id);
+    const userId = empId !== null ? String(empId) : (req.user?.id !== undefined ? String(req.user.id) : req.params.userId);
 
     const [instances] = await pool.execute(
       'SELECT * FROM oa_approval_instances WHERE currentApproverId = ? AND status = ? ORDER BY createdAt DESC',
@@ -305,8 +322,9 @@ router.get('/oa/todo/:userId', async (req, res) => {
 router.get('/oa/done/:userId', async (req, res) => {
   const { pool } = req.app.locals;
   try {
-    // 用户身份统一从 JWT token 获取，忽略 URL 中的 userId（防越权）
-    const userId = req.user?.id !== undefined ? String(req.user.id) : req.params.userId;
+    // OA 审批链路以 employees.id 为审批人标识；JWT/登录态是 users.id，需转换
+    const empId = await resolveEmployeeId(pool, req.user?.id);
+    const userId = empId !== null ? String(empId) : (req.user?.id !== undefined ? String(req.user.id) : req.params.userId);
 
     const [histories] = await pool.execute(
       `SELECT h.*, i.flowCode, i.applicantName, i.applicantDept, i.businessType, i.businessData, i.status as instanceStatus 
@@ -334,10 +352,13 @@ router.get('/oa/my-applications/:userId', async (req, res) => {
   const { pool } = req.app.locals;
   try {
     const { userId } = req.params;
+    // applicantId 历史数据中可能混用 users.id 与 employees.id，二者皆匹配以兼容存量数据
+    const empId = await resolveEmployeeId(pool, userId);
+    const candidates = empId !== null ? [String(userId), String(empId)] : [String(userId)];
 
     const [instances] = await pool.execute(
-      'SELECT * FROM oa_approval_instances WHERE applicantId = ? ORDER BY createdAt DESC',
-      [userId]
+      `SELECT * FROM oa_approval_instances WHERE applicantId IN (${candidates.map(() => '?').join(',')}) ORDER BY createdAt DESC`,
+      candidates
     );
 
     const formattedInstances = instances.map(instance => ({
@@ -400,7 +421,8 @@ router.post('/oa/process', async (req, res) => {
     const { instanceId, action, comment } = req.body;
 
     // 审批人身份统一从 JWT token 解析，禁止信任请求体中的 approverId/approverName
-    const approverId = req.user?.id || null;
+    // OA 审批链路以 employees.id 为标识，需将 JWT 的 users.id 转换为 employees.id
+    const approverId = (await resolveEmployeeId(pool, req.user?.id)) ?? (req.user?.id || null);
     const approverName = req.user?.name || req.user?.username || '';
     const approverPosition = req.body.approverPosition || '';
 
@@ -526,7 +548,9 @@ router.post('/oa/withdraw', async (req, res) => {
   try {
     const { instanceId } = req.body;
     // 安全加固：申请人身份一律从 JWT token 解析，禁止撤回他人申请
-    const applicantId = req.user?.id;
+    // OA 审批链路以 employees.id 为标识，需将 JWT 的 users.id 转换为 employees.id
+    const empId = await resolveEmployeeId(pool, req.user?.id);
+    const applicantId = empId !== null ? empId : (req.user?.id ?? null);
 
     const [instances] = await pool.execute(
       'SELECT * FROM oa_approval_instances WHERE id = ? AND applicantId = ? AND status = ?',
@@ -563,6 +587,106 @@ router.get('/oa/approver-configs', async (req, res) => {
   } catch (error) {
     console.error('获取审批人配置失败:', error);
     res.status(500).json({ success: false, message: '获取审批人配置失败: ' + error.message });
+  }
+});
+
+// 首页审批数据聚合：跨 7 张业务表按姓名统计，与 OAWorkflowView 真实数据对齐
+router.get('/home/approval-summary', async (req, res) => {
+  const { pool } = req.app.locals;
+  try {
+    const userName = req.user?.name || req.user?.username;
+    if (!userName) {
+      return res.status(401).json({ success: false, message: '未登录' });
+    }
+
+    const pendingStatuses = ['待审批', '审批中', 'pending', '待审核'];
+    const approvedStatuses = ['已批准', 'approved'];
+    const rejectedStatuses = ['已拒绝', '拒绝', 'rejected'];
+    const returnedStatuses = ['已退回', 'returned'];
+    const withdrawnStatuses = ['已撤回', 'withdrawn', '已取消', 'cancelled'];
+
+    // 7 张业务表的申请人/审批人字段映射
+    const applicantTables = [
+      { table: 'leave_applications', applicantCol: 'applicant', approverCol: 'approver', isDeleted: false },
+      { table: 'reimbursements', applicantCol: 'applicant', approverCol: 'approver', isDeleted: true },
+      { table: 'meetings', applicantCol: 'organizer', approverCol: 'approver', isDeleted: false },
+      { table: 'project_applications', applicantCol: 'applicant_name', approverCol: 'approver', isDeleted: true },
+      { table: 'entertainment_expenses', applicantCol: 'applicant', approverCol: 'approver', isDeleted: true },
+      { table: 'office_supplies_applications', applicantCol: 'applicant', approverCol: 'approver', isDeleted: true },
+      { table: 'business_trip_applications', applicantCol: 'applicant_name', approverCol: 'approver', isDeleted: true }
+    ];
+
+    const statusFilter = (col, statuses) => statuses.map(s => `${col} = ?`).join(' OR ');
+
+    const counts = {
+      myTotal: 0, myPending: 0, myApproved: 0, myRejected: 0,
+      myReturned: 0, myWithdrawn: 0, todoTotal: 0, doneTotal: 0
+    };
+
+    for (const { table, applicantCol, approverCol, isDeleted } of applicantTables) {
+      const deletedSql = isDeleted ? ` AND (is_deleted = 0 OR is_deleted IS NULL)` : '';
+
+      // 我发起的总数
+      const [myTotal] = await pool.execute(
+        `SELECT COUNT(*) as c FROM ${table} WHERE ${applicantCol} = ?${deletedSql}`,
+        [userName]
+      );
+      counts.myTotal += myTotal[0].c;
+
+      // 我发起的 - 进行中
+      const [myPending] = await pool.execute(
+        `SELECT COUNT(*) as c FROM ${table} WHERE ${applicantCol} = ? AND (${statusFilter('status', pendingStatuses)})${deletedSql}`,
+        [userName, ...pendingStatuses]
+      );
+      counts.myPending += myPending[0].c;
+
+      // 我发起的 - 已通过
+      const [myApproved] = await pool.execute(
+        `SELECT COUNT(*) as c FROM ${table} WHERE ${applicantCol} = ? AND (${statusFilter('status', approvedStatuses)})${deletedSql}`,
+        [userName, ...approvedStatuses]
+      );
+      counts.myApproved += myApproved[0].c;
+
+      // 我发起的 - 已拒绝
+      const [myRejected] = await pool.execute(
+        `SELECT COUNT(*) as c FROM ${table} WHERE ${applicantCol} = ? AND (${statusFilter('status', rejectedStatuses)})${deletedSql}`,
+        [userName, ...rejectedStatuses]
+      );
+      counts.myRejected += myRejected[0].c;
+
+      // 我发起的 - 已退回
+      const [myReturned] = await pool.execute(
+        `SELECT COUNT(*) as c FROM ${table} WHERE ${applicantCol} = ? AND (${statusFilter('status', returnedStatuses)})${deletedSql}`,
+        [userName, ...returnedStatuses]
+      );
+      counts.myReturned += myReturned[0].c;
+
+      // 我发起的 - 已撤回
+      const [myWithdrawn] = await pool.execute(
+        `SELECT COUNT(*) as c FROM ${table} WHERE ${applicantCol} = ? AND (${statusFilter('status', withdrawnStatuses)})${deletedSql}`,
+        [userName, ...withdrawnStatuses]
+      );
+      counts.myWithdrawn += myWithdrawn[0].c;
+
+      // 待我审批：当前审批人 = 我 且 进行中
+      const [todoTotal] = await pool.execute(
+        `SELECT COUNT(*) as c FROM ${table} WHERE ${approverCol} = ? AND (${statusFilter('status', pendingStatuses)})${deletedSql}`,
+        [userName, ...pendingStatuses]
+      );
+      counts.todoTotal += todoTotal[0].c;
+
+      // 已办：当前审批人 = 我 且 非进行中（单审批人流程近似；精确历史需 approval_history 表）
+      const [doneTotal] = await pool.execute(
+        `SELECT COUNT(*) as c FROM ${table} WHERE ${approverCol} = ? AND NOT (${statusFilter('status', pendingStatuses)})${deletedSql}`,
+        [userName, ...pendingStatuses]
+      );
+      counts.doneTotal += doneTotal[0].c;
+    }
+
+    res.json({ success: true, data: counts });
+  } catch (error) {
+    console.error('获取首页审批聚合数据失败:', error);
+    res.status(500).json({ success: false, message: '获取首页审批聚合数据失败: ' + error.message });
   }
 });
 
