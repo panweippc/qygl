@@ -22,8 +22,8 @@ import 'dotenv/config'
 
 const port = process.env.PORT || 3005;
 
-// 跟踪用户登录状态，用于单设备登录限制
-const userSessions = new Map(); // 键: 用户名, 值: socket.id
+// 用户会话：按 用户名|设备类型(pc/mobile) 维度存储，实现多端共存（不同设备类型互不踢，同类型重复登录才互踢）
+const userSessions = new Map(); // 键: `${username}|${deviceType}`, 值: socket.id
 
 // 导入路由模块
 import workflowRouter, { initWorkflowEngine } from './server/routes/workflow.js';
@@ -61,6 +61,7 @@ import resourceCenterRouter from './server/routes/resource-center.js';
 import userProfileRouter from './server/routes/user-profile.js';
 import backupRouter from './server/routes/backup.js';
 import monitorRouter from './server/routes/monitor.js';
+import announcementsRouter, { ensureAnnouncementsSchema } from './server/routes/announcements.js';
 import { requireAuth } from './server/middleware/requireAuth.js';
 import { startMetricsCollector } from './server/utils/metrics-collector.js';
 
@@ -68,12 +69,23 @@ import { startMetricsCollector } from './server/utils/metrics-collector.js';
 // 设计：内置仅保留本机回环地址作为通用默认；
 // 局域网/服务器 IP 等其它来源一律通过 .env 的 CORS_ORIGINS 配置，便于多环境部署无需改代码
 const allowedOrigins = [
-  // 开发服务器 3003
+  // PC 开发服务器 3003
   'http://localhost:3003',
   'http://127.0.0.1:3003',
+  // 移动端开发服务器 3004
+  'http://localhost:3004',
+  'http://127.0.0.1:3004',
   // Nginx 生产 8080
   'http://localhost:8080',
   'http://127.0.0.1:8080',
+  // 移动端 Nginx 生产 9090
+  'http://localhost:9090',
+  'http://127.0.0.1:9090',
+  // 部署机 LAN IP（192.168.2.142）生产端口：nginx 9090 反代移动端、8080 反代 PC 端。
+  // 注：server.js 硬编码随仓库部署；.env 的 CORS_ORIGINS 为 gitignore 不进仓库，
+  //     部署机如需动态增删来源仍以其本地 .env 为准，此处兜底保证 9090/8080 必放行。
+  'http://192.168.2.142:9090',
+  'http://192.168.2.142:8080',
   ...(process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean) : [])
 ];
 
@@ -297,6 +309,7 @@ app.use('/api', resourceCenterRouter);
 app.use('/api', userProfileRouter);
 app.use('/api', backupRouter);
 app.use('/api', monitorRouter);
+app.use('/api', announcementsRouter);
 // H3: 上传文件静态服务 - 危险类型（html/svg等）强制下载而非渲染，防存储型XSS
 const DANGEROUS_UPLOAD_EXT = /\.(html?|svg|xml|swf|js|mjs)$/i;
 app.use('/uploads', (req, res, next) => {
@@ -1793,6 +1806,14 @@ const initDatabase = async () => {
       console.log('文件名 URL 解码清洗失败:', error.message);
     }
 
+    // 公告表（登录页「动态公告」栏 + 公告管理菜单的数据源）
+    try {
+      await ensureAnnouncementsSchema(pool);
+      console.log('公告表初始化完成');
+    } catch (error) {
+      console.log('公告表初始化失败:', error.message);
+    }
+
     // 初始化知识库示例分类
     const [existingKbCategories] = await connection.execute('SELECT * FROM knowledge_categories');
     if (existingKbCategories.length === 0) {
@@ -2153,6 +2174,35 @@ const initDatabase = async () => {
         }
       } catch (error) {
         console.log('资料中心菜单合并失败:', error.message);
+      }
+
+      // 公告管理菜单（幂等）：新增 /announcement-management 菜单，并授予「系统管理员 / 总经理」（含按钮权限）
+      try {
+        const [anMenu] = await connection.execute('SELECT id FROM menus WHERE path = ?', ['/announcement-management']);
+        let anMenuId;
+        if (anMenu.length === 0) {
+          const [r] = await connection.execute(
+            'INSERT INTO menus (parentId, name, path, component, icon, sort, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [0, '公告管理', '/announcement-management', 'AnnouncementManagementView', '📢', 6, '启用', now, now]
+          );
+          anMenuId = r.insertId;
+          console.log('公告管理菜单添加成功');
+        } else {
+          anMenuId = anMenu[0].id;
+        }
+        const [anRoles] = await connection.execute(
+          'SELECT id FROM roles WHERE name IN (?, ?)',
+          ['系统管理员', '总经理']
+        );
+        for (const role of anRoles) {
+          const [res] = await connection.execute(
+            'INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt) VALUES (?, ?, ?)',
+            [role.id, anMenuId, now]
+          );
+          if (res.affectedRows > 0) console.log(`为角色 ${role.id} 授予公告管理菜单权限`);
+        }
+      } catch (error) {
+        console.log('公告管理菜单初始化失败:', error.message);
       }
 
       // 为系统管理员和总经理角色分配所有菜单权限（仅首次运行时）
@@ -2533,13 +2583,22 @@ io.on('connection', (socket) => {
     io.emit('onlineEmployeeIds', Array.from(onlineEmployeeIds));
   });
   
-  // 接收用户登录状态，用于单设备登录限制
-  socket.on('setUserLogin', (username) => {
-    console.log(`用户 ${socket.id} 登录: ${username}`);
-    // 存储用户名与socket的映射
+  // 接收用户登录状态（携带 deviceType: pc/mobile），按设备维度登记会话，实现移动端与 PC 多端共存
+  socket.on('setUserLogin', (payload) => {
+    const username = typeof payload === 'string' ? payload : (payload && payload.username);
+    const deviceType = (payload && typeof payload === 'object' && payload.deviceType) ? payload.deviceType : 'pc';
+    if (!username) return;
+    console.log(`用户 ${socket.id} 登录(${deviceType}): ${username}`);
     socket.username = username;
-    // 更新用户会话
-    userSessions.set(username, socket.id);
+    socket.deviceType = deviceType;
+    const sessionKey = `${username}|${deviceType}`;
+    // 同设备类型已存在其他 socket 时，踢掉旧的（保证 PC/PC、手机/手机 不共存）
+    const oldSocketId = userSessions.get(sessionKey);
+    if (oldSocketId && oldSocketId !== socket.id) {
+      io.to(oldSocketId).emit('kickedOut', { message: '您的账号在其他设备登录，已被强制退出' });
+    }
+    // 按 用户名|设备类型 存储，避免跨设备类型互踢
+    userSessions.set(sessionKey, socket.id);
   });
   
   // 加入聊天室
@@ -2569,10 +2628,11 @@ io.on('connection', (socket) => {
       io.emit('onlineEmployeeIds', Array.from(onlineEmployeeIds));
     }
     
-    // 如果有用户名，从用户会话中移除
+    // 如果有用户名，从用户会话中移除（按设备维度）
     if (socket.username) {
-      console.log(`用户 ${socket.username} 离线`);
-      userSessions.delete(socket.username);
+      const devKey = `${socket.username}|${socket.deviceType || 'pc'}`;
+      console.log(`用户 ${socket.username}(${socket.deviceType || 'pc'}) 离线`);
+      userSessions.delete(devKey);
     }
     
     console.log('当前在线用户数:', onlineUserCount);
