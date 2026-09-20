@@ -7,7 +7,7 @@
       </div>
       <nav class="nav">
         <router-link to="/" class="nav-item">首页</router-link>
-        <router-link to="/oa-office" class="nav-item active">协同管理</router-link>
+        <router-link to="/oa-office" class="nav-item active">审批中心</router-link>
         <button class="nav-item logout-btn" @click="handleBack">返回</button>
       </nav>
     </header>
@@ -598,6 +598,29 @@
           </div>
         </div>
       </div>
+    </el-dialog>
+
+    <el-dialog v-model="distributedDetailVisible" title="下发详情" width="560px" class="custom-dialog" :modal="false">
+      <el-table :data="distributedDetailRows" border size="small" style="width: 100%" max-height="460">
+        <el-table-column prop="label" label="字段" width="140" />
+        <el-table-column label="内容" min-width="240">
+          <template #default="{ row }">
+            <span v-if="row.attachments && row.attachments.length">
+              <a
+                v-for="(f, i) in row.attachments"
+                :key="i"
+                :href="getAttachmentDownloadUrl(f)"
+                class="attachment-link"
+                style="margin-right: 12px;"
+              >📎 {{ f.name }}</a>
+            </span>
+            <span v-else>{{ row.value }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="distributedDetailVisible = false">关闭</el-button>
+      </template>
     </el-dialog>
 
     <el-dialog v-model="distributeDialogVisible" title="申请下发" width="500px" class="custom-dialog" :modal="false">
@@ -1533,96 +1556,108 @@ const toggleDistributedRead = async (row: any) => {
   }
 }
 
-const getApplicationDetailHtml = (row: any) => {
+// 下发详情：申请字段（表格行）。不含「审批记录」，审批历史见「申请详情」弹窗
+const getApplicationDetailRows = (row: any) => {
   const type = row.applicationType
-  let detailHtml = ''
+  const rows: { label: string; value: string }[] = []
+  const push = (label: string, value: any) => {
+    if (value === undefined || value === null || value === '') return
+    rows.push({ label, value: String(value) })
+  }
   if (type === 'meeting') {
-    detailHtml = `<p><strong>会议主题：</strong>${esc(row.meetingTitle || row.title || '')}</p><p><strong>会议日期：</strong>${esc(row.meetingDate || '')}</p><p><strong>会议地点：</strong>${esc(row.meetingLocation || row.location || '')}</p><p><strong>会议时间：</strong>${esc(row.meetingTime || '')}</p>`
+    push('会议主题', row.meetingTitle || row.title || '')
+    push('会议日期', row.meetingDate || '')
+    push('会议地点', row.meetingLocation || row.location || '')
+    push('会议时间', row.meetingTime || '')
   } else if (type === 'leave') {
-    const startDate = esc(row.startDate || '')
-    const endDate = esc(row.endDate || '')
-    const dateRange = startDate && endDate ? `<p><strong>请假时间：</strong>${startDate} 至 ${endDate}</p>` : ''
-    const reasonText = row.reason ? `<p><strong>请假原因：</strong>${esc(row.reason)}</p>` : ''
-    const resultText = row.result ? `<p><strong>审批记录：</strong><span style="white-space:pre-line">${esc(row.result)}</span></p>` : ''
-    detailHtml = `<p><strong>请假类型：</strong>${esc(row.leaveType || '-')}</p><p><strong>请假天数：</strong>${formatDays(row.days, row.halfDayPeriod)}</p>${dateRange}${reasonText}${resultText}`
+    push('请假类型', row.leaveType || '-')
+    push('请假天数', formatDays(row.days, row.halfDayPeriod))
+    const sd = row.startDate || ''
+    const ed = row.endDate || ''
+    if (sd && ed) push('请假时间', `${sd} 至 ${ed}`)
+    push('请假原因', row.reason || '')
   } else if (type === 'reimbursement') {
-    detailHtml = `<p><strong>报销类型：</strong>${esc(row.reimburseType || '-')}</p><p><strong>合计金额：</strong>¥${esc(row.amount || 0)}</p>`
+    push('报销类型', row.reimburseType || '-')
+    push('合计金额', '¥' + (row.amount || 0))
   } else if (type === 'project') {
+    push('协同事项名称', row.projectName || '-')
+    push('协作类型', row.projectType || '-')
     const projDept = (() => {
       const v = row.participatingDepartments || row.participating_departments || ''
       if (!v) return ''
       if (Array.isArray(v)) return v.join('、')
       try { const p = JSON.parse(v); return Array.isArray(p) ? p.join('、') : String(p) } catch { return String(v) }
     })()
-    detailHtml = `<p><strong>协同事项名称：</strong>${esc(row.projectName || '-')}</p><p><strong>协作类型：</strong>${esc(row.projectType || '-')}</p>${projDept ? `<p><strong>参与部门：</strong>${esc(projDept)}</p>` : ''}`
+    if (projDept) push('参与部门', projDept)
   } else if (type === 'businessTrip') {
-    detailHtml = `<p><strong>目的地：</strong>${esc(row.destination || '-')}</p><p><strong>出差天数：</strong>${formatDays(row.days)}</p>`
+    push('目的地', row.destination || '-')
+    push('出差天数', formatDays(row.days))
   } else if (type === 'entertainment') {
-    detailHtml = `<p><strong>客户名称：</strong>${esc(row.guestName || '-')}</p><p><strong>招待单位：</strong>${esc(row.guestUnit || '-')}</p><p><strong>场　所：</strong>${esc(row.location || '-')}</p><p><strong>招待金额：</strong>¥${esc(row.expenseAmount || 0)}</p>`
+    push('客户名称', row.guestName || '-')
+    push('招待单位', row.guestUnit || '-')
+    push('场所', row.location || '-')
+    push('招待金额', '¥' + (row.expenseAmount || 0))
   }
-  return detailHtml
+  return rows
 }
 
-const getDistributedAttachmentsHtml = (row: any) => {
-  if (!row.detail) return ''
+// 下发明细：附件列表
+const getDistributedAttachmentsList = (row: any) => {
+  if (!row.detail) return []
   try {
     const detail = JSON.parse(row.detail)
     const files = Array.isArray(detail.attachments) ? detail.attachments : []
-    if (files.length === 0) return ''
-    const links = files
-      .map((f: any) => {
-        const url = `/api/attachments/download?file=${encodeURIComponent(f.url || '')}&name=${encodeURIComponent(f.name || '')}`
-        return `<a href="${url}" style="color:#1E5AA8;font-weight:500;text-decoration:underline;word-break:break-all;">📎 ${esc(f.name || '附件')}</a>`
-      })
-      .join('<br/>')
-    return `<p><strong>附件：</strong><br/>${links}</p>`
+    return files.map((f: any) => ({ name: f.name || '附件', url: f.url || '' }))
   } catch (e) {
-    return ''
+    return []
   }
 }
 
-const viewDistributedDetail = (row: any, extraHtml = '') => {
-  const appDetailHtml = getApplicationDetailHtml(row)
-  const attachmentsHtml = getDistributedAttachmentsHtml(row)
-  ElMessageBox.alert(`
-    <div style="text-align: left;">
-      <p><strong>下发编号：</strong>#${esc(row.id)}</p>
-      <p><strong>申请类型：</strong>${esc(getApplicationTypeLabel(row.applicationType))}</p>
-      <p><strong>原申请编号：</strong>#${esc(row.applicationId)}</p>
-      <p><strong>原申请人：</strong>${esc(row.applicant)}</p>
-      <p><strong>审批人：</strong>${esc(row.approver && row.approver !== '未指定' ? row.approver : row.distributedBy)}</p>
-      <p><strong>下发人：</strong>${esc(row.distributedBy)}</p>
-      <p><strong>下发时间：</strong>${esc(row.distributeDate)}</p>
-      <p><strong>处理状态：</strong>${esc(row.status)}</p>
-      ${extraHtml}
-      ${appDetailHtml ? '<hr style="margin:8px 0;border-color:#eee"/>' + appDetailHtml : ''}
-      ${attachmentsHtml ? '<hr style="margin:8px 0;border-color:#eee"/>' + attachmentsHtml : ''}
-    </div>
-  `, '下发详情', {
-    dangerouslyUseHTMLString: true,
-    confirmButtonText: '确定'
-  })
+// 下发详情弹窗（表格样式）
+const distributedDetailVisible = ref(false)
+const distributedDetailRows = ref<any[]>([])
+
+const viewDistributedDetail = (row: any, extraRows: { label: string; value: string }[] = []) => {
+  const rows: any[] = []
+  const push = (label: string, value: any) => {
+    if (value === undefined || value === null || value === '') return
+    rows.push({ label, value: String(value) })
+  }
+  push('下发编号', '#' + row.id)
+  push('申请类型', getApplicationTypeLabel(row.applicationType))
+  push('原申请编号', '#' + row.applicationId)
+  push('原申请人', row.applicant)
+  push('审批人', row.approver && row.approver !== '未指定' ? row.approver : row.distributedBy)
+  push('下发人', row.distributedBy)
+  push('下发时间', row.distributeDate)
+  push('处理状态', row.status)
+  if (extraRows && extraRows.length) rows.push(...extraRows)
+  const appRows = getApplicationDetailRows(row)
+  if (appRows.length) rows.push(...appRows)
+  const files = getDistributedAttachmentsList(row)
+  if (files.length) rows.push({ label: '附件', value: files.map((f: any) => f.name).join('、'), attachments: files })
+  distributedDetailRows.value = rows
+  distributedDetailVisible.value = true
 }
 
-// 合并行（一次下发多人的申请）查看详情：下发编号显示区间，并补充接收人与已读汇总
+// 合并行（一次下发多人）：补充接收人与已读汇总
 const viewGroupDistributedDetail = (g: MyDistributedGroup) => {
   const ids = g.records.map((r: any) => Number(r.id)).filter((v: number) => Number.isFinite(v))
   const minId = ids.length ? Math.min(...ids) : ''
   const maxId = ids.length ? Math.max(...ids) : ''
   const receivers = groupReceivers(g)
   const readInfo = groupReadInfo(g)
-  const rowsHtml = g.records.map((r: any) =>
-    `<p style="margin:2px 0;font-size:12px;color:#606266">#${esc(r.id)} ${esc(r.targetUser)} <span style="color:${r.read === 1 ? '#4CAF50' : '#E6A23C'}">${r.read === 1 ? '已读' : '未读'}</span></p>`
-  ).join('')
-  const extraHtml = `<hr style="margin:8px 0;border-color:#eee"/>
-    <p><strong>接收人（${receivers.length}人）：</strong>${esc(receivers.join('、'))}</p>
-    <p><strong>已读进度：</strong>${esc(readInfo.text)}</p>
-    <div>${rowsHtml}</div>`
+  const perLine = g.records.map((r: any) => `${r.id} ${r.targetUser} ${r.read === 1 ? '已读' : '未读'}`).join('；')
+  const extraRows = [
+    { label: '接收人', value: `${receivers.join('、')}（共 ${receivers.length} 人）` },
+    { label: '已读进度', value: readInfo.text },
+    { label: '逐人明细', value: perLine },
+  ]
   viewDistributedDetail({
     ...(g.records[0] || {}),
     id: ids.length > 1 ? `${minId}~${maxId}` : (g.records[0]?.id ?? ''),
     distributeDate: g.sameTime ? g.distributeDate : `${g.distributeDate} 起`
-  }, extraHtml)
+  }, extraRows)
 }
 
 const terminateProcess = async (row: any, type: string) => {
