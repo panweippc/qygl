@@ -4,7 +4,7 @@
  * 拓扑：Jenkins 安装在【部署机】(E:\qygl\qygl 所在电脑)，本机本地执行。
  * 模型：原地 git pull（不另 checkout 副本、不 xcopy 到别的目录）。
  * 流程：检测 git 更新 → npm install → 停止 Nginx → 构建前端 →
- *       重启 Nginx(8080, restart 即重新加载配置) → 启动 dev server(3003, nssm 服务 npm run dev 常驻) → 重启后端 pm2(qygl) → 健康检查。
+ *       重启 Nginx(8080+9090, restart 即重新加载配置) → 启动 dev server(3003, nssm 服务 npm run dev 常驻) → 启动 mobile dev server(3004, nssm 服务 npm run dev:mobile 常驻) → 重启后端 pm2(qygl) → 健康检查。
  * 触发：每 5 分钟轮询；无新提交则【跳过阶段2~10全部部署动作】。
  *
  * ⚠️ 关键运维前提（务必满足，否则 pm2/nginx 操作会失败）：
@@ -12,7 +12,7 @@
  *      pm2 守护进程按用户隔离，跨用户 `pm2 restart qygl` 会找不到进程。
  *   2. 部署机需具备：git(且 E:\qygl\qygl 是可 git pull 的仓库)、node/npm(建议加入 PATH，
  *      否则改 NODE_HOME)、全局 pm2、nginx、nssm(nssm.exe 需在 PATH，用于把 vite dev server
- *      注册为 Windows 服务常驻 3003，避免 start /b 被 Jenkins 会话/进程树清理杀掉)。
+ *      注册为 Windows 服务常驻 3003 与 3004，避免 start /b 被 Jenkins 会话/进程树清理杀掉)。
  *   3. 流水线用 `bat` 调用 `powershell -Command`，无需额外 Jenkins 插件（仅需默认 Git/Pipeline）。
  *   ⚠️ 部署机系统代码页为 GBK(936)：`powershell -Command "..."` 内的【中文/emoji 会被错误解码成乱码】，
  *      导致 PowerShell 解析失败（如 "Try 缺少与其匹配的 Catch"），整条阶段返回非零并跳过后续所有阶段。
@@ -59,6 +59,8 @@ pipeline {
     PM2_APP_NAME  = 'qygl'                                                // 后端 pm2 进程名
     NGINX_PM2     = 'qygl-nginx'                                          // nginx 的 pm2 进程名
     DEV_PM2       = 'qygl-dev'                                            // vite dev server 的 pm2 进程名
+    DEV_MOBILE_PORT = '3004'                                              // 移动端开发前端（vite dev:mobile）
+    DEV_MOBILE_PM2  = 'qygl-dev-mobile'                                   // 移动端 dev server 的 nssm 服务名
   }
 
   triggers {
@@ -168,6 +170,34 @@ pipeline {
       }
     }
 
+    // 阶段6.2：启动移动端 dev server（3004）—— 经 nssm 注册为 Windows 服务常驻（等价于 npm run dev:mobile）
+    stage('Start Mobile Dev Server (3004, nssm)') {
+      when { expression { return !skipDeploy } }
+      steps {
+        echo '=== 阶段6.2: 启动移动端 dev server (3004)，经 nssm 注册为 Windows 服务常驻（npm run dev:mobile）==='
+        // 清掉 3004 上的陈旧监听（历史 start /b 进程可能仍占用），避免 nssm 首次 install/start 时 EADDRINUSE
+        bat "powershell -Command \"try { \$ps=(Get-NetTCPConnection -LocalPort ${DEV_MOBILE_PORT} -ErrorAction SilentlyContinue | Where-Object { \$_.State -eq 'Listen' }).OwningProcess; foreach(\$p in \$ps){ Stop-Process -Id \$p -Force -ErrorAction SilentlyContinue }; Write-Host ('cleared stale listener on port ${DEV_MOBILE_PORT}') } catch { Write-Host ('clear port error: ' + \$_.Exception.Message) }; exit 0\""
+        bat "ping -n 2 127.0.0.1 >nul"
+        bat """
+          where nssm >nul 2>nul && (
+            nssm get ${DEV_MOBILE_PM2} Application >nul 2>nul || (
+              nssm install ${DEV_MOBILE_PM2} "${NODE_HOME}/node.exe" "${NODE_HOME}/node_modules/npm/bin/npm-cli.js" run dev:mobile
+              nssm set ${DEV_MOBILE_PM2} AppDirectory "${PROJECT_DIR}"
+              nssm set ${DEV_MOBILE_PM2} AppStdout "${PROJECT_DIR}/devserver-mobile.log"
+              nssm set ${DEV_MOBILE_PM2} AppStderr "${PROJECT_DIR}/devserver-mobile.log"
+              nssm set ${DEV_MOBILE_PM2} AppExit Default Restart
+              nssm set ${DEV_MOBILE_PM2} DisplayName "qygl mobile dev server (3004)"
+            )
+            nssm restart ${DEV_MOBILE_PM2} || nssm start ${DEV_MOBILE_PM2}
+          ) || (
+            echo [warn] nssm not installed, fallback to start /b npm run dev:mobile (not persistent after reboot)
+            cd /d ${PROJECT_DIR} && start /b cmd /c "npm run dev:mobile > ${PROJECT_DIR}/devserver-mobile.log 2>&1"
+          )
+        """
+        echo '✅ mobile dev server 阶段完成 (3004)'
+      }
+    }
+
     // 阶段6.5：验证 dev server（3003，弥补此前未检查导致"假绿"）
     stage('Verify Dev Server (3003)') {
       when { expression { return !skipDeploy } }
@@ -176,6 +206,16 @@ pipeline {
         bat "ping -n 6 127.0.0.1 >nul"
         // dev server 正常应返回 200；返回任何 HTTP 状态（含 404）都说明进程已在 3003 监听，视为就绪
         bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${DEV_PORT}' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('dev server status: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('dev server status: ' + \$st + ' (ready)'); \$ok=\$true; break }; Write-Host ('  retry ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-not \$ok){ Write-Host 'WARN: dev server 3003 not ready' }; exit 0\""
+      }
+    }
+
+    // 阶段6.7：验证移动端 dev server（3004，弥补此前未检查导致"假绿"）
+    stage('Verify Mobile Dev Server (3004)') {
+      when { expression { return !skipDeploy } }
+      steps {
+        echo '=== 阶段6.7: 验证移动端 dev server (3004) ==='
+        bat "ping -n 6 127.0.0.1 >nul"
+        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${DEV_MOBILE_PORT}' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('mobile dev server status: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('mobile dev server status: ' + \$st + ' (ready)'); \$ok=\$true; break }; Write-Host ('  retry ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-not \$ok){ Write-Host 'WARN: mobile dev server 3004 not ready' }; exit 0\""
       }
     }
 
@@ -210,8 +250,10 @@ pipeline {
     stage('Verify Frontend') {
       when { expression { return !skipDeploy } }
       steps {
-        echo '=== 阶段9: 验证前端 (nginx 8080) ==='
+        echo '=== 阶段9: 验证前端 (nginx 8080 + 9090) ==='
         bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${FRONTEND_PORT}' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('frontend status: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('frontend status: ' + \$st + ' (ready)'); \$ok=\$true; break }; Write-Host ('  retry ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-not \$ok){ Write-Host 'WARN: frontend not ready' }; exit 0\""
+        // 9090 为反代到 3004 的 nginx 站点，能返回 200 即说明 nginx 已加载新配置并监听 9090
+        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:9090' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('mobile nginx 9090 status: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('mobile nginx 9090 status: ' + \$st + ' (ready)'); \$ok=\$true; break }; Write-Host ('  retry ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-not \$ok){ Write-Host 'WARN: nginx 9090 not ready' }; exit 0\""
       }
     }
 
