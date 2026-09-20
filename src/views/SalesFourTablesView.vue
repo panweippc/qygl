@@ -17,16 +17,16 @@
 
     <el-tabs v-model="activeTab" class="sft-tabs" @tab-change="onTabChange">
       <el-tab-pane label="意向漏斗" name="intention">
-        <FunnelTable type="intention" title="意向漏斗" :perm="perm" @customer-click="openCrossRef" @progress-jump="activeTab = $event" @refresh-stats="refreshStats" @open-visit-records="openVisitRecords" />
+        <FunnelTable ref="intentionRef" type="intention" title="意向漏斗" :perm="perm" @customer-click="openCrossRef" @progress-jump="onProgressJump" @refresh-stats="onDataChanged" @open-visit-records="openVisitRecords" />
       </el-tab-pane>
       <el-tab-pane label="重点漏斗" name="key">
-        <FunnelTable type="key" title="重点漏斗" :perm="perm" @customer-click="openCrossRef" @progress-jump="activeTab = $event" @refresh-stats="refreshStats" @open-visit-records="openVisitRecords" />
+        <FunnelTable ref="keyRef" type="key" title="重点漏斗" :perm="perm" @customer-click="openCrossRef" @progress-jump="onProgressJump" @refresh-stats="onDataChanged" @open-visit-records="openVisitRecords" />
       </el-tab-pane>
       <el-tab-pane label="成交用户" name="deal">
-        <DealTable :perm="perm" @customer-click="openCrossRef" @refresh-stats="refreshStats" @open-visit-records="openVisitRecords" />
+        <DealTable ref="dealRef" :perm="perm" @customer-click="openCrossRef" @refresh-stats="onDataChanged" @open-visit-records="openVisitRecords" />
       </el-tab-pane>
       <el-tab-pane label="大项目进展" name="project">
-        <ProjectTable :perm="perm" @customer-click="openCrossRef" @refresh-stats="refreshStats" @open-visit-records="openVisitRecords" />
+        <ProjectTable ref="projectRef" :perm="perm" @customer-click="openCrossRef" @refresh-stats="onDataChanged" @open-visit-records="openVisitRecords" />
       </el-tab-pane>
     </el-tabs>
 
@@ -51,6 +51,10 @@ const perm = ref({ canWrite: false, canView: false, isAdmin: false })
 const crossVisible = ref(false)
 const crossCustomer = ref('')
 const statsPanelRef = ref<any>(null)
+const intentionRef = ref<any>(null)
+const keyRef = ref<any>(null)
+const dealRef = ref<any>(null)
+const projectRef = ref<any>(null)
 const visitRecordsVisible = ref(false)
 const visitCustomer = ref('')
 
@@ -59,8 +63,33 @@ function openVisitRecords(name: string) {
   visitRecordsVisible.value = true
 }
 
+const tableRefMap = () => ({
+  intention: intentionRef.value,
+  key: keyRef.value,
+  deal: dealRef.value,
+  project: projectRef.value
+})
+
 function refreshStats() {
   statsPanelRef.value?.load()
+}
+
+/** 任一页签保存/导入/删除后：刷新统计 + 全部四张表
+ *  （漏斗记录会按进展百分比跨表迁移，只刷当前页签会导致目标表数据陈旧） */
+function onDataChanged() {
+  refreshStats()
+  Object.values(tableRefMap()).forEach((r: any) => r?.load?.())
+}
+
+/** 当前激活页签的数据重载（跨表迁移跳转后目标表立即取最新数据） */
+function reloadActiveTab() {
+  const name = activeTab.value
+  tableRefMap()[name]?.load?.()
+}
+
+function onProgressJump(dest: string) {
+  activeTab.value = dest
+  reloadActiveTab()
 }
 
 async function loadPerm() {
@@ -79,7 +108,10 @@ async function loadPerm() {
   }
 }
 
-function onTabChange() {}
+function onTabChange() {
+  // 切换到某页签时拉取该表最新数据，避免展示其它端/其它页签操作后的陈旧列表
+  reloadActiveTab()
+}
 
 function openCrossRef(customer: string) {
   crossCustomer.value = customer
@@ -89,6 +121,7 @@ function openCrossRef(customer: string) {
 function onCrossJump({ type, id }: { type: string, id: number }) {
   crossVisible.value = false
   activeTab.value = type
+  reloadActiveTab()
   // 子表格加载后通过事件或 provide 滚动到对应行较复杂，先切换标签页让用户定位
 }
 

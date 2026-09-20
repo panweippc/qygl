@@ -135,6 +135,15 @@
               <span>员工管理</span>
               <div class="sidebar-item-indicator"></div>
             </router-link>
+            <router-link v-if="hasPermission('/announcement-management')" to="/announcement-management" class="sidebar-item">
+              <div class="sidebar-icon sidebar-icon-sm">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM7 9h10v2H7V9zm0 4h7v2H7v-2z"/>
+                </svg>
+              </div>
+              <span>公告管理</span>
+              <div class="sidebar-item-indicator"></div>
+            </router-link>
             <router-link v-if="hasPermission('/operation-log')" to="/operation-log" class="sidebar-item">
               <div class="sidebar-icon sidebar-icon-sm">
                 <svg viewBox="0 0 24 24" fill="currentColor">
@@ -220,7 +229,7 @@ const groupVisible = computed(() => {
   const hasPerm = (path: string) => permissions.value.some(r => r.path === path)
   const officePerm = ['/oa-office', '/monthly-report', '/tool-inventory', '/resource-center', '/message-center']
   const businessPerm = ['/closing-project', '/sales-funnel', '/sales-target', '/customer-management']
-  const systemPerm = ['/employee-management', '/system', '/operation-log', '/security-alerts', '/monitor']
+  const systemPerm = ['/employee-management', '/system', '/operation-log', '/security-alerts', '/monitor', '/announcement-management']
   return {
     office: officePerm.some(hasPerm),
     business: businessPerm.some(hasPerm),

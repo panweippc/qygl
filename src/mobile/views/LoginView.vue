@@ -1,6 +1,6 @@
 <template>
-  <div class="login-container">
-    <!-- 科技背景：静态网格（极缓慢漂移） + 流光线条 + 缓慢浮动粒子 -->
+  <div class="login-container mobile-login">
+    <!-- 科技背景：静态网格 + 流光线条 + 缓慢浮动粒子 -->
     <div class="tech-bg">
       <div class="bg-grid"></div>
       <div class="bg-glow-slow"></div>
@@ -15,11 +15,11 @@
         <span v-for="(d, i) in bgDots" :key="'dot' + i" :style="d"></span>
       </div>
     </div>
-    
+
     <!-- 左侧信息面板 -->
     <div class="login-info-panel">
       <div class="info-content">
-        <!-- 假期倒计时：下一个假期的天数（表内维护区间） -->
+        <!-- 假期倒计时 -->
         <div v-if="holidayTip" class="holiday-strip">
           <span class="holiday-bar"></span>
           <div class="holiday-body">
@@ -28,13 +28,12 @@
           </div>
         </div>
 
-        <!-- 动态公告（公告栏，唯一入口；同一公告只在此处出现一次） -->
+        <!-- 动态公告 -->
         <div class="announce-board">
           <div class="board-head">
             <h2 class="board-title">动态公告</h2>
             <span class="board-sub">{{ todayText }}</span>
           </div>
-          <!-- 置顶公告：永远固定在顶部，不参与跑马灯滚动 -->
           <div v-if="pinned.length" class="announce-pinned">
             <div
               class="announce-item"
@@ -57,7 +56,6 @@
               <div class="announce-date">{{ fmtDate(a.publishAt) }}</div>
             </div>
           </div>
-          <!-- 其余公告：多于阈值时启用跑马灯，缓慢上滚，鼠标悬停暂停 -->
           <div
             v-if="rest.length"
             class="announce-list"
@@ -87,18 +85,17 @@
           </div>
           <div v-if="!announcements.length" class="announce-empty">暂无公告</div>
           <div v-if="announcements.length" class="announce-foot">
-            {{ marqueeOn ? '滚动播报中 · 鼠标悬停可暂停' : '登录后可查看全部公告' }}
+            {{ marqueeOn ? '滚动播报中' : '登录后可查看全部公告' }}
           </div>
         </div>
-
       </div>
     </div>
-    
-    <!-- 公告详情（登录页动态公告点击查看） -->
+
+    <!-- 公告详情弹窗 -->
     <el-dialog
       v-model="announceVisible"
       :title="activeAnnounce.title || '公告详情'"
-      width="620px"
+      width="90%"
       align-center
       append-to-body
     >
@@ -129,12 +126,11 @@
 
     <!-- 右侧登录表单 -->
     <div class="login-form-wrapper">
-      <!-- 背景装饰 -->
       <div class="login-bg-decoration">
         <div class="login-bg-circle login-bg-circle-1"></div>
         <div class="login-bg-circle login-bg-circle-2"></div>
       </div>
-      
+
       <div class="login-header">
         <div class="logo">
           <span class="logo-text">宏友智慧办公平台</span>
@@ -143,55 +139,57 @@
         </div>
         <p class="login-subtitle">科技赋能未来</p>
       </div>
-      
+
       <el-form :model="loginForm" :rules="loginRules" ref="loginFormRef" class="login-form">
         <el-form-item prop="username">
           <el-input
             v-model="loginForm.username"
             placeholder="用户名"
-            prefix-icon="el-icon-user"
+            :prefix-icon="User"
             class="input-field"
             :class="{ 'input-active': activeInput === 'username' }"
             @focus="activeInput = 'username'"
             @blur="activeInput = ''"
           />
         </el-form-item>
-        
+
         <el-form-item prop="password">
           <el-input
             v-model="loginForm.password"
             type="password"
             placeholder="密码"
-            prefix-icon="el-icon-lock"
+            :prefix-icon="Lock"
             class="input-field"
             :class="{ 'input-active': activeInput === 'password' }"
             @focus="activeInput = 'password'"
             @blur="activeInput = ''"
             show-password
+            @keyup.enter="handleLogin"
           />
         </el-form-item>
-        
+
         <el-form-item prop="captcha">
           <div class="captcha-container">
             <el-input
               v-model="loginForm.captcha"
               placeholder="验证码"
-              prefix-icon="el-icon-shield"
+              :prefix-icon="CircleCheck"
               class="input-field captcha-input"
               :class="{ 'input-active': activeInput === 'captcha' }"
               @focus="activeInput = 'captcha'"
               @blur="activeInput = ''"
+              @keyup.enter="handleLogin"
             />
-            <img 
-              :src="captchaImage" 
-              alt="验证码" 
+            <img
+              :src="captchaImage"
+              alt="验证码"
               class="captcha-img"
               @click="generateCaptcha"
               title="点击刷新验证码"
             />
           </div>
         </el-form-item>
-        
+
         <el-form-item>
           <el-button type="primary" @click="handleLogin" class="login-btn" :loading="loading">
             <span class="btn-text">登录</span>
@@ -199,8 +197,7 @@
           </el-button>
         </el-form-item>
       </el-form>
-      
-      <!-- 技术指标-->
+
       <div class="tech-indicators">
         <div class="indicator">
           <div class="indicator-dot"></div>
@@ -216,8 +213,7 @@
         </div>
       </div>
     </div>
-    
-    <!-- 背景装饰 -->
+
     <div class="bg-decorations">
       <div class="bg-circle bg-circle-1"></div>
       <div class="bg-circle bg-circle-2"></div>
@@ -231,18 +227,16 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { login } from '../services/api'
-import { io, Socket } from 'socket.io-client'
-import { reinitSocket } from '../services/socket'
-import { startIdleDetector } from '../utils/idle-detector'
+import { User, Lock, CircleCheck } from '@element-plus/icons-vue'
+import api from '@/services/api'
+import { initSocket } from '@/services/socket'
 
 const router = useRouter()
 const loginFormRef = ref()
 const loading = ref(false)
 const activeInput = ref('')
-const socket = ref<Socket | null>(null)
 
-// ===== 登录页左侧面板：动态公告（B，免鉴权公开接口） =====
+// 登录页左侧面板：动态公告（免鉴权公开接口）
 const announcements = ref<any[]>([])
 const announceVisible = ref(false)
 const announceDetail = ref('')
@@ -260,11 +254,6 @@ function fmtDate(v: any) {
   return String(v).replace('T', ' ').slice(0, 10)
 }
 
-/* ===== 公告排序与滚动播报（跑马灯） ===== */
-/**
- * 置顶优先 + 发布时间倒序：置顶公告恒在最前。
- * pinned：置顶公告，固定顶部不参与滚动；rest：其余公告，多于阈值才跑马灯。
- */
 const sortedAnn = computed(() => {
   const arr = [...(announcements.value || [])]
   arr.sort((a: any, b: any) => {
@@ -281,16 +270,13 @@ const rest = computed(() => sortedAnn.value.filter((a: any) => !a?.isTop))
 
 const MARQUEE_THRESHOLD = 4
 const marqueeOn = computed(() => rest.value.length > MARQUEE_THRESHOLD)
-/** 其余列表复制一份尾接，配合 translateY(-50%) 实现无缝循环 */
 const restTrack = computed(() =>
   marqueeOn.value ? [...rest.value, ...rest.value] : rest.value
 )
-/** 时长随条数增长：每条约 4 秒，滚动速度恒定不因条数忽快忽慢 */
 const marqueeStyle = computed(() => ({
   animationDuration: `${Math.max(16, rest.value.length * 4)}s`,
 }))
 
-/* ===== 紧急程度视觉化：优先取管理端设置的 priority，缺省按标题/分类关键字推断 ===== */
 const URGENT_RE = /紧急|安全|漏洞|补丁|故障|停服|中断|事故|风险|断电|宕机|严重|红色预警/i
 const WARN_RE = /维护|升级|停机|检修|迁移|变更|调整|注意|提醒|限流|整改|排查/i
 function levelOf(a: any) {
@@ -306,7 +292,6 @@ function levelOf(a: any) {
 const LEVEL_TEXT: Record<string, string> = { urgent: '紧急', warn: '重要', info: '普通' }
 const levelText = (lv: string) => LEVEL_TEXT[lv] || '普通'
 
-/** 背景粒子：一次性生成固定参数（伪随机种子），避免每次渲染跳动 */
 const bgDots = Array.from({ length: 22 }, (_, i) => {
   const seed = (n: number) => {
     const v = Math.sin(i * 12.9898 + n * 78.233) * 43758.5453
@@ -338,7 +323,6 @@ function isRecent(a: any) {
   return Date.now() - t < 7 * 24 * 3600 * 1000
 }
 
-/* ===== 假期倒计时：表内维护下一批假期区间，跨年补新一年即可 ===== */
 const HOLIDAYS = [
   { name: '中秋国庆假期', start: '2026-09-25', end: '2026-10-07' },
   { name: '元旦假期', start: '2027-01-01', end: '2027-01-03' },
@@ -354,12 +338,10 @@ const holidayTip = computed<{ label: string; value: string } | null>(() => {
   for (const h of HOLIDAYS) {
     const s = dayStart(h.start)
     const e = dayStart(h.end)
-    // 假期进行中
     if (today.getTime() >= s.getTime() && today.getTime() <= e.getTime()) {
       const left = Math.round((e.getTime() - today.getTime()) / DAY_MS) + 1
       return { label: `${h.name}进行中`, value: `剩余 ${left} 天` }
     }
-    // 下一个未开始的假期
     if (today.getTime() < s.getTime()) {
       const days = Math.round((s.getTime() - today.getTime()) / DAY_MS)
       return { label: `距离${h.name}`, value: days <= 0 ? '就是今天' : `还有 ${days} 天` }
@@ -368,7 +350,6 @@ const holidayTip = computed<{ label: string; value: string } | null>(() => {
   return null
 })
 
-/** 登录页为未登录态：读取免鉴权公开公告接口 */
 async function loadPublicData() {
   try {
     const resp = await fetch('/api/public/announcements?limit=8', { cache: 'no-store' })
@@ -417,10 +398,10 @@ const generateCaptchaImage = (code: string) => {
   canvas.width = 100
   canvas.height = 40
   const ctx = canvas.getContext('2d')!
-  
+
   ctx.fillStyle = '#f0f0f0'
   ctx.fillRect(0, 0, canvas.width, canvas.height)
-  
+
   for (let i = 0; i < 10; i++) {
     ctx.beginPath()
     ctx.strokeStyle = `rgb(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255})`
@@ -429,7 +410,7 @@ const generateCaptchaImage = (code: string) => {
     ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height)
     ctx.stroke()
   }
-  
+
   for (let i = 0; i < code.length; i++) {
     ctx.font = `${20 + Math.random() * 10}px Arial`
     ctx.fillStyle = `rgb(${Math.floor(Math.random() * 100) + 50}, ${Math.floor(Math.random() * 100) + 50}, ${Math.floor(Math.random() * 100) + 50})`
@@ -438,7 +419,7 @@ const generateCaptchaImage = (code: string) => {
     const y = canvas.height / 2 + (Math.random() - 0.5) * 10
     ctx.fillText(code[i], x, y)
   }
-  
+
   return canvas.toDataURL()
 }
 
@@ -455,112 +436,141 @@ const loginRules = {
 }
 
 const handleLogin = async () => {
-  console.log('Login button clicked');
   try {
-    // 验证表单
     if (!loginForm.username || !loginForm.password) {
-      ElMessage.error('请输入用户名和密码');
-      return;
+      ElMessage.error('请输入用户名和密码')
+      return
     }
-    
-    // 验证验证码
     if (!loginForm.captcha) {
-      ElMessage.error('请输入验证码');
-      return;
+      ElMessage.error('请输入验证码')
+      return
     }
-    
     if (loginForm.captcha.toLowerCase() !== captchaCode.value.toLowerCase()) {
-      ElMessage.error('验证码错误');
-      generateCaptcha();
-      loginForm.captcha = '';
-      return;
+      ElMessage.error('验证码错误')
+      generateCaptcha()
+      loginForm.captcha = ''
+      return
     }
-    
-    console.log('Login form submitted:', loginForm);
-    
-    // 调用实际的API
-    const response = await login(loginForm.username, loginForm.password);
-    
-    console.log('Login API response:', response);
-    
-    if (response.success && response.user) {
-      const user = response.user;
-      
-      localStorage.setItem('token', response.token || `session-${user.id}-${Date.now()}`)
-      localStorage.setItem('userId', user.id.toString())
+
+    loading.value = true
+    const response = await api.post('/login', {
+      username: loginForm.username.trim(),
+      password: loginForm.password,
+      deviceType: 'mobile'
+    })
+    const data = response.data
+
+    if (data && data.success && data.token) {
+      const user = data.user
+      localStorage.setItem('token', data.token)
+      localStorage.setItem('userId', String(user.id))
       localStorage.setItem('username', user.username)
-      
-      // 存储用户角色信息
-      let role = 'employee'
-      if (user.roleName) {
-        role = user.roleName
-      } else if (user.username === 'admin' || user.username === '管理员') {
+
+      let role = user.roleName || user.role || 'employee'
+      if (!user.roleName && (user.username === 'admin' || user.username === '管理员')) {
         role = 'admin'
-      } else if (user.username === '总经理' || user.position === '总经理') {
+      } else if (!user.roleName && (user.username === '总经理' || user.position === '总经理')) {
         role = '总经理'
       }
       localStorage.setItem('role', role)
-      
-      // 存储完整的用户信息（用于项目申请等模块）
+
       const userInfo = {
         id: user.id,
         name: user.name || user.username,
         username: user.username,
-        role: role,
+        role,
         roles: [role],
         department: user.department || '',
         position: user.position || '',
         avatar: user.avatar || ''
       }
       localStorage.setItem('user', JSON.stringify(userInfo))
-      
-      // 存储用户权限信息 - 使用API返回的权限数据，无权限则为空数组
       localStorage.setItem('permissions', JSON.stringify(user.permissions || []))
       if (user.buttonPermissions) {
         localStorage.setItem('buttonPermissions', JSON.stringify(user.buttonPermissions))
       }
-      
-      // 建立 Socket 连接，维持单设备登录
-      reinitSocket()
-      // E8: 启用会话空闲超时检测
-      startIdleDetector()
 
-      console.log('登录成功，跳转到首页');
-      router.push('/');
+      initSocket()
+      router.replace('/')
     } else {
-      // 登录失败
-      ElMessage.error(response.message || '用户名或密码错误');
+      ElMessage.error(data?.message || '用户名或密码错误')
+      generateCaptcha()
     }
   } catch (error: any) {
     console.error('登录失败:', error)
-    // 提取后端返回的具体错误信息（如 429 限流提示），避免被统一文案掩盖
     const msg = error?.response?.data?.message
     ElMessage.error(msg || '登录失败，请重试')
+    generateCaptcha()
+  } finally {
+    loading.value = false
   }
 }
 
-// 组件挂载时初始化
 onMounted(() => {
-  console.log('Login page mounted');
-  generateCaptcha();
-  // 登录页左侧面板数据：动态公告（免鉴权公开接口）
-  loadPublicData();
-  // E8: 若是因空闲超时被登出，提示用户
-  const urlParams = new URLSearchParams(window.location.search)
-  if (urlParams.get('reason') === 'idle') {
-    ElMessage.warning('长时间未操作，已自动退出登录，请重新登录')
-    // 清除 URL 中的原因参数
-    urlParams.delete('reason')
-    const qs = urlParams.toString()
-    window.history.replaceState({}, '', qs ? '/login?' + qs : '/login')
-  }
-  // 检查是否已有token，如果有则跳转到首页
-  const token = localStorage.getItem('token');
+  generateCaptcha()
+  loadPublicData()
+  const token = localStorage.getItem('token')
   if (token) {
-    console.log('Token already exists, redirecting to home');
-    router.push('/');
+    router.replace('/')
   }
 })
 </script>
 
-<style scoped src="../assets/login.css"></style>
+<style scoped src="@/assets/login.css"></style>
+
+<style scoped>
+/* 移动端强制左右布局，覆盖 src/assets/login.css 的 @media(max-width:1200px) 纵向堆叠 */
+.login-container.mobile-login {
+  flex-direction: row !important;
+  align-items: stretch !important;
+  justify-content: center !important;
+  gap: 0.6rem !important;
+  padding: 0.6rem !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  overflow: hidden !important;
+}
+.mobile-login .login-info-panel {
+  flex: 0 0 56% !important;
+  width: 56% !important;
+  max-width: none !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  padding: 1.5rem 1rem 1.5rem !important;
+}
+.mobile-login .login-form-wrapper {
+  flex: 0 0 42% !important;
+  width: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  padding: 1.25rem 0.7rem !important;
+  margin: auto 0 !important;
+}
+.mobile-login .login-header { margin-bottom: 1rem !important; }
+.mobile-login .logo-text { font-size: 1.25rem !important; }
+.mobile-login .login-subtitle { font-size: 0.8rem !important; }
+.mobile-login .input-field :deep(.el-input__inner) { height: 40px !important; }
+/* 验证码在移动端收窄：图片缩小 + 输入框弹性占满剩余宽度，确保可输入 */
+.mobile-login .captcha-container { gap: 6px !important; }
+.mobile-login .captcha-input {
+  flex: 1 1 auto !important;
+  max-width: 140px !important;
+  min-width: 0 !important;
+}
+.mobile-login .input-field.captcha-input { height: 40px !important; }
+.mobile-login .captcha-img {
+  width: 70px !important;
+  height: 34px !important;
+  flex: 0 0 auto !important;
+}
+.mobile-login .login-btn { height: 42px !important; }
+.mobile-login .announce-board { padding: 12px !important; }
+.mobile-login .board-title { font-size: 1rem !important; }
+.mobile-login .board-sub { font-size: 11px !important; }
+.mobile-login .announce-title { font-size: 12px !important; }
+.mobile-login .announce-summary { font-size: 11px !important; }
+.mobile-login .announce-date { font-size: 10px !important; }
+.mobile-login .announce-badge { font-size: 10px !important; }
+.mobile-login .tech-indicators { margin-top: 1rem !important; font-size: 11px !important; }
+.mobile-login .indicator-dot { width: 6px !important; height: 6px !important; }
+</style>

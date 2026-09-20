@@ -1,8 +1,12 @@
 .login-container {
+  box-sizing: border-box;
   width: 100vw;
   height: 100vh;
   display: flex;
-  align-items: stretch;
+  align-items: center;
+  justify-content: center;
+  gap: 4rem;
+  padding: 0 3rem;
   background: #E4EDF2;
   position: relative;
   overflow: hidden;
@@ -24,15 +28,85 @@
   width: 100%;
   height: 100%;
   background-image: 
-    linear-gradient(rgba(30, 90, 168, 0.1) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(30, 90, 168, 0.1) 1px, transparent 1px);
+    linear-gradient(rgba(30, 90, 168, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30, 90, 168, 0.07) 1px, transparent 1px);
   background-size: 50px 50px;
-  animation: gridMove 20s linear infinite;
+  animation: gridMove 90s linear infinite;
 }
 
 @keyframes gridMove {
   0% { transform: translate(0, 0); }
   100% { transform: translate(50px, 50px); }
+}
+
+/* ---- 缓慢呼吸的中心辉光（氛围底） ---- */
+.bg-glow-slow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 70vw;
+  height: 70vw;
+  max-width: 900px;
+  max-height: 900px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(30, 90, 168, 0.08), transparent 68%);
+  animation: glowSlow 40s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes glowSlow {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.55; }
+  50% { transform: translate(-50%, -50%) scale(1.12); opacity: 0.9; }
+}
+
+/* ---- 科技流光线条：极缓慢斜向掠过，低透明度不抢眼 ---- */
+.bg-streams {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.bg-streams .stream {
+  position: absolute;
+  left: -45vw;
+  width: 45vw;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(30, 90, 168, 0.55), rgba(91, 143, 201, 0.15), transparent);
+  transform: translate3d(0, 0, 0);
+  animation: streamFlow linear infinite;
+}
+
+.bg-streams .stream-1 { top: 18%; animation-duration: 34s; animation-delay: -4s; }
+.bg-streams .stream-2 { top: 42%; animation-duration: 46s; animation-delay: -22s; opacity: 0.7; }
+.bg-streams .stream-3 { top: 66%; animation-duration: 40s; animation-delay: -12s; opacity: 0.55; }
+.bg-streams .stream-4 { top: 84%; animation-duration: 56s; animation-delay: -32s; opacity: 0.45; }
+
+@keyframes streamFlow {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(190vw); }
+}
+
+/* ---- 缓慢浮动粒子（细小光点，向上飘动 + 明暗呼吸） ---- */
+.bg-dots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.bg-dots span {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(30, 90, 168, 0.9), rgba(30, 90, 168, 0) 70%);
+  animation-name: dotDrift;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes dotDrift {
+  0%   { transform: translate3d(0, 0, 0); }
+  50%  { transform: translate3d(10px, -22px, 0); }
+  100% { transform: translate3d(0, 0, 0); }
 }
 
 .bg-particles {
@@ -122,216 +196,451 @@
 
 .login-info-panel {
   flex: 1;
+  align-self: stretch; /* 撑满容器高度，内容改由顶部起排（原先 flex-start 无效是因为面板本身被容器垂直居中） */
+  box-sizing: border-box;
   display: flex;
-  align-items: flex-start;
+  align-items: stretch; /* 让 .info-content 撑满可用高度，内部各块按 flex 收缩，避免整栏溢出 */
   justify-content: center;
-  padding: 4rem;
+  padding: 2rem 4rem 3rem;
   position: relative;
   z-index: 10;
   overflow-y: auto;
   max-height: 100vh;
+  /* 隐藏面板级滚动条：内容高度已收敛，避免出现一条贯穿中部的竖向滚动条 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.login-info-panel::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .info-content {
-  max-width: 600px;
+  max-width: 620px;
   width: 100%;
   color: #333;
-}
-
-.info-header {
-  margin-bottom: 3rem;
-}
-
-.info-title {
-  font-size: 2.5rem;
-  font-weight: bold;
-  color: #333;
-  margin-bottom: 1rem;
-  text-shadow: 0 0 10px rgba(30, 90, 168, 0.3);
-  line-height: 1.2;
-}
-
-.info-subtitle {
-  font-size: 1.25rem;
-  color: rgba(51, 51, 51, 0.7);
-  margin-bottom: 0;
-}
-
-.policy-news {
-  margin-bottom: 3rem;
-}
-
-.news-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 1.5rem;
-  position: relative;
-  padding-bottom: 0.5rem;
-}
-
-.news-title::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 60px;
-  height: 3px;
-  background: linear-gradient(90deg, #1E5AA8, #5B8FC9);
-  border-radius: 3px;
-}
-
-.news-list {
+  /* 纵向排列 状态条 / 假期 / 公告卡 / 今日一览，公告卡自动吸收高度变化 */
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 0.85rem;
+  max-height: 100%;
+  min-height: 0;
 }
 
-.news-item {
+/* ============ 左侧面板：动态公告（B） ============ */
+
+.board-head {
   display: flex;
-  align-items: flex-start;
-  gap: 1.5rem;
-  padding: 1.5rem;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
-  border-radius: 12px;
-  border: 1px solid rgba(30, 90, 168, 0.3);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
 }
 
-.news-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(30, 90, 168, 0.2);
-  border-color: rgba(30, 90, 168, 0.5);
-}
-
-.news-icon {
-  flex-shrink: 0;
-  width: 50px;
-  height: 50px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 20px;
-  box-shadow: 0 4px 12px rgba(30, 90, 168, 0.4);
-}
-
-.ai-icon {
-  background: linear-gradient(45deg, #1E5AA8, #2E6FB8);
-}
-
-.rural-icon {
-  background: linear-gradient(45deg, #32CD32, #228B22);
-}
-
-.three-in-one-icon {
-  background: linear-gradient(45deg, #FF6B6B, #FF4757);
-}
-
-.policy-icon {
-  background: linear-gradient(45deg, #FFD700, #FFA500);
-}
-
-.news-content {
-  flex: 1;
-}
-
-.news-item-title {
-  font-size: 1.1rem;
+.board-title {
+  font-size: 1.25rem;
   font-weight: 600;
   color: #333;
-  margin-bottom: 0.5rem;
-}
-
-.news-item-desc {
-  font-size: 0.95rem;
-  color: rgba(51, 51, 51, 0.7);
-  line-height: 1.5;
   margin: 0;
-}
-
-.tech-highlights {
-  margin-top: 2rem;
-}
-
-.highlights-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 1.5rem;
   position: relative;
-  padding-bottom: 0.5rem;
+  padding-bottom: 0.4rem;
 }
 
-.highlights-title::after {
+.board-title::after {
   content: '';
   position: absolute;
   bottom: 0;
   left: 0;
-  width: 60px;
+  width: 46px;
   height: 3px;
   background: linear-gradient(90deg, #1E5AA8, #5B8FC9);
   border-radius: 3px;
 }
 
-.highlights-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
+.board-sub {
+  font-size: 0.8rem;
+  color: rgba(51, 51, 51, 0.55);
+  white-space: nowrap;
 }
 
-.highlight-item {
-  padding: 1.5rem;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
-  border-radius: 12px;
-  border: 1px solid rgba(30, 90, 168, 0.3);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+/* ---- 动态公告面板：与右侧登录卡片同规格（圆角/边框/阴影），形成左右呼应 ---- */
+.announce-board {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  flex: 0 0 auto; /* 不再参与压缩：内容超高时由左侧面板整体滚动，避免公告区被挤成 0 高度 */
+  min-height: 0;
+  max-height: none;
+  padding: 1.75rem 1.75rem 1.5rem;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(30, 90, 168, 0.28);
+  border-radius: 24px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  margin: 0;
+}
+
+.announce-list {
+  /* 关键：不能被 flex 压成 0 高度，否则跑马灯/公告列表会整块消失（曾因此导致滚动失效） */
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.announce-track {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- 置顶区：固定顶部，不参与跑马灯滚动 ---- */
+.announce-pinned {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px dashed rgba(30, 90, 168, 0.22);
+}
+.announce-item.is-pinned {
+  background: linear-gradient(90deg, rgba(30, 90, 168, 0.1), rgba(30, 90, 168, 0.02));
+  border: 1px solid rgba(30, 90, 168, 0.2);
+}
+.announce-item.is-pinned .announce-title {
+  font-weight: 600;
+}
+
+/* ---- 滚动播报（跑马灯）：缓慢上滚，悬停暂停 ---- */
+.announce-list.is-scrolling {
+  /* 跑马灯必须有固定的可视窗口高度，否则 track 位移看不出滚动 */
+  height: clamp(170px, 30vh, 250px);
+  overflow: hidden;
+  padding-right: 0;
+  /* 上下缘渐隐，避免条目被生硬切断 */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+}
+
+.announce-list.is-scrolling .announce-track {
+  animation-name: announceScroll;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.announce-list.is-scrolling:hover .announce-track {
+  animation-play-state: paused;
+}
+
+/* 列表复制一份尾接，位移 -50% 即回到起点，实现无缝循环 */
+@keyframes announceScroll {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-50%); }
+}
+
+.announce-foot {
+  margin-top: 0.9rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed rgba(30, 90, 168, 0.22);
   text-align: center;
-  transition: all 0.3s ease;
+  font-size: 0.78rem;
+  color: rgba(51, 51, 51, 0.45);
+  letter-spacing: 0.5px;
 }
 
-.highlight-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(30, 90, 168, 0.2);
-  border-color: rgba(30, 90, 168, 0.5);
+/* ==== 登录页左侧补充模块：状态条 / 假期倒计时 / 今日一览 ==== */
+
+.holiday-strip {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex: 0 0 auto;
+  padding: 0.6rem 0.9rem;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(30, 90, 168, 0.2);
+  border-radius: 14px;
 }
 
-.highlight-icon {
-  width: 60px;
-  height: 60px;
-  background: linear-gradient(45deg, #1E5AA8, #5B8FC9);
-  border-radius: 16px;
+.holiday-bar {
+  flex: 0 0 auto;
+  width: 3px;
+  height: 26px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #1E5AA8, #5B8FC9);
+}
+
+.holiday-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.holiday-label {
+  font-size: 0.72rem;
+  color: rgba(51, 51, 51, 0.5);
+}
+
+.holiday-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1E5AA8;
+}
+
+/* ---- 公告详情弹窗附件 ---- */
+.ann-detail-attach {
+  margin-top: 16px;
+  border-top: 1px dashed #e0e6ef;
+  padding-top: 12px;
+}
+.ann-attach-title {
+  font-size: 13px;
+  color: #5a6b80;
+  margin-bottom: 8px;
+}
+.ann-attach-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.ann-attach-img {
+  max-width: 160px;
+  max-height: 160px;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid #ebeef5;
+}
+.ann-attach-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  background: rgba(30, 90, 168, 0.05);
+  border: 1px solid rgba(30, 90, 168, 0.16);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: #1E5AA8;
+  font-size: 13px;
+  max-width: 220px;
+}
+.ann-attach-item:hover {
+  background: rgba(30, 90, 168, 0.1);
+}
+.ann-attach-ico {
+  flex: 0 0 auto;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  font-size: 24px;
-  margin: 0 auto 1rem;
-  box-shadow: 0 4px 12px rgba(30, 90, 168, 0.4);
+  background: #5B8FC9;
+}
+.ann-attach-ico.ico-image { background: #2E9E83; }
+.ann-attach-ico.ico-doc { background: #E08A2B; }
+.ann-attach-ico.ico-code { background: #6A5ACD; }
+.ann-attach-ico.ico-archive { background: #8B6F47; }
+.ann-attach-ico.ico-media { background: #C0504D; }
+.ann-attach-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.highlight-item h4 {
-  font-size: 1.1rem;
+.announce-item {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1rem 0.85rem 1.15rem;
+  /* 间距用 margin 而非父级 gap：跑马灯位移 -50% 需要等距才能无缝 */
+  margin-bottom: 0.6rem;
+  background: rgba(30, 90, 168, 0.05);
+  border: 1px solid rgba(30, 90, 168, 0.16);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+/* 非跑马灯模式：抵消末尾多余间距 */
+.announce-list:not(.is-scrolling) .announce-track {
+  margin-bottom: -0.6rem;
+}
+
+.announce-item:hover {
+  background: rgba(30, 90, 168, 0.09);
+  border-color: rgba(30, 90, 168, 0.42);
+  box-shadow: 0 6px 18px rgba(30, 90, 168, 0.15);
+}
+
+/* ---- 紧急程度视觉化：普通=蓝 / 重要=橙 / 紧急=红 ---- */
+.announce-item.lv-warn {
+  background: rgba(230, 145, 30, 0.07);
+  border-color: rgba(230, 145, 30, 0.3);
+}
+
+.announce-item.lv-urgent {
+  background: rgba(215, 60, 60, 0.07);
+  border-color: rgba(215, 60, 60, 0.34);
+}
+
+.announce-item.lv-warn:hover {
+  background: rgba(230, 145, 30, 0.12);
+  border-color: rgba(230, 145, 30, 0.62);
+  box-shadow: 0 6px 18px rgba(230, 145, 30, 0.2);
+}
+
+.announce-item.lv-urgent:hover {
+  background: rgba(215, 60, 60, 0.12);
+  border-color: rgba(215, 60, 60, 0.62);
+  box-shadow: 0 6px 18px rgba(215, 60, 60, 0.2);
+}
+
+.announce-accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #1E5AA8;
+}
+
+.announce-item.lv-warn .announce-accent {
+  background: linear-gradient(180deg, #F0A93B, #E6911E);
+}
+
+.announce-item.lv-urgent .announce-accent {
+  background: linear-gradient(180deg, #F56C6C, #D73C3C);
+  animation: accentPulse 2.6s ease-in-out infinite;
+}
+
+@keyframes accentPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.announce-item.lv-urgent .announce-title {
+  color: #B23A31;
+}
+
+.announce-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.announce-line {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.announce-badge {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  padding: 0 0.45rem;
+  border-radius: 9px;
+  color: #1E5AA8;
+  background: rgba(30, 90, 168, 0.12);
+  border: 1px solid rgba(30, 90, 168, 0.25);
+}
+
+.announce-badge.badge-top {
+  color: #fff;
+  background: linear-gradient(45deg, #1E5AA8, #5B8FC9);
+  border-color: transparent;
+}
+
+.announce-badge.badge-new {
+  color: #fff;
+  background: #f56c6c;
+  border-color: transparent;
+}
+
+/* 分类徽标按紧急程度着色；级别徽标（仅重要/紧急显示）用实色 */
+.announce-badge.cat-info {
+  color: #1E5AA8;
+  background: rgba(30, 90, 168, 0.12);
+  border-color: rgba(30, 90, 168, 0.25);
+}
+
+.announce-badge.cat-warn {
+  color: #B77410;
+  background: rgba(230, 145, 30, 0.14);
+  border-color: rgba(230, 145, 30, 0.36);
+}
+
+.announce-badge.cat-urgent {
+  color: #C0392B;
+  background: rgba(215, 60, 60, 0.13);
+  border-color: rgba(215, 60, 60, 0.36);
+}
+
+.announce-badge.badge-warn {
+  color: #fff;
+  background: linear-gradient(45deg, #F0A93B, #E6911E);
+  border-color: transparent;
+}
+
+.announce-badge.badge-urgent {
+  color: #fff;
+  background: linear-gradient(45deg, #F56C6C, #D73C3C);
+  border-color: transparent;
+}
+
+.announce-title {
+  font-size: 1rem;
   font-weight: 600;
   color: #333;
-  margin-bottom: 0.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.highlight-item p {
+.announce-summary {
+  margin: 0.35rem 0 0;
   font-size: 0.85rem;
-  color: rgba(51, 51, 51, 0.7);
-  line-height: 1.4;
-  margin: 0;
+  color: rgba(51, 51, 51, 0.65);
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.announce-date {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: rgba(51, 51, 51, 0.5);
+  font-variant-numeric: tabular-nums;
+}
+
+.announce-empty {
+  padding: 1.5rem 1rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: rgba(51, 51, 51, 0.5);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px dashed rgba(30, 90, 168, 0.3);
+  border-radius: 10px;
 }
 
 .login-form-wrapper {
-  width: 450px;
-  height: 480px;
-  padding: 4rem;
+  box-sizing: border-box;
+  width: 430px;
+  min-height: 0;
+  max-height: calc(100vh - 3rem);
+  padding: 2.75rem 2.5rem 2rem;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(20px);
   border-radius: 24px;
@@ -392,7 +701,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 2.5rem;
+  margin-bottom: 1.75rem;
   z-index: 1;
 }
 
@@ -660,8 +969,8 @@
 .tech-indicators {
   display: flex;
   justify-content: space-around;
-  margin-top: 2.5rem;
-  padding-top: 2rem;
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
   border-top: 1px solid rgba(30, 90, 168, 0.3);
   width: 100%;
   max-width: 300px;
@@ -878,45 +1187,74 @@
 @media (max-width: 1200px) {
   .login-container {
     flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    gap: 1.5rem;
+    padding: 2rem 1.25rem;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
   .login-info-panel {
+    flex: 0 0 auto;
     width: 100%;
-    padding: 2rem;
+    max-width: 520px;
+    max-height: none;
+    overflow: visible;
+  }
+  .announce-board {
+    min-height: auto;
+  }
+  .announce-list {
+    flex: 0 0 auto;
+    max-height: none;
   }
   .login-form-wrapper {
-    width: 90%;
-    max-width: 450px;
-    margin: 2rem auto;
-    padding: 2rem;
-  }
-  .highlights-grid {
-    grid-template-columns: 1fr;
+    width: 100%;
+    max-width: 430px;
+    max-height: none;
+    padding: 2rem 1.75rem 1.5rem;
   }
 }
 
 @media (max-width: 768px) {
   .login-form-wrapper {
-    width: 95%;
-    padding: 1.5rem;
+    width: 100%;
+    padding: 1.5rem 1.25rem 1rem;
   }
   .logo-text {
-    font-size: 2.429028rem;
+    font-size: 1.35rem;
   }
   .login-title {
     font-size: 1.25rem;
   }
-  .info-title {
-    font-size: 2rem;
-  }
-  .info-subtitle {
-    font-size: 1rem;
-  }
-  .news-item {
+  .announce-item {
     flex-direction: column;
-    align-items: center;
-    text-align: center;
+    align-items: flex-start;
+    gap: 0.4rem;
   }
-  .news-icon {
-    margin-bottom: 1rem;
+  .announce-title {
+    white-space: normal;
+  }
+  .announce-summary {
+    white-space: normal;
+  }
+}
+
+/* ---- 弱动效偏好：关闭全部装饰性动画（背景流光 / 粒子 / 跑马灯 / 呼吸色条） ---- */
+@media (prefers-reduced-motion: reduce) {
+  .bg-grid,
+  .bg-glow-slow,
+  .bg-streams .stream,
+  .bg-dots span,
+  .bg-particles::before,
+  .logo-pulse,
+  .announce-item.lv-urgent .announce-accent,
+  .announce-list.is-scrolling .announce-track {
+    animation: none !important;
+  }
+  .announce-list.is-scrolling {
+    overflow-y: auto;
+    -webkit-mask-image: none;
+    mask-image: none;
   }
 }

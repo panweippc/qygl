@@ -690,6 +690,123 @@ router.get('/home/approval-summary', async (req, res) => {
   }
 });
 
+// 将 userId(users.id) 解析为真实姓名，用于按 applicant / applicant_name 查询 7 张传统业务表
+const resolveUserName = async (pool, userId) => {
+  if (userId === undefined || userId === null) return null;
+  const [users] = await pool.execute('SELECT username, name FROM users WHERE id = ?', [userId]);
+  if (users.length === 0) return null;
+  const u = users[0];
+  const rawName = u.name || u.username || '';
+  if (rawName && rawName.startsWith('emp_')) {
+    const parts = String(rawName).split('_');
+    if (parts.length >= 2) return parts[1];
+  }
+  return rawName;
+};
+
+// 统一状态文本（中文优先，便于移动端展示）
+const normalizeStatus = (status) => {
+  if (!status) return '审批中';
+  const s = String(status).toLowerCase();
+  if (['approved', '已通过', '已同意', '已批准'].some(x => s.includes(x))) return '已通过';
+  if (['rejected', '已拒绝', '拒绝'].some(x => s.includes(x))) return '已拒绝';
+  if (['returned', '已退回', '退回'].some(x => s.includes(x))) return '已退回';
+  if (['withdrawn', '已撤回', '已取消', 'cancelled'].some(x => s.includes(x))) return '已撤回';
+  if (['pending', '待审批', '审批中', '待审核', '进行中'].some(x => s.includes(x))) return '审批中';
+  return status;
+};
+
+// 聚合我的全部申请：OA 统一审批流 + 7 张传统业务表，按申请时间倒序
+router.get('/oa/all-my-applications/:userId', async (req, res) => {
+  const { pool } = req.app.locals;
+  try {
+    const { userId } = req.params;
+    const userName = await resolveUserName(pool, userId);
+    if (!userName) {
+      return res.status(400).json({ success: false, message: '用户不存在' });
+    }
+
+    // 7 张传统业务表映射（与 /home/approval-summary 对齐）
+    const applicantTables = [
+      { table: 'leave_applications', type: '请假', applicantCol: 'applicant', titleCol: 'reason', isDeleted: false },
+      { table: 'reimbursements', type: '报销', applicantCol: 'applicant', titleCol: 'reimburseType', amountCol: 'amount', isDeleted: true },
+      { table: 'meetings', type: '会议', applicantCol: 'organizer', titleCol: 'title', isDeleted: false },
+      { table: 'project_applications', type: '项目申请', applicantCol: 'applicant_name', titleCol: 'project_name', isDeleted: true, hasApplicantId: true },
+      { table: 'entertainment_expenses', type: '招待', applicantCol: 'applicant', titleCol: 'purpose', amountCol: 'expenseAmount', isDeleted: true },
+      { table: 'office_supplies_applications', type: '办公用品', applicantCol: 'applicant', titleCol: 'itemName', isDeleted: true },
+      { table: 'business_trip_applications', type: '出差', applicantCol: 'applicant_name', titleCol: 'destination', amountCol: 'estimated_cost', isDeleted: true, hasApplicantId: true }
+    ];
+
+    const all = [];
+    const empId = await resolveEmployeeId(pool, userId);
+
+    // 传统 7 张表
+    for (const cfg of applicantTables) {
+      const deletedSql = cfg.isDeleted ? ` AND (is_deleted = 0 OR is_deleted IS NULL)` : '';
+      const applicantIdSql = cfg.hasApplicantId
+        ? ` AND (${cfg.applicantCol} = ? OR applicant_id = ?)`
+        : ` AND ${cfg.applicantCol} = ?`;
+      const params = cfg.hasApplicantId ? [userName, userId] : [userName];
+      const timeCol = cfg.table === 'business_trip_applications' || cfg.table === 'project_applications' ? 'created_at' : 'createdAt';
+      const fields = ['id', `${cfg.titleCol} as title`, `${cfg.applicantCol} as applicantName`, 'status', `${timeCol} as createdAt`];
+      if (cfg.amountCol) fields.push(`${cfg.amountCol} as amount`);
+
+      try {
+        const [rows] = await pool.execute(
+          `SELECT ${fields.join(', ')} FROM ${cfg.table} WHERE 1=1${applicantIdSql}${deletedSql} ORDER BY ${timeCol} DESC LIMIT 200`,
+          params
+        );
+        for (const row of rows) {
+          const businessData = { title: row.title || '' };
+          if (cfg.amountCol && row.amount) businessData.amount = row.amount;
+          all.push({
+            id: row.id,
+            source: cfg.table,
+            businessType: cfg.type,
+            applicantName: row.applicantName || userName,
+            status: normalizeStatus(row.status),
+            createdAt: row.createdAt,
+            businessData
+          });
+        }
+      } catch (e) {
+        // 表或字段不存在时静默跳过，避免整张表缺失导致接口 500
+        console.warn(`聚合我的申请时查询 ${cfg.table} 失败:`, e.message);
+      }
+    }
+
+    // OA 统一审批流
+    try {
+      const candidates = empId !== null ? [String(userId), String(empId)] : [String(userId)];
+      const [instances] = await pool.execute(
+        `SELECT * FROM oa_approval_instances WHERE applicantId IN (${candidates.map(() => '?').join(',')}) ORDER BY createdAt DESC LIMIT 200`,
+        candidates
+      );
+      for (const it of instances) {
+        const data = JSON.parse(it.businessData || '{}');
+        all.push({
+          id: it.id,
+          source: 'oa_approval_instances',
+          businessType: it.businessType || 'OA审批',
+          applicantName: it.applicantName || userName,
+          status: normalizeStatus(it.status),
+          createdAt: it.createdAt,
+          businessData: data
+        });
+      }
+    } catch (e) {
+      console.warn('聚合我的申请时查询 oa_approval_instances 失败:', e.message);
+    }
+
+    all.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
+    res.json({ success: true, data: all });
+  } catch (error) {
+    console.error('获取全部申请列表失败:', error);
+    res.status(500).json({ success: false, message: '获取全部申请列表失败: ' + error.message });
+  }
+});
+
 // 更新审批人配置
 router.put('/oa/approver-config/:id', requireRole('系统管理员', '总经理'), async (req, res) => {
   const { pool } = req.app.locals;

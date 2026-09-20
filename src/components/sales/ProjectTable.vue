@@ -236,6 +236,7 @@ async function remove(row: any) {
 
 function openVersions(row: any) { diffRecordId.value = row.id; diffVisible.value = true }
 onMounted(load)
+defineExpose({ load })
 </script>
 
 <style scoped>

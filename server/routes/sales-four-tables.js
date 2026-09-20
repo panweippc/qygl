@@ -873,12 +873,13 @@ async function mirrorVisitsToProject(pool, customerName, analysisId) {
 }
 
 // 漏斗保存后：按 customer_name 自动带出/同步大项目进展记录 + 拜访记录
-// 返回 analysisId（无客户名时返回 null）。失败不影响主流程。
+// 返回 { analysisId, created }（无客户名时返回 null）。失败不影响主流程。
 async function ensureProjectForFunnel(pool, funnelBody, createdBy) {
   const customerName = funnelBody.customer_name;
   if (!customerName) return null;
   const [existing] = await pool.execute('SELECT id FROM sales_project_analysis WHERE customer_name = ? LIMIT 1', [customerName]);
   let analysisId;
+  let created = false;
   if (existing.length === 0) {
     // 新建：带出客户名/负责人/申报日期/申报月份，其余项目字段留空待用户在「大项目进展」补充
     const cols = ['customer_name', 'report_date', 'project_owner', 'report_month'];
@@ -886,6 +887,7 @@ async function ensureProjectForFunnel(pool, funnelBody, createdBy) {
     const sql = `INSERT INTO sales_project_analysis (${cols.join(', ')}, created_by) VALUES (${cols.map(() => '?').join(', ')}, ?)`;
     const [r] = await pool.execute(sql, [...vals, createdBy]);
     analysisId = r.insertId;
+    created = true;
     // 新建即把该客户已有的全局拜访记录带出到大项目进展
     await mirrorVisitsToProject(pool, customerName, analysisId);
   } else {
@@ -896,7 +898,7 @@ async function ensureProjectForFunnel(pool, funnelBody, createdBy) {
       [funnelBody.owner || '', funnelBody.report_date || '', funnelBody.report_month || '', analysisId]
     );
   }
-  return analysisId;
+  return { analysisId, created };
 }
 
 async function insertVersion(pool, tableType, recordId, data, createdBy) {
@@ -1205,6 +1207,8 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
     const createdBy = cleanOwner(req.user?.username);
     let imported = 0;
     let skipped = 0;
+    let projectCreated = 0;
+    let projectSynced = 0;
     const errors = [];
 
     for (const sheetName of workbook.SheetNames) {
@@ -1252,6 +1256,24 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
           const [result] = await pool.execute(sql, params);
           await insertVersion(pool, type, result.insertId, { ...obj, created_by: createdBy }, createdBy);
           imported++;
+
+          // 与在线「新增/保存」保持一致：导入同样按客户名自动带出「大项目进展」记录
+          const customerName = String(obj['客户名单'] || '').trim();
+          if ((type === 'intention' || type === 'key' || type === 'deal') && customerName) {
+            try {
+              const syncRes = await ensureProjectForFunnel(pool, {
+                customer_name: customerName,
+                owner: String(obj['owner'] || createdBy).trim(),
+                report_date: reportDate,
+                report_month: reportMonth
+              }, createdBy);
+              if (syncRes?.created) projectCreated++;
+              else if (syncRes?.analysisId) projectSynced++;
+            } catch (e) {
+              // 大项目进展同步失败不影响导入主流程，但要在响应里留痕
+              errors.push('大项目进展同步失败(' + customerName + '): ' + e.message);
+            }
+          }
         } catch (e) {
           skipped++;
           errors.push(String(e.message));
@@ -1259,8 +1281,10 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
       }
     }
     fs.unlink(req.file.path, () => {});
-    createOperationLog(pool, { username: getOperator(req), action: 'import', module: 'sales-four-tables', targetName: `${type} Excel导入`, detail: `导入${type}，成功${imported}条，跳过${skipped}条` });
-    res.json({ success: true, message: `导入完成：成功 ${imported} 条，跳过 ${skipped} 条`, data: { imported, skipped, errors: errors.slice(0, 10) } });
+    const isFunnel = type === 'intention' || type === 'key' || type === 'deal';
+    const projTip = isFunnel ? `，带出大项目进展 ${projectCreated} 条（同步 ${projectSynced} 条）` : '';
+    createOperationLog(pool, { username: getOperator(req), action: 'import', module: 'sales-four-tables', targetName: `${type} Excel导入`, detail: `导入${type}，成功${imported}条，跳过${skipped}条${projTip}` });
+    res.json({ success: true, message: `导入完成：成功 ${imported} 条，跳过 ${skipped} 条${projTip}`, data: { imported, skipped, projectCreated, projectSynced, errors: errors.slice(0, 10) } });
   } catch (error) {
     console.error('导入失败:', error);
     res.status(500).json({ success: false, message: '导入失败' });

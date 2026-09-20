@@ -206,6 +206,7 @@ function onImportSuccess() {
 
 onMounted(load)
 watch(() => props.type, load)
+defineExpose({ load })
 </script>
 
 <style scoped>

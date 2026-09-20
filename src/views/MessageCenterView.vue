@@ -166,6 +166,17 @@ async function markRead(item: any) {
   } catch { /* ignore */ }
 }
 
+// 移动端补充：PC 端 /oa-office 路由在移动端对应 /todo（两路由复用同一组件 OAWorkflowView）
+// PC 端 __APP_DEVICE__ 未设置，此映射不生效，保持原有跳转逻辑不变
+function mapToMobileRoute(route: string): string {
+  if (typeof window !== 'undefined' && (window as any).__APP_DEVICE__ === 'mobile') {
+    if (route.startsWith('/oa-office')) {
+      return route.replace('/oa-office', '/todo')
+    }
+  }
+  return route
+}
+
 // 点击消息：标记已读 + 跳转对应模块
 async function handleItemClick(item: any) {
   try {
@@ -174,7 +185,7 @@ async function handleItemClick(item: any) {
       await markRead(item)
     }
     // 跳转到对应模块
-    const targetRoute = resolveJumpRoute(item)
+    const targetRoute = mapToMobileRoute(resolveJumpRoute(item))
     if (targetRoute) {
       // 标记来自消息中心：目标页点击"返回"时应回到首页而非消息中心
       const sep = targetRoute.includes('?') ? '&' : '?'

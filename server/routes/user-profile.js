@@ -101,9 +101,10 @@ router.post('/user/change-password', passwordLimiter, async (req, res) => {
       return res.json({ success: false, message: '新密码不能与旧密码相同' });
     }
     await pool.execute('UPDATE users SET password = ? WHERE username = ?', [hashPassword(String(newPassword)), username]);
-    // 密码已修改，使该用户所有旧会话失效（强制重新登录）
-    if (userSessions && userSessions.has(username)) {
-      userSessions.delete(username);
+    // 密码已修改，使该用户所有端（pc/mobile）旧会话失效（强制重新登录）
+    if (userSessions) {
+      userSessions.delete(`${username}|pc`);
+      userSessions.delete(`${username}|mobile`);
     }
     // 修改密码审计（高危操作）
     createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'change_password', module: 'auth', targetId: null, targetName: username, detail: `用户修改密码: ${username}`, ipAddress: req.ip });

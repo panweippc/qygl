@@ -4,11 +4,19 @@ import { io, Socket } from 'socket.io-client'
 let socket: Socket | null = null
 
 /**
- * 建立 Socket.IO 连接（单设备登录机制）
+ * 建立 Socket.IO 连接（多端共存：按设备类型维度）
  * - 携带当前 token 连接，后端校验 token 后建立
- * - 监听 kickedOut 事件：账号在其他设备登录时，本设备被强制下线
- * 说明：仅 HTTP 层的登录状态通过 JWT 校验；socket 连接用于"单设备"互踢。
+ * - 监听 kickedOut 事件：同类型设备（pc/pc 或 mobile/mobile）在其他地方登录时，本设备被强制下线
+ * 说明：socket 仅用于实时通知与在线状态；PC 与手机为不同设备类型，可同时在线。
+ * 连接地址使用页面同源（window.location.origin），由前端 nginx 反代 /socket.io，
+ * 避免 HTTPS 页面下直连 http://:3005 产生的混合内容（mixed content）拦截。
  */
+// 设备类型：优先读入口显式声明（移动端入口会置 window.__APP_DEVICE__='mobile'），否则按 UA 推断
+function resolveDeviceType(): string {
+  if ((window as any).__APP_DEVICE__) return (window as any).__APP_DEVICE__
+  return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'mobile' : 'pc'
+}
+
 export function initSocket(): Socket | null {
   const token = localStorage.getItem('token')
   if (!token) return null
@@ -16,11 +24,13 @@ export function initSocket(): Socket | null {
   // 已存在连接则复用
   if (socket && socket.connected) return socket
 
-  const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
-  const host = window.location.hostname
-  const port = 3005
+  // 连接地址：
+  // - 开发环境（vite dev 3003 / 3004）直连后端 3005，避免 vite proxy 改写 Origin 导致 socket.io CORS 拒绝握手
+  // - 生产环境走页面同源，由 nginx 反代 /socket.io 到后端 3005（支持 HTTPS）
+  const isDev = /^(http|https):\/\/(localhost|127\.0\.0\.1):(3003|3004)$/.test(window.location.origin)
+  const endpoint = isDev ? 'http://localhost:3005' : window.location.origin
 
-  socket = io(`${protocol}://${host}:${port}`, {
+  socket = io(endpoint, {
     auth: { token },
     transports: ['websocket', 'polling'],
     reconnection: true,
@@ -29,13 +39,19 @@ export function initSocket(): Socket | null {
   })
 
   socket.on('connect', () => {
-    // 连接建立后，告知后端当前登录用户（用于在线状态 + 单设备互踢）
+    console.log('[socket] 已连接:', socket?.id)
+    // 连接建立后，告知后端当前登录用户与设备类型（在线状态 + 按设备维度互踢）
     const username = localStorage.getItem('username')
     const userId = localStorage.getItem('userId')
+    const deviceType = resolveDeviceType()
     if (username) {
-      socket?.emit('setUserLogin', username)
+      socket?.emit('setUserLogin', { username, deviceType })
       if (userId) socket?.emit('setEmployeeId', userId)
     }
+  })
+
+  socket.on('connect_error', (err: any) => {
+    console.error('[socket] 连接失败:', err?.message || err)
   })
 
   // 单设备登录：账号在其他设备登录，本设备被踢下线

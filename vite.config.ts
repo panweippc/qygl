@@ -76,7 +76,8 @@ export default defineConfig({
       },
       '/socket.io': {
         target: 'http://localhost:3005',
-        changeOrigin: true,
+        // 保持浏览器原始 Origin，避免后端 socket.io CORS 因 origin 被改写成 localhost:3005 而拒绝握手
+        changeOrigin: false,
         secure: false,
         ws: true
       }

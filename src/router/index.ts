@@ -76,6 +76,11 @@ const router = createRouter({
       component: () => import('../views/SalesTargetView.vue')
     },
     {
+      path: '/announcement-management',
+      name: 'announcement-management',
+      component: () => import('../views/AnnouncementManagementView.vue')
+    },
+    {
       path: '/knowledge-base',
       name: 'knowledge-base',
       redirect: '/resource-center'

@@ -174,6 +174,7 @@ async function remove(row: any) {
 function openVersions(row: any) { diffRecordId.value = row.id; diffVisible.value = true }
 function onImportSuccess() { load(); emit('refresh-stats') }
 onMounted(load)
+defineExpose({ load })
 </script>
 
 <style scoped>

@@ -370,6 +370,11 @@ const loadReports = async () => {
 // 组件挂载时加载数据
 onMounted(async () => {
   await loadEmployees()
+  // 总经理/管理员：月报界面仅用于查看历史月报（按月份+人员查询），直接转入历史视图
+  if (isAdmin.value || isGeneralManager.value) {
+    router.replace('/monthly-report-history')
+    return
+  }
   await loadReports()
   recoverDraft()
 })

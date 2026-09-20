@@ -1,11 +1,19 @@
 import { verifyToken, pwdFingerprint } from '../utils/security.js';
 
+// 免鉴权路径白名单：path 为精确匹配；prefix: true 表示前缀匹配（用于公开读取接口）
+// 说明：/public/* 专供登录页（未登录）读取，如公告列表/详情、平台概览指标。
 const PUBLIC_PATHS = [
   { method: 'POST', path: '/login' },
-  { method: 'GET', path: '/health' }
+  { method: 'GET', path: '/health' },
+  { method: 'GET', path: '/public/announcements', prefix: true },
+  { method: 'GET', path: '/public/overview' }
 ];
 
-const isPublic = (method, path) => PUBLIC_PATHS.some(p => p.method === method && p.path === path);
+const isPublic = (method, path) => PUBLIC_PATHS.some(p => {
+  if (p.method !== method) return false;
+  if (p.prefix) return path === p.path || path.startsWith(p.path + '/');
+  return path === p.path;
+});
 
 export const requireAuth = async (req, res, next) => {
   if (req.method === 'OPTIONS') return next();

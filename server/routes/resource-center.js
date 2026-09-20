@@ -87,26 +87,30 @@ router.get('/resource-center/search', async (req, res) => {
   const keyword = String(req.query.keyword || '').trim();
   const username = String(req.query.username || '').trim();
   const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
-  if (!keyword) {
-    return res.json({
-      success: true,
-      data: { keyword: '', files: [], articles: [], projects: [], counts: { files: 0, articles: 0, projects: 0 } }
-    });
-  }
-  const like = `%${keyword}%`;
+  const hasKeyword = !!keyword;
+  const like = hasKeyword ? `%${keyword}%` : null;
   try {
-    // ---- 文件：按文件名模糊匹配 ----
+    // ---- 文件：按文件名模糊匹配；无关键词时返回最近上传 ----
+    const fileWhere = hasKeyword ? 'WHERE f.name LIKE ?' : '';
+    const fileParams = hasKeyword ? [like] : [];
     const [files] = await pool.execute(
       `SELECT f.id, f.name, f.size, f.type, f.url, f.categoryId, f.createdAt, fc.name AS categoryName
        FROM files f LEFT JOIN file_categories fc ON f.categoryId = fc.id
-       WHERE f.name LIKE ? ORDER BY f.createdAt DESC LIMIT ${limit}`,
-      [like]
+       ${fileWhere} ORDER BY f.createdAt DESC LIMIT ${limit}`,
+      fileParams
     );
-    const [[fileCount]] = await pool.execute('SELECT COUNT(*) AS n FROM files WHERE name LIKE ?', [like]);
+    const [[fileCount]] = await pool.execute(
+      `SELECT COUNT(*) AS n FROM files f ${fileWhere}`,
+      fileParams
+    );
 
     // ---- 文章：标题/摘要/正文模糊匹配 + 阅读权限过滤 ----
-    const articleWhere = ['(ka.title LIKE ? OR ka.summary LIKE ? OR ka.content LIKE ?)'];
-    const articleParams = [like, like, like];
+    const articleWhere = [];
+    const articleParams = [];
+    if (hasKeyword) {
+      articleWhere.push('(ka.title LIKE ? OR ka.summary LIKE ? OR ka.content LIKE ?)');
+      articleParams.push(like, like, like);
+    }
     let isManager = false;
     let roleName = '';
     let realName = username;
@@ -122,7 +126,7 @@ router.get('/resource-center/search', async (req, res) => {
       articleWhere.push("(ka.permission_type = 'public' OR (ka.permission_type = 'user' AND JSON_CONTAINS(COALESCE(ka.permission_targets, '[]'), ?)) OR (ka.permission_type = 'role' AND JSON_CONTAINS(COALESCE(ka.permission_targets, '[]'), ?)) OR ka.author = ?)");
       articleParams.push(JSON.stringify(realName || ''), JSON.stringify(roleName), realName || '');
     }
-    const articleWhereStr = ' WHERE ' + articleWhere.join(' AND ');
+    const articleWhereStr = articleWhere.length ? ' WHERE ' + articleWhere.join(' AND ') : '';
     const [articles] = await pool.execute(
       `SELECT ka.id, ka.title, ka.summary, ka.author, ka.views, ka.createdAt, ka.resourceCategoryId, fc.name AS categoryName
        FROM knowledge_articles ka LEFT JOIN file_categories fc ON ka.resourceCategoryId = fc.id
@@ -131,15 +135,17 @@ router.get('/resource-center/search', async (req, res) => {
     );
     const [[articleCount]] = await pool.execute('SELECT COUNT(*) AS n FROM knowledge_articles ka' + articleWhereStr, articleParams);
 
-    // ---- 项目：名称/描述模糊匹配 ----
+    // ---- 项目：名称/描述模糊匹配；无关键词时返回最近项目 ----
+    const projectWhere = hasKeyword ? 'WHERE project_name LIKE ? OR description LIKE ?' : '';
+    const projectParams = hasKeyword ? [like, like] : [];
     const [projects] = await pool.execute(
       `SELECT id, category_id, category_name, project_name, description, manager, applicant_name, project_link, created_at
-       FROM category_projects WHERE project_name LIKE ? OR description LIKE ? ORDER BY id DESC LIMIT ${limit}`,
-      [like, like]
+       FROM category_projects ${projectWhere} ORDER BY id DESC LIMIT ${limit}`,
+      projectParams
     );
     const [[projectCount]] = await pool.execute(
-      'SELECT COUNT(*) AS n FROM category_projects WHERE project_name LIKE ? OR description LIKE ?',
-      [like, like]
+      `SELECT COUNT(*) AS n FROM category_projects ${projectWhere}`,
+      projectParams
     );
 
     res.json({

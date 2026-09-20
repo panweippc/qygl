@@ -16,7 +16,8 @@ export function salesFetch(url: string, options: RequestInit = {}): Promise<Resp
   if (options.body && typeof options.body === 'string' && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
-  return fetch(url, { ...options, headers })
+  // 强制不走浏览器 HTTP 缓存：销售数据变更后立即重新拉取应拿到最新结果
+  return fetch(url, { ...options, headers, cache: 'no-store' })
 }
 
 export async function salesFetchJSON<T = any>(url: string, options?: RequestInit): Promise<{ success: boolean; data?: T; message?: string }> {

@@ -142,8 +142,9 @@ watch(() => props.recordId, () => { if (visible.value) loadChain() })
 .diff-select { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
 .arbitrary-result { margin-bottom: 0.5rem; }
 .arbitrary-title { font-size: 0.85rem; color: #409eff; margin-bottom: 0.4rem; }
-.version-chain { display: flex; flex-direction: column; gap: 0.5rem; max-height: 46vh; overflow-y: auto; }
-.version-card { border: 1px solid #ebeef5; border-radius: 6px; overflow: hidden; }
+.version-chain { display: flex; flex-direction: column; gap: 0.5rem; max-height: 58vh; overflow-y: auto; }
+/* flex 列容器内必须禁止卡片收缩，否则内容超出 max-height 时卡片被压扁、内部差异表格被裁切 */
+.version-card { flex: 0 0 auto; border: 1px solid #ebeef5; border-radius: 6px; overflow: hidden; }
 .vc-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.75rem; background: #f7f9fc; cursor: pointer; flex-wrap: wrap; }
 .vc-title { font-weight: 600; color: #303133; }
 .vc-meta { color: #909399; font-size: 0.8rem; }
@@ -153,6 +154,14 @@ watch(() => props.recordId, () => { if (visible.value) loadChain() })
 .vc-arrow { margin-left: auto; color: #c0c4cc; }
 .vc-body { padding: 0.5rem 0.75rem; }
 .vc-empty { padding: 0.5rem 0.75rem; color: #909399; font-size: 0.82rem; }
-.diff-old { color: #c0392b; background: #ffeaea; padding: 0.1rem 0.3rem; border-radius: 3px; word-break: break-all; }
-.diff-new { color: #27ae60; background: #eafff2; padding: 0.1rem 0.3rem; border-radius: 3px; word-break: break-all; }
+.diff-old { color: #c0392b; background: #ffeaea; padding: 0.1rem 0.3rem; border-radius: 3px; word-break: break-all; white-space: pre-wrap; }
+.diff-new { color: #27ae60; background: #eafff2; padding: 0.1rem 0.3rem; border-radius: 3px; word-break: break-all; white-space: pre-wrap; }
+/* 差异值允许换行完整展示，避免单元格裁切导致旧值/新值看不全 */
+.vc-body :deep(.el-table__cell .cell),
+.arbitrary-result :deep(.el-table__cell .cell) {
+  white-space: normal;
+  word-break: break-all;
+  line-height: 1.5;
+  text-overflow: clip;
+}
 </style>

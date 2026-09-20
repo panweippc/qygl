@@ -167,13 +167,18 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
 
     const io = req.app.get('io');
-    if (userSessions.has(user.username)) {
-      const oldSocketId = userSessions.get(user.username);
+    // 按设备类型维度互踢：仅踢同类型（pc/mobile）的旧会话，跨类型（PC 与手机）共存
+    const deviceType = req.body && req.body.deviceType === 'mobile' ? 'mobile' : 'pc';
+    const sessionKey = `${user.username}|${deviceType}`;
+    if (userSessions.has(sessionKey)) {
+      const oldSocketId = userSessions.get(sessionKey);
       if (oldSocketId) {
         io.to(oldSocketId).emit('kickedOut', { message: '您的账号在其他设备登录，已被强制退出' });
       }
     }
-    userSessions.set(user.username, null);
+    // 同设备类型旧会话由 socket 连接时的 setUserLogin 自然覆盖；
+    // 这里不再把 key 设为 null，避免空值窗口期导致第二个同类型登录无法踢人。
+    userSessions.delete(sessionKey);
 
     let permissions = [];
     let department = '';
