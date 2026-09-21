@@ -24,6 +24,7 @@
           <div class="greet-main">
             <p class="greet-text">{{ greetText }}</p>
             <p class="greet-date">{{ todayText }}<span v-if="weather" class="greet-weather"> · {{ weather.text }} {{ weather.temp }}°C</span></p>
+            <p v-if="festivalTip" class="greet-festival">{{ festivalTip }}</p>
           </div>
           <div v-if="weather" class="greet-icon" v-html="weatherIcon(weather.code)"></div>
         </div>
@@ -156,13 +157,7 @@
       append-to-body
     >
       <div class="forgot-body">
-        <p class="forgot-lead">账号密码由信息部统一管理。重置后浏览器已保存的密码需重新保存，请通过以下方式联系：</p>
-        <ul class="forgot-list">
-          <li>信息部 分机：<b>{{ SUPPORT_CONTACT.phone }}</b></li>
-          <li>邮箱：<b>{{ SUPPORT_CONTACT.email }}</b></li>
-          <li>或联系本系统管理员：<b>{{ SUPPORT_CONTACT.admin }}</b></li>
-        </ul>
-        <p class="forgot-tip">提示：主流浏览器已支持记住账号密码，登录时无需重复输入。</p>
+        <p class="forgot-lead">请联系本系统管理员 <b>李智鑫</b> 进行改密并获取新密码，获取新密码后请第一时间进行改密并妥善保存。</p>
       </div>
       <template #footer>
         <el-button @click="forgotVisible = false">知道了</el-button>
@@ -286,10 +281,49 @@ const appStatus = ref({ cls: 'unknown', text: '服务状态未知', version: '' 
 const weather = ref<{ temp: number; code: number; text: string } | null>(null)
 // 忘记密码对话框
 const forgotVisible = ref(false)
-// 联系信息：请改为公司实际联系方式（演示占位）
-const SUPPORT_CONTACT = { phone: '8000（待确认）', email: 'it@your-company.com（待确认）', admin: '李智鑫' }
-// 天气定位：默认上海，请改为公司所在城市经纬度
-const WEATHER_LOCATION = { lat: 31.2304, lon: 121.4737 }
+// 天气定位：默认呼和浩特，如需其他城市请改经纬度
+const WEATHER_LOCATION = { lat: 40.8424, lon: 111.7490 }
+
+// ===== 实时节日 / 节气提醒（公历节日 + 24 节气 + 主要农历节日静态表） =====
+const SOLAR_TERMS = ['小寒','大寒','立春','雨水','惊蛰','春分','清明','谷雨','立夏','小满','芒种','夏至','小暑','大暑','立秋','处暑','白露','秋分','寒露','霜降','立冬','小雪','大雪','冬至']
+// 寿星公式基准（1900 年起，单位：分钟）
+const S_TERM_BASE = [0,21208,42467,63836,85337,107014,128867,150921,173149,195551,218072,240693,263343,285989,308563,331033,353350,375494,397447,419210,440795,462224,483532,504758]
+function solarTermDate(y: number, n: number) {
+  return new Date((31556925974.7 * (y - 1900) + S_TERM_BASE[n - 1] * 60000) + Date.UTC(1900, 0, 6, 2, 5))
+}
+const FIXED_FESTIVALS = [
+  { m: 1, d: 1, name: '元旦' }, { m: 3, d: 8, name: '妇女节' }, { m: 5, d: 1, name: '劳动节' },
+  { m: 6, d: 1, name: '儿童节' }, { m: 9, d: 10, name: '教师节' }, { m: 10, d: 1, name: '国庆节' },
+  { m: 12, d: 1, name: '艾滋病日' },
+]
+// 主要农历节日静态表（如需更多年份，按农历公历对照续表即可）
+const LUNAR_FESTIVALS = [
+  { y: 2026, m: 2, d: 17, name: '春节' }, { y: 2026, m: 6, d: 19, name: '端午节' }, { y: 2026, m: 9, d: 25, name: '中秋节' },
+  { y: 2027, m: 2, d: 6, name: '春节' }, { y: 2027, m: 6, d: 9, name: '端午节' }, { y: 2027, m: 9, d: 15, name: '中秋节' },
+  { y: 2028, m: 1, d: 26, name: '春节' }, { y: 2028, m: 5, d: 29, name: '端午节' }, { y: 2028, m: 10, d: 3, name: '中秋节' },
+]
+const FEST_DAY = 24 * 3600 * 1000
+const festivalTip = computed(() => {
+  const now = new Date()
+  const t = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const y = now.getFullYear()
+  const events: { date: Date; label: string }[] = []
+  for (const yy of [y, y + 1]) {
+    for (let n = 1; n <= 24; n++) {
+      const dt = solarTermDate(yy, n)
+      events.push({ date: new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()), label: SOLAR_TERMS[n - 1] })
+    }
+    for (const f of FIXED_FESTIVALS) events.push({ date: new Date(yy, f.m - 1, f.d), label: f.name })
+    for (const f of LUNAR_FESTIVALS) if (f.y === yy) events.push({ date: new Date(yy, f.m - 1, f.d), label: f.name })
+  }
+  for (const e of events) if (e.date.getTime() === t.getTime()) return `今日 ${e.label}`
+  const future = events.filter((e) => e.date.getTime() > t.getTime()).sort((a, b) => a.date.getTime() - b.date.getTime())
+  if (future.length) {
+    const d = Math.round((future[0].date.getTime() - t.getTime()) / FEST_DAY)
+    return `距离 ${future[0].label} 还有 ${d} 天`
+  }
+  return ''
+})
 // 时段问候语
 const greetText = computed(() => {
   const h = new Date().getHours()
@@ -301,24 +335,20 @@ const greetText = computed(() => {
 
 // 功能导览：平台级常用模块（登录前仅展示，不可点击，避免死链）
 const modules = [
-  { name: '审批中心', bg: '#E6F1FB', icon: moduleIcon('approval') },
-  { name: 'OA 申请', bg: '#FBEAF0', icon: moduleIcon('oa') },
-  { name: '资料中心', bg: '#E1F5EE', icon: moduleIcon('file') },
-  { name: '会议助手', bg: '#FAEEDA', icon: moduleIcon('meeting') },
-  { name: '消息中心', bg: '#EDEDFE', icon: moduleIcon('bell') },
-  { name: '下发管理', bg: '#FCEBEB', icon: moduleIcon('send') },
+  { name: 'OA申请', bg: '#FBEAF0', icon: moduleIcon('oa') },
+  { name: '月报填报', bg: '#E6F1FB', icon: moduleIcon('report') },
+  { name: '物资管理', bg: '#E1F5EE', icon: moduleIcon('material') },
+  { name: '资料上传', bg: '#FAEEDA', icon: moduleIcon('upload') },
 ]
 
 // 平台模块小图标（内联 SVG，随登录页公开渲染）
 function moduleIcon(kind: string) {
   const c = '#1E5AA8'
   const map: Record<string, string> = {
-    approval: `<path d="M4 11l5 5L20 5" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
     oa: `<path d="M6 3h9l4 4v14H6z" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M9 12h7M9 16h7" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`,
-    file: `<path d="M7 3h7l4 4v14H7z" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M14 3v4h4" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/>`,
-    meeting: `<circle cx="10" cy="10" r="6" stroke="${c}" stroke-width="2" fill="none"/><path d="M14 14l6 6" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`,
-    bell: `<path d="M12 5a5 5 0 0 1 5 5v4l2 3H5l2-3V10a5 5 0 0 1 5-5z" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M10 20a2 2 0 0 0 4 0" stroke="${c}" stroke-width="2" fill="none"/>`,
-    send: `<path d="M21 4L3 11l7 3 3 7 8-17z" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/>`,
+    report: `<path d="M6 3h8l4 4v14H6z" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M14 3v4h4" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M9 13v4M12 11v6M15 14.5v2.5" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`,
+    material: `<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/>`,
+    upload: `<path d="M12 15V4M8 8l4-4 4 4" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 15v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round"/>`,
   }
   return `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">${map[kind] || map.file}</svg>`
 }
@@ -545,47 +575,21 @@ const loginForm = reactive({
   captcha: ''
 })
 
-const captchaCode = ref('')
+const captchaToken = ref('')
 const captchaImage = ref('')
 
-const generateCaptcha = () => {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz0123456789'
-  let code = ''
-  for (let i = 0; i < 4; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length))
+// 服务端验证码：向后端 /api/captcha 取一次性 token + SVG 图片
+const generateCaptcha = async () => {
+  try {
+    const resp = await fetch('/api/captcha', { cache: 'no-store' })
+    const json = await resp.json()
+    if (json.success) {
+      captchaImage.value = json.svg
+      captchaToken.value = json.token
+    }
+  } catch (e) {
+    /* 验证码获取失败不影响页面其余渲染，登录时后端会提示 */
   }
-  captchaCode.value = code
-  captchaImage.value = generateCaptchaImage(code)
-}
-
-const generateCaptchaImage = (code: string) => {
-  const canvas = document.createElement('canvas')
-  canvas.width = 100
-  canvas.height = 40
-  const ctx = canvas.getContext('2d')!
-  
-  ctx.fillStyle = '#f0f0f0'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-  
-  for (let i = 0; i < 10; i++) {
-    ctx.beginPath()
-    ctx.strokeStyle = `rgb(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255})`
-    ctx.lineWidth = 1
-    ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height)
-    ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height)
-    ctx.stroke()
-  }
-  
-  for (let i = 0; i < code.length; i++) {
-    ctx.font = `${20 + Math.random() * 10}px Arial`
-    ctx.fillStyle = `rgb(${Math.floor(Math.random() * 100) + 50}, ${Math.floor(Math.random() * 100) + 50}, ${Math.floor(Math.random() * 100) + 50})`
-    ctx.textBaseline = 'middle'
-    const x = 15 + i * 22
-    const y = canvas.height / 2 + (Math.random() - 0.5) * 10
-    ctx.fillText(code[i], x, y)
-  }
-  
-  return canvas.toDataURL()
 }
 
 const loginRules = {
@@ -609,23 +613,16 @@ const handleLogin = async () => {
       return;
     }
     
-    // 验证验证码
+    // 验证验证码（已输入即可，正确性由后端比对）
     if (!loginForm.captcha) {
       ElMessage.error('请输入验证码');
       return;
     }
     
-    if (loginForm.captcha.toLowerCase() !== captchaCode.value.toLowerCase()) {
-      ElMessage.error('验证码错误');
-      generateCaptcha();
-      loginForm.captcha = '';
-      return;
-    }
-    
     console.log('Login form submitted:', loginForm);
     
-    // 调用实际的API
-    const response = await login(loginForm.username, loginForm.password);
+    // 调用实际的API（携带服务端验证码 token，一次性）
+    const response = await login(loginForm.username, loginForm.password, loginForm.captcha, captchaToken.value);
     
     console.log('Login API response:', response);
     
@@ -674,14 +671,18 @@ const handleLogin = async () => {
       console.log('登录成功，跳转到首页');
       router.push('/');
     } else {
-      // 登录失败
+      // 登录失败：验证码 token 已一次性消费，刷新并重输
       ElMessage.error(response.message || '用户名或密码错误');
+      loginForm.captcha = '';
+      generateCaptcha();
     }
   } catch (error: any) {
     console.error('登录失败:', error)
-    // 提取后端返回的具体错误信息（如 429 限流提示），避免被统一文案掩盖
+    // 提取后端返回的具体错误信息（如 429 限流提示、验证码错误等），避免被统一文案掩盖
     const msg = error?.response?.data?.message
     ElMessage.error(msg || '登录失败，请重试')
+    loginForm.captcha = '';
+    generateCaptcha();
   }
 }
 

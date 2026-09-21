@@ -104,14 +104,14 @@ api.interceptors.response.use(
   }
 )
 
-// 认证相关
-export const login = async (username: string, password: string) => {
-  const response = await api.post('/login', { username, password });
+// 认证相关（验证码改为服务端下发：登录需携带 captcha + captchaToken）
+export const login = async (username: string, password: string, captcha?: string, captchaToken?: string) => {
+  const response = await api.post('/login', { username, password, captcha, captchaToken });
   const data = response.data;
   if (data && data.user) {
     return data;
   }
-  return { success: false, message: '登录失败' };
+  return { success: false, message: data?.message || '登录失败' };
 };
 
 // 员工管理

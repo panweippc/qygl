@@ -1301,6 +1301,13 @@
   font-weight: 500;
 }
 
+.greet-festival {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #B77410;
+  font-weight: 500;
+}
+
 .greet-icon {
   flex: 0 0 auto;
   width: 40px;

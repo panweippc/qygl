@@ -1,5 +1,6 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
+import { randomBytes } from 'crypto';
 const router = express.Router();
 
 import { createOperationLog } from '../utils/audit.js';
@@ -53,6 +54,66 @@ const clearFailures = (username, ip) => {
   loginFailures.delete(failKey(username, ip));
 };
 
+// ===== 服务端验证码：后端生成码 + 一次性 token（5 分钟有效），登录时后端比对 =====
+// 单实例 pm2（exec_mode: fork）下内存存储安全；多实例部署需改共享存储（redis 等）
+const captchaStore = new Map();
+const CAPTCHA_TTL = 5 * 60 * 1000;
+
+// 生成验证码字符（去除易混的 0/O/1/l/I 等）
+function genCaptchaCode(len = 4) {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < len; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
+  return s;
+}
+
+// 生成 SVG 验证码图片（纯文本 SVG，无原生依赖，直接内联/转 dataURL 展示）
+function genCaptchaSvg(code) {
+  const W = 110, H = 42;
+  const colors = ['#1E5AA8', '#2E6FB8', '#2E9E83', '#C0392B', '#B77410', '#5B8FC9'];
+  let noise = '';
+  for (let i = 0; i < 4; i++) {
+    const c = colors[Math.floor(Math.random() * colors.length)];
+    const x1 = (Math.random() * W).toFixed(1), y1 = (Math.random() * H).toFixed(1);
+    const x2 = (Math.random() * W).toFixed(1), y2 = (Math.random() * H).toFixed(1);
+    noise += `<path d="M${x1} ${y1} L${x2} ${y2}" stroke="${c}" stroke-width="1" opacity="0.45"/>`;
+  }
+  for (let i = 0; i < 22; i++) {
+    const c = colors[Math.floor(Math.random() * colors.length)];
+    noise += `<circle cx="${(Math.random() * W).toFixed(1)}" cy="${(Math.random() * H).toFixed(1)}" r="1" fill="${c}" opacity="0.5"/>`;
+  }
+  const cw = W / code.length;
+  let chars = '';
+  for (let i = 0; i < code.length; i++) {
+    const c = colors[Math.floor(Math.random() * colors.length)];
+    const x = (cw * i + cw / 2).toFixed(1);
+    const y = (H / 2 + (Math.random() - 0.5) * 8).toFixed(1);
+    const rot = ((Math.random() - 0.5) * 40).toFixed(1);
+    const fs = (20 + Math.random() * 8).toFixed(1);
+    chars += `<text x="${x}" y="${(parseFloat(y) + parseFloat(fs) / 3).toFixed(1)}" font-family="Arial,Helvetica,sans-serif" font-size="${fs}" font-weight="bold" fill="${c}" text-anchor="middle" transform="rotate(${rot} ${x} ${y})">${code[i]}</text>`;
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">` +
+    `<rect width="${W}" height="${H}" fill="#f3f6fb"/>` +
+    `<path d="M0 21 Q27 8 55 21 T110 21" stroke="#cdd9e8" stroke-width="1" fill="none"/>` +
+    `${noise}${chars}</svg>`;
+  return svg;
+}
+
+// 获取验证码：返回一次性 token + SVG（dataURL）。免登录
+router.get('/captcha', (req, res) => {
+  const code = genCaptchaCode(4);
+  const token = randomBytes(16).toString('hex');
+  captchaStore.set(token, { code, expires: Date.now() + CAPTCHA_TTL });
+  // 懒清理：小概率随请求剔除已过期项，避免长时间堆积
+  if (Math.random() < 0.05) {
+    for (const [k, v] of captchaStore) {
+      if (v.expires < Date.now()) captchaStore.delete(k);
+    }
+  }
+  const svg = genCaptchaSvg(code);
+  res.json({ success: true, token, svg: `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}` });
+});
+
 // 校验密码（兼容存量明文密码，成功后自动升级为 bcrypt 哈希）
 const matchUser = (users, password) => {
   if (!Array.isArray(users)) return null;
@@ -63,13 +124,28 @@ const matchUser = (users, password) => {
 };
 
 router.post('/login', loginLimiter, async (req, res) => {
-  let { username, password } = req.body;
+  let { username, password, captcha, captchaToken } = req.body;
   const { pool, userSessions } = req.app.locals;
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
   try {
     if (!username || !password) {
       return res.json({ success: false, message: '请输入用户名和密码' });
     }
+    // 服务端验证码校验（一次性，5 分钟有效）；后端生成、后端比对，脚本无法绕过
+    if (!captchaToken || !captcha) {
+      return res.json({ success: false, message: '请输入验证码' });
+    }
+    const _cap = captchaStore.get(captchaToken);
+    if (!_cap || _cap.expires < Date.now()) {
+      captchaStore.delete(captchaToken);
+      return res.json({ success: false, message: '验证码已过期，请刷新' });
+    }
+    if (String(_cap.code).toLowerCase() !== String(captcha).toLowerCase()) {
+      captchaStore.delete(captchaToken);
+      return res.json({ success: false, message: '验证码错误' });
+    }
+    captchaStore.delete(captchaToken); // 一次性消费，防重放
+
     username = String(username).trim();
 
     if (isLocked(username, ip)) {
