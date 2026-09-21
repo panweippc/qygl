@@ -1666,7 +1666,7 @@
   background-image:
     radial-gradient(1100px 620px at 78% 18%, rgba(120, 180, 240, 0.30), transparent 60%),
     radial-gradient(900px 560px at 12% 88%, rgba(8, 32, 70, 0.55), transparent 65%),
-    linear-gradient(118deg, rgba(13, 45, 88, 0.92) 0%, rgba(22, 73, 133, 0.86) 42%, rgba(30, 90, 168, 0.74) 72%, rgba(46, 111, 184, 0.60) 100%),
+    linear-gradient(118deg, rgba(13, 45, 88, 0.93) 0%, rgba(22, 73, 133, 0.88) 42%, rgba(28, 84, 158, 0.78) 72%, rgba(40, 100, 176, 0.66) 100%),
     var(--login-bg-url);
   background-color: #1E5AA8;
   background-repeat: no-repeat;
@@ -1674,15 +1674,26 @@
   background-size: cover;
 }
 
-/* ---- 登录卡：白卡悬浮，深色投影强化浮起感 ---- */
+/* ---- 登录卡：白卡悬浮，三层阴影 + 外发光强化浮起感 ---- */
 .login-form-wrapper {
   background: #FFFFFF;
   border: none;
-  box-shadow: 0 26px 70px rgba(6, 28, 58, 0.42), 0 6px 20px rgba(6, 28, 58, 0.28);
+  box-shadow:
+    0 2px 6px rgba(6, 28, 58, 0.30),
+    0 18px 40px rgba(6, 28, 58, 0.38),
+    0 42px 96px rgba(6, 28, 58, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 0 70px rgba(120, 180, 240, 0.28);
 }
 
 .login-form-wrapper:hover {
-  box-shadow: 0 32px 84px rgba(6, 28, 58, 0.50), 0 8px 24px rgba(6, 28, 58, 0.30);
+  transform: translateY(-6px) !important;
+  box-shadow:
+    0 3px 8px rgba(6, 28, 58, 0.32),
+    0 26px 52px rgba(6, 28, 58, 0.44),
+    0 56px 120px rgba(6, 28, 58, 0.60),
+    0 0 0 1px rgba(255, 255, 255, 0.40),
+    0 0 84px rgba(120, 180, 240, 0.34);
 }
 
 /* ---- 表单字段标签（替代框内占位文字） ---- */
@@ -1716,19 +1727,29 @@
 .login-header { margin-bottom: 1.1rem; }
 .login-form .el-form-item { margin-bottom: 15px; }
 
-/* ---- 状态条：固定为卡片底部一条（借卡片内边距负边距贴边） ---- */
+/* ---- 修复状态条被裁：卡片为 justify-content:center + overflow:hidden + max-height 组合，
+       视口高度紧张时 flex 居中会把最后一个元素（状态条）裁掉。
+       改为顶部对齐 + 状态条绝对定位贴卡片底边（在容器框内，永不裁切） ---- */
+.login-form-wrapper {
+  justify-content: flex-start;
+  padding-bottom: 4.6rem; /* 为底部状态条预留高度，避免登录按钮与之重叠 */
+}
+
 .sys-status {
-  align-self: stretch;
-  max-width: none;
-  margin: 1.1rem -2.5rem -2rem;
-  padding: 0.8rem 2.5rem 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 0.85rem 2.5rem;
   border-top: 1px solid #E6EEF7;
   background: #F7FAFD;
+  border-radius: 0 0 24px 24px;
 }
 .sys-status::before { display: none; }
 
 /* ---- 窄屏 ---- */
 @media (max-width: 1200px) {
   .login-info-panel { padding: 1.75rem 1.5rem; }
-  .sys-status { margin: 1rem -2.5rem -2rem; }
+  .sys-status { padding: 0.75rem 1.75rem; }
 }
