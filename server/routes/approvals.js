@@ -20,6 +20,17 @@ const resolveEmployeeId = async (pool, userId) => {
   return employees.length ? employees[0].id : null;
 };
 
+// 安全解析 JSON 列：MySQL JSON 类型经 mysql2 读取时已自动反序列化为对象/数组，
+// 若再 JSON.parse 会抛 "[object Object]" 错误。已是对象/数组则原样返回，仅对字符串二次解析。
+const parseJsonField = (value, fallback) => {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'object') return value;
+  if (typeof value === 'string') {
+    try { return JSON.parse(value); } catch { return fallback; }
+  }
+  return fallback;
+};
+
 const generateApprovalPath = async (connection, flowCode, applicantDept, applicantPosition) => {
   const approvalPath = [];
   let order = 1;
@@ -307,8 +318,8 @@ router.get('/oa/todo/:userId', async (req, res) => {
 
     const formattedInstances = instances.map(instance => ({
       ...instance,
-      businessData: JSON.parse(instance.businessData || '{}'),
-      approvalPath: JSON.parse(instance.approvalPath || '[]')
+      businessData: parseJsonField(instance.businessData, {}),
+      approvalPath: parseJsonField(instance.approvalPath, [])
     }));
 
     res.json({ success: true, data: formattedInstances });
@@ -337,7 +348,7 @@ router.get('/oa/done/:userId', async (req, res) => {
 
     const formattedHistories = histories.map(history => ({
       ...history,
-      businessData: JSON.parse(history.businessData || '{}')
+      businessData: parseJsonField(history.businessData, {})
     }));
 
     res.json({ success: true, data: formattedHistories });
@@ -363,8 +374,8 @@ router.get('/oa/my-applications/:userId', async (req, res) => {
 
     const formattedInstances = instances.map(instance => ({
       ...instance,
-      businessData: JSON.parse(instance.businessData || '{}'),
-      approvalPath: JSON.parse(instance.approvalPath || '[]')
+      businessData: parseJsonField(instance.businessData, {}),
+      approvalPath: parseJsonField(instance.approvalPath, [])
     }));
 
     res.json({ success: true, data: formattedInstances });
@@ -400,8 +411,8 @@ router.get('/oa/detail/:instanceId', async (req, res) => {
       success: true,
       data: {
         ...instance,
-        businessData: JSON.parse(instance.businessData || '{}'),
-        approvalPath: JSON.parse(instance.approvalPath || '[]'),
+        businessData: parseJsonField(instance.businessData, {}),
+        approvalPath: parseJsonField(instance.approvalPath, []),
         histories: histories
       }
     });
@@ -444,7 +455,7 @@ router.post('/oa/process', async (req, res) => {
     }
 
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const approvalPath = JSON.parse(instance.approvalPath || '[]');
+    const approvalPath = parseJsonField(instance.approvalPath, []);
     const currentNodeOrder = approvalPath.findIndex(p => p.userId === approverId) + 1;
 
     await connection.execute(
@@ -783,7 +794,7 @@ router.get('/oa/all-my-applications/:userId', async (req, res) => {
         candidates
       );
       for (const it of instances) {
-        const data = JSON.parse(it.businessData || '{}');
+        const data = parseJsonField(it.businessData, {});
         all.push({
           id: it.id,
           source: 'oa_approval_instances',

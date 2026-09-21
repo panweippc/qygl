@@ -395,6 +395,10 @@ router.get('/sales-opportunities', async (req, res) => {
 router.put('/town-sales/:id/stage', async (req, res) => {
   const { id } = req.params;
   const { intention } = req.body;
+  // 阶段值(intention)为整数枚举，前端以整数传入；缺失或非整数属非法输入，返回 400 而非 500
+  if (!Number.isInteger(intention)) {
+    return res.status(400).json({ success: false, message: '阶段值(intention)必须为整数' });
+  }
   try {
     const { pool } = req.app.locals;
     await pool.execute('UPDATE town_sales SET intention = ? WHERE id = ?', [intention, id]);
