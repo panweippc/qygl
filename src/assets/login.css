@@ -1533,13 +1533,13 @@
 
 /* ============ 方案A：深蓝品牌侧栏（追加覆盖段，置于文件末尾以覆盖前面的浅色规则） ============ */
 
-/* ---- 左侧整块品牌蓝渐变面板 ---- */
+/* ---- 左侧信息区：直接浮于全屏深蓝背景之上（不再是一块独立面板） ---- */
 .login-info-panel {
   box-sizing: border-box;
-  background: linear-gradient(160deg, #2568B5 0%, #1E5AA8 42%, #16497E 78%, #123C74 100%);
-  border-radius: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 18px 48px rgba(18, 60, 116, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  background: transparent;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
   padding: 2.5rem 3rem;
 }
 
@@ -1658,10 +1658,32 @@
   border-top-color: rgba(255, 255, 255, 0.2);
 }
 
-/* ---- 登录卡：白卡悬浮在浅底上，与深蓝侧栏形成对比 ---- */
-.login-container { background: linear-gradient(135deg, #EAF1F8, #E1EAF3); }
+/* ---- 全屏深蓝品牌背景：渐变叠层透明度左实右淡，登录卡悬浮其上 ---- */
+/* 背景图用法：把 --login-bg-url 改成 url('./login-bg.jpg')，并将图片放到 src/assets/login-bg.jpg；
+   深蓝渐变会自动叠在图片上方做品牌色罩。不设图时用底部的纯渐变兜底。 */
+.login-container {
+  --login-bg-url: none;
+  background-image:
+    radial-gradient(1100px 620px at 78% 18%, rgba(120, 180, 240, 0.30), transparent 60%),
+    radial-gradient(900px 560px at 12% 88%, rgba(8, 32, 70, 0.55), transparent 65%),
+    linear-gradient(118deg, rgba(13, 45, 88, 0.92) 0%, rgba(22, 73, 133, 0.86) 42%, rgba(30, 90, 168, 0.74) 72%, rgba(46, 111, 184, 0.60) 100%),
+    var(--login-bg-url);
+  background-color: #1E5AA8;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+}
 
-.login-form-wrapper { padding-bottom: 1.8rem; }
+/* ---- 登录卡：白卡悬浮，深色投影强化浮起感 ---- */
+.login-form-wrapper {
+  background: #FFFFFF;
+  border: none;
+  box-shadow: 0 26px 70px rgba(6, 28, 58, 0.42), 0 6px 20px rgba(6, 28, 58, 0.28);
+}
+
+.login-form-wrapper:hover {
+  box-shadow: 0 32px 84px rgba(6, 28, 58, 0.50), 0 8px 24px rgba(6, 28, 58, 0.30);
+}
 
 /* ---- 表单字段标签（替代框内占位文字） ---- */
 .field-label {
@@ -1674,16 +1696,39 @@
   margin: 0 0 6px 2px;
 }
 
-/* ---- 状态条：收紧上下间距，避免贴底被裁切 ---- */
-.sys-status {
-  margin-top: 1rem;
-  padding-top: 0.9rem;
+/* ---- 密码标签行：请输入密码与忘记密码同行 ---- */
+.pwd-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+}
+.pwd-label-row .field-label {
+  flex: 0 0 auto;
+  margin: 0 0 6px 2px;
+}
+.pwd-label-row .help-link {
+  margin-bottom: 6px;
+  font-size: 0.78rem;
 }
 
-/* ---- 窄屏：深蓝面板保持圆角卡片形态 ---- */
+/* ---- 间距收紧：标题区与表单项 ---- */
+.login-header { margin-bottom: 1.1rem; }
+.login-form .el-form-item { margin-bottom: 15px; }
+
+/* ---- 状态条：固定为卡片底部一条（借卡片内边距负边距贴边） ---- */
+.sys-status {
+  align-self: stretch;
+  max-width: none;
+  margin: 1.1rem -2.5rem -2rem;
+  padding: 0.8rem 2.5rem 0;
+  border-top: 1px solid #E6EEF7;
+  background: #F7FAFD;
+}
+.sys-status::before { display: none; }
+
+/* ---- 窄屏 ---- */
 @media (max-width: 1200px) {
-  .login-info-panel {
-    padding: 1.75rem 1.5rem;
-    border-radius: 20px;
-  }
+  .login-info-panel { padding: 1.75rem 1.5rem; }
+  .sys-status { margin: 1rem -2.5rem -2rem; }
 }

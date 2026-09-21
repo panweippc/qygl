@@ -177,7 +177,10 @@
         </el-form-item>
 
         <el-form-item prop="password">
-          <label class="field-label">请输入密码</label>
+          <div class="pwd-label-row">
+            <label class="field-label">请输入密码</label>
+            <span class="help-link" @click="forgotVisible = true">忘记密码？</span>
+          </div>
           <el-input
             v-model="loginForm.password"
             type="password"
@@ -190,11 +193,6 @@
             :validate-event="false"
           />
         </el-form-item>
-
-        <!-- 忘记密码入口：紧贴密码框，右对齐 -->
-        <div class="pwd-help">
-          <span class="help-link" @click="forgotVisible = true">忘记密码？</span>
-        </div>
 
         <el-form-item prop="captcha">
           <label class="field-label">请输入验证码</label>
