@@ -4,7 +4,7 @@
  * 拓扑：Jenkins 安装在【部署机】(E:\qygl\qygl 所在电脑)，本机本地执行。
  * 模型：原地 git pull（不另 checkout 副本、不 xcopy 到别的目录）。
  * 流程：检测 git 更新 → npm install → 停止 Nginx → 构建前端 →
- *       重启 Nginx(8080+9090, restart 即重新加载配置) → 启动 dev server(3003, nssm 服务 npm run dev 常驻) → 启动 mobile dev server(3004, nssm 服务 npm run dev:mobile 常驻) → 重启后端 pm2(qygl) → 健康检查。
+ *       重启 Nginx(8080+9000, restart 即重新加载配置) → 启动 dev server(3003, nssm 服务 npm run dev 常驻) → 启动 mobile dev server(3004, nssm 服务 npm run dev:mobile 常驻) → 重启后端 pm2(qygl) → 健康检查。
  * 触发：每 5 分钟轮询；无新提交则【跳过阶段2~10全部部署动作】。
  *
  * ⚠️ 关键运维前提（务必满足，否则 pm2/nginx 操作会失败）：
@@ -250,10 +250,10 @@ pipeline {
     stage('Verify Frontend') {
       when { expression { return !skipDeploy } }
       steps {
-        echo '=== 阶段9: 验证前端 (nginx 8080 + 9090) ==='
+        echo '=== 阶段9: 验证前端 (nginx 8080 + 9000) ==='
         bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${FRONTEND_PORT}' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('frontend status: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('frontend status: ' + \$st + ' (ready)'); \$ok=\$true; break }; Write-Host ('  retry ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-not \$ok){ Write-Host 'WARN: frontend not ready' }; exit 0\""
-        // 9090 为反代到 3004 的 nginx 站点，能返回 200 即说明 nginx 已加载新配置并监听 9090
-        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:9090' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('mobile nginx 9090 status: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('mobile nginx 9090 status: ' + \$st + ' (ready)'); \$ok=\$true; break }; Write-Host ('  retry ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-not \$ok){ Write-Host 'WARN: nginx 9090 not ready' }; exit 0\""
+        // 9000 为反代到 3004 的 nginx 站点，能返回 200 即说明 nginx 已加载新配置并监听 9000
+        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 10; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:9000' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('mobile nginx 9000 status: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('mobile nginx 9000 status: ' + \$st + ' (ready)'); \$ok=\$true; break }; Write-Host ('  retry ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 3 } }; if(-not \$ok){ Write-Host 'WARN: nginx 9000 not ready' }; exit 0\""
       }
     }
 

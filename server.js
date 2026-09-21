@@ -78,13 +78,13 @@ const allowedOrigins = [
   // Nginx 生产 8080
   'http://localhost:8080',
   'http://127.0.0.1:8080',
-  // 移动端 Nginx 生产 9090
-  'http://localhost:9090',
-  'http://127.0.0.1:9090',
-  // 部署机 LAN IP（192.168.2.142）生产端口：nginx 9090 反代移动端、8080 反代 PC 端。
+  // 移动端 Nginx 生产 9000
+  'http://localhost:9000',
+  'http://127.0.0.1:9000',
+  // 部署机 LAN IP（192.168.2.142）生产端口：nginx 9000 反代移动端、8080 反代 PC 端。
   // 注：server.js 硬编码随仓库部署；.env 的 CORS_ORIGINS 为 gitignore 不进仓库，
-  //     部署机如需动态增删来源仍以其本地 .env 为准，此处兜底保证 9090/8080 必放行。
-  'http://192.168.2.142:9090',
+  //     部署机如需动态增删来源仍以其本地 .env 为准，此处兜底保证 9000/8080 必放行。
+  'http://192.168.2.142:9000',
   'http://192.168.2.142:8080',
   ...(process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean) : [])
 ];

@@ -172,7 +172,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 监控端口
-const MONITOR_PORT = process.env.MONITOR_PORT || 9090;
+const MONITOR_PORT = process.env.MONITOR_PORT || 9091;
 
 // 指标存储
 const metrics = {
