@@ -139,6 +139,19 @@ pipeline {
       }
     }
 
+    // 阶段5.5：清理 vite 依赖预构建缓存，避免过期 .vite 缺 echarts 等依赖（3003 系统监控点击无反应）
+    stage('Clean Vite Dep Cache') {
+      when { expression { return !skipDeploy } }
+      steps {
+        echo '=== 阶段5.5: 清理 vite 依赖预构建缓存（web .vite + mobile .vite_mobile）==='
+        // 部署机全英文环境，用 rmdir 而非 rm -rf；缓存缺失时 vite 首次访问会重新预构建（含 echarts）。
+        // 必须放在启动 dev server 之前，nssm restart 才会基于新缓存重新预构建，而非沿用陈旧缓存。
+        dir("${PROJECT_DIR}") {
+          bat 'rmdir /s /q node_modules\\.vite 2>nul & rmdir /s /q node_modules\\.vite_mobile 2>nul & echo vite dep cache cleared'
+        }
+      }
+    }
+
     // 阶段6：启动前端 dev server（3003）—— 经 nssm 注册为 Windows 服务常驻（等价于 npm run dev，不进 pm2）
     stage('Start Dev Server (3003, nssm)') {
       when { expression { return !skipDeploy } }

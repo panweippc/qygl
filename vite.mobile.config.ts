@@ -44,6 +44,10 @@ export default defineConfig({
     __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: JSON.stringify(false),
     __VUE_PROD_DEVTOOLS__: JSON.stringify(false)
   },
+  // 独立的依赖预构建缓存目录：PC 端 vite.config.ts 与移动端共用默认 node_modules/.vite 会互相覆盖，
+  // 导致一方 optimize 后清掉另一方已预构建的依赖（如 PC 端 echarts）→ 页面白屏/菜单点击无反应。
+  // 移动端单独占用 node_modules/.vite_mobile，彻底隔离（2026-09-21 修复 3003 系统监控点击无反应根因）。
+  cacheDir: 'node_modules/.vite_mobile',
   server: {
     host: '0.0.0.0',
     port: 3004,
