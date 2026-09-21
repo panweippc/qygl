@@ -1664,23 +1664,14 @@
 .login-form-wrapper { padding-bottom: 1.8rem; }
 
 /* ---- 表单字段标签（替代框内占位文字） ---- */
-/* 标签与输入框同一行：左标签 + 右输入框 */
-.field-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-}
-.field-row .input-field {
-  flex: 1;
-}
 .field-label {
-  flex: 0 0 auto;
+  flex-basis: 100%;
+  text-align: left;
   font-size: 0.85rem;
   font-weight: 500;
   line-height: 1;
   color: #33506E;
-  white-space: nowrap;
+  margin: 0 0 6px 2px;
 }
 
 /* ---- 状态条：收紧上下间距，避免贴底被裁切 ---- */

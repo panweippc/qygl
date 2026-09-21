@@ -164,35 +164,31 @@
 
       <el-form :model="loginForm" :rules="loginRules" ref="loginFormRef" class="login-form">
         <el-form-item prop="username">
-          <div class="field-row">
-            <label class="field-label">请输入用户名</label>
-            <el-input
-              v-model="loginForm.username"
-              prefix-icon="el-icon-user"
-              class="input-field"
-              :class="{ 'input-active': activeInput === 'username' }"
-              @focus="activeInput = 'username'"
-              @blur="activeInput = ''"
-              :validate-event="false"
-            />
-          </div>
+          <label class="field-label">请输入用户名</label>
+          <el-input
+            v-model="loginForm.username"
+            prefix-icon="el-icon-user"
+            class="input-field"
+            :class="{ 'input-active': activeInput === 'username' }"
+            @focus="activeInput = 'username'"
+            @blur="activeInput = ''"
+            :validate-event="false"
+          />
         </el-form-item>
 
         <el-form-item prop="password">
-          <div class="field-row">
-            <label class="field-label">请输入密码</label>
-            <el-input
-              v-model="loginForm.password"
-              type="password"
-              prefix-icon="el-icon-lock"
-              class="input-field"
-              :class="{ 'input-active': activeInput === 'password' }"
-              @focus="activeInput = 'password'"
-              @blur="activeInput = ''"
-              show-password
-              :validate-event="false"
-            />
-          </div>
+          <label class="field-label">请输入密码</label>
+          <el-input
+            v-model="loginForm.password"
+            type="password"
+            prefix-icon="el-icon-lock"
+            class="input-field"
+            :class="{ 'input-active': activeInput === 'password' }"
+            @focus="activeInput = 'password'"
+            @blur="activeInput = ''"
+            show-password
+            :validate-event="false"
+          />
         </el-form-item>
 
         <!-- 忘记密码入口：紧贴密码框，右对齐 -->
@@ -201,6 +197,7 @@
         </div>
 
         <el-form-item prop="captcha">
+          <label class="field-label">请输入验证码</label>
           <div class="captcha-container">
             <el-input
               v-model="loginForm.captcha"
