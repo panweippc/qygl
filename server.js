@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 import { hashPassword, generateRandomPassword, verifyToken } from './server/utils/security.js';
 import { cleanupOldLogs } from './server/utils/audit.js';
 import { csrfProtection } from './server/middleware/csrf.js';
@@ -19,6 +20,17 @@ const app = express();
 // nginx 反向代理会透传 X-Forwarded-For，express-rate-limit 需要 trust proxy 否则按请求抛 ValidationError
 app.set('trust proxy', 1);
 import 'dotenv/config'
+
+// 应用版本：构建/部署时拉取的 git 标签（v1.2.x）。Jenkins 走 `git reset --hard origin/main`，
+// 标签指向当前 main HEAD，故 `git describe --tags` 即返回对应版本号；非 git 环境回退到 env 或 dev。
+function resolveAppVersion() {
+  try {
+    return execSync('git describe --tags --always', { cwd: __dirname, timeout: 2000 }).toString().trim();
+  } catch {
+    return process.env.APP_VERSION || 'dev';
+  }
+}
+const APP_VERSION = resolveAppVersion();
 
 const port = process.env.PORT || 3005;
 
@@ -244,6 +256,7 @@ app.get('/api/health', async (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: Math.floor(process.uptime()),
     version: {
+      app: APP_VERSION,
       node: process.version,
       platform: os.platform(),
       arch: os.arch()

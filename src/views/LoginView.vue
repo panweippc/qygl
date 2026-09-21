@@ -19,6 +19,26 @@
     <!-- 左侧信息面板 -->
     <div class="login-info-panel">
       <div class="info-content">
+        <!-- 问候 + 天气（免登录，公开渲染） -->
+        <div class="login-greeting">
+          <div class="greet-main">
+            <p class="greet-text">{{ greetText }}</p>
+            <p class="greet-date">{{ todayText }}<span v-if="weather" class="greet-weather"> · {{ weather.text }} {{ weather.temp }}°C</span></p>
+          </div>
+          <div v-if="weather" class="greet-icon" v-html="weatherIcon(weather.code)"></div>
+        </div>
+
+        <!-- 平台功能导览（登录前仅展示，不可点击） -->
+        <div class="module-guide">
+          <p class="guide-title">平台服务</p>
+          <div class="guide-grid">
+            <div class="guide-item" v-for="m in modules" :key="m.name" :title="m.name">
+              <span class="guide-ico" :style="{ background: m.bg }" v-html="m.icon"></span>
+              <span class="guide-name">{{ m.name }}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- 假期倒计时：下一个假期的天数（表内维护区间） -->
         <div v-if="holidayTip" class="holiday-strip">
           <span class="holiday-bar"></span>
@@ -127,6 +147,28 @@
       </template>
     </el-dialog>
 
+    <!-- 忘记密码指引 -->
+    <el-dialog
+      v-model="forgotVisible"
+      title="忘记密码"
+      width="460px"
+      align-center
+      append-to-body
+    >
+      <div class="forgot-body">
+        <p class="forgot-lead">账号密码由信息部统一管理。重置后浏览器已保存的密码需重新保存，请通过以下方式联系：</p>
+        <ul class="forgot-list">
+          <li>信息部 分机：<b>{{ SUPPORT_CONTACT.phone }}</b></li>
+          <li>邮箱：<b>{{ SUPPORT_CONTACT.email }}</b></li>
+          <li>或联系本系统管理员：<b>{{ SUPPORT_CONTACT.admin }}</b></li>
+        </ul>
+        <p class="forgot-tip">提示：主流浏览器已支持记住账号密码，登录时无需重复输入。</p>
+      </div>
+      <template #footer>
+        <el-button @click="forgotVisible = false">知道了</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 右侧登录表单 -->
     <div class="login-form-wrapper">
       <!-- 背景装饰 -->
@@ -200,20 +242,15 @@
         </el-form-item>
       </el-form>
       
-      <!-- 技术指标-->
-      <div class="tech-indicators">
-        <div class="indicator">
-          <div class="indicator-dot"></div>
-          <span>系统在线</span>
-        </div>
-        <div class="indicator">
-          <div class="indicator-dot"></div>
-          <span>安全连接</span>
-        </div>
-        <div class="indicator">
-          <div class="indicator-dot"></div>
-          <span>实时监控</span>
-        </div>
+      <!-- 真实健康状态（取 /api/health，含版本号） -->
+      <div class="sys-status" :class="appStatus.cls">
+        <span class="status-dot"></span>
+        <span class="status-text">{{ appStatus.text }}<template v-if="appStatus.version"> · {{ appStatus.version }}</template></span>
+      </div>
+
+      <!-- 忘记密码入口 -->
+      <div class="login-help">
+        <span class="help-link" @click="forgotVisible = true">忘记密码？</span>
       </div>
     </div>
     
@@ -241,6 +278,115 @@ const loginFormRef = ref()
 const loading = ref(false)
 const activeInput = ref('')
 const socket = ref<Socket | null>(null)
+
+// ===== 登录页公共信息（免登录）：真实健康状态 / 天气 / 功能导览 =====
+// 真实健康状态：取自后端 /api/health（含 git 标签版本），替代原三个静态假指标
+const appStatus = ref({ cls: 'unknown', text: '服务状态未知', version: '' })
+// 天气（公开接口，失败不影响登录）
+const weather = ref<{ temp: number; code: number; text: string } | null>(null)
+// 忘记密码对话框
+const forgotVisible = ref(false)
+// 联系信息：请改为公司实际联系方式（演示占位）
+const SUPPORT_CONTACT = { phone: '8000（待确认）', email: 'it@your-company.com（待确认）', admin: '李智鑫' }
+// 天气定位：默认上海，请改为公司所在城市经纬度
+const WEATHER_LOCATION = { lat: 31.2304, lon: 121.4737 }
+// 时段问候语
+const greetText = computed(() => {
+  const h = new Date().getHours()
+  if (h < 11) return '上午好'
+  if (h < 13) return '中午好'
+  if (h < 18) return '下午好'
+  return '晚上好'
+})
+
+// 功能导览：平台级常用模块（登录前仅展示，不可点击，避免死链）
+const modules = [
+  { name: '审批中心', bg: '#E6F1FB', icon: moduleIcon('approval') },
+  { name: 'OA 申请', bg: '#FBEAF0', icon: moduleIcon('oa') },
+  { name: '资料中心', bg: '#E1F5EE', icon: moduleIcon('file') },
+  { name: '会议助手', bg: '#FAEEDA', icon: moduleIcon('meeting') },
+  { name: '消息中心', bg: '#EDEDFE', icon: moduleIcon('bell') },
+  { name: '下发管理', bg: '#FCEBEB', icon: moduleIcon('send') },
+]
+
+// 平台模块小图标（内联 SVG，随登录页公开渲染）
+function moduleIcon(kind: string) {
+  const c = '#1E5AA8'
+  const map: Record<string, string> = {
+    approval: `<path d="M4 11l5 5L20 5" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+    oa: `<path d="M6 3h9l4 4v14H6z" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M9 12h7M9 16h7" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`,
+    file: `<path d="M7 3h7l4 4v14H7z" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M14 3v4h4" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/>`,
+    meeting: `<circle cx="10" cy="10" r="6" stroke="${c}" stroke-width="2" fill="none"/><path d="M14 14l6 6" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`,
+    bell: `<path d="M12 5a5 5 0 0 1 5 5v4l2 3H5l2-3V10a5 5 0 0 1 5-5z" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M10 20a2 2 0 0 0 4 0" stroke="${c}" stroke-width="2" fill="none"/>`,
+    send: `<path d="M21 4L3 11l7 3 3 7 8-17z" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/>`,
+  }
+  return `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">${map[kind] || map.file}</svg>`
+}
+
+// WMO 天气代码 → 中文文案
+function weatherText(code: number) {
+  if (code <= 1) return '晴'
+  if (code === 2) return '多云'
+  if (code === 3) return '阴'
+  if (code === 45 || code === 48) return '雾'
+  if (code >= 51 && code <= 67) return '小雨'
+  if (code >= 71 && code <= 77) return '雪'
+  if (code >= 80 && code <= 82) return '阵雨'
+  if (code >= 85 && code <= 86) return '阵雪'
+  if (code >= 95) return '雷阵雨'
+  return '天气'
+}
+
+// 天气图标（内联 SVG，随状态切换）
+function weatherIcon(code: number) {
+  const sun = `<circle cx="12" cy="12" r="4.5" fill="#E8A33D"/>`
+  const cloud = `<path d="M7 17a4 4 0 0 1 .4-8A5 5 0 0 1 17 9a3.5 3.5 0 0 1 0 8H7z" fill="#9BB3C9"/>`
+  const rays = `<g stroke="#E8A33D" stroke-width="2" stroke-linecap="round"><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></g>`
+  const rain = `<g stroke="#5B8FC9" stroke-width="2" stroke-linecap="round"><path d="M8 19l-1 2M12 19l-1 2M16 19l-1 2"/></g>`
+  const bolt = `<path d="M13 16l-3 5h4l-3 5" stroke="#E8B23D" stroke-width="2" fill="none" stroke-linejoin="round"/>`
+  let body = cloud
+  if (code <= 1) body = sun + rays
+  else if (code === 2) body = sun + cloud
+  else if (code >= 51 && code <= 67) body = cloud + rain
+  else if (code >= 71 && code <= 77) body = cloud + `<g fill="#fff"><circle cx="9" cy="20" r="1.3"/><circle cx="13" cy="21" r="1.3"/><circle cx="17" cy="20" r="1.3"/></g>`
+  else if (code >= 80 && code <= 86) body = cloud + rain
+  else if (code >= 95) body = cloud + bolt
+  return `<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true">${body}</svg>`
+}
+
+// 真实健康状态
+async function loadHealth() {
+  try {
+    const resp = await fetch('/api/health', { cache: 'no-store' })
+    const json = await resp.json()
+    if (json.success) {
+      const ok = json.status === 'ok'
+      appStatus.value = {
+        cls: ok ? 'ok' : 'warn',
+        text: ok ? '系统服务正常' : '服务负载较高 · 请稍候',
+        version: (json.version && json.version.app) || '',
+      }
+    }
+  } catch (e) {
+    appStatus.value = { cls: 'unknown', text: '服务状态未知', version: '' }
+  }
+}
+
+// 天气（open-meteo，无需 key，支持 CORS）
+async function loadWeather() {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LOCATION.lat}&longitude=${WEATHER_LOCATION.lon}&current=temperature_2m,weather_code&timezone=Asia%2FShanghai`
+    const resp = await fetch(url, { cache: 'no-store' })
+    const json = await resp.json()
+    if (json && json.current) {
+      weather.value = {
+        temp: Math.round(json.current.temperature_2m),
+        code: json.current.weather_code,
+        text: weatherText(json.current.weather_code),
+      }
+    }
+  } catch (e) { /* 天气失败不影响登录 */ }
+}
 
 // ===== 登录页左侧面板：动态公告（B，免鉴权公开接口） =====
 const announcements = ref<any[]>([])
@@ -545,6 +691,9 @@ onMounted(() => {
   generateCaptcha();
   // 登录页左侧面板数据：动态公告（免鉴权公开接口）
   loadPublicData();
+  // 真实健康状态 + 天气（免鉴权公开接口）
+  loadHealth();
+  loadWeather();
   // E8: 若是因空闲超时被登出，提示用户
   const urlParams = new URLSearchParams(window.location.search)
   if (urlParams.get('reason') === 'idle') {
