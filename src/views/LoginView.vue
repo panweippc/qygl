@@ -15,8 +15,8 @@
         <span v-for="(d, i) in bgDots" :key="'dot' + i" :style="d"></span>
       </div>
     </div>
-    
-    <!-- 左侧信息面板 -->
+
+    <!-- 左侧信息面板（方案A：深蓝品牌侧栏） -->
     <div class="login-info-panel">
       <div class="info-content">
         <!-- 问候 + 天气（免登录，公开渲染） -->
@@ -95,7 +95,7 @@
 
       </div>
     </div>
-    
+
     <!-- 公告详情（登录页动态公告点击查看） -->
     <el-dialog
       v-model="announceVisible"
@@ -152,7 +152,7 @@
         <div class="login-bg-circle login-bg-circle-1"></div>
         <div class="login-bg-circle login-bg-circle-2"></div>
       </div>
-      
+
       <div class="login-header">
         <div class="logo">
           <span class="logo-text">宏友智慧办公平台</span>
@@ -161,31 +161,33 @@
         </div>
         <p class="login-subtitle">科技赋能未来</p>
       </div>
-      
+
       <el-form :model="loginForm" :rules="loginRules" ref="loginFormRef" class="login-form">
         <el-form-item prop="username">
+          <label class="field-label">请输入用户名</label>
           <el-input
             v-model="loginForm.username"
-            placeholder="用户名"
             prefix-icon="el-icon-user"
             class="input-field"
             :class="{ 'input-active': activeInput === 'username' }"
             @focus="activeInput = 'username'"
             @blur="activeInput = ''"
+            :validate-event="false"
           />
         </el-form-item>
-        
+
         <el-form-item prop="password">
+          <label class="field-label">请输入密码</label>
           <el-input
             v-model="loginForm.password"
             type="password"
-            placeholder="密码"
             prefix-icon="el-icon-lock"
             class="input-field"
             :class="{ 'input-active': activeInput === 'password' }"
             @focus="activeInput = 'password'"
             @blur="activeInput = ''"
             show-password
+            :validate-event="false"
           />
         </el-form-item>
 
@@ -193,17 +195,18 @@
         <div class="pwd-help">
           <span class="help-link" @click="forgotVisible = true">忘记密码？</span>
         </div>
-        
+
         <el-form-item prop="captcha">
+          <label class="field-label">请输入验证码</label>
           <div class="captcha-container">
             <el-input
               v-model="loginForm.captcha"
-              placeholder="验证码"
               prefix-icon="el-icon-shield"
               class="input-field captcha-input"
               :class="{ 'input-active': activeInput === 'captcha' }"
               @focus="activeInput = 'captcha'"
               @blur="activeInput = ''"
+              :validate-event="false"
             />
             <div class="captcha-box">
               <img
@@ -224,7 +227,7 @@
             </div>
           </div>
         </el-form-item>
-        
+
         <el-form-item>
           <el-button type="primary" @click="handleLogin" class="login-btn" :loading="loading">
             <span class="btn-text">登录</span>
@@ -232,14 +235,14 @@
           </el-button>
         </el-form-item>
       </el-form>
-      
+
       <!-- 真实健康状态（取 /api/health，含版本号） -->
       <div class="sys-status" :class="appStatus.cls">
         <span class="status-dot"></span>
         <span class="status-text">{{ appStatus.text }}<template v-if="appStatus.version"> · {{ appStatus.version }}</template></span>
       </div>
     </div>
-    
+
     <!-- 背景装饰 -->
     <div class="bg-decorations">
       <div class="bg-circle bg-circle-1"></div>
@@ -265,7 +268,7 @@ const loading = ref(false)
 const activeInput = ref('')
 const socket = ref<Socket | null>(null)
 
-// ===== 登录页公共信息（免登录）：真实健康状态 / 天气 / 功能导览 =====
+// ===== 登录页公共信息（免登录）：真实健康状态 / 天气 =====
 // 真实健康状态：取自后端 /api/health（含 git 标签版本），替代原三个静态假指标
 const appStatus = ref({ cls: 'unknown', text: '服务状态未知', version: '' })
 // 天气（公开接口，失败不影响登录）
@@ -415,11 +418,11 @@ function weatherText(code: number) {
 
 // 天气图标（内联 SVG，随状态切换）
 function weatherIcon(code: number) {
-  const sun = `<circle cx="12" cy="12" r="4.5" fill="#E8A33D"/>`
-  const cloud = `<path d="M7 17a4 4 0 0 1 .4-8A5 5 0 0 1 17 9a3.5 3.5 0 0 1 0 8H7z" fill="#9BB3C9"/>`
-  const rays = `<g stroke="#E8A33D" stroke-width="2" stroke-linecap="round"><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></g>`
-  const rain = `<g stroke="#5B8FC9" stroke-width="2" stroke-linecap="round"><path d="M8 19l-1 2M12 19l-1 2M16 19l-1 2"/></g>`
-  const bolt = `<path d="M13 16l-3 5h4l-3 5" stroke="#E8B23D" stroke-width="2" fill="none" stroke-linejoin="round"/>`
+  const sun = `<circle cx="12" cy="12" r="4.5" fill="#F2C063"/>`
+  const cloud = `<path d="M7 17a4 4 0 0 1 .4-8A5 5 0 0 1 17 9a3.5 3.5 0 0 1 0 8H7z" fill="#C9DCEF"/>`
+  const rays = `<g stroke="#F2C063" stroke-width="2" stroke-linecap="round"><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></g>`
+  const rain = `<g stroke="#9CC3E8" stroke-width="2" stroke-linecap="round"><path d="M8 19l-1 2M12 19l-1 2M16 19l-1 2"/></g>`
+  const bolt = `<path d="M13 16l-3 5h4l-3 5" stroke="#F2C063" stroke-width="2" fill="none" stroke-linejoin="round"/>`
   let body = cloud
   if (code <= 1) body = sun + rays
   else if (code === 2) body = sun + cloud
@@ -439,7 +442,7 @@ async function loadHealth() {
       const ok = json.status === 'ok'
       appStatus.value = {
         cls: ok ? 'ok' : 'warn',
-        text: ok ? '系统服务正常' : '服务负载较高 · 请稍候',
+        text: ok ? '系统服务正常' : '服务波动 · 请稍候',
         version: (json.version && json.version.app) || '',
       }
     }
@@ -651,6 +654,7 @@ const generateCaptcha = async () => {
   }
 }
 
+// 校验时机：输入过程不触发（validate-event=false），仅在点击登录时统一校验
 const loginRules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' }
@@ -664,34 +668,21 @@ const loginRules = {
 }
 
 const handleLogin = async () => {
-  console.log('Login button clicked');
   try {
-    // 验证表单
-    if (!loginForm.username || !loginForm.password) {
-      ElMessage.error('请输入用户名和密码');
-      return;
-    }
-    
-    // 验证验证码（已输入即可，正确性由后端比对）
-    if (!loginForm.captcha) {
-      ElMessage.error('请输入验证码');
-      return;
-    }
-    
-    console.log('Login form submitted:', loginForm);
-    
+    // 提交时才触发表单校验，红字提示不会在输入前出现
+    const valid = await loginFormRef.value?.validate().catch(() => false)
+    if (!valid) return
+
     // 调用实际的API（携带服务端验证码 token，一次性）
     const response = await login(loginForm.username, loginForm.password, loginForm.captcha, captchaToken.value);
-    
-    console.log('Login API response:', response);
-    
+
     if (response.success && response.user) {
       const user = response.user;
-      
+
       localStorage.setItem('token', response.token || `session-${user.id}-${Date.now()}`)
       localStorage.setItem('userId', user.id.toString())
       localStorage.setItem('username', user.username)
-      
+
       // 存储用户角色信息
       let role = 'employee'
       if (user.roleName) {
@@ -702,7 +693,7 @@ const handleLogin = async () => {
         role = '总经理'
       }
       localStorage.setItem('role', role)
-      
+
       // 存储完整的用户信息（用于项目申请等模块）
       const userInfo = {
         id: user.id,
@@ -715,19 +706,18 @@ const handleLogin = async () => {
         avatar: user.avatar || ''
       }
       localStorage.setItem('user', JSON.stringify(userInfo))
-      
+
       // 存储用户权限信息 - 使用API返回的权限数据，无权限则为空数组
       localStorage.setItem('permissions', JSON.stringify(user.permissions || []))
       if (user.buttonPermissions) {
         localStorage.setItem('buttonPermissions', JSON.stringify(user.buttonPermissions))
       }
-      
+
       // 建立 Socket 连接，维持单设备登录
       reinitSocket()
       // E8: 启用会话空闲超时检测
       startIdleDetector()
 
-      console.log('登录成功，跳转到首页');
       router.push('/');
     } else {
       // 登录失败：验证码 token 已一次性消费，刷新并重输
@@ -736,7 +726,6 @@ const handleLogin = async () => {
       generateCaptcha();
     }
   } catch (error: any) {
-    console.error('登录失败:', error)
     // 提取后端返回的具体错误信息（如 429 限流提示、验证码错误等），避免被统一文案掩盖
     const msg = error?.response?.data?.message
     ElMessage.error(msg || '登录失败，请重试')
@@ -747,7 +736,6 @@ const handleLogin = async () => {
 
 // 组件挂载时初始化
 onMounted(() => {
-  console.log('Login page mounted');
   generateCaptcha();
   // 登录页左侧面板数据：动态公告（免鉴权公开接口）
   loadPublicData();
@@ -766,7 +754,6 @@ onMounted(() => {
   // 检查是否已有token，如果有则跳转到首页
   const token = localStorage.getItem('token');
   if (token) {
-    console.log('Token already exists, redirecting to home');
     router.push('/');
   }
 })

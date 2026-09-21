@@ -1530,3 +1530,160 @@
 }
 
 .login-form-wrapper:hover { transform: none !important; }
+
+/* ============ 方案A：深蓝品牌侧栏（追加覆盖段，置于文件末尾以覆盖前面的浅色规则） ============ */
+
+/* ---- 左侧整块品牌蓝渐变面板 ---- */
+.login-info-panel {
+  box-sizing: border-box;
+  background: linear-gradient(160deg, #2568B5 0%, #1E5AA8 42%, #16497E 78%, #123C74 100%);
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 18px 48px rgba(18, 60, 116, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  padding: 2.5rem 3rem;
+}
+
+.info-content { color: #fff; }
+
+/* ---- 问候卡：深底半透明白卡 ---- */
+.login-greeting {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(8px);
+}
+
+.greet-text { color: #fff; }
+.greet-date { color: rgba(255, 255, 255, 0.75); }
+.greet-weather { color: #CFE3F7; }
+.greet-festival { color: #FFD9A0; }
+.greet-quote { color: rgba(255, 255, 255, 0.62); }
+
+/* ---- 动态公告面板：深底玻璃卡 ---- */
+.announce-board {
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.board-title { color: #fff; }
+.board-title::after { background: linear-gradient(90deg, #7FB3E8, #CFE3F7); }
+.board-sub { color: rgba(255, 255, 255, 0.6); }
+
+.announce-pinned { border-bottom-color: rgba(255, 255, 255, 0.2); }
+
+.announce-item {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.announce-item:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.38);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+
+.announce-item.is-pinned {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.26);
+}
+
+.announce-item.lv-warn {
+  background: rgba(240, 169, 59, 0.16);
+  border-color: rgba(240, 169, 59, 0.42);
+}
+
+.announce-item.lv-warn:hover {
+  background: rgba(240, 169, 59, 0.24);
+  border-color: rgba(240, 169, 59, 0.62);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+
+.announce-item.lv-urgent {
+  background: rgba(245, 108, 108, 0.16);
+  border-color: rgba(245, 108, 108, 0.48);
+}
+
+.announce-item.lv-urgent:hover {
+  background: rgba(245, 108, 108, 0.24);
+  border-color: rgba(245, 108, 108, 0.66);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+
+.announce-accent { background: #7FB3E8; }
+
+.announce-title { color: #fff; }
+.announce-item.lv-urgent .announce-title { color: #FFC0B8; }
+
+.announce-summary { color: rgba(255, 255, 255, 0.65); }
+.announce-date { color: rgba(255, 255, 255, 0.55); }
+
+/* 徽标：深底改半透明白，级别实色徽章保持白字 */
+.announce-badge {
+  color: #DCEAF8;
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.announce-badge.badge-top,
+.announce-badge.badge-warn,
+.announce-badge.badge-urgent { color: #fff; border-color: transparent; }
+
+.announce-badge.cat-info {
+  color: #DCEAF8;
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.announce-badge.cat-warn {
+  color: #FFE1B0;
+  background: rgba(240, 169, 59, 0.22);
+  border-color: rgba(240, 169, 59, 0.45);
+}
+
+.announce-badge.cat-urgent {
+  color: #FFC7C0;
+  background: rgba(215, 60, 60, 0.24);
+  border-color: rgba(215, 60, 60, 0.5);
+}
+
+.announce-empty {
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.announce-foot {
+  color: rgba(255, 255, 255, 0.5);
+  border-top-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ---- 登录卡：白卡悬浮在浅底上，与深蓝侧栏形成对比 ---- */
+.login-container { background: linear-gradient(135deg, #EAF1F8, #E1EAF3); }
+
+.login-form-wrapper { padding-bottom: 1.8rem; }
+
+/* ---- 表单字段标签（替代框内占位文字） ---- */
+.field-label {
+  flex-basis: 100%;
+  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1;
+  color: #33506E;
+  margin: 0 0 6px 2px;
+}
+
+/* ---- 状态条：收紧上下间距，避免贴底被裁切 ---- */
+.sys-status {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+}
+
+/* ---- 窄屏：深蓝面板保持圆角卡片形态 ---- */
+@media (max-width: 1200px) {
+  .login-info-panel {
+    padding: 1.75rem 1.5rem;
+    border-radius: 20px;
+  }
+}
