@@ -30,17 +30,6 @@
           <div v-if="weather" class="greet-icon" v-html="weatherIcon(weather.code)"></div>
         </div>
 
-        <!-- 平台功能导览（登录前仅展示，不可点击） -->
-        <div class="module-guide">
-          <p class="guide-title">平台服务</p>
-          <div class="guide-grid">
-            <div class="guide-item" v-for="m in modules" :key="m.name" :title="m.name">
-              <span class="guide-ico" :style="{ background: m.bg }" v-html="m.icon"></span>
-              <span class="guide-name">{{ m.name }}</span>
-            </div>
-          </div>
-        </div>
-
         <!-- 动态公告（公告栏，唯一入口；同一公告只在此处出现一次） -->
         <div class="announce-board">
           <div class="board-head">
@@ -409,26 +398,6 @@ const dailyQuote = computed(() => {
   const dayOfYear = Math.floor((now.getTime() - start.getTime()) / 86400000)
   return DAILY_QUOTES[dayOfYear % DAILY_QUOTES.length] || ''
 })
-
-// 功能导览：平台级常用模块（登录前仅展示，不可点击，避免死链）
-const modules = [
-  { name: 'OA申请', bg: '#FBEAF0', icon: moduleIcon('oa') },
-  { name: '月报填报', bg: '#E6F1FB', icon: moduleIcon('report') },
-  { name: '物资管理', bg: '#E1F5EE', icon: moduleIcon('material') },
-  { name: '资料上传', bg: '#FAEEDA', icon: moduleIcon('upload') },
-]
-
-// 平台模块小图标（内联 SVG，随登录页公开渲染）
-function moduleIcon(kind: string) {
-  const c = '#1E5AA8'
-  const map: Record<string, string> = {
-    oa: `<path d="M6 3h9l4 4v14H6z" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M9 12h7M9 16h7" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`,
-    report: `<path d="M6 3h8l4 4v14H6z" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M14 3v4h4" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M9 13v4M12 11v6M15 14.5v2.5" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`,
-    material: `<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/>`,
-    upload: `<path d="M12 15V4M8 8l4-4 4 4" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 15v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round"/>`,
-  }
-  return `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">${map[kind] || map.oa}</svg>`
-}
 
 // WMO 天气代码 → 中文文案
 function weatherText(code: number) {
