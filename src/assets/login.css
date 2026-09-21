@@ -966,6 +966,70 @@
   transform: scale(1.02);
 }
 
+/* 验证码图片 + 独立刷新按钮（44px 级触控目标） */
+.captcha-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.captcha-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px dashed rgba(30, 90, 168, 0.4);
+  font-size: 0.8rem;
+  color: #1E5AA8;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.85);
+  user-select: none;
+}
+
+.captcha-placeholder:hover {
+  border-color: #1E5AA8;
+}
+
+.captcha-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(30, 90, 168, 0.3);
+  background: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.captcha-refresh:hover {
+  border-color: #1E5AA8;
+  background: #E6F1FB;
+}
+
+.captcha-refresh:active {
+  transform: rotate(-60deg);
+}
+
+.captcha-refresh:focus-visible {
+  outline: 2px solid #1E5AA8;
+  outline-offset: 2px;
+}
+
+/* 忘记密码入口：密码框下方右对齐 */
+.pwd-help {
+  display: flex;
+  justify-content: flex-end;
+  margin: -6px 0 8px;
+  position: relative;
+  z-index: 1;
+}
+
 .tech-indicators {
   display: flex;
   justify-content: space-around;

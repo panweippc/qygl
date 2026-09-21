@@ -5,6 +5,7 @@ import { verifyToken, pwdFingerprint } from '../utils/security.js';
 const PUBLIC_PATHS = [
   { method: 'POST', path: '/login' },
   { method: 'GET', path: '/health' },
+  { method: 'GET', path: '/captcha' },
   { method: 'GET', path: '/public/announcements', prefix: true },
   { method: 'GET', path: '/public/overview' }
 ];

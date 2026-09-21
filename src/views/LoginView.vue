@@ -24,7 +24,8 @@
           <div class="greet-main">
             <p class="greet-text">{{ greetText }}</p>
             <p class="greet-date">{{ todayText }}<span v-if="weather" class="greet-weather"> · {{ weather.text }} {{ weather.temp }}°C</span></p>
-            <p v-if="festivalTip" class="greet-festival">{{ festivalTip }}</p>
+            <p v-if="dayTips" class="greet-festival">{{ dayTips }}</p>
+            <p v-if="dailyQuote" class="greet-quote">{{ dailyQuote }}</p>
           </div>
           <div v-if="weather" class="greet-icon" v-html="weatherIcon(weather.code)"></div>
         </div>
@@ -37,15 +38,6 @@
               <span class="guide-ico" :style="{ background: m.bg }" v-html="m.icon"></span>
               <span class="guide-name">{{ m.name }}</span>
             </div>
-          </div>
-        </div>
-
-        <!-- 假期倒计时：下一个假期的天数（表内维护区间） -->
-        <div v-if="holidayTip" class="holiday-strip">
-          <span class="holiday-bar"></span>
-          <div class="holiday-body">
-            <span class="holiday-label">{{ holidayTip.label }}</span>
-            <span class="holiday-value">{{ holidayTip.value }}</span>
           </div>
         </div>
 
@@ -207,6 +199,11 @@
             show-password
           />
         </el-form-item>
+
+        <!-- 忘记密码入口：紧贴密码框，右对齐 -->
+        <div class="pwd-help">
+          <span class="help-link" @click="forgotVisible = true">忘记密码？</span>
+        </div>
         
         <el-form-item prop="captcha">
           <div class="captcha-container">
@@ -219,13 +216,23 @@
               @focus="activeInput = 'captcha'"
               @blur="activeInput = ''"
             />
-            <img 
-              :src="captchaImage" 
-              alt="验证码" 
-              class="captcha-img"
-              @click="generateCaptcha"
-              title="点击刷新验证码"
-            />
+            <div class="captcha-box">
+              <img
+                v-if="captchaImage"
+                :src="captchaImage"
+                alt="验证码"
+                class="captcha-img"
+                @click="generateCaptcha"
+                title="点击刷新验证码"
+              />
+              <span v-else class="captcha-placeholder" @click="generateCaptcha">点击获取</span>
+              <button type="button" class="captcha-refresh" @click="generateCaptcha" title="刷新验证码" aria-label="刷新验证码">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <path d="M20 12a8 8 0 1 1-2.34-5.66" stroke="#1E5AA8" stroke-width="2" fill="none" stroke-linecap="round"/>
+                  <path d="M20 3v4h-4" stroke="#1E5AA8" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </el-form-item>
         
@@ -241,11 +248,6 @@
       <div class="sys-status" :class="appStatus.cls">
         <span class="status-dot"></span>
         <span class="status-text">{{ appStatus.text }}<template v-if="appStatus.version"> · {{ appStatus.version }}</template></span>
-      </div>
-
-      <!-- 忘记密码入口 -->
-      <div class="login-help">
-        <span class="help-link" @click="forgotVisible = true">忘记密码？</span>
       </div>
     </div>
     
@@ -333,6 +335,81 @@ const greetText = computed(() => {
   return '晚上好'
 })
 
+// ===== 每日鼓励语：内置寄语数组，按当天序号确定（全员当天一致），零外链 =====
+const DAILY_QUOTES = [
+  '把简单的事做到极致，就是不简单。',
+  '今天的努力，是明天的实力。',
+  '认真工作的人，运气都不会太差。',
+  '每一步都算数，每一天都值得。',
+  '与其担心未来，不如现在努力。',
+  '成功来自坚持，坚持造就非凡。',
+  '把小事做好，把大事做细。',
+  '心中有目标，脚下有力量。',
+  '不积跬步，无以至千里。',
+  '效率源于专注，成果源于积累。',
+  '用学习拥抱变化，用行动回答问题。',
+  '保持热爱，奔赴山海。',
+  '细节决定成败，态度决定高度。',
+  '每一次全力以赴，都是对未来的投资。',
+  '越努力，越幸运。',
+  '同心同行，共创共赢。',
+  '今日事，今日毕。',
+  '灵感是勤奋的回报。',
+  '你的价值，藏在你解决问题的能力里。',
+  '沟通让协作更顺畅，协作让成果更出色。',
+  '专注当下，静待花开。',
+  '让标准成为习惯，让习惯符合标准。',
+  '信任建立在每一次靠谱的交付上。',
+  '进步一点点，日久见差距。',
+  '微笑面对客户，用心对待工作。',
+  '把困难当台阶，步步向上。',
+  '守时守信，是职场最好的名片。',
+  '最好的时机是现在，最好的方式是行动。',
+  '热爱可抵岁月漫长。',
+  '做正确的事，正确地做事。',
+  '心怀感恩，脚踏实地。',
+  '专业成就价值，服务赢得口碑。',
+  '不懂就问，不会就学，学了就干。',
+  '安全无小事，责任大于天。',
+  '数据会说话，结果见真章。',
+  '昨天删繁就简，今天精益求精。',
+  '轻装上阵，全力以赴。',
+  '靠谱，是对一个人最高的评价。',
+  '聚沙成塔，滴水穿石。',
+  '主动一点，机会就多一分。',
+  '好习惯是高效的原动力。',
+  '心怀热忱，眼里有光。',
+  '把每个平凡的日子，过出不平凡的收获。',
+  '认真是一种态度，更是一种能力。',
+  '和优秀的人同行，与更好的自己相遇。',
+  '与其羡慕别人，不如成就自己。',
+  '付出不亚于任何人的努力。',
+  '今天的你，要比昨天更进一步。',
+  '心中有光，何惧路长。',
+  '始于初心，成于坚守。',
+  '坚持是普通人唯一的捷径。',
+  '把复杂留给自己，把简单留给同事。',
+  '一次把事情做对，就是最大的节约。',
+  '向阳而生，逐光而行。',
+  '凡是过往，皆为序章。',
+  '千里之行，始于足下。',
+  '质量是尊严，信誉是生命。',
+  '有志者，事竟成。',
+  '行动是治愈恐惧的良药。',
+  '用结果说话，让实力证明。',
+  '不驰于空想，不骛于虚声。',
+  '行胜于言，实干为本。',
+  '保持好奇心，永远在路上。',
+  '每天进步1%，一年强大37倍。',
+  '星光不问赶路人，时光不负有心人。',
+]
+const dailyQuote = computed(() => {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), 0, 0)
+  const dayOfYear = Math.floor((now.getTime() - start.getTime()) / 86400000)
+  return DAILY_QUOTES[dayOfYear % DAILY_QUOTES.length] || ''
+})
+
 // 功能导览：平台级常用模块（登录前仅展示，不可点击，避免死链）
 const modules = [
   { name: 'OA申请', bg: '#FBEAF0', icon: moduleIcon('oa') },
@@ -350,7 +427,7 @@ function moduleIcon(kind: string) {
     material: `<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9" stroke="${c}" stroke-width="2" fill="none" stroke-linejoin="round"/>`,
     upload: `<path d="M12 15V4M8 8l4-4 4 4" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 15v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round"/>`,
   }
-  return `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">${map[kind] || map.file}</svg>`
+  return `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">${map[kind] || map.oa}</svg>`
 }
 
 // WMO 天气代码 → 中文文案
@@ -514,7 +591,7 @@ function isRecent(a: any) {
   return Date.now() - t < 7 * 24 * 3600 * 1000
 }
 
-/* ===== 假期倒计时：表内维护下一批假期区间，跨年补新一年即可 ===== */
+/* ===== 假期倒计时：表内维护下一批假期区间，跨年补新一年即可（合并展示于问候区 dayTips） ===== */
 const HOLIDAYS = [
   { name: '中秋国庆假期', start: '2026-09-25', end: '2026-10-07' },
   { name: '元旦假期', start: '2027-01-01', end: '2027-01-03' },
@@ -542,6 +619,15 @@ const holidayTip = computed<{ label: string; value: string } | null>(() => {
     }
   }
   return null
+})
+
+// 合并展示：节日/节气 + 假期倒计时（一行内用 · 分隔，替代原独立假期条）
+const dayTips = computed(() => {
+  const parts: string[] = []
+  if (festivalTip.value) parts.push(festivalTip.value)
+  const h = holidayTip.value
+  if (h) parts.push(`${h.label.replace(/^距离/, '')} ${h.value}`)
+  return parts.join(' · ')
 })
 
 /** 登录页为未登录态：读取免鉴权公开公告接口 */
@@ -578,17 +664,21 @@ const loginForm = reactive({
 const captchaToken = ref('')
 const captchaImage = ref('')
 
-// 服务端验证码：向后端 /api/captcha 取一次性 token + SVG 图片
+// 服务端验证码：向后端 /api/captcha 取一次性 token + SVG 图片；失败时显示占位可重试
 const generateCaptcha = async () => {
   try {
     const resp = await fetch('/api/captcha', { cache: 'no-store' })
     const json = await resp.json()
-    if (json.success) {
+    if (json.success && json.svg) {
       captchaImage.value = json.svg
       captchaToken.value = json.token
+    } else {
+      captchaImage.value = ''
+      captchaToken.value = ''
     }
   } catch (e) {
-    /* 验证码获取失败不影响页面其余渲染，登录时后端会提示 */
+    captchaImage.value = ''
+    captchaToken.value = ''
   }
 }
 
