@@ -805,7 +805,7 @@
 
 import { ref, computed, onMounted } from 'vue'
 
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -816,6 +816,7 @@ import { getEmployees, addEmployee as apiAddEmployee, deleteEmployee as apiDelet
 
 
 const router = useRouter()
+const route = useRoute()
 
 const { hasPerm } = useButtonPermission()
 
@@ -1170,6 +1171,11 @@ const loadEmployees = async () => {
 // 组件挂载时加载数据
 
 onMounted(async () => {
+
+  // 支持 ?action=add：从首页「添加员工」直达添加弹窗
+  if (route.query.action === 'add') {
+    addDialogVisible.value = true
+  }
 
   await loadEmployees()
 

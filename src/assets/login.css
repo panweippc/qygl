@@ -1728,20 +1728,18 @@
 .login-header { margin-bottom: 1.1rem; }
 .login-form .el-form-item { margin-bottom: 15px; }
 
-/* ---- 修复状态条被裁：卡片为 justify-content:center + overflow:hidden + max-height 组合，
-       视口高度紧张时 flex 居中会把最后一个元素（状态条）裁掉。
-       改为顶部对齐 + 状态条绝对定位贴卡片底边（在容器框内，永不裁切） ---- */
+/* ---- 修复状态条被裁：状态条改为正常文档流（跟随内容滚动，不再绝对定位钉底），
+       避免卡片可滚动时状态条压住登录按钮、内容"粘住不动"的观感 ---- */
 .login-form-wrapper {
   justify-content: flex-start;
-  padding-bottom: 4.6rem; /* 为底部状态条预留高度，避免登录按钮与之重叠 */
+  padding-bottom: 1.75rem; /* 状态条已入流，无需为其预留绝对定位空间 */
 }
 
 .sys-status {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  margin: 0;
+  flex-shrink: 0;
+  width: auto;
+  max-width: none;
+  margin: 1.25rem -2.5rem -1.75rem; /* 负外边距抵消卡片内边距，全宽贴底 */
   padding: 0.85rem 2.5rem;
   border-top: 1px solid #E6EEF7;
   background: #F7FAFD;
