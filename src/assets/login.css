@@ -657,7 +657,8 @@
   align-items: center;
   margin: auto 2rem;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   transition: all 0.3s ease;
 }
 
@@ -759,7 +760,7 @@
 .login-subtitle {
   font-size: 1.1rem;
   color: rgba(51, 51, 51, 0.7);
-  margin-bottom: 3rem;
+  margin-bottom: 1.75rem;
   text-shadow: 0 0 15px rgba(30, 90, 168, 0.3);
   letter-spacing: 0.5px;
   position: relative;
@@ -859,7 +860,7 @@
   transition: all 0.3s ease !important;
   position: relative;
   overflow: hidden;
-  margin-top: 2rem;
+  margin-top: 1.25rem;
   animation: gradientShift 3s ease-in-out infinite;
   letter-spacing: 1px !important;
   z-index: 1;
