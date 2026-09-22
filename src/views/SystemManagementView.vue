@@ -65,7 +65,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import RoleManagementTab from '../components/RoleManagementTab.vue'
 import UserManagementTab from '../components/UserManagementTab.vue'
 import MenuManagementTab from '../components/MenuManagementTab.vue'
@@ -73,7 +73,11 @@ import PermissionManagementTab from '../components/PermissionManagementTab.vue'
 import BackupManagementTab from '../components/BackupManagementTab.vue'
 
 const router = useRouter()
-const activeTab = ref('roles')
+const route = useRoute()
+// 支持首页常用操作 ?tab=permissions 直达权限管理页签（白名单校验）
+const VALID_TABS = ['roles', 'users', 'menus', 'permissions', 'backup']
+const queryTab = route.query.tab as string
+const activeTab = ref(VALID_TABS.includes(queryTab) ? queryTab : 'roles')
 const selectedRoleId = ref<number | null>(null)
 
 function handleBack() {

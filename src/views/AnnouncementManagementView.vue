@@ -146,9 +146,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeaderBar from '../components/PageHeaderBar.vue'
 
+const route = useRoute()
 const CATEGORIES = ['公司公告', '人事通知', '行政通知', '制度规范', '活动资讯']
 
 const list = ref<any[]>([])
@@ -332,7 +334,11 @@ async function remove(row: any) {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  // 支持首页常用操作 ?action=add 直达新增公告弹窗
+  if (route.query.action === 'add') openEdit()
+})
 </script>
 
 <style scoped>
