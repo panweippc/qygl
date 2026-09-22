@@ -1154,7 +1154,7 @@ const tabs = computed(() => {
     baseTabs.push({ name: 'distributed', label: '下发管理', icon: '📨', badge: pendingDistributedCount.value > 0 ? pendingDistributedCount.value : totalDistributedCount.value, badgeType: pendingDistributedCount.value > 0 ? 'red' : 'gray' })
   }
 
-  if (isCurrentUserZhang.value || isAdminComputed.value || canDistribute.value) {
+  if (isAdminComputed.value || canDistribute.value) {
     baseTabs.push({ name: 'distributedByMe', label: '我下发的', icon: '📤', badge: 0, badgeType: 'gray' })
   }
 
