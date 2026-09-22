@@ -7,7 +7,7 @@
 
       <main class="content">
         <div class="dashboard">
-          <!-- 待办概览：按角色分流（员工无「待我审批/已办」），等宽卡片网格 -->
+          <!-- 待办概览：按角色分流（员工无「待我审批/已审批」），等宽卡片网格 -->
           <section class="section-block">
             <div class="section-title">
               {{ isApprover ? '审批概览' : '我的申请' }}
@@ -141,7 +141,7 @@ const todoStats = computed(() => {
     return [
       { label: '待我审批', value: summary.value.todoTotal },
       { label: '我发起的', value: summary.value.myTotal },
-      { label: '已办', value: summary.value.doneTotal }
+      { label: '已审批', value: summary.value.doneTotal }
     ]
   }
   return [

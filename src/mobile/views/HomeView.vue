@@ -139,7 +139,7 @@ const todoStats = computed(() => {
     return [
       { label: '待我审批', value: summary.value.todoTotal, color: '#ee0a24', path: '/todo' },
       { label: '我发起的', value: summary.value.myTotal, color: '#185fa5', path: '/todo' },
-      { label: '已办', value: summary.value.doneTotal, color: '#07c160', path: '/todo' }
+      { label: '已审批', value: summary.value.doneTotal, color: '#07c160', path: '/todo' }
     ]
   }
   return [
