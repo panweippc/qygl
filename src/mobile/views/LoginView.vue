@@ -19,15 +19,6 @@
     <!-- 左侧信息面板 -->
     <div class="login-info-panel">
       <div class="info-content">
-        <!-- 假期倒计时 -->
-        <div v-if="holidayTip" class="holiday-strip">
-          <span class="holiday-bar"></span>
-          <div class="holiday-body">
-            <span class="holiday-label">{{ holidayTip.label }}</span>
-            <span class="holiday-value">{{ holidayTip.value }}</span>
-          </div>
-        </div>
-
         <!-- 动态公告 -->
         <div class="announce-board">
           <div class="board-head">
@@ -124,6 +115,22 @@
       </template>
     </el-dialog>
 
+    <!-- 忘记密码指引 -->
+    <el-dialog
+      v-model="forgotVisible"
+      title="忘记密码"
+      width="90%"
+      align-center
+      append-to-body
+    >
+      <div class="forgot-body">
+        <p class="forgot-lead">请联系本系统管理员 <b>李智鑫</b> 进行改密并获取新密码，获取新密码后请第一时间进行改密并妥善保存。</p>
+      </div>
+      <template #footer>
+        <el-button @click="forgotVisible = false">知道了</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 右侧登录表单 -->
     <div class="login-form-wrapper">
       <div class="login-bg-decoration">
@@ -142,51 +149,67 @@
 
       <el-form :model="loginForm" :rules="loginRules" ref="loginFormRef" class="login-form">
         <el-form-item prop="username">
+          <label class="field-label">请输入用户名</label>
           <el-input
             v-model="loginForm.username"
-            placeholder="用户名"
             :prefix-icon="User"
             class="input-field"
             :class="{ 'input-active': activeInput === 'username' }"
             @focus="activeInput = 'username'"
             @blur="activeInput = ''"
+            :validate-event="false"
           />
         </el-form-item>
 
         <el-form-item prop="password">
+          <div class="pwd-label-row">
+            <label class="field-label">请输入密码</label>
+            <span class="help-link" @click="forgotVisible = true">忘记密码？</span>
+          </div>
           <el-input
             v-model="loginForm.password"
             type="password"
-            placeholder="密码"
             :prefix-icon="Lock"
             class="input-field"
             :class="{ 'input-active': activeInput === 'password' }"
             @focus="activeInput = 'password'"
             @blur="activeInput = ''"
             show-password
+            :validate-event="false"
             @keyup.enter="handleLogin"
           />
         </el-form-item>
 
         <el-form-item prop="captcha">
+          <label class="field-label">请输入验证码</label>
           <div class="captcha-container">
             <el-input
               v-model="loginForm.captcha"
-              placeholder="验证码"
               :prefix-icon="CircleCheck"
               class="input-field captcha-input"
               :class="{ 'input-active': activeInput === 'captcha' }"
               @focus="activeInput = 'captcha'"
               @blur="activeInput = ''"
+              :validate-event="false"
               @keyup.enter="handleLogin"
             />
-            <img
-              :src="captchaImage"
-              alt="验证码"
-              class="captcha-img"
-              @click="generateCaptcha"
-              title="点击刷新验证码"
-            />
+            <div class="captcha-box">
+              <img
+                v-if="captchaImage"
+                :src="captchaImage"
+                alt="验证码"
+                class="captcha-img"
+                @click="generateCaptcha"
+                title="点击刷新验证码"
+              />
+              <span v-else class="captcha-placeholder" @click="generateCaptcha">点击获取</span>
+              <button type="button" class="captcha-refresh" @click="generateCaptcha" title="刷新验证码" aria-label="刷新验证码">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <path d="M20 12a8 8 0 1 1-2.34-5.66" stroke="#1E5AA8" stroke-width="2" fill="none" stroke-linecap="round"/>
+                  <path d="M20 3v4h-4" stroke="#1E5AA8" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </el-form-item>
 
@@ -198,19 +221,10 @@
         </el-form-item>
       </el-form>
 
-      <div class="tech-indicators">
-        <div class="indicator">
-          <div class="indicator-dot"></div>
-          <span>系统在线</span>
-        </div>
-        <div class="indicator">
-          <div class="indicator-dot"></div>
-          <span>安全连接</span>
-        </div>
-        <div class="indicator">
-          <div class="indicator-dot"></div>
-          <span>实时监控</span>
-        </div>
+      <!-- 真实健康状态（取 /api/health，含版本号） -->
+      <div class="sys-status" :class="appStatus.cls">
+        <span class="status-dot"></span>
+        <span class="status-text">{{ appStatus.text }}<template v-if="appStatus.version"> · {{ appStatus.version }}</template></span>
       </div>
     </div>
 
@@ -241,6 +255,12 @@ const announcements = ref<any[]>([])
 const announceVisible = ref(false)
 const announceDetail = ref('')
 const activeAnnounce = ref<any>({})
+
+// 忘记密码对话框
+const forgotVisible = ref(false)
+
+// 真实健康状态：取自后端 /api/health（含 git 标签版本），替代原三个静态假指标
+const appStatus = ref({ cls: 'unknown', text: '服务状态未知', version: '' })
 
 const todayText = (() => {
   const d = new Date()
@@ -323,33 +343,6 @@ function isRecent(a: any) {
   return Date.now() - t < 7 * 24 * 3600 * 1000
 }
 
-const HOLIDAYS = [
-  { name: '中秋国庆假期', start: '2026-09-25', end: '2026-10-07' },
-  { name: '元旦假期', start: '2027-01-01', end: '2027-01-03' },
-]
-const DAY_MS = 24 * 3600 * 1000
-function dayStart(v: string) {
-  const [y, m, d] = String(v).split('-').map(Number)
-  return new Date(y, (m || 1) - 1, d || 1)
-}
-const holidayTip = computed<{ label: string; value: string } | null>(() => {
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  for (const h of HOLIDAYS) {
-    const s = dayStart(h.start)
-    const e = dayStart(h.end)
-    if (today.getTime() >= s.getTime() && today.getTime() <= e.getTime()) {
-      const left = Math.round((e.getTime() - today.getTime()) / DAY_MS) + 1
-      return { label: `${h.name}进行中`, value: `剩余 ${left} 天` }
-    }
-    if (today.getTime() < s.getTime()) {
-      const days = Math.round((s.getTime() - today.getTime()) / DAY_MS)
-      return { label: `距离${h.name}`, value: days <= 0 ? '就是今天' : `还有 ${days} 天` }
-    }
-  }
-  return null
-})
-
 async function loadPublicData() {
   try {
     const resp = await fetch('/api/public/announcements?limit=8', { cache: 'no-store' })
@@ -374,55 +367,52 @@ async function openAnnouncement(a: any) {
   } catch (e) { /* 详情失败则仅展示摘要 */ }
 }
 
+// 真实健康状态
+async function loadHealth() {
+  try {
+    const resp = await fetch('/api/health', { cache: 'no-store' })
+    const json = await resp.json()
+    if (json.success) {
+      const ok = json.status === 'ok'
+      appStatus.value = {
+        cls: ok ? 'ok' : 'warn',
+        text: ok ? '系统服务正常' : '服务波动 · 请稍候',
+        version: (json.version && json.version.app) || '',
+      }
+    }
+  } catch (e) {
+    appStatus.value = { cls: 'unknown', text: '服务状态未知', version: '' }
+  }
+}
+
 const loginForm = reactive({
   username: '',
   password: '',
   captcha: ''
 })
 
-const captchaCode = ref('')
+const captchaToken = ref('')
 const captchaImage = ref('')
 
-const generateCaptcha = () => {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz0123456789'
-  let code = ''
-  for (let i = 0; i < 4; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length))
+// 服务端验证码：向后端 /api/captcha 取一次性 token + SVG 图片；失败时显示占位可重试
+const generateCaptcha = async () => {
+  try {
+    const resp = await fetch('/api/captcha', { cache: 'no-store' })
+    const json = await resp.json()
+    if (json.success && json.svg) {
+      captchaImage.value = json.svg
+      captchaToken.value = json.token
+    } else {
+      captchaImage.value = ''
+      captchaToken.value = ''
+    }
+  } catch (e) {
+    captchaImage.value = ''
+    captchaToken.value = ''
   }
-  captchaCode.value = code
-  captchaImage.value = generateCaptchaImage(code)
 }
 
-const generateCaptchaImage = (code: string) => {
-  const canvas = document.createElement('canvas')
-  canvas.width = 100
-  canvas.height = 40
-  const ctx = canvas.getContext('2d')!
-
-  ctx.fillStyle = '#f0f0f0'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-  for (let i = 0; i < 10; i++) {
-    ctx.beginPath()
-    ctx.strokeStyle = `rgb(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255})`
-    ctx.lineWidth = 1
-    ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height)
-    ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height)
-    ctx.stroke()
-  }
-
-  for (let i = 0; i < code.length; i++) {
-    ctx.font = `${20 + Math.random() * 10}px Arial`
-    ctx.fillStyle = `rgb(${Math.floor(Math.random() * 100) + 50}, ${Math.floor(Math.random() * 100) + 50}, ${Math.floor(Math.random() * 100) + 50})`
-    ctx.textBaseline = 'middle'
-    const x = 15 + i * 22
-    const y = canvas.height / 2 + (Math.random() - 0.5) * 10
-    ctx.fillText(code[i], x, y)
-  }
-
-  return canvas.toDataURL()
-}
-
+// 校验时机：输入过程不触发（validate-event=false），仅在点击登录时统一校验
 const loginRules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' }
@@ -437,25 +427,16 @@ const loginRules = {
 
 const handleLogin = async () => {
   try {
-    if (!loginForm.username || !loginForm.password) {
-      ElMessage.error('请输入用户名和密码')
-      return
-    }
-    if (!loginForm.captcha) {
-      ElMessage.error('请输入验证码')
-      return
-    }
-    if (loginForm.captcha.toLowerCase() !== captchaCode.value.toLowerCase()) {
-      ElMessage.error('验证码错误')
-      generateCaptcha()
-      loginForm.captcha = ''
-      return
-    }
+    // 提交时才触发表单校验，红字提示不会在输入前出现
+    const valid = await loginFormRef.value?.validate().catch(() => false)
+    if (!valid) return
 
     loading.value = true
     const response = await api.post('/login', {
       username: loginForm.username.trim(),
       password: loginForm.password,
+      captcha: loginForm.captcha,
+      captchaToken: captchaToken.value,
       deviceType: 'mobile'
     })
     const data = response.data
@@ -493,13 +474,16 @@ const handleLogin = async () => {
       initSocket()
       router.replace('/')
     } else {
+      // 登录失败：验证码 token 已一次性消费，刷新并重输
       ElMessage.error(data?.message || '用户名或密码错误')
+      loginForm.captcha = ''
       generateCaptcha()
     }
   } catch (error: any) {
-    console.error('登录失败:', error)
+    // 提取后端返回的具体错误信息（如 429 限流提示、验证码错误等），避免被统一文案掩盖
     const msg = error?.response?.data?.message
     ElMessage.error(msg || '登录失败，请重试')
+    loginForm.captcha = ''
     generateCaptcha()
   } finally {
     loading.value = false
@@ -509,6 +493,7 @@ const handleLogin = async () => {
 onMounted(() => {
   generateCaptcha()
   loadPublicData()
+  loadHealth()
   const token = localStorage.getItem('token')
   if (token) {
     router.replace('/')
@@ -545,6 +530,8 @@ onMounted(() => {
   max-height: none !important;
   padding: 1.25rem 0.7rem !important;
   margin: auto 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
 }
 .mobile-login .login-header { margin-bottom: 1rem !important; }
 .mobile-login .logo-text { font-size: 1.25rem !important; }
@@ -563,6 +550,12 @@ onMounted(() => {
   height: 34px !important;
   flex: 0 0 auto !important;
 }
+.mobile-login .captcha-box {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  flex: 0 0 auto !important;
+}
 .mobile-login .login-btn { height: 42px !important; }
 .mobile-login .announce-board { padding: 12px !important; }
 .mobile-login .board-title { font-size: 1rem !important; }
@@ -571,6 +564,12 @@ onMounted(() => {
 .mobile-login .announce-summary { font-size: 11px !important; }
 .mobile-login .announce-date { font-size: 10px !important; }
 .mobile-login .announce-badge { font-size: 10px !important; }
-.mobile-login .tech-indicators { margin-top: 1rem !important; font-size: 11px !important; }
-.mobile-login .indicator-dot { width: 6px !important; height: 6px !important; }
+/* sys-status 在移动端全宽贴卡底 */
+.mobile-login .sys-status {
+  max-width: none !important;
+  margin-top: auto !important;
+  padding: 0.7rem 1rem !important;
+  font-size: 11px !important;
+}
+.mobile-login .forgot-body { font-size: 13px !important; }
 </style>
