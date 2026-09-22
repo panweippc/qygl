@@ -24,6 +24,21 @@
           </el-table-column>
         </el-table>
       </div>
+      <div class="cr-section" v-if="customerRec">
+        <div class="cr-section-title">
+          <span>客户管理</span>
+          <el-tag size="small" type="success">已同步</el-tag>
+        </div>
+        <el-descriptions :column="2" border size="small">
+          <el-descriptions-item label="客户名称">{{ customerRec.name }}</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag size="small" :type="customerRec.status === '活跃' ? 'success' : customerRec.status === '成交' ? 'warning' : 'info'">{{ customerRec.status }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="联系人">{{ customerRec.contact || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="电话">{{ customerRec.phone || '—' }}</el-descriptions-item>
+        </el-descriptions>
+        <el-button type="primary" link size="small" style="margin-top:6px" @click="openInCustomerMgmt">在客户管理中打开</el-button>
+      </div>
     </div>
   </el-dialog>
 </template>
@@ -41,6 +56,23 @@ const visible = computed({
 
 const loading = ref(false)
 const data = ref<any>({})
+const customerRec = ref<any>(null)
+
+async function loadCustomer() {
+  customerRec.value = null
+  if (!props.customer) return
+  try {
+    const res = await fetch('/api/customers?keyword=' + encodeURIComponent(props.customer)).then(r => r.json())
+    if (res.success) {
+      const list = res.data?.list || res.data || []
+      customerRec.value = (list.find((c: any) => c.name === props.customer) || list[0]) || null
+    }
+  } catch { /* ignore */ }
+}
+
+function openInCustomerMgmt() {
+  window.open('/customer-management?name=' + encodeURIComponent(props.customer), '_blank')
+}
 
 const sections = computed(() => [
   { type: 'intention', label: '意向漏斗', rows: data.value.intention || [] },
@@ -62,6 +94,7 @@ async function load() {
   } finally {
     loading.value = false
   }
+  await loadCustomer()
 }
 
 function jump(type: string, id: number) {

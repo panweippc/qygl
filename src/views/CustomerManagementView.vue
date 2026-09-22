@@ -80,8 +80,41 @@
           <el-descriptions-item label="状态">
             <el-tag :type="detail.status === '活跃' ? 'success' : detail.status === '意向' ? 'warning' : 'info'" size="small">{{ detail.status }}</el-tag>
           </el-descriptions-item>
+          <el-descriptions-item label="来源">
+            <el-tag v-if="detail.source === '销售漏斗'" type="primary" size="small">销售漏斗</el-tag>
+            <el-tag v-else type="info" size="small">手动录入</el-tag>
+          </el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ formatDate(detail.createdAt) }}</el-descriptions-item>
         </el-descriptions>
+
+        <!-- 关联销售漏斗（双向关联）：展示该客户在销售漏斗中的意向/重点/成交记录 -->
+        <div v-if="linkedFunnel.length" class="linked-funnel">
+          <h3 style="margin:16px 0 12px">关联销售漏斗（{{ linkedFunnel.length }}）</h3>
+          <el-table :data="linkedFunnel" border size="small" style="margin-bottom:8px">
+            <el-table-column label="阶段" width="80">
+              <template #default="{ row }">
+                <el-tag :type="row.stage === '成交' ? 'success' : row.stage === '重点' ? 'warning' : 'info'" size="small">{{ row.stage }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="owner" label="负责人" width="100" />
+            <el-table-column label="进展" width="90">
+              <template #default="{ row }">{{ row.progress != null ? row.progress + '%' : '—' }}</template>
+            </el-table-column>
+            <el-table-column prop="salesStatus" label="销售状态" width="130" />
+            <el-table-column label="合同/实际金额">
+              <template #default="{ row }">
+                <span v-if="row.stage === '成交'">{{ fmtMoney(row.contractAmount) }} / {{ fmtMoney(row.actualAmount) }}</span>
+                <span v-else>—</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="100">
+              <template #default>
+                <el-button type="primary" link size="small" @click="goFunnel">查看</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-button type="primary" link style="margin-top:4px" @click="goFunnel">前往销售漏斗</el-button>
+        </div>
 
         <h3 style="margin:20px 0 12px">跟进记录</h3>
         <div class="activity-list" v-loading="activitiesLoading">
@@ -122,6 +155,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useButtonPermission } from '@/composables/usePermission'
 
@@ -133,6 +167,7 @@ const customers = ref<any[]>([])
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = 20
+const route = useRoute()
 const searchQuery = ref('')
 const showForm = ref(false)
 const editingId = ref<number | null>(null)
@@ -140,6 +175,7 @@ const showDetail = ref(false)
 const detail = ref<any>(null)
 const activities = ref<any[]>([])
 const activitiesLoading = ref(false)
+const linkedFunnel = ref<any[]>([])
 
 const form = ref({ name: '', contact: '', phone: '', email: '', address: '', tags: '', status: '活跃' })
 
@@ -225,8 +261,25 @@ const deleteCustomer = async (id: number) => {
 const openDetail = async (row: any) => {
   detail.value = row
   showDetail.value = true
+  linkedFunnel.value = []
   activityForm.value.customerId = row.id
   await loadActivities(row.id)
+  // 双向关联：按客户名称反查其在销售漏斗中的记录
+  if (row.name) {
+    try {
+      const res = await fetch('/api/customers/funnel-link?name=' + encodeURIComponent(row.name)).then(r => r.json())
+      if (res.success) linkedFunnel.value = res.data || []
+    } catch { /* ignore */ }
+  }
+}
+
+const goFunnel = () => {
+  window.open('/sales-funnel', '_blank')
+}
+
+const fmtMoney = (v: any) => {
+  const n = Number(v)
+  return Number.isFinite(n) ? n.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '—'
 }
 
 const loadActivities = async (customerId: number) => {
@@ -255,7 +308,16 @@ const addActivity = async () => {
   savingActivity.value = false
 }
 
-onMounted(loadCustomers)
+onMounted(async () => {
+  if (route.query.name) {
+    searchQuery.value = String(route.query.name)
+    await loadCustomers()
+    const m = customers.value.find((c: any) => c.name === route.query.name)
+    if (m) openDetail(m)
+  } else {
+    await loadCustomers()
+  }
+})
 </script>
 
 <style scoped>

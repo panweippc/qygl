@@ -19,6 +19,17 @@
     <!-- 左侧信息面板 -->
     <div class="login-info-panel">
       <div class="info-content">
+        <!-- 问候 + 天气（免登录，公开渲染） -->
+        <div class="login-greeting">
+          <div class="greet-main">
+            <p class="greet-text">{{ greetText }}</p>
+            <p class="greet-date">{{ todayText }}<span v-if="weather" class="greet-weather"> · {{ weather.text }} {{ weather.temp }}°C</span></p>
+            <p v-if="dayTips" class="greet-festival">{{ dayTips }}</p>
+            <p v-if="dailyQuote" class="greet-quote">{{ dailyQuote }}</p>
+          </div>
+          <div v-if="weather" class="greet-icon" v-html="weatherIcon(weather.code)"></div>
+        </div>
+
         <!-- 动态公告 -->
         <div class="announce-board">
           <div class="board-head">
@@ -259,6 +270,183 @@ const activeAnnounce = ref<any>({})
 // 忘记密码对话框
 const forgotVisible = ref(false)
 
+// ===== 登录页公共信息（免登录）：问候 / 天气 / 节日节气 =====
+// 天气（公开接口，失败不影响登录）
+const weather = ref<{ temp: number; code: number; text: string } | null>(null)
+// 天气定位：默认呼和浩特，如需其他城市请改经纬度
+const WEATHER_LOCATION = { lat: 40.8424, lon: 111.7490 }
+
+// ===== 实时节日 / 节气提醒（公历节日 + 24 节气 + 主要农历节日静态表） =====
+const SOLAR_TERMS = ['小寒','大寒','立春','雨水','惊蛰','春分','清明','谷雨','立夏','小满','芒种','夏至','小暑','大暑','立秋','处暑','白露','秋分','寒露','霜降','立冬','小雪','大雪','冬至']
+// 寿星公式基准（1900 年起，单位：分钟）
+const S_TERM_BASE = [0,21208,42467,63836,85337,107014,128867,150921,173149,195551,218072,240693,263343,285989,308563,331033,353350,375494,397447,419210,440795,462224,483532,504758]
+function solarTermDate(y: number, n: number) {
+  return new Date((31556925974.7 * (y - 1900) + S_TERM_BASE[n - 1] * 60000) + Date.UTC(1900, 0, 6, 2, 5))
+}
+const FIXED_FESTIVALS = [
+  { m: 1, d: 1, name: '元旦' }, { m: 3, d: 8, name: '妇女节' }, { m: 5, d: 1, name: '劳动节' },
+  { m: 6, d: 1, name: '儿童节' }, { m: 9, d: 10, name: '教师节' }, { m: 10, d: 1, name: '国庆节' },
+  { m: 12, d: 1, name: '艾滋病日' },
+]
+// 主要农历节日静态表（如需更多年份，按农历公历对照续表即可）
+const LUNAR_FESTIVALS = [
+  { y: 2026, m: 2, d: 17, name: '春节' }, { y: 2026, m: 6, d: 19, name: '端午节' }, { y: 2026, m: 9, d: 25, name: '中秋节' },
+  { y: 2027, m: 2, d: 6, name: '春节' }, { y: 2027, m: 6, d: 9, name: '端午节' }, { y: 2027, m: 9, d: 15, name: '中秋节' },
+  { y: 2028, m: 1, d: 26, name: '春节' }, { y: 2028, m: 5, d: 29, name: '端午节' }, { y: 2028, m: 10, d: 3, name: '中秋节' },
+]
+const FEST_DAY = 24 * 3600 * 1000
+const festivalTip = computed(() => {
+  const now = new Date()
+  const t = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const y = now.getFullYear()
+  const events: { date: Date; label: string }[] = []
+  for (const yy of [y, y + 1]) {
+    for (let n = 1; n <= 24; n++) {
+      const dt = solarTermDate(yy, n)
+      events.push({ date: new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()), label: SOLAR_TERMS[n - 1] })
+    }
+    for (const f of FIXED_FESTIVALS) events.push({ date: new Date(yy, f.m - 1, f.d), label: f.name })
+    for (const f of LUNAR_FESTIVALS) if (f.y === yy) events.push({ date: new Date(yy, f.m - 1, f.d), label: f.name })
+  }
+  for (const e of events) if (e.date.getTime() === t.getTime()) return `今日 ${e.label}`
+  const future = events.filter((e) => e.date.getTime() > t.getTime()).sort((a, b) => a.date.getTime() - b.date.getTime())
+  if (future.length) {
+    const d = Math.round((future[0].date.getTime() - t.getTime()) / FEST_DAY)
+    return `距离 ${future[0].label} 还有 ${d} 天`
+  }
+  return ''
+})
+// 时段问候语
+const greetText = computed(() => {
+  const h = new Date().getHours()
+  if (h < 11) return '上午好'
+  if (h < 13) return '中午好'
+  if (h < 18) return '下午好'
+  return '晚上好'
+})
+
+// ===== 每日鼓励语：内置寄语数组，按当天序号确定（全员当天一致），零外链 =====
+const DAILY_QUOTES = [
+  '把简单的事做到极致，就是不简单。',
+  '今天的努力，是明天的实力。',
+  '认真工作的人，运气都不会太差。',
+  '每一步都算数，每一天都值得。',
+  '与其担心未来，不如现在努力。',
+  '成功来自坚持，坚持造就非凡。',
+  '把小事做好，把大事做细。',
+  '心中有目标，脚下有力量。',
+  '不积跬步，无以至千里。',
+  '效率源于专注，成果源于积累。',
+  '用学习拥抱变化，用行动回答问题。',
+  '保持热爱，奔赴山海。',
+  '细节决定成败，态度决定高度。',
+  '每一次全力以赴，都是对未来的投资。',
+  '越努力，越幸运。',
+  '同心同行，共创共赢。',
+  '今日事，今日毕。',
+  '灵感是勤奋的回报。',
+  '你的价值，藏在你解决问题的能力里。',
+  '沟通让协作更顺畅，协作让成果更出色。',
+  '专注当下，静待花开。',
+  '让标准成为习惯，让习惯符合标准。',
+  '信任建立在每一次靠谱的交付上。',
+  '进步一点点，日久见差距。',
+  '微笑面对客户，用心对待工作。',
+  '把困难当台阶，步步向上。',
+  '守时守信，是职场最好的名片。',
+  '最好的时机是现在，最好的方式是行动。',
+  '热爱可抵岁月漫长。',
+  '做正确的事，正确地做事。',
+  '心怀感恩，脚踏实地。',
+  '专业成就价值，服务赢得口碑。',
+  '不懂就问，不会就学，学了就干。',
+  '安全无小事，责任大于天。',
+  '数据会说话，结果见真章。',
+  '昨天删繁就简，今天精益求精。',
+  '轻装上阵，全力以赴。',
+  '靠谱，是对一个人最高的评价。',
+  '聚沙成塔，滴水穿石。',
+  '主动一点，机会就多一分。',
+  '好习惯是高效的原动力。',
+  '心怀热忱，眼里有光。',
+  '把每个平凡的日子，过出不平凡的收获。',
+  '认真是一种态度，更是一种能力。',
+  '和优秀的人同行，与更好的自己相遇。',
+  '与其羡慕别人，不如成就自己。',
+  '付出不亚于任何人的努力。',
+  '今天的你，要比昨天更进一步。',
+  '心中有光，何惧路长。',
+  '始于初心，成于坚守。',
+  '坚持是普通人唯一的捷径。',
+  '把复杂留给自己，把简单留给同事。',
+  '一次把事情做对，就是最大的节约。',
+  '向阳而生，逐光而行。',
+  '凡是过往，皆为序章。',
+  '千里之行，始于足下。',
+  '质量是尊严，信誉是生命。',
+  '有志者，事竟成。',
+  '行动是治愈恐惧的良药。',
+  '用结果说话，让实力证明。',
+  '不驰于空想，不骛于虚声。',
+  '行胜于言，实干为本。',
+  '保持好奇心，永远在路上。',
+  '每天进步1%，一年强大37倍。',
+  '星光不问赶路人，时光不负有心人。',
+]
+const dailyQuote = computed(() => {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), 0, 0)
+  const dayOfYear = Math.floor((now.getTime() - start.getTime()) / 86400000)
+  return DAILY_QUOTES[dayOfYear % DAILY_QUOTES.length] || ''
+})
+
+// WMO 天气代码 → 中文文案
+function weatherText(code: number) {
+  if (code <= 1) return '晴'
+  if (code === 2) return '多云'
+  if (code === 3) return '阴'
+  if (code === 45 || code === 48) return '雾'
+  if (code >= 51 && code <= 67) return '小雨'
+  if (code >= 71 && code <= 77) return '雪'
+  if (code >= 80 && code <= 82) return '阵雨'
+  if (code >= 85 && code <= 86) return '阵雪'
+  if (code >= 95) return '雷阵雨'
+  return '天气'
+}
+
+// 天气图标（内联 SVG，随状态切换）
+function weatherIcon(code: number) {
+  const sun = `<circle cx="12" cy="12" r="4.5" fill="#F2C063"/>`
+  const cloud = `<path d="M7 17a4 4 0 0 1 .4-8A5 5 0 0 1 17 9a3.5 3.5 0 0 1 0 8H7z" fill="#C9DCEF"/>`
+  const rays = `<g stroke="#F2C063" stroke-width="2" stroke-linecap="round"><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></g>`
+  const rain = `<g stroke="#9CC3E8" stroke-width="2" stroke-linecap="round"><path d="M8 19l-1 2M12 19l-1 2M16 19l-1 2"/></g>`
+  const bolt = `<path d="M13 16l-3 5h4l-3 5" stroke="#F2C063" stroke-width="2" fill="none" stroke-linejoin="round"/>`
+  let body = cloud
+  if (code <= 1) body = sun + rays
+  else if (code === 2) body = sun + cloud
+  else if (code >= 51 && code <= 67) body = cloud + rain
+  else if (code >= 71 && code <= 77) body = cloud + `<g fill="#fff"><circle cx="9" cy="20" r="1.3"/><circle cx="13" cy="21" r="1.3"/><circle cx="17" cy="20" r="1.3"/></g>`
+  else if (code >= 80 && code <= 86) body = cloud + rain
+  else if (code >= 95) body = cloud + bolt
+  return `<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true">${body}</svg>`
+}
+
+// 天气（open-meteo，无需 key，支持 CORS）
+async function loadWeather() {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LOCATION.lat}&longitude=${WEATHER_LOCATION.lon}&current=temperature_2m,weather_code&timezone=Asia%2FShanghai`
+    const resp = await fetch(url, { cache: 'no-store' })
+    const json = await resp.json()
+    if (json && json.current) {
+      weather.value = {
+        temp: Math.round(json.current.temperature_2m),
+        code: json.current.weather_code,
+        text: weatherText(json.current.weather_code),
+      }
+    }
+  } catch (e) { /* 天气失败不影响登录 */ }
+}
+
 // 真实健康状态：取自后端 /api/health（含 git 标签版本），替代原三个静态假指标
 const appStatus = ref({ cls: 'unknown', text: '服务状态未知', version: '' })
 
@@ -268,6 +456,43 @@ const todayText = (() => {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${week}`
 })()
+
+/* ===== 假期倒计时：表内维护下一批假期区间，跨年补新一年即可（合并展示于问候区 dayTips） ===== */
+const HOLIDAYS = [
+  { name: '中秋国庆假期', start: '2026-09-25', end: '2026-10-07' },
+  { name: '元旦假期', start: '2027-01-01', end: '2027-01-03' },
+]
+const DAY_MS = 24 * 3600 * 1000
+function dayStart(v: string) {
+  const [y, m, d] = String(v).split('-').map(Number)
+  return new Date(y, (m || 1) - 1, d || 1)
+}
+const holidayTip = computed<{ label: string; value: string } | null>(() => {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  for (const h of HOLIDAYS) {
+    const s = dayStart(h.start)
+    const e = dayStart(h.end)
+    if (today.getTime() >= s.getTime() && today.getTime() <= e.getTime()) {
+      const left = Math.round((e.getTime() - today.getTime()) / DAY_MS) + 1
+      return { label: `${h.name}进行中`, value: `剩余 ${left} 天` }
+    }
+    if (today.getTime() < s.getTime()) {
+      const days = Math.round((s.getTime() - today.getTime()) / DAY_MS)
+      return { label: `距离${h.name}`, value: days <= 0 ? '就是今天' : `还有 ${days} 天` }
+    }
+  }
+  return null
+})
+
+// 合并展示：节日/节气 + 假期倒计时（一行内用 · 分隔，替代原独立假期条）
+const dayTips = computed(() => {
+  const parts: string[] = []
+  if (festivalTip.value) parts.push(festivalTip.value)
+  const h = holidayTip.value
+  if (h) parts.push(`${h.label.replace(/^距离/, '')} ${h.value}`)
+  return parts.join(' · ')
+})
 
 function fmtDate(v: any) {
   if (!v) return ''
@@ -493,6 +718,7 @@ const handleLogin = async () => {
 onMounted(() => {
   generateCaptcha()
   loadPublicData()
+  loadWeather()
   loadHealth()
   const token = localStorage.getItem('token')
   if (token) {
@@ -558,6 +784,18 @@ onMounted(() => {
 }
 .mobile-login .login-btn { height: 42px !important; }
 .mobile-login .announce-board { padding: 12px !important; }
+/* 问候卡：移动端收窄，置于公告面板上方的深蓝侧栏内 */
+.mobile-login .login-greeting {
+  margin-bottom: 0.85rem !important;
+  padding: 0.7rem 0.85rem !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+}
+.mobile-login .greet-text { font-size: 1rem !important; }
+.mobile-login .greet-date { font-size: 0.74rem !important; }
+.mobile-login .greet-festival { font-size: 0.72rem !important; }
+.mobile-login .greet-quote { font-size: 0.72rem !important; line-height: 1.4 !important; margin-top: 2px !important; }
+.mobile-login .greet-icon { width: 34px !important; height: 34px !important; }
 .mobile-login .board-title { font-size: 1rem !important; }
 .mobile-login .board-sub { font-size: 11px !important; }
 .mobile-login .announce-title { font-size: 12px !important; }

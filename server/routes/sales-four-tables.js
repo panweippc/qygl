@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { createOperationLog, getOperator } from '../utils/audit.js';
+import { ensureCustomerColumns } from './customers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -901,6 +902,52 @@ async function ensureProjectForFunnel(pool, funnelBody, createdBy) {
   return { analysisId, created };
 }
 
+// 销售漏斗 ↔ 客户管理 双向关联 + 成交联动
+async function syncCustomerFromFunnel(pool, { customerName, contact, phone, stage, isDeal, operator }) {
+  const name = String(customerName || '').trim();
+  if (!name) return null;
+  try {
+    await ensureCustomerColumns(pool);
+    const now = new Date().toISOString().replace('T', ' ').replace('Z', '');
+    const [exist] = await pool.execute('SELECT id, status, tags FROM customers WHERE name = ? LIMIT 1', [name]);
+    if (exist.length) {
+      const cid = exist[0].id;
+      const sets = [];
+      const vals = [];
+      if (contact) { sets.push('contact = ?'); vals.push(contact); }
+      if (phone) { sets.push('phone = ?'); vals.push(phone); }
+      // 成交联动：漏斗标记成交时置客户状态为「成交」（仅置位不回退，避免误改）
+      if (isDeal) { sets.push('status = ?'); vals.push('成交'); }
+      const tags = exist[0].tags || '';
+      if (!tags.includes('来源:销售漏斗')) { sets.push('tags = ?'); vals.push((tags ? tags + ',' : '') + '来源:销售漏斗'); }
+      sets.push('source = ?'); vals.push('销售漏斗');
+      vals.push(cid);
+      await pool.execute(`UPDATE customers SET ${sets.join(', ')} WHERE id = ?`, vals);
+      if (isDeal) {
+        await pool.execute(
+          'INSERT INTO customer_activities (customerId, content, followUpMethod, followUpTime, createdAt) VALUES (?, ?, ?, ?, ?)',
+          [cid, '销售漏斗标记成交', '成交', now, now]
+        );
+      }
+      return cid;
+    }
+    const [result] = await pool.execute(
+      'INSERT INTO customers (name, contact, phone, status, tags, source, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [name, contact || '', phone || '', isDeal ? '成交' : '意向', '来源:销售漏斗', '销售漏斗', now]
+    );
+    if (isDeal) {
+      await pool.execute(
+        'INSERT INTO customer_activities (customerId, content, followUpMethod, followUpTime, createdAt) VALUES (?, ?, ?, ?, ?)',
+        [result.insertId, '销售漏斗标记成交', '成交', now, now]
+      );
+    }
+    return result.insertId;
+  } catch (e) {
+    console.error('同步客户档案失败(不影响销售主流程):', e);
+    return null;
+  }
+}
+
 async function insertVersion(pool, tableType, recordId, data, createdBy) {
   try {
     const [max] = await pool.execute(
@@ -958,6 +1005,20 @@ router.post('/sales-four-tables/:type', requireSalesWriter, async (req, res) => 
     if (type === 'intention' || type === 'key' || type === 'deal') {
       try { await ensureProjectForFunnel(pool, body, createdBy); }
       catch (e) { console.error('同步大项目进展失败(不影响主流程):', e); }
+    }
+
+    // 漏斗保存后同步到「客户管理」（双向关联 + 成交联动）
+    if (type === 'intention' || type === 'key' || type === 'deal') {
+      try {
+        await syncCustomerFromFunnel(pool, {
+          customerName: body.customer_name,
+          contact: body.contact,
+          phone: body.phone,
+          stage: destType,
+          isDeal: destType === 'deal',
+          operator: createdBy
+        });
+      } catch (e) { console.error('同步客户管理失败(不影响主流程):', e); }
     }
 
     // 大项目子表
@@ -1027,6 +1088,20 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
     if (type === 'intention' || type === 'key' || type === 'deal') {
       try { await ensureProjectForFunnel(pool, body, createdBy); }
       catch (e) { console.error('同步大项目进展失败(不影响主流程):', e); }
+    }
+
+    // 漏斗保存后同步到「客户管理」（双向关联 + 成交联动），destType 反映最终归属（含成交迁移）
+    if (type === 'intention' || type === 'key' || type === 'deal') {
+      try {
+        await syncCustomerFromFunnel(pool, {
+          customerName: body.customer_name,
+          contact: body.contact,
+          phone: body.phone,
+          stage: destType,
+          isDeal: destType === 'deal',
+          operator: createdBy
+        });
+      } catch (e) { console.error('同步客户管理失败(不影响主流程):', e); }
     }
 
     if (destType !== type) {
@@ -1269,8 +1344,17 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
               }, createdBy);
               if (syncRes?.created) projectCreated++;
               else if (syncRes?.analysisId) projectSynced++;
+              // 双向关联：同步到客户管理
+              await syncCustomerFromFunnel(pool, {
+                customerName,
+                contact: String(obj['联系人'] || '').trim(),
+                phone: String(obj['电话'] || '').trim(),
+                stage: type,
+                isDeal: type === 'deal',
+                operator: createdBy
+              });
             } catch (e) {
-              // 大项目进展同步失败不影响导入主流程，但要在响应里留痕
+              // 大项目进展/客户同步失败不影响导入主流程，但要在响应里留痕
               errors.push('大项目进展同步失败(' + customerName + '): ' + e.message);
             }
           }
