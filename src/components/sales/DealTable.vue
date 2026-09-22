@@ -38,6 +38,12 @@
         <el-table-column prop="unreceived_amount" label="未回款" width="110">
           <template #default="{ row }">{{ Number(row.unreceived_amount || 0).toLocaleString() }}</template>
         </el-table-column>
+        <el-table-column label="回款进度" width="150">
+          <template #default="{ row }">
+            <span v-if="Number(row.contract_amount || 0) <= 0" class="muted-cell">—</span>
+            <el-progress v-else :percentage="pct(row)" :stroke-width="10" :color="progColor(pct(row))" :format="(p: number) => p + '%'" />
+          </template>
+        </el-table-column>
         <el-table-column prop="report_month" label="申报月份" width="100" />
         <el-table-column prop="contact" label="联系人" width="110" />
         <el-table-column prop="phone" label="电话" width="130" />
@@ -138,6 +144,15 @@ const emptyForm = () => ({
 })
 const editForm = ref<any>(emptyForm())
 
+function pct(row: any): number {
+  const c = Number(row.contract_amount || 0)
+  if (c <= 0) return 0
+  return Math.min(100, Math.round(Number(row.received_amount || 0) / c * 100))
+}
+function progColor(p: number): string {
+  return p >= 100 ? '#67c23a' : '#1E5AA8'
+}
+
 async function load() {
   loading.value = true
   try {
@@ -185,6 +200,7 @@ defineExpose({ load })
 .ft-pagination { margin-top: 1rem; justify-content: flex-end; }
 .dialog-body { max-height: 60vh; overflow-y: auto; padding-right: 0.5rem; }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 0.5rem; }
+.muted-cell { color: #909399; font-size: 0.85rem; }
 .ft-table-wrapper { width: 100%; overflow-x: auto; border: 1px solid #ebeef5; border-radius: 4px; }
 .ft-table-wrapper :deep(.el-table) { min-width: max-content; }
 .op-cell { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; white-space: nowrap; }

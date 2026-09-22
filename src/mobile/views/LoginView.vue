@@ -789,7 +789,9 @@ onMounted(() => {
   margin-bottom: 0.85rem !important;
   padding: 0.7rem 0.85rem !important;
   border-radius: 12px !important;
-  background: rgba(255, 255, 255, 0.92) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  backdrop-filter: blur(8px) !important;
 }
 .mobile-login .greet-text { font-size: 1rem !important; }
 .mobile-login .greet-date { font-size: 0.74rem !important; }

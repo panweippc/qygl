@@ -36,12 +36,31 @@
       </el-alert>
     </div>
 
+    <div class="cl-trend">
+      <div class="trend-card">
+        <h3 class="cl-card-title">成交趋势（按申报月份）</h3>
+        <div ref="chartRef" class="trend-chart"></div>
+      </div>
+      <div class="rank-card">
+        <h3 class="cl-card-title">负责人成交 TOP5（按合同额）</h3>
+        <ul class="rank-list">
+          <li v-for="(o, i) in topOwners" :key="o.owner">
+            <span class="rank-no" :class="'rank-' + (i + 1)">{{ i + 1 }}</span>
+            <span class="rank-name">{{ o.owner }}</span>
+            <span class="rank-amt">¥{{ fmt(o.amount) }}</span>
+          </li>
+          <li v-if="!topOwners.length" class="rank-empty">暂无数据</li>
+        </ul>
+      </div>
+    </div>
+
     <DealTable :perm="perm" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import * as echarts from 'echarts'
 import { salesFetchJSON } from '../components/sales/salesApi'
 import PageHeaderBar from '../components/PageHeaderBar.vue'
 import DealTable from '../components/sales/DealTable.vue'
@@ -49,6 +68,18 @@ import DealTable from '../components/sales/DealTable.vue'
 const perm = ref({ canWrite: false, canView: false, isAdmin: false })
 const summary = ref({ count: 0, contract: 0, actual: 0, received: 0, unreceived: 0 })
 const summaryLoading = ref(false)
+const allRows = ref<any[]>([])
+const chartRef = ref<HTMLElement | null>(null)
+let trendChart: echarts.ECharts | null = null
+
+const topOwners = computed(() => {
+  const map = new Map<string, number>()
+  for (const r of allRows.value) {
+    const o = String(r.owner || '未分配')
+    map.set(o, (map.get(o) || 0) + Number(r.contract_amount || 0))
+  }
+  return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([owner, amount]) => ({ owner, amount }))
+})
 
 async function loadPerm() {
   try {
@@ -71,6 +102,7 @@ async function loadSummary() {
     const json = await salesFetchJSON('/api/sales-four-tables/deal?pageSize=10000')
     if (json.success && json.data?.list) {
       const list = json.data.list
+      allRows.value = list
       summary.value = {
         count: list.length,
         contract: list.reduce((s: number, r: any) => s + Number(r.contract_amount || 0), 0),
@@ -78,6 +110,8 @@ async function loadSummary() {
         received: list.reduce((s: number, r: any) => s + Number(r.received_amount || 0), 0),
         unreceived: list.reduce((s: number, r: any) => s + Number(r.unreceived_amount || 0), 0)
       }
+      await nextTick()
+      initTrendChart()
     }
   } catch (e: any) {
     console.error('加载成交项目汇总失败:', e.message)
@@ -86,11 +120,46 @@ async function loadSummary() {
   }
 }
 
+function initTrendChart() {
+  if (!chartRef.value) return
+  if (trendChart) trendChart.dispose()
+  trendChart = echarts.init(chartRef.value)
+  const map = new Map<string, { contract: number; actual: number; received: number }>()
+  for (const r of allRows.value) {
+    const m = String(r.report_month || '未知')
+    const cur = map.get(m) || { contract: 0, actual: 0, received: 0 }
+    cur.contract += Number(r.contract_amount || 0)
+    cur.actual += Number(r.actual_amount || 0)
+    cur.received += Number(r.received_amount || 0)
+    map.set(m, cur)
+  }
+  const months = [...map.keys()].sort()
+  const contractData = months.map(m => map.get(m)!.contract)
+  const actualData = months.map(m => map.get(m)!.actual)
+  const receivedData = months.map(m => map.get(m)!.received)
+  trendChart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (v: number) => '¥' + Number(v || 0).toLocaleString() },
+    legend: { data: ['合同额', '实际金额', '回款金额'], bottom: 0 },
+    grid: { left: '3%', right: '4%', bottom: '12%', top: '8%', containLabel: true },
+    xAxis: { type: 'category', data: months, axisLabel: { color: '#666', rotate: months.length > 8 ? 35 : 0 } },
+    yAxis: { type: 'value', axisLabel: { color: '#666', formatter: (v: number) => v >= 10000 ? (v / 10000) + '万' : String(v) } },
+    series: [
+      { name: '合同额', type: 'bar', data: contractData, itemStyle: { color: '#1E5AA8' }, barMaxWidth: 28 },
+      { name: '实际金额', type: 'bar', data: actualData, itemStyle: { color: '#5B8FC9' }, barMaxWidth: 28 },
+      { name: '回款金额', type: 'bar', data: receivedData, itemStyle: { color: '#67c23a' }, barMaxWidth: 28 }
+    ]
+  })
+}
+
 function fmt(n: number): string {
   return Number(n || 0).toLocaleString()
 }
 
 onMounted(() => { loadPerm(); loadSummary() })
+
+const handleResize = () => { trendChart?.resize() }
+window.addEventListener('resize', handleResize)
+onUnmounted(() => { window.removeEventListener('resize', handleResize); trendChart?.dispose() })
 </script>
 
 <style scoped>
@@ -115,4 +184,19 @@ onMounted(() => { loadPerm(); loadSummary() })
 .cl-stat-value.cl-neg { color: #c62828; }
 .cl-guide { padding: 0.75rem 1.5rem; background: rgba(255,255,255,0.6); }
 .cl-guide p { margin: 0.4rem 0 0; line-height: 1.6; color: #4a5568; font-size: 0.9rem; }
+.cl-trend { display: flex; gap: 1rem; padding: 0 1.5rem 1rem; flex-wrap: wrap; }
+.trend-card { flex: 3 1 460px; background: rgba(255,255,255,0.95); border: 1px solid rgba(30,90,168,0.25); border-radius: 10px; padding: 0.8rem 1rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.rank-card { flex: 1 1 240px; background: rgba(255,255,255,0.95); border: 1px solid rgba(30,90,168,0.25); border-radius: 10px; padding: 0.8rem 1rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.cl-card-title { margin: 0 0 0.6rem; font-size: 0.95rem; color: #16487F; border-bottom: 2px solid rgba(30,90,168,0.3); padding-bottom: 0.5rem; }
+.trend-chart { width: 100%; height: 300px; }
+.rank-list { list-style: none; margin: 0; padding: 0; }
+.rank-list li { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.2rem; border-bottom: 1px dashed #e6eef7; }
+.rank-list li:last-child { border-bottom: none; }
+.rank-no { flex: 0 0 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 50%; font-size: 0.8rem; font-weight: 700; color: #fff; background: #b0bec5; }
+.rank-no.rank-1 { background: #f5a623; }
+.rank-no.rank-2 { background: #9aa7b3; }
+.rank-no.rank-3 { background: #cd7f32; }
+.rank-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #333; font-size: 0.9rem; }
+.rank-amt { color: #1E5AA8; font-weight: 600; font-size: 0.9rem; }
+.rank-empty { color: #909399; font-size: 0.85rem; justify-content: center; }
 </style>
