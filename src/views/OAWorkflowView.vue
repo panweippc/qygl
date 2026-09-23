@@ -302,7 +302,12 @@
                           >
                             详情
                           </el-button>
-                          <el-button size="small" @click="printRow(row)" class="print-row-btn">打印</el-button>
+                          <el-button
+                            v-if="!(isCurrentUserZhang && (row.applicationType === 'meeting' || row.applicationType === 'project'))"
+                            size="small"
+                            @click="printRow(row)"
+                            class="print-row-btn"
+                          >打印</el-button>
                         </div>
                       </template>
                     </el-table-column>
