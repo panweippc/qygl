@@ -226,7 +226,7 @@ export const getApprovalTypeName = (type: string) => {
     leave: '请假申请',
     reimbursement: '报销申请',
     meeting: '会议申请',
-    project: '项目申请',
+    project: '协同申请',
     businessTrip: '出差申请',
     entertainment: '业务招待费'
   }
@@ -238,7 +238,7 @@ export const getApplicationTypeLabel = (type: string) => {
     'leave': '请假申请',
     'reimbursement': '报销申请',
     'meeting': '会议申请',
-    'project': '项目申请',
+    'project': '协同申请',
     'businessTrip': '出差申请',
     'entertainment': '业务招待费'
   }
@@ -1258,7 +1258,7 @@ export const exportReimbursementFormHTML = (row: any, department?: string, emplo
 
 export const getStatDetailTypeLabel = (type: string) => {
   const typeMap: Record<string, string> = {
-    'project': '项目申请',
+    'project': '协同申请',
     'reimbursement': '报销申请',
     'leave': '请假申请',
     'businessTrip': '出差申请',

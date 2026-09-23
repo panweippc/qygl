@@ -3,7 +3,7 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span class="title">项目申请列表</span>
+          <span class="title">协同申请列表</span>
           <div class="header-buttons">
             <el-button @click="goBack">
               <el-icon><ArrowLeft /></el-icon>返回
@@ -221,7 +221,7 @@ const canApprove = (row: any) => {
 const loadData = async () => {
   loading.value = true;
   try {
-    console.log('开始加载项目申请数据');
+    console.log('开始加载协同申请数据');
     console.log('当前用户:', currentUser.value);
     console.log('是否为管理员:', isManager.value);
     
