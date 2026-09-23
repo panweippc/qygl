@@ -232,6 +232,20 @@ pipeline {
       }
     }
 
+    // 阶段6.8：数据库自动迁移（幂等，按 scripts/migrations.json 登记执行，避免重复跑一次性 fix 脚本）
+    stage('DB Migrate') {
+      when { expression { return !skipDeploy } }
+      steps {
+        echo '=== 阶段6.8: 数据库自动迁移 (node scripts/run-migrations.js) ==='
+        // 仅执行 migrations.json 中显式登记的迁移文件，已执行过的靠 schema_migrations 表跳过；
+        // 复用后端同一套 .env 的 DB_HOST/DB_USER/DB_PASSWORD/DB_NAME，不硬编码凭证。
+        // 迁移失败令本阶段非零退出并标记构建失败（fail-fast），避免后端带着缺表启动。
+        dir("${PROJECT_DIR}") {
+          bat 'node scripts/run-migrations.js'
+        }
+      }
+    }
+
     // 阶段7：重启后端（pm2 qygl）
     stage('Restart Backend (pm2)') {
       when { expression { return !skipDeploy } }
