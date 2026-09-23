@@ -106,6 +106,12 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/asset-management',
+      name: 'asset-management',
+      component: () => import('@/views/AssetManagementView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/oa/leave-apply',
       name: 'mobile-leave-apply',
       component: () => import('@/views/LeaveApplicationPage.vue'),

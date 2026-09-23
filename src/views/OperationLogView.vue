@@ -113,7 +113,7 @@ const MODULE_MAP: Record<string, string> = {
   reimbursement: '报销申请', entertainment: '招待申请', meeting: '会议申请', distribute: '任务下发',
   sales: '销售管理', deal: '成交管理', project: '项目管理', visit: '拜访管理',
   weekly_report: '周报', monthly_report: '月报', file: '文件管理', notification: '消息通知',
-  tool: '物资管理', system: '系统管理'
+  asset: '资产管理', tool: '物资管理', system: '系统管理'
 }
 
 // 字段中文映射（变更详情展示）

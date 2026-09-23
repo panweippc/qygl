@@ -20,9 +20,9 @@
         <span class="tab-ico">📅</span>
         <span class="tab-label">月报</span>
       </router-link>
-      <router-link to="/tool-inventory" class="tab-item" active-class="active">
+      <router-link to="/asset-management" class="tab-item" active-class="active">
         <span class="tab-ico">📦</span>
-        <span class="tab-label">物资管理</span>
+        <span class="tab-label">资产管理</span>
       </router-link>
       <router-link to="/resource" class="tab-item" active-class="active">
         <span class="tab-ico">📁</span>

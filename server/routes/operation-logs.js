@@ -25,7 +25,7 @@ const MODULE_LABELS = {
   monthly_report: '月报',
   file: '文件管理',
   notification: '消息通知',
-  tool: '工具管理',
+  tool: '工具管理', asset: '资产管理',
   system: '系统管理',
   oa_approval: 'OA审批',
   chat: '聊天室',

@@ -46,6 +46,11 @@ const router = createRouter({
       component: () => import('../views/ToolInventoryView.vue')
     },
     {
+      path: '/asset-management',
+      name: 'asset-management',
+      component: () => import('../views/AssetManagementView.vue')
+    },
+    {
       path: '/monthly-report-history',
       name: 'monthly-report-history',
       component: () => import('../views/MonthlyReportHistoryView.vue')

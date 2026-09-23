@@ -414,6 +414,80 @@ export const updateTool = async (tool: Tool): Promise<ApiResponse> => {
   return response.data;
 };
 
+// 资产管理
+export interface Asset {
+  id: number
+  assetCode: string
+  name: string
+  assetType: 'fixed' | 'intangible' | 'consumable'
+  categoryId: number | null
+  quantity: number
+  unit: string
+  acquireDate: string
+  source: string
+  originalValue: number
+  residualValue: number
+  depMethod: string
+  responsibleUser: string
+  department: string
+  location: string
+  carrier: string
+  status: string
+  expireDate: string
+  renewNoticeDate: string
+  remark: string
+  categoryName?: string
+  parentType?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface AssetLog {
+  id: number
+  assetId: number
+  action: string
+  fromStatus: string
+  toStatus: string
+  operator: string
+  detail: string
+  createdAt: string
+}
+
+export const getAssets = async (params: Record<string, any> = {}): Promise<ApiResponse<Asset[]>> => {
+  const response = await api.get('/assets', { params });
+  return response.data;
+};
+
+export const getAsset = async (id: number): Promise<ApiResponse<{ asset: Asset; logs: AssetLog[] }>> => {
+  const response = await api.get(`/assets/${id}`);
+  return response.data;
+};
+
+export const addAsset = async (asset: Partial<Asset>): Promise<ApiResponse> => {
+  const response = await api.post('/assets', asset);
+  return response.data;
+};
+
+export const updateAsset = async (asset: Asset): Promise<ApiResponse> => {
+  const response = await api.put(`/assets/${asset.id}`, asset);
+  return response.data;
+};
+
+export const deleteAsset = async (id: number): Promise<ApiResponse> => {
+  const response = await api.delete(`/assets/${id}`);
+  return response.data;
+};
+
+export const getAssetCategories = async (): Promise<ApiResponse<any[]>> => {
+  const response = await api.get('/asset-categories');
+  return response.data;
+};
+
+export const addAssetCategory = async (cat: any): Promise<ApiResponse> => {
+  const response = await api.post('/asset-categories', cat);
+  return response.data;
+};
+
 // 客户管理
 export const getCustomers = async (): Promise<ApiResponse<Customer[]>> => {
   const response = await api.get('/customers');
