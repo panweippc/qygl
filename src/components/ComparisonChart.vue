@@ -51,7 +51,7 @@ const initChart = async () => {
     const projectResponse = await getProjectApplications()
     projectCount = projectResponse.success && Array.isArray(projectResponse.data?.list) ? projectResponse.data.list.length : 0
   } catch (error) {
-    console.error('获取项目申请数据失败:', error)
+    console.error('获取协同申请数据失败:', error)
   }
 
   try {

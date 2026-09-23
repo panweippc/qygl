@@ -692,7 +692,7 @@ const handleLogin = async () => {
       }
       localStorage.setItem('role', role)
 
-      // 存储完整的用户信息（用于项目申请等模块）
+      // 存储完整的用户信息（用于协同申请等模块）
       const userInfo = {
         id: user.id,
         name: user.name || user.username,

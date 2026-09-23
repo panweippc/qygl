@@ -614,7 +614,7 @@ const canResubmitDelete = (row: any) => isWithdrawnOrDraft(row) && (props.isAdmi
 
 const withdrawProjectAction = async (row: any) => {
   try {
-    await ElMessageBox.confirm('确定要撤回该项目申请吗？撤回后将变为「已撤回」状态。', '撤回确认', { confirmButtonText: '确定撤回', cancelButtonText: '取消', type: 'warning' })
+    await ElMessageBox.confirm('确定要撤回该协同申请吗？撤回后将变为「已撤回」状态。', '撤回确认', { confirmButtonText: '确定撤回', cancelButtonText: '取消', type: 'warning' })
     const response = await withdrawProject(row.id)
     if (response?.success) { ElMessage.success('撤回成功'); await fetchData() }
     else { ElMessage.error(response?.message || '撤回失败') }
@@ -632,7 +632,7 @@ const returnProjectAction = async (row: any) => {
 
 const deleteProjectAction = async (row: any) => {
   try {
-    await ElMessageBox.confirm('确定要删除该项目申请吗？删除后无法恢复。', '删除确认', { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' })
+    await ElMessageBox.confirm('确定要删除该协同申请吗？删除后无法恢复。', '删除确认', { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' })
     const response = await softDeleteProject(row.id)
     if (response?.success) { ElMessage.success('删除成功'); await fetchData() }
     else { ElMessage.error(response?.message || '删除失败') }
@@ -643,7 +643,7 @@ const resubmitProject = (row: any) => { router.push(`/oa/project-apply?id=${row.
 
 const deleteProjectApplication = async (row: any) => {
   try {
-    await ElMessageBox.confirm('确定要删除该项目申请吗？', '提示', {
+    await ElMessageBox.confirm('确定要删除该协同申请吗？', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'danger'
@@ -673,7 +673,7 @@ const exportProjectData = () => {
     ElMessage.warning('没有数据可导出')
     return
   }
-  let fileName = '项目申请记录'
+  let fileName = '协同申请记录'
   if (projectFilter.value !== 'all') {
     fileName += `_${projectFilter.value}`
   }
