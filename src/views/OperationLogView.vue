@@ -110,7 +110,7 @@ const ACTION_MAP: Record<string, string> = {
 // 模块中文映射（与后端一致）
 const MODULE_MAP: Record<string, string> = {
   auth: '登录认证', employee: '员工管理', attendance: '考勤管理', business_trip: '出差申请',
-  reimbursement: '报销申请', entertainment: '业务招待', meeting: '会议管理', distribute: '任务下发',
+  reimbursement: '报销申请', entertainment: '招待申请', meeting: '会议申请', distribute: '任务下发',
   sales: '销售管理', deal: '成交管理', project: '项目管理', visit: '拜访管理',
   weekly_report: '周报', monthly_report: '月报', file: '文件管理', notification: '消息通知',
   tool: '物资管理', system: '系统管理'

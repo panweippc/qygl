@@ -5,7 +5,7 @@
         <el-card class="form-card">
           <template #header>
             <div class="card-header">
-              <span class="title">业务招待费申请</span>
+              <span class="title">招待申请</span>
               <el-button @click="goBack">返回</el-button>
             </div>
           </template>

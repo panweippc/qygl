@@ -638,7 +638,7 @@
             <span v-else-if="currentDistributeType === 'meeting'">会议申请</span>
             <span v-else-if="currentDistributeType === 'project'">协同申请</span>
             <span v-else-if="currentDistributeType === 'businessTrip'">出差申请</span>
-            <span v-else-if="currentDistributeType === 'entertainment'">业务招待费</span>
+            <span v-else-if="currentDistributeType === 'entertainment'">招待申请</span>
           </p>
           <p><strong>申请人：</strong>{{ extractRealName(currentDistributeItem.applicant || currentDistributeItem.organizer) }}</p>
         </div>
@@ -1148,11 +1148,11 @@ const tabs = computed(() => {
   }
   const baseTabs = [
     { name: 'leave', label: '请假申请', icon: '📝', ...tabBadgeOf('leave') },
-    { name: 'reimbursement', label: '报销管理', icon: '💰', ...tabBadgeOf('reimbursement') },
-    { name: 'meeting', label: '会议管理', icon: '📅', ...tabBadgeOf('meeting') },
+    { name: 'reimbursement', label: '报销申请', icon: '💰', ...tabBadgeOf('reimbursement') },
+    { name: 'meeting', label: '会议申请', icon: '📅', ...tabBadgeOf('meeting') },
     { name: 'project', label: '协同申请', icon: '📊', ...tabBadgeOf('project') },
     { name: 'businessTrip', label: '出差申请', icon: '✈️', ...tabBadgeOf('businessTrip') },
-    { name: 'entertainment', label: '业务招待费', icon: '🍽️', ...tabBadgeOf('entertainment') }
+    { name: 'entertainment', label: '招待申请', icon: '🍽️', ...tabBadgeOf('entertainment') }
   ]
 
   if (isCurrentUserZhang.value) {

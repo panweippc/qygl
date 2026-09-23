@@ -59,8 +59,8 @@
             <p class="module-description">请假、报销、会议申请与审批管理</p>
             <div class="module-features">
               <span class="feature-tag">请假申请</span>
-              <span class="feature-tag">费用报销</span>
-              <span class="feature-tag">会议管理</span>
+              <span class="feature-tag">报销申请</span>
+              <span class="feature-tag">会议申请</span>
             </div>
             <button class="module-button">进入审批</button>
           </div>

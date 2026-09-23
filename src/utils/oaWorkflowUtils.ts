@@ -228,7 +228,7 @@ export const getApprovalTypeName = (type: string) => {
     meeting: '会议申请',
     project: '协同申请',
     businessTrip: '出差申请',
-    entertainment: '业务招待费'
+    entertainment: '招待申请'
   }
   return typeMap[type] || type
 }
@@ -240,7 +240,7 @@ export const getApplicationTypeLabel = (type: string) => {
     'meeting': '会议申请',
     'project': '协同申请',
     'businessTrip': '出差申请',
-    'entertainment': '业务招待费'
+    'entertainment': '招待申请'
   }
   return typeMap[type] || type
 }
@@ -824,7 +824,7 @@ export const exportEntertainmentFormHTML = (row: any, department?: string, emplo
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>业务招待费申请表 #${row.id}</title>
+<title>招待申请表 #${row.id}</title>
 <style>
   @page { margin: 10mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -912,18 +912,18 @@ export const exportEntertainmentFormHTML = (row: any, department?: string, emplo
 </html>`
 
   if (autoPrint) {
-    printForm(html, `业务招待费申请表_${applicant}_${guestName}`)
+    printForm(html, `招待申请表_${applicant}_${guestName}`)
     return
   }
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const w = window.open(url, '_blank')
   if (w) {
-    w.document.title = `业务招待费申请表_${applicant}_${guestName}`
+    w.document.title = `招待申请表_${applicant}_${guestName}`
   } else {
     const a = document.createElement('a')
     a.href = url
-    a.download = `业务招待费申请表_${row.id}.html`
+    a.download = `招待申请表_${row.id}.html`
     a.click()
   }
   setTimeout(() => URL.revokeObjectURL(url), 60000)
@@ -1263,7 +1263,7 @@ export const getStatDetailTypeLabel = (type: string) => {
     'leave': '请假申请',
     'businessTrip': '出差申请',
     'meeting': '会议申请',
-    'entertainment': '业务招待费'
+    'entertainment': '招待申请'
   }
   return typeMap[type] || type
 }

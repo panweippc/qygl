@@ -473,7 +473,7 @@ export const getPendingLeaveApplications = async (approver: string): Promise<Api
   return response.data;
 };
 
-// 报销管理
+// 报销申请
 export const getReimbursements = async (): Promise<ApiResponse<Reimbursement[]>> => {
   const response = await api.get('/reimbursements');
   return response.data;
@@ -494,7 +494,7 @@ export const getPendingReimbursements = async (approver: string): Promise<ApiRes
   return response.data;
 };
 
-// 会议管理
+// 会议申请
 export const getMeetings = async (): Promise<ApiResponse<Meeting[]>> => {
   const response = await api.get('/meetings');
   return response.data;
@@ -665,7 +665,7 @@ export const getDistributedByMe = async (distributedBy: string): Promise<ApiResp
   return response.data;
 };
 
-// 业务招待费管理
+// 招待申请管理
 export const getEntertainmentExpenses = async (): Promise<ApiResponse<any[]>> => {
   const response = await api.get('/entertainment-expenses');
   return response.data;

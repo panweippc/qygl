@@ -3,7 +3,7 @@
     <div class="panel-header">
       <div class="panel-title">
         <span class="title-badge">🍽️</span>
-        <span>业务招待费管理</span>
+        <span>招待申请管理</span>
       </div>
       <div class="header-actions">
         <template v-if="isAdmin">
@@ -179,7 +179,7 @@
       </div>
     </div>
 
-    <el-dialog v-model="entertainmentDialogVisible" title="业务招待费申请" width="850px" class="wide-dialog" :modal="false">
+    <el-dialog v-model="entertainmentDialogVisible" title="招待申请" width="850px" class="wide-dialog" :modal="false">
       <div class="dialog-body">
         <div class="dialog-section">
           <div class="section-title">🍽️ 招待信息</div>
@@ -469,7 +469,7 @@ const loadEntertainmentRecords = async () => {
         .sort((a: any, b: any) => (b.id || 0) - (a.id || 0))
     }
   } catch (error) {
-    console.error('获取业务招待费记录失败:', error)
+    console.error('获取招待申请记录失败:', error)
   }
 }
 
@@ -501,14 +501,14 @@ const submitEntertainmentApplication = async () => {
         }
         const response = await addEntertainmentExpense(data)
         if (response.success) {
-          ElMessage.success('业务招待费申请已提交')
+          ElMessage.success('招待申请已提交')
           entertainmentDialogVisible.value = false
           await fetchData()
         } else {
           ElMessage.error(response.message || '提交失败')
         }
       } catch (error) {
-        console.error('提交业务招待费申请失败:', error)
+        console.error('提交招待申请失败:', error)
         ElMessage.error('提交失败')
       }
     }
@@ -560,7 +560,7 @@ const handleDateRangeChange = () => {}
 const exportEntertainmentData = () => {
   const data = filteredEntertainmentRecords.value
   if (data.length === 0) { ElMessage.warning('没有数据可导出'); return }
-  let fileName = '业务招待费记录'
+  let fileName = '招待申请记录'
   if (entertainmentFilter.value !== 'all') fileName += `_${entertainmentFilter.value}`
   if (entertainmentPersonFilter.value !== 'all' && entertainmentPersonFilter.value) fileName += `_${entertainmentPersonFilter.value}`
   exportToCSV(
