@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import type {
   ApiResponse, Employee, MonthlyReport, FileItem, FileCategory,
-  Project, Tool, Customer, CustomerActivity, ClosingProject,
+  Project, Customer, CustomerActivity, ClosingProject,
   LeaveApplication, Reimbursement, Meeting, OfficeSupply,
   Role, Menu, Department, DistributedRecord, EmployeeDirectoryEntry
 } from './types';
@@ -464,6 +464,66 @@ export const getAssetCategories = async (): Promise<ApiResponse<any[]>> => {
 
 export const addAssetCategory = async (cat: any): Promise<ApiResponse> => {
   const response = await api.post('/asset-categories', cat);
+  return response.data;
+};
+
+// 资产概览统计
+export interface AssetSummary {
+  total: number
+  byType: Record<string, number>
+  byStatus: Record<string, number>
+  depreciationTotal: number
+  expiringIntangibles: Array<{ assetCode: string; name: string; expireDate: string; daysLeft: number }>
+}
+export const getAssetSummary = async (): Promise<ApiResponse<AssetSummary>> => {
+  const response = await api.get('/assets/summary');
+  return response.data;
+};
+
+// 资产盘点
+export interface AssetInventory {
+  id: number
+  inventoryNo: string
+  title: string
+  status: string
+  operator: string
+  createdAt: string
+  updatedAt: string
+  itemCount: number
+  diffCount: number
+}
+export interface AssetInventoryItem {
+  id: number
+  inventoryId: number
+  assetId: number | null
+  bookQuantity: number
+  actualQuantity: number | null
+  diff: number
+  note: string
+  checked: number
+  assetCode: string
+  name: string
+  assetType: string
+  catName: string | null
+}
+export const getInventories = async (): Promise<ApiResponse<AssetInventory[]>> => {
+  const response = await api.get('/asset-inventories');
+  return response.data;
+};
+export const createInventory = async (title?: string): Promise<ApiResponse> => {
+  const response = await api.post('/asset-inventories', { title });
+  return response.data;
+};
+export const getInventory = async (id: number): Promise<ApiResponse<{ inventory: AssetInventory; items: AssetInventoryItem[] }>> => {
+  const response = await api.get(`/asset-inventories/${id}`);
+  return response.data;
+};
+export const updateInventoryItems = async (id: number, items: Array<{ id: number; bookQuantity: number; actualQuantity: number | null; note: string }>): Promise<ApiResponse> => {
+  const response = await api.put(`/asset-inventories/${id}/items`, { items });
+  return response.data;
+};
+export const completeInventory = async (id: number): Promise<ApiResponse> => {
+  const response = await api.put(`/asset-inventories/${id}/complete`, {});
   return response.data;
 };
 

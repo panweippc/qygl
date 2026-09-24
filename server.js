@@ -42,7 +42,6 @@ import workflowRouter, { initWorkflowEngine } from './server/routes/workflow.js'
 import authRouter from './server/routes/auth.js';
 import employeesRouter from './server/routes/employees.js';
 import weeklyReportsRouter from './server/routes/monthly-reports.js';
-import toolsRouter from './server/routes/tools.js';
 import assetsRouter from './server/routes/assets.js';
 import salesRouter from './server/routes/sales.js';
 import attendanceRouter from './server/routes/attendance.js';

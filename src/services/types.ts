@@ -79,14 +79,6 @@ export interface Project {
   createdAt?: string
 }
 
-export interface Tool {
-  id: number
-  name: string
-  category: string
-  quantity?: number
-  status?: string
-}
-
 export interface Customer {
   id: number
   name: string

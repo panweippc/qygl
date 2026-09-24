@@ -45,6 +45,7 @@
     "mysql2": "^3.23.3",
     "nodemailer": "^9.0.5",
     "pinia": "2.0.14",
+    "qrcode": "^1.5.4",
     "socket.io": "^4.5.4",
     "socket.io-client": "^4.5.4",
     "vue": "^3.5.13",

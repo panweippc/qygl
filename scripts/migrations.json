@@ -1,4 +1,5 @@
 [
   "asset-management-v1.2.51.sql",
-  "remove-tool-inventory-v1.2.51.sql"
+  "remove-tool-inventory-v1.2.51.sql",
+  "asset-inventory-v1.2.51.sql"
 ]
