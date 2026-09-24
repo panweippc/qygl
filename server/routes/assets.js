@@ -105,7 +105,8 @@ router.get('/assets/options', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const [depts] = await pool.execute('SELECT name FROM departments WHERE name IS NOT NULL AND name <> "" ORDER BY name');
-    const [users] = await pool.execute("SELECT username FROM users WHERE username IS NOT NULL AND username <> '' ORDER BY username");
+    // 排除内置账号（管理员）与可复现性测试账号（repro数字_数字）
+    const [users] = await pool.execute("SELECT username FROM users WHERE username IS NOT NULL AND username <> '' AND username <> '管理员' AND username NOT REGEXP '^repro[0-9]+_[0-9]+$' ORDER BY username");
     res.json({
       success: true,
       data: { departments: depts.map(d => d.name), employees: users.map(u => u.username) }
