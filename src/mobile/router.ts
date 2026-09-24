@@ -100,12 +100,6 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
-      path: '/tool-inventory',
-      name: 'tool-inventory',
-      component: () => import('@/views/ToolInventoryView.vue'),
-      meta: { requiresAuth: true }
-    },
-    {
       path: '/asset-management',
       name: 'asset-management',
       component: () => import('@/views/AssetManagementView.vue'),

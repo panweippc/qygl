@@ -160,7 +160,7 @@ const opIcon = (d: string) => `<svg viewBox="0 0 24 24" fill="currentColor"><pat
 
 // 与 PC 端 HomeView 的 ROLE_OPERATIONS 一一对应，仅把 PC 路由替换为移动端等价路由：
 // 申请类 → /oa/*-apply；审批中心/查询 → /todo（PcScaleView 复用 OAWorkflowView）；
-// 物资/资料 → /tool-inventory、/resource（带 action 参数）；销售/客户/员工/公告/系统 → 新增 PcScaleView 复用页。
+// 物资/资料 → /asset-management、/resource（带 action 参数）；销售/客户/员工/公告/系统 → 新增 PcScaleView 复用页。
 const ROLE_OPERATIONS: Record<string, HomeOperation[]> = {
   employee: [
     { label: '请假申请', path: '/oa/leave-apply', icon: opIcon('M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z') },

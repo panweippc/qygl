@@ -41,11 +41,6 @@ const router = createRouter({
       redirect: '/resource-center'
     },
     {
-      path: '/tool-inventory',
-      name: 'tool-inventory',
-      component: () => import('../views/ToolInventoryView.vue')
-    },
-    {
       path: '/asset-management',
       name: 'asset-management',
       component: () => import('../views/AssetManagementView.vue')

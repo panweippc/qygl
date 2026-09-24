@@ -300,7 +300,6 @@ app.use('/api', workflowRouter);
 app.use('/api', authRouter);
 app.use('/api', employeesRouter);
 app.use('/api', weeklyReportsRouter);
-app.use('/api', toolsRouter);
 app.use('/api', assetsRouter);
 app.use('/api', salesRouter);
 app.use('/api', attendanceRouter);

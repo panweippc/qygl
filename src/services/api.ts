@@ -393,27 +393,6 @@ export const updateBusinessTrip = async (id: number, data: any): Promise<ApiResp
   return response.data;
 };
 
-// 物资管理
-export const getTools = async (): Promise<ApiResponse<Tool[]>> => {
-  const response = await api.get('/tools');
-  return response.data;
-};
-
-export const addTool = async (tool: Tool): Promise<ApiResponse> => {
-  const response = await api.post('/tools', tool);
-  return response.data;
-};
-
-export const deleteTool = async (id: number): Promise<ApiResponse> => {
-  const response = await api.delete(`/tools/${id}`);
-  return response.data;
-};
-
-export const updateTool = async (tool: Tool): Promise<ApiResponse> => {
-  const response = await api.put(`/tools/${tool.id}`, tool);
-  return response.data;
-};
-
 // 资产管理
 export interface Asset {
   id: number
