@@ -267,9 +267,11 @@ pipeline {
     stage('Verify Backend') {
       when { expression { return !skipDeploy } }
       steps {
-        echo '=== 阶段8: 验证后端 (3005) ==='
-        // 用 127.0.0.1 避免 localhost 解析到 IPv6(::1)；后端启动较慢，最多重试 15 次(约 60s)
-        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 15; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${SERVER_PORT}/api/projects' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; Write-Host ('backend status: ' + \$r.StatusCode); \$ok=\$true; break } catch { \$st=\$null; if(\$_.Exception.Response){ \$st=[int]\$_.Exception.Response.StatusCode }; if(\$st -ge 400){ Write-Host ('backend status: ' + \$st + ' (ready, needs auth)'); \$ok=\$true; break }; Write-Host ('  retry ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 4 } }; if(-not \$ok){ Write-Host 'WARN: backend not ready within 60s' }; exit 0\""
+        echo '=== 阶段8: 验证后端 (3005) + 资产迁移校验 ==='
+        // 改探免鉴权的 /api/health（稳定 200），并解析 assetsReady 字段：
+        //   assetsReady===false 说明资产表未建（迁移未落地）→ exit 1 阻断构建，使迁移失败在阶段8 暴露而非仅阶段6.8 标红
+        //   后端启动较慢仍保留最多 15 次(约 60s)重试；最终连不上仅 WARN（保持原有宽容，避免后端慢被误杀）
+        bat "powershell -Command \"\$ok=\$false; for(\$i=1; \$i-le 15; \$i++){ try { \$r=Invoke-WebRequest -Uri 'http://127.0.0.1:${SERVER_PORT}/api/health' -TimeoutSec 5 -UseBasicParsing -MaximumRedirection 0; \$body=\$r.Content | ConvertFrom-Json; Write-Host ('health status: ' + \$r.StatusCode); \$ok=\$true; if(\$body.assetsReady -eq \$false){ Write-Host 'FAIL: asset tables missing, migration NOT applied'; exit 1 }; Write-Host 'asset migration: tables OK'; break } catch { Write-Host ('  retry ' + \$i + ': ' + \$_.Exception.Message); Start-Sleep -Seconds 4 } }; if(-not \$ok){ Write-Host 'WARN: backend not ready within 60s' }; exit 0\""
       }
     }
 

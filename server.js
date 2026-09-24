@@ -251,6 +251,13 @@ app.get('/api/health', async (req, res) => {
   const cpuHealthy = cpuPercent < 90;
   const status = (dbOk && diskHealthy && memHealthy && cpuHealthy) ? 'ok' : 'degraded';
 
+  // 7. 资产模块迁移表探针（供 Jenkins 阶段8 校验迁移是否落地；表缺失不影响整体健康返回 200）
+  let assetsReady = false;
+  try {
+    await pool.query('SELECT 1 FROM asset_categories LIMIT 1');
+    assetsReady = true;
+  } catch (e) { assetsReady = false; }
+
   res.json({
     success: true,
     status,
@@ -266,6 +273,7 @@ app.get('/api/health', async (req, res) => {
       status: dbOk ? 'up' : 'down',
       latencyMs: dbLatency
     },
+    assetsReady,
     pool: poolStatus,
     disk,
     memory: {
