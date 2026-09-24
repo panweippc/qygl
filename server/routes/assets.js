@@ -46,6 +46,41 @@ router.get('/assets/summary', async (req, res) => {
     byType.forEach(r => { typeMap[r.assetType] = r.c; });
     const statusMap = {};
     byStatus.forEach(r => { statusMap[r.status] = r.c; });
+
+    // 部门资产统计（数量 + 状态分布 + 原值/残值合计）
+    const [deptRows] = await pool.execute(
+      `SELECT department,
+              COUNT(*) AS total,
+              SUM(CASE WHEN status='在用' THEN 1 ELSE 0 END) AS inUse,
+              SUM(CASE WHEN status='闲置' THEN 1 ELSE 0 END) AS idle,
+              SUM(CASE WHEN status='维修' THEN 1 ELSE 0 END) AS repair,
+              SUM(CASE WHEN status='报废' THEN 1 ELSE 0 END) AS scrap,
+              COALESCE(SUM(originalValue),0) AS originalSum,
+              COALESCE(SUM(residualValue),0) AS residualSum
+       FROM assets GROUP BY department ORDER BY originalSum DESC`
+    );
+    const deptStats = deptRows.map(r => ({
+      department: r.department || '未分配',
+      total: Number(r.total || 0),
+      inUse: Number(r.inUse || 0), idle: Number(r.idle || 0), repair: Number(r.repair || 0), scrap: Number(r.scrap || 0),
+      originalSum: Number(r.originalSum || 0), residualSum: Number(r.residualSum || 0)
+    }));
+
+    // 分类分布
+    const [catRows] = await pool.execute(
+      `SELECT c.name AS categoryName, COUNT(*) AS count
+       FROM assets a LEFT JOIN asset_categories c ON a.categoryId = c.id
+       GROUP BY a.categoryId ORDER BY count DESC`
+    );
+    const byCategory = catRows.map(r => ({ categoryName: r.categoryName || '未分类', count: Number(r.count || 0) }));
+
+    // 月度入库趋势
+    const [monthRows] = await pool.execute(
+      `SELECT DATE_FORMAT(acquireDate,'%Y-%m') AS month, COUNT(*) AS count
+       FROM assets WHERE acquireDate IS NOT NULL GROUP BY month ORDER BY month`
+    );
+    const monthly = monthRows.map(r => ({ month: r.month, count: Number(r.count || 0) }));
+
     res.json({
       success: true,
       data: {
@@ -53,12 +88,31 @@ router.get('/assets/summary', async (req, res) => {
         byType: typeMap,
         byStatus: statusMap,
         depreciationTotal: Number(depRow.dep || 0),
-        expiringIntangibles: expiring
+        expiringIntangibles: expiring,
+        deptStats,
+        byCategory,
+        monthly
       }
     });
   } catch (error) {
     console.error('资产概览统计失败:', error);
     res.status(500).json({ success: false, message: '资产概览统计失败' });
+  }
+});
+
+// 下拉选项（责任人 / 部门，避免与员工接口权限耦合）
+router.get('/assets/options', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const [depts] = await pool.execute('SELECT name FROM departments WHERE name IS NOT NULL AND name <> "" ORDER BY name');
+    const [users] = await pool.execute("SELECT username FROM users WHERE username IS NOT NULL AND username <> '' ORDER BY username");
+    res.json({
+      success: true,
+      data: { departments: depts.map(d => d.name), employees: users.map(u => u.username) }
+    });
+  } catch (error) {
+    console.error('获取资产选项失败:', error);
+    res.status(500).json({ success: false, message: '获取资产选项失败' });
   }
 });
 
@@ -80,54 +134,83 @@ router.get('/assets/:id', async (req, res) => {
   }
 });
 
-// 新增资产（自动生成资产编号 ZC-YYYY-NNNN，记录入库轨迹）
+// 新增资产（自动生成资产编号 ZC-YYYY-NNNN；新增默认状态为「闲置(在库)」；
+// 固定资产支持批量入库生成多条；耗材写入可用数量；记录入库轨迹）
 router.post('/assets', async (req, res) => {
   const b = req.body;
   try {
     const { pool } = req.app.locals;
-    const year = new Date().getFullYear();
-    const [[{ c }]] = await pool.execute('SELECT COUNT(*) AS c FROM assets WHERE YEAR(createdAt) = ?', [year]);
-    const assetCode = `ZC-${year}-${String(c + 1).padStart(4, '0')}`;
-    const sql = `INSERT INTO assets
-      (assetCode, name, assetType, categoryId, quantity, unit, acquireDate, source, originalValue, residualValue, depMethod, responsibleUser, department, location, carrier, status, expireDate, renewNoticeDate, remark, createdBy)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-    const params = [
-      assetCode, b.name, b.assetType || 'fixed', b.categoryId || null, b.quantity || 1, b.unit || '台',
-      b.acquireDate || null, b.source || '', b.originalValue || 0, b.residualValue || 0, b.depMethod || '',
-      b.responsibleUser || '', b.department || '', b.location || '', b.carrier || '', b.status || '在用',
-      b.expireDate || null, b.renewNoticeDate || null, b.remark || '', getOperator(req)
-    ];
-    const [result] = await pool.execute(sql, params);
-    await pool.execute(
-      'INSERT INTO asset_logs (assetId, action, toStatus, operator, detail) VALUES (?, ?, ?, ?, ?)',
-      [result.insertId, '入库', b.status || '在用', getOperator(req), `新增资产 ${assetCode} ${b.name}`]
-    );
     const operator = getOperator(req);
-    createOperationLog(pool, { userId: null, username: operator, action: 'create', module: 'asset', targetId: result.insertId, targetName: b.name, detail: `新增资产: ${b.name}`, ipAddress: req.ip });
-    res.json({ success: true, message: '资产添加成功', assetCode });
+    const assetType = b.assetType || 'fixed';
+    const year = new Date().getFullYear();
+
+    const cols = ['assetCode', 'name', 'assetType', 'categoryId', 'quantity', 'unit', 'acquireDate', 'source',
+      'originalValue', 'residualValue', 'depMethod', 'responsibleUser', 'department', 'location', 'carrier',
+      'accountKey', 'status', 'expireDate', 'renewNoticeDate', 'remark', 'spec', 'sn', 'unitPrice',
+      'supplier', 'invoiceNo', 'warrantyDate', 'usefulLifeYears', 'availableQuantity', 'createdBy'];
+    const placeholders = cols.map(() => '?').join(', ');
+
+    const buildParams = (assetCode, qty, avail) => [
+      assetCode, b.name, assetType, b.categoryId || null, qty,
+      b.unit || (assetType === 'consumable' ? '个' : '台'),
+      b.acquireDate || null, b.source || '', b.originalValue || 0, b.residualValue || 0, b.depMethod || '',
+      b.responsibleUser || '', b.department || '', b.location || '', b.carrier || '', b.accountKey || '',
+      '闲置', b.expireDate || null, b.renewNoticeDate || null, b.remark || '',
+      b.spec || '', b.sn || '', b.unitPrice || null, b.supplier || '', b.invoiceNo || '',
+      b.warrantyDate || null, b.usefulLifeYears || null, avail, operator
+    ];
+
+    const [[{ c: baseC }]] = await pool.execute('SELECT COUNT(*) AS c FROM assets WHERE YEAR(createdAt) = ?', [year]);
+    let seq = baseC;
+    const batch = (assetType === 'fixed' && Number(b.batchCount) > 1) ? Number(b.batchCount) : 1;
+    const totalQty = Number(b.quantity || 1);
+    const qtyPer = assetType === 'fixed' ? 1 : totalQty;
+    const avail = assetType === 'consumable' ? totalQty : null;
+    const codes = [];
+    for (let i = 0; i < batch; i++) {
+      seq += 1;
+      const assetCode = `ZC-${year}-${String(seq).padStart(4, '0')}`;
+      const [result] = await pool.execute(
+        `INSERT INTO assets (${cols.join(', ')}) VALUES (${placeholders})`,
+        buildParams(assetCode, qtyPer, avail)
+      );
+      await pool.execute(
+        'INSERT INTO asset_logs (assetId, action, toStatus, operator, detail, qty) VALUES (?, ?, ?, ?, ?, ?)',
+        [result.insertId, '入库', '闲置', operator, `新增资产 ${assetCode} ${b.name}`, qtyPer]
+      );
+      codes.push(assetCode);
+    }
+    createOperationLog(pool, { userId: null, username: operator, action: 'create', module: 'asset', targetId: 0, targetName: b.name, detail: `新增资产: ${b.name}（${codes.length} 条）`, ipAddress: req.ip });
+    res.json({ success: true, message: batch > 1 ? `批量入库成功，生成 ${codes.length} 条资产` : '资产添加成功', assetCodes: codes });
   } catch (error) {
     console.error('新增资产失败:', error);
     res.status(500).json({ success: false, message: '新增资产失败' });
   }
 });
 
-// 更新资产（状态变更时记录轨迹）
+// 更新资产（状态变更时记录轨迹；耗材可用数量随编辑同步）
 router.put('/assets/:id', async (req, res) => {
   const { id } = req.params;
   const b = req.body;
   try {
     const { pool } = req.app.locals;
-    const [[old]] = await pool.execute('SELECT status FROM assets WHERE id = ?', [id]);
-    const sql = `UPDATE assets SET name=?, assetType=?, categoryId=?, quantity=?, unit=?, acquireDate=?, source=?, originalValue=?, residualValue=?, depMethod=?, responsibleUser=?, department=?, location=?, carrier=?, status=?, expireDate=?, renewNoticeDate=?, remark=? WHERE id=?`;
+    const [[old]] = await pool.execute('SELECT status, assetType FROM assets WHERE id = ?', [id]);
+    const status = b.status !== undefined ? b.status : (old ? old.status : '闲置');
+    const avail = b.assetType === 'consumable'
+      ? (b.availableQuantity !== undefined && b.availableQuantity !== null ? b.availableQuantity : b.quantity)
+      : null;
+    const sql = `UPDATE assets SET name=?, assetType=?, categoryId=?, quantity=?, unit=?, acquireDate=?, source=?, originalValue=?, residualValue=?, depMethod=?, responsibleUser=?, department=?, location=?, carrier=?, accountKey=?, status=?, expireDate=?, renewNoticeDate=?, remark=?, spec=?, sn=?, unitPrice=?, supplier=?, invoiceNo=?, warrantyDate=?, usefulLifeYears=?, availableQuantity=? WHERE id=?`;
     await pool.execute(sql, [
       b.name, b.assetType, b.categoryId || null, b.quantity, b.unit, b.acquireDate || null, b.source,
       b.originalValue, b.residualValue, b.depMethod, b.responsibleUser, b.department, b.location, b.carrier,
-      b.status, b.expireDate || null, b.renewNoticeDate || null, b.remark, id
+      b.accountKey || '', status, b.expireDate || null, b.renewNoticeDate || null, b.remark,
+      b.spec || '', b.sn || '', b.unitPrice || null, b.supplier || '', b.invoiceNo || '',
+      b.warrantyDate || null, b.usefulLifeYears || null, avail, id
     ]);
-    if (old && old.status !== b.status) {
+    if (old && old.status !== status) {
       await pool.execute(
         'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail) VALUES (?, ?, ?, ?, ?, ?)',
-        [id, '状态变更', old.status, b.status, getOperator(req), `状态 ${old.status} → ${b.status}`]
+        [id, '状态变更', old.status, status, getOperator(req), `状态 ${old.status} → ${status}`]
       );
     }
     const operator = getOperator(req);
@@ -153,6 +236,141 @@ router.delete('/assets/:id', async (req, res) => {
   } catch (error) {
     console.error('删除资产失败:', error);
     res.status(500).json({ success: false, message: '删除资产失败' });
+  }
+});
+
+// ==================== 资产生命周期操作（领用 / 归还 / 维修 / 恢复 / 报废） ====================
+// 领用：固定资产按台指派责任人+部门→在用；耗材按数量扣减可用数量
+router.post('/assets/:id/issue', async (req, res) => {
+  const { id } = req.params;
+  const b = req.body;
+  try {
+    const { pool } = req.app.locals;
+    const operator = getOperator(req);
+    const [[a]] = await pool.execute('SELECT * FROM assets WHERE id = ?', [id]);
+    if (!a) return res.status(404).json({ success: false, message: '资产不存在' });
+    const recipient = b.responsibleUser || a.responsibleUser || '';
+    const recipientDept = b.department || a.department || '';
+    const qty = Number(b.qty || 1);
+    if (a.assetType === 'consumable') {
+      const avail = a.availableQuantity == null ? a.quantity : a.availableQuantity;
+      if (qty > avail) return res.status(400).json({ success: false, message: `领用数量 ${qty} 超出可用数量 ${avail}` });
+      await pool.execute('UPDATE assets SET availableQuantity = availableQuantity - ? WHERE id = ?', [qty, id]);
+      await pool.execute(
+        'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, qty, recipient, recipientDept) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, '领用', a.status, '闲置', operator, `领用 ${qty} ${a.unit || ''} 给 ${recipient}`, qty, recipient, recipientDept]
+      );
+    } else {
+      await pool.execute("UPDATE assets SET status = '在用', responsibleUser = ?, department = ? WHERE id = ?", [recipient, recipientDept, id]);
+      await pool.execute(
+        'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, qty, recipient, recipientDept) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, '领用', a.status, '在用', operator, `领用给 ${recipient}（${recipientDept}）`, 1, recipient, recipientDept]
+      );
+    }
+    createOperationLog(pool, { userId: null, username: operator, action: 'update', module: 'asset', targetId: Number(id), targetName: a.name, detail: `领用资产: ${a.name} x${qty}`, ipAddress: req.ip });
+    res.json({ success: true, message: '领用成功' });
+  } catch (error) {
+    console.error('领用失败:', error);
+    res.status(500).json({ success: false, message: '领用失败' });
+  }
+});
+
+// 归还：固定资产→闲置；耗材可用数量回补
+router.post('/assets/:id/return', async (req, res) => {
+  const { id } = req.params;
+  const b = req.body || {};
+  try {
+    const { pool } = req.app.locals;
+    const operator = getOperator(req);
+    const [[a]] = await pool.execute('SELECT * FROM assets WHERE id = ?', [id]);
+    if (!a) return res.status(404).json({ success: false, message: '资产不存在' });
+    const qty = Number(b.qty || 1);
+    if (a.assetType === 'consumable') {
+      await pool.execute('UPDATE assets SET availableQuantity = availableQuantity + ? WHERE id = ?', [qty, id]);
+    } else {
+      await pool.execute("UPDATE assets SET status = '闲置' WHERE id = ?", [id]);
+    }
+    await pool.execute(
+      'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, qty) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, '归还', a.status, '闲置', operator, `归还 ${qty} ${a.unit || ''}`, qty]
+    );
+    createOperationLog(pool, { userId: null, username: operator, action: 'update', module: 'asset', targetId: Number(id), targetName: a.name, detail: `归还资产: ${a.name}`, ipAddress: req.ip });
+    res.json({ success: true, message: '归还成功' });
+  } catch (error) {
+    console.error('归还失败:', error);
+    res.status(500).json({ success: false, message: '归还失败' });
+  }
+});
+
+// 维修：状态→维修
+router.post('/assets/:id/repair', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { pool } = req.app.locals;
+    const operator = getOperator(req);
+    const [[a]] = await pool.execute('SELECT * FROM assets WHERE id = ?', [id]);
+    if (!a) return res.status(404).json({ success: false, message: '资产不存在' });
+    if (a.status === '报废') return res.status(400).json({ success: false, message: '已报废资产不可维修' });
+    await pool.execute("UPDATE assets SET status = '维修' WHERE id = ?", [id]);
+    await pool.execute(
+      'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, '维修', a.status, '维修', operator, `送修 ${a.name}`]
+    );
+    res.json({ success: true, message: '已标记为维修' });
+  } catch (error) {
+    console.error('维修标记失败:', error);
+    res.status(500).json({ success: false, message: '维修标记失败' });
+  }
+});
+
+// 恢复：维修→闲置
+router.post('/assets/:id/restore', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { pool } = req.app.locals;
+    const operator = getOperator(req);
+    const [[a]] = await pool.execute('SELECT * FROM assets WHERE id = ?', [id]);
+    if (!a) return res.status(404).json({ success: false, message: '资产不存在' });
+    await pool.execute("UPDATE assets SET status = '闲置' WHERE id = ?", [id]);
+    await pool.execute(
+      'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, '恢复', a.status, '闲置', operator, `维修完成恢复 ${a.name}`]
+    );
+    res.json({ success: true, message: '已恢复为闲置' });
+  } catch (error) {
+    console.error('恢复失败:', error);
+    res.status(500).json({ success: false, message: '恢复失败' });
+  }
+});
+
+// 报废：固定资产→报废；耗材扣减数量与可用数量
+router.post('/assets/:id/scrap', async (req, res) => {
+  const { id } = req.params;
+  const b = req.body || {};
+  try {
+    const { pool } = req.app.locals;
+    const operator = getOperator(req);
+    const [[a]] = await pool.execute('SELECT * FROM assets WHERE id = ?', [id]);
+    if (!a) return res.status(404).json({ success: false, message: '资产不存在' });
+    if (a.status === '报废') return res.status(400).json({ success: false, message: '资产已报废' });
+    const qty = Number(b.qty || 1);
+    if (a.assetType === 'consumable') {
+      if (qty > a.quantity) return res.status(400).json({ success: false, message: `报废数量 ${qty} 超出总数 ${a.quantity}` });
+      const avail = a.availableQuantity == null ? a.quantity : a.availableQuantity;
+      const scrapAvail = Math.min(qty, avail);
+      await pool.execute('UPDATE assets SET quantity = quantity - ?, availableQuantity = availableQuantity - ? WHERE id = ?', [qty, scrapAvail, id]);
+    } else {
+      await pool.execute("UPDATE assets SET status = '报废' WHERE id = ?", [id]);
+    }
+    await pool.execute(
+      'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, qty) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, '报废', a.status, '报废', operator, `报废 ${qty} ${a.unit || ''}`, qty]
+    );
+    createOperationLog(pool, { userId: null, username: operator, action: 'delete', module: 'asset', targetId: Number(id), targetName: a.name, detail: `报废资产: ${a.name} x${qty}`, ipAddress: req.ip });
+    res.json({ success: true, message: '报废成功' });
+  } catch (error) {
+    console.error('报废失败:', error);
+    res.status(500).json({ success: false, message: '报废失败' });
   }
 });
 

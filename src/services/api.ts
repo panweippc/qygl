@@ -411,10 +411,19 @@ export interface Asset {
   department: string
   location: string
   carrier: string
+  accountKey: string
   status: string
   expireDate: string
   renewNoticeDate: string
   remark: string
+  spec: string
+  sn: string
+  unitPrice: number | null
+  supplier: string
+  invoiceNo: string
+  warrantyDate: string
+  usefulLifeYears: number | null
+  availableQuantity: number | null
   categoryName?: string
   parentType?: string
   createdAt?: string
@@ -429,6 +438,9 @@ export interface AssetLog {
   toStatus: string
   operator: string
   detail: string
+  qty: number | null
+  recipient: string
+  recipientDept: string
   createdAt: string
 }
 
@@ -457,6 +469,34 @@ export const deleteAsset = async (id: number): Promise<ApiResponse> => {
   return response.data;
 };
 
+// 资产下拉选项（责任人 / 部门）
+export const getAssetOptions = async (): Promise<ApiResponse<{ departments: string[]; employees: string[] }>> => {
+  const response = await api.get('/assets/options');
+  return response.data;
+};
+
+// 生命周期操作
+export const assetIssue = async (id: number, payload: { responsibleUser?: string; department?: string; qty?: number }): Promise<ApiResponse> => {
+  const response = await api.post(`/assets/${id}/issue`, payload);
+  return response.data;
+};
+export const assetReturn = async (id: number, payload: { qty?: number } = {}): Promise<ApiResponse> => {
+  const response = await api.post(`/assets/${id}/return`, payload);
+  return response.data;
+};
+export const assetRepair = async (id: number): Promise<ApiResponse> => {
+  const response = await api.post(`/assets/${id}/repair`);
+  return response.data;
+};
+export const assetRestore = async (id: number): Promise<ApiResponse> => {
+  const response = await api.post(`/assets/${id}/restore`);
+  return response.data;
+};
+export const assetScrap = async (id: number, payload: { qty?: number } = {}): Promise<ApiResponse> => {
+  const response = await api.post(`/assets/${id}/scrap`, payload);
+  return response.data;
+};
+
 export const getAssetCategories = async (): Promise<ApiResponse<any[]>> => {
   const response = await api.get('/asset-categories');
   return response.data;
@@ -474,6 +514,9 @@ export interface AssetSummary {
   byStatus: Record<string, number>
   depreciationTotal: number
   expiringIntangibles: Array<{ assetCode: string; name: string; expireDate: string; daysLeft: number }>
+  deptStats: Array<{ department: string; total: number; inUse: number; idle: number; repair: number; scrap: number; originalSum: number; residualSum: number }>
+  byCategory: Array<{ categoryName: string; count: number }>
+  monthly: Array<{ month: string; count: number }>
 }
 export const getAssetSummary = async (): Promise<ApiResponse<AssetSummary>> => {
   const response = await api.get('/assets/summary');

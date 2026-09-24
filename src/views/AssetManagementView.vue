@@ -74,6 +74,7 @@
               <el-table-column prop="assetCode" label="资产编号" width="130" />
               <el-table-column prop="name" label="名称" />
               <el-table-column prop="categoryName" label="分类" width="110" />
+              <el-table-column prop="spec" label="规格型号" width="120" />
               <el-table-column prop="responsibleUser" label="责任人" width="90" />
               <el-table-column prop="department" label="部门" width="90" />
               <el-table-column label="状态" width="90">
@@ -95,13 +96,16 @@
                 </el-table-column>
                 <el-table-column prop="carrier" label="载体/账号" width="160" />
               </template>
-              <!-- 耗材库存：数量/预警 -->
+              <!-- 耗材库存：数量/可用/预警 -->
               <template v-else>
                 <el-table-column label="数量" width="100">
                   <template #default="{ row }">
                     <span>{{ row.quantity }} {{ row.unit }}</span>
                     <el-tag v-if="row.quantity <= lowStockThreshold" type="danger" size="small" style="margin-left:6px">预警</el-tag>
                   </template>
+                </el-table-column>
+                <el-table-column label="可用" width="80">
+                  <template #default="{ row }">{{ row.availableQuantity == null ? row.quantity : row.availableQuantity }} {{ row.unit }}</template>
                 </el-table-column>
               </template>
               <el-table-column label="操作" width="230" fixed="right">
@@ -153,13 +157,30 @@
               <h2 class="section-title">部门资产统计</h2>
               <el-button type="primary" @click="exportExcel" class="add-btn">导出 Excel</el-button>
             </div>
-            <el-table :data="deptStats" style="width:100%" class="asset-table" v-loading="loading">
+            <el-table :data="summary.deptStats" style="width:100%" class="asset-table" v-loading="loading">
               <el-table-column prop="department" label="部门" />
-              <el-table-column prop="count" label="资产数量" width="140" />
-              <el-table-column label="资产原值合计(元)" width="180">
-                <template #default="{ row }">{{ row.value.toFixed(2) }}</template>
+              <el-table-column prop="total" label="数量" width="90" />
+              <el-table-column prop="inUse" label="在用" width="80" />
+              <el-table-column prop="idle" label="闲置" width="80" />
+              <el-table-column prop="repair" label="维修" width="80" />
+              <el-table-column prop="scrap" label="报废" width="80" />
+              <el-table-column label="原值合计(元)" width="150">
+                <template #default="{ row }">{{ Number(row.originalSum || 0).toFixed(2) }}</template>
+              </el-table-column>
+              <el-table-column label="残值合计(元)" width="150">
+                <template #default="{ row }">{{ Number(row.residualSum || 0).toFixed(2) }}</template>
               </el-table-column>
             </el-table>
+            <div class="chart-row" style="margin-top:16px">
+              <el-card class="chart-card" shadow="never">
+                <template #header><span class="chart-title">分类分布</span></template>
+                <div ref="categoryChart" class="chart-box"></div>
+              </el-card>
+              <el-card class="chart-card" shadow="never">
+                <template #header><span class="chart-title">月度入库趋势</span></template>
+                <div ref="trendChart" class="chart-box"></div>
+              </el-card>
+            </div>
           </el-tab-pane>
         </el-tabs>
       </div>
@@ -171,11 +192,13 @@
     </footer>
 
     <!-- 新增/编辑 -->
-    <el-dialog v-model="formVisible" :title="form.id ? '编辑资产' : '新增资产'" width="640px" class="dialog">
+    <el-dialog v-model="formVisible" :title="form.id ? '编辑资产' : '新增资产'" width="680px" class="dialog">
       <el-form :model="form" label-position="top">
+        <el-alert v-if="!form.id" type="info" :closable="false" show-icon
+          title="新增资产默认状态为「闲置（在库）」，领用 / 报废等操作请在资产详情中执行" style="margin-bottom:14px" />
         <el-form-item label="资产名称"><el-input v-model="form.name" placeholder="请输入资产名称" /></el-form-item>
         <el-form-item label="资产类型">
-          <el-select v-model="form.assetType" placeholder="请选择资产类型">
+          <el-select v-model="form.assetType" placeholder="请选择资产类型" @change="onTypeChange">
             <el-option label="固定资产" value="fixed" />
             <el-option label="无形资产" value="intangible" />
             <el-option label="耗材库存" value="consumable" />
@@ -183,34 +206,90 @@
         </el-form-item>
         <el-form-item label="分类">
           <el-select v-model="form.categoryId" placeholder="请选择分类" filterable allow-create default-first-option>
-            <el-option v-for="c in categories" :key="c.id" :label="`${typeLabel(c.parentType)} / ${c.name}`" :value="c.id" />
+            <el-option v-for="c in filteredCategories" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </el-form-item>
+        <el-form-item label="规格型号"><el-input v-model="form.spec" placeholder="型号 / 规格" /></el-form-item>
+
+        <!-- 固定资产 -->
+        <template v-if="form.assetType === 'fixed'">
+          <div style="display:flex;gap:12px">
+            <el-form-item label="批量入库数量" style="flex:1">
+              <el-input v-model.number="form.batchCount" type="number" :min="1" />
+            </el-form-item>
+            <el-form-item label="单位" style="flex:1"><el-input v-model="form.unit" placeholder="台/套" /></el-form-item>
+          </div>
+          <el-form-item label="序列号(SN)"><el-input v-model="form.sn" placeholder="单台序列号（批量入库时可留空）" /></el-form-item>
+          <div style="display:flex;gap:12px">
+            <el-form-item label="单价(元)" style="flex:1"><el-input v-model.number="form.unitPrice" type="number" /></el-form-item>
+            <el-form-item label="原值(元)" style="flex:1"><el-input v-model.number="form.originalValue" type="number" /></el-form-item>
+          </div>
+          <div style="display:flex;gap:12px">
+            <el-form-item label="残值(元)" style="flex:1"><el-input v-model.number="form.residualValue" type="number" /></el-form-item>
+            <el-form-item label="折旧方式" style="flex:1"><el-input v-model="form.depMethod" placeholder="如：直线法" /></el-form-item>
+          </div>
+          <el-form-item label="折旧年限(年)"><el-input v-model.number="form.usefulLifeYears" type="number" placeholder="如：5" /></el-form-item>
+          <div style="display:flex;gap:12px">
+            <el-form-item label="供应商" style="flex:1"><el-input v-model="form.supplier" /></el-form-item>
+            <el-form-item label="发票号" style="flex:1"><el-input v-model="form.invoiceNo" /></el-form-item>
+          </div>
+          <el-form-item label="保修到期日"><el-date-picker v-model="form.warrantyDate" type="date" style="width:100%" value-format="YYYY-MM-DD" /></el-form-item>
+          <el-form-item label="存放位置"><el-input v-model="form.location" /></el-form-item>
+        </template>
+
+        <!-- 无形资产 -->
+        <template v-else-if="form.assetType === 'intangible'">
+          <el-form-item label="载体/账号"><el-input v-model="form.carrier" placeholder="证书路径 / 授权账号等" /></el-form-item>
+          <el-form-item label="账号密钥"><el-input v-model="form.accountKey" type="textarea" :rows="2" placeholder="账号 / 密钥信息" /></el-form-item>
+          <div style="display:flex;gap:12px">
+            <el-form-item label="到期日" style="flex:1"><el-date-picker v-model="form.expireDate" type="date" style="width:100%" value-format="YYYY-MM-DD" /></el-form-item>
+            <el-form-item label="续费提醒日" style="flex:1"><el-date-picker v-model="form.renewNoticeDate" type="date" style="width:100%" value-format="YYYY-MM-DD" /></el-form-item>
+          </div>
+          <div style="display:flex;gap:12px">
+            <el-form-item label="原值(元)" style="flex:1"><el-input v-model.number="form.originalValue" type="number" /></el-form-item>
+            <el-form-item label="摊销方式" style="flex:1"><el-input v-model="form.depMethod" placeholder="如：直线法" /></el-form-item>
+          </div>
+          <el-form-item label="摊销年限(年)"><el-input v-model.number="form.usefulLifeYears" type="number" placeholder="如：3" /></el-form-item>
+          <div style="display:flex;gap:12px">
+            <el-form-item label="供应商" style="flex:1"><el-input v-model="form.supplier" /></el-form-item>
+            <el-form-item label="发票号" style="flex:1"><el-input v-model="form.invoiceNo" /></el-form-item>
+          </div>
+        </template>
+
+        <!-- 耗材库存 -->
+        <template v-else>
+          <div style="display:flex;gap:12px">
+            <el-form-item label="数量" style="flex:1"><el-input v-model.number="form.quantity" type="number" :min="1" @change="syncAvail" /></el-form-item>
+            <el-form-item label="单位" style="flex:1"><el-input v-model="form.unit" placeholder="个/盒/包" /></el-form-item>
+          </div>
+          <div style="display:flex;gap:12px">
+            <el-form-item label="单价(元)" style="flex:1"><el-input v-model.number="form.unitPrice" type="number" /></el-form-item>
+            <el-form-item label="原值合计(元)" style="flex:1"><el-input v-model.number="form.originalValue" type="number" /></el-form-item>
+          </div>
+          <el-form-item label="可用数量（默认=数量，可调整）"><el-input v-model.number="form.availableQuantity" type="number" :min="0" /></el-form-item>
+          <div style="display:flex;gap:12px">
+            <el-form-item label="供应商" style="flex:1"><el-input v-model="form.supplier" /></el-form-item>
+            <el-form-item label="发票号" style="flex:1"><el-input v-model="form.invoiceNo" /></el-form-item>
+          </div>
+          <el-form-item label="存放位置"><el-input v-model="form.location" /></el-form-item>
+        </template>
+
+        <!-- 通用 -->
         <div style="display:flex;gap:12px">
-          <el-form-item label="数量" style="flex:1"><el-input v-model.number="form.quantity" type="number" /></el-form-item>
-          <el-form-item label="单位" style="flex:1"><el-input v-model="form.unit" placeholder="台/套/个" /></el-form-item>
+          <el-form-item label="责任人" style="flex:1">
+            <el-select v-model="form.responsibleUser" filterable allow-create default-first-option placeholder="选择或输入责任人">
+              <el-option v-for="e in options.employees" :key="e" :label="e" :value="e" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="使用部门" style="flex:1">
+            <el-select v-model="form.department" filterable allow-create default-first-option placeholder="选择或输入部门">
+              <el-option v-for="d in options.departments" :key="d" :label="d" :value="d" />
+            </el-select>
+          </el-form-item>
         </div>
         <div style="display:flex;gap:12px">
           <el-form-item label="获取日期" style="flex:1"><el-date-picker v-model="form.acquireDate" type="date" style="width:100%" value-format="YYYY-MM-DD" /></el-form-item>
-          <el-form-item label="状态" style="flex:1">
-            <el-select v-model="form.status"><el-option v-for="s in STATUS_LIST" :key="s" :label="s" :value="s" /></el-select>
-          </el-form-item>
-        </div>
-        <el-form-item label="来源/供应商"><el-input v-model="form.source" /></el-form-item>
-        <div style="display:flex;gap:12px">
-          <el-form-item label="原值(元)" style="flex:1"><el-input v-model.number="form.originalValue" type="number" /></el-form-item>
-          <el-form-item label="残值(元)" style="flex:1"><el-input v-model.number="form.residualValue" type="number" /></el-form-item>
-        </div>
-        <el-form-item label="折旧/摊销方式"><el-input v-model="form.depMethod" placeholder="如：直线法" /></el-form-item>
-        <div style="display:flex;gap:12px">
-          <el-form-item label="责任人" style="flex:1"><el-input v-model="form.responsibleUser" /></el-form-item>
-          <el-form-item label="使用部门" style="flex:1"><el-input v-model="form.department" /></el-form-item>
-        </div>
-        <el-form-item label="存放位置（有形）"><el-input v-model="form.location" /></el-form-item>
-        <el-form-item label="载体/账号密钥（无形）"><el-input v-model="form.carrier" placeholder="证书路径/授权账号等" /></el-form-item>
-        <div style="display:flex;gap:12px">
-          <el-form-item label="到期日（无形）" style="flex:1"><el-date-picker v-model="form.expireDate" type="date" style="width:100%" value-format="YYYY-MM-DD" /></el-form-item>
-          <el-form-item label="续费提醒日（无形）" style="flex:1"><el-date-picker v-model="form.renewNoticeDate" type="date" style="width:100%" value-format="YYYY-MM-DD" /></el-form-item>
+          <el-form-item label="来源" style="flex:1"><el-input v-model="form.source" placeholder="采购/赠送/自建/调拨" /></el-form-item>
         </div>
         <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" :rows="2" /></el-form-item>
       </el-form>
@@ -223,43 +302,102 @@
     </el-dialog>
 
     <!-- 详情 + 生命周期 + 二维码 -->
-    <el-dialog v-model="detailVisible" title="资产详情" width="680px" class="dialog detail-dialog">
+    <el-dialog v-model="detailVisible" title="资产详情" width="720px" class="dialog detail-dialog">
       <template v-if="detail">
         <el-descriptions :column="2" border size="small">
           <el-descriptions-item label="资产编号">{{ detail.asset.assetCode }}</el-descriptions-item>
           <el-descriptions-item label="名称">{{ detail.asset.name }}</el-descriptions-item>
           <el-descriptions-item label="类型">{{ typeLabel(detail.asset.assetType) }}</el-descriptions-item>
           <el-descriptions-item label="分类">{{ detail.asset.categoryName }}</el-descriptions-item>
-          <el-descriptions-item label="责任人">{{ detail.asset.responsibleUser }}</el-descriptions-item>
-          <el-descriptions-item label="部门">{{ detail.asset.department }}</el-descriptions-item>
+          <el-descriptions-item label="规格型号">{{ detail.asset.spec || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="序列号">{{ detail.asset.sn || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="责任人">{{ detail.asset.responsibleUser || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="部门">{{ detail.asset.department || '—' }}</el-descriptions-item>
           <el-descriptions-item label="状态"><el-tag :type="statusTag(detail.asset.status)" size="small">{{ detail.asset.status }}</el-tag></el-descriptions-item>
           <el-descriptions-item label="数量">{{ detail.asset.quantity }} {{ detail.asset.unit }}</el-descriptions-item>
+          <el-descriptions-item v-if="detail.asset.assetType === 'consumable'" label="可用数量">{{ detail.asset.availableQuantity == null ? detail.asset.quantity : detail.asset.availableQuantity }} {{ detail.asset.unit }}</el-descriptions-item>
           <el-descriptions-item label="原值">{{ detail.asset.originalValue }}</el-descriptions-item>
           <el-descriptions-item label="残值">{{ detail.asset.residualValue }}</el-descriptions-item>
-          <el-descriptions-item label="获取日期">{{ detail.asset.acquireDate }}</el-descriptions-item>
-          <el-descriptions-item label="到期日">{{ detail.asset.expireDate || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="存放位置">{{ detail.asset.location || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="折旧/摊销方式">{{ detail.asset.depMethod || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="折旧/摊销年限">{{ detail.asset.usefulLifeYears || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="供应商">{{ detail.asset.supplier || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="发票号">{{ detail.asset.invoiceNo || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="获取日期">{{ detail.asset.acquireDate || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="保修到期日">{{ detail.asset.warrantyDate || '—' }}</el-descriptions-item>
           <el-descriptions-item label="载体">{{ detail.asset.carrier || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="账号密钥">{{ detail.asset.accountKey || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="到期日">{{ detail.asset.expireDate || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="续费提醒日">{{ detail.asset.renewNoticeDate || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="存放位置">{{ detail.asset.location || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="备注">{{ detail.asset.remark || '—' }}</el-descriptions-item>
         </el-descriptions>
         <div style="margin-top:18px">
           <div style="font-weight:600;margin-bottom:10px">生命周期轨迹</div>
           <el-timeline>
             <el-timeline-item v-for="log in detail.logs" :key="log.id" :timestamp="log.createdAt" placement="top">
-              <div><b>{{ log.action }}</b> <span v-if="log.fromStatus">（{{ log.fromStatus }} → {{ log.toStatus }}）</span></div>
-              <div style="color:#888;font-size:12px">{{ log.operator }} · {{ log.detail }}</div>
+              <div><b>{{ log.action }}</b> <span v-if="log.fromStatus">（{{ log.fromStatus }} → {{ log.toStatus }}）</span> <span v-if="log.qty && log.qty !== 1">×{{ log.qty }}</span></div>
+              <div style="color:#888;font-size:12px">
+                {{ log.operator }}
+                <span v-if="log.recipient"> · 领用：{{ log.recipient }}({{ log.recipientDept }})</span>
+                · {{ log.detail }}
+              </div>
             </el-timeline-item>
           </el-timeline>
           <el-empty v-if="!detail.logs.length" description="暂无轨迹" />
         </div>
         <div style="margin-top:14px">
-          <span style="font-weight:600;margin-right:8px">变更状态：</span>
-          <el-button v-for="s in STATUS_LIST" :key="s" size="small" :type="s === detail.asset.status ? 'info' : ''" @click="changeStatus(s)">{{ s }}</el-button>
-          <el-button size="small" type="primary" plain @click="genQR" style="margin-left:12px">生成资产二维码</el-button>
+          <span style="font-weight:600;margin-right:8px">资产操作：</span>
+          <el-button size="small" type="primary" @click="openOp('领用')" :disabled="detail.asset.status === '报废'">领用</el-button>
+          <el-button size="small" @click="openOp('归还')" :disabled="detail.asset.status === '报废' || detail.asset.status === '闲置'">归还</el-button>
+          <el-button size="small" @click="openOp('维修')" :disabled="detail.asset.status === '报废' || detail.asset.status === '维修'">维修</el-button>
+          <el-button size="small" @click="openOp('恢复')" :disabled="detail.asset.status !== '维修'">恢复</el-button>
+          <el-button size="small" type="danger" @click="openOp('报废')" :disabled="detail.asset.status === '报废'">报废</el-button>
+          <el-button size="small" type="primary" plain @click="genQR" style="margin-left:8px">生成资产二维码</el-button>
         </div>
         <div v-if="qrUrl" style="margin-top:14px;text-align:center">
           <img :src="qrUrl" alt="资产二维码" style="width:160px;height:160px;border:1px solid #ddd;border-radius:8px;padding:8px" />
           <div style="font-size:12px;color:#888;margin-top:6px">{{ detail.asset.assetCode }}</div>
         </div>
+      </template>
+    </el-dialog>
+
+    <!-- 资产操作（领用 / 归还 / 维修 / 恢复 / 报废） -->
+    <el-dialog v-model="opVisible" :title="'资产' + opForm.action" width="440px" class="dialog">
+      <el-form label-position="top">
+        <template v-if="opForm.action === '领用'">
+          <el-form-item label="责任人">
+            <el-select v-model="opForm.responsibleUser" filterable allow-create default-first-option placeholder="选择或输入责任人">
+              <el-option v-for="e in options.employees" :key="e" :label="e" :value="e" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="使用部门">
+            <el-select v-model="opForm.department" filterable allow-create default-first-option placeholder="选择或输入部门">
+              <el-option v-for="d in options.departments" :key="d" :label="d" :value="d" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="detail && detail.asset.assetType === 'consumable'" label="领用数量">
+            <el-input v-model.number="opForm.qty" type="number" :min="1" />
+          </el-form-item>
+        </template>
+        <template v-else-if="opForm.action === '归还'">
+          <el-form-item v-if="detail && detail.asset.assetType === 'consumable'" label="归还数量">
+            <el-input v-model.number="opForm.qty" type="number" :min="1" />
+          </el-form-item>
+          <span v-else style="color:#888">固定资产归还后将恢复为「闲置（在库）」状态</span>
+        </template>
+        <template v-else-if="opForm.action === '报废'">
+          <el-form-item v-if="detail && detail.asset.assetType === 'consumable'" label="报废数量">
+            <el-input v-model.number="opForm.qty" type="number" :min="1" />
+          </el-form-item>
+          <span style="color:#c0504d">确认将该资产{{ detail && detail.asset.assetType === 'consumable' ? '的对应数量' : '' }}标记为报废？此操作会记录到生命周期轨迹。</span>
+        </template>
+        <span v-else style="color:#888">确认执行「{{ opForm.action }}」操作？</span>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="opVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitOp">确定</el-button>
+        </span>
       </template>
     </el-dialog>
 
@@ -307,6 +445,7 @@ import QRCode from 'qrcode'
 import {
   getAssets, getAsset, addAsset, updateAsset, deleteAsset as apiDeleteAsset, getAssetCategories,
   getAssetSummary, getInventories, createInventory, getInventory, updateInventoryItems, completeInventory,
+  getAssetOptions, assetIssue, assetReturn, assetRepair, assetRestore, assetScrap,
   type Asset, type AssetLog, type AssetSummary, type AssetInventory, type AssetInventoryItem
 } from '../services/api'
 
@@ -329,8 +468,12 @@ const expireClass = (d: string) => {
 const activeTab = ref('overview')
 const assets = ref<Asset[]>([])
 const categories = ref<any[]>([])
+const options = reactive<{ departments: string[]; employees: string[] }>({ departments: [], employees: [] })
 const loading = ref(false)
-const summary = reactive<AssetSummary>({ total: 0, byType: {}, byStatus: {}, depreciationTotal: 0, expiringIntangibles: [] })
+const summary = reactive<AssetSummary>({
+  total: 0, byType: {}, byStatus: {}, depreciationTotal: 0, expiringIntangibles: [],
+  deptStats: [], byCategory: [], monthly: []
+})
 const summaryLoading = ref(false)
 
 const ledgerType = ref('fixed')
@@ -347,22 +490,46 @@ const formVisible = ref(false)
 const detailVisible = ref(false)
 const detail = ref<{ asset: Asset; logs: AssetLog[] } | null>(null)
 const qrUrl = ref('')
+const opVisible = ref(false)
+const opForm = reactive<{ action: string; responsibleUser: string; department: string; qty: number }>({ action: '', responsibleUser: '', department: '', qty: 1 })
 
 const statusChart = ref<HTMLElement | null>(null)
 const typeChart = ref<HTMLElement | null>(null)
+const categoryChart = ref<HTMLElement | null>(null)
+const trendChart = ref<HTMLElement | null>(null)
 
 interface AssetForm {
   id: number; assetCode: string; name: string; assetType: string; categoryId: number | null
   quantity: number; unit: string; acquireDate: string; source: string; originalValue: number
   residualValue: number; depMethod: string; responsibleUser: string; department: string
-  location: string; carrier: string; status: string; expireDate: string; renewNoticeDate: string; remark: string
+  location: string; carrier: string; accountKey: string; status: string; expireDate: string
+  renewNoticeDate: string; remark: string; spec: string; sn: string; unitPrice: number | null
+  supplier: string; invoiceNo: string; warrantyDate: string; usefulLifeYears: number | null
+  availableQuantity: number | null; batchCount: number
 }
 const emptyForm = (): AssetForm => ({
   id: 0, assetCode: '', name: '', assetType: 'fixed', categoryId: null, quantity: 1, unit: '台',
   acquireDate: '', source: '', originalValue: 0, residualValue: 0, depMethod: '', responsibleUser: '',
-  department: '', location: '', carrier: '', status: '在用', expireDate: '', renewNoticeDate: '', remark: ''
+  department: '', location: '', carrier: '', accountKey: '', status: '闲置', expireDate: '', renewNoticeDate: '',
+  remark: '', spec: '', sn: '', unitPrice: null, supplier: '', invoiceNo: '', warrantyDate: '',
+  usefulLifeYears: null, availableQuantity: null, batchCount: 1
 })
 const form = ref<AssetForm>(emptyForm())
+
+// 分类按资产类型联动
+const filteredCategories = computed(() => categories.value.filter(c => c.parentType === form.value.assetType))
+const onTypeChange = () => {
+  // 切换类型后，若已选分类不属于新类型则清空
+  if (form.value.categoryId != null) {
+    const ok = categories.value.some(c => c.id === form.value.categoryId && c.parentType === form.value.assetType)
+    if (!ok) form.value.categoryId = null
+  }
+  if (form.value.assetType === 'fixed') form.value.unit = '台'
+  if (form.value.assetType === 'consumable' && form.value.availableQuantity == null) form.value.availableQuantity = form.value.quantity
+}
+const syncAvail = () => {
+  if (form.value.assetType === 'consumable' && form.value.availableQuantity == null) form.value.availableQuantity = form.value.quantity
+}
 
 // ============ 数据加载 ============
 const loadAssets = async () => {
@@ -377,6 +544,9 @@ const loadAssets = async () => {
 const loadCategories = async () => {
   try { const r = await getAssetCategories(); if (r.success) categories.value = r.data } catch (e) { console.error(e) }
 }
+const loadOptions = async () => {
+  try { const r = await getAssetOptions(); if (r.success) { options.departments = r.data.departments; options.employees = r.data.employees } } catch (e) { console.error(e) }
+}
 const loadSummary = async () => {
   summaryLoading.value = true
   try { const r = await getAssetSummary(); if (r.success) Object.assign(summary, r.data) } catch (e) { console.error(e) }
@@ -389,7 +559,7 @@ const loadInventories = async () => {
 }
 
 onMounted(async () => {
-  await Promise.all([loadAssets(), loadCategories(), loadSummary(), loadInventories()])
+  await Promise.all([loadAssets(), loadCategories(), loadOptions(), loadSummary(), loadInventories()])
   if (route.query.action === 'add') openAddDialog()
 })
 
@@ -421,11 +591,35 @@ const renderCharts = () => {
   })
 }
 
+const renderStatsCharts = () => {
+  if (!categoryChart.value || !trendChart.value) return
+  const pie = echarts.init(categoryChart.value)
+  const catData = summary.byCategory.map(c => ({ name: c.categoryName, value: c.count }))
+  pie.setOption({
+    tooltip: { trigger: 'item' }, legend: { bottom: 0, type: 'scroll' },
+    series: [{ type: 'pie', radius: ['40%', '65%'], data: catData.length ? catData : [{ name: '暂无', value: 1 }] }]
+  })
+  const line = echarts.init(trendChart.value)
+  const months = summary.monthly.map(m => m.month)
+  const counts = summary.monthly.map(m => m.count)
+  line.setOption({
+    tooltip: { trigger: 'axis' }, grid: { left: 40, right: 20, top: 20, bottom: 40 },
+    xAxis: { type: 'category', data: months.length ? months : ['无数据'] },
+    yAxis: { type: 'value' },
+    series: [{ type: 'line', smooth: true, data: counts, itemStyle: { color: '#7C6BD6' }, areaStyle: { opacity: 0.15 } }]
+  })
+}
+
 watch(activeTab, async (t) => {
-  if (t === 'overview') { await nextTick(); renderCharts() }
+  await nextTick()
+  if (t === 'overview') renderCharts()
+  if (t === 'stats') renderStatsCharts()
 })
 watch([() => summary.byStatus, () => summary.byType], async () => {
   if (activeTab.value === 'overview') { await nextTick(); renderCharts() }
+})
+watch([() => summary.deptStats, () => summary.byCategory, () => summary.monthly], async () => {
+  if (activeTab.value === 'stats') { await nextTick(); renderStatsCharts() }
 })
 
 // ============ 台账 ============
@@ -447,11 +641,14 @@ watch([ledgerAssets, pageSize], () => {
 
 const openAddDialog = () => { form.value = emptyForm(); formVisible.value = true }
 const editAsset = (a: Asset) => {
-  form.value = { ...emptyForm(), ...a, categoryId: a.categoryId ?? null } as AssetForm
+  form.value = { ...emptyForm(), ...a, categoryId: a.categoryId ?? null, availableQuantity: a.availableQuantity ?? null } as AssetForm
   formVisible.value = true
 }
 const saveAsset = async () => {
   if (!form.value.name) { ElMessage.warning('请输入资产名称'); return }
+  // 规范化：固定资产数量恒为 1（由批量入库数量控制）；耗材可用数量默认=数量
+  if (form.value.assetType === 'fixed') form.value.quantity = 1
+  if (form.value.assetType === 'consumable' && (form.value.availableQuantity == null)) form.value.availableQuantity = form.value.quantity
   loading.value = true
   try {
     const payload = { ...form.value }
@@ -480,25 +677,48 @@ const viewDetail = async (a: Asset) => {
     else ElMessage.error('获取详情失败')
   } catch (e) { console.error(e); ElMessage.error('获取详情失败') }
 }
-const changeStatus = async (s: string) => {
-  if (!detail.value || s === detail.value.asset.status) return
-  loading.value = true
-  try {
-    const payload = { ...detail.value.asset, status: s }
-    const res = await updateAsset(payload as any)
-    if (res.success) {
-      await Promise.all([loadAssets(), loadSummary()])
-      const r = await getAsset(detail.value.asset.id)
-      if (r.success) detail.value = r.data
-      ElMessage.success(`已变更为「${s}」`)
-    } else ElMessage.error('状态变更失败')
-  } catch (e) { console.error(e); ElMessage.error('状态变更失败') }
-  finally { loading.value = false }
-}
 const genQR = async () => {
   if (!detail.value) return
   try { qrUrl.value = await QRCode.toDataURL(detail.value.asset.assetCode, { width: 160 }) }
   catch (e) { console.error(e); ElMessage.error('生成二维码失败') }
+}
+
+// ============ 生命周期操作 ============
+const openOp = (action: string) => {
+  if (!detail.value) return
+  opForm.action = action
+  opForm.responsibleUser = detail.value.asset.responsibleUser || ''
+  opForm.department = detail.value.asset.department || ''
+  opForm.qty = 1
+  opVisible.value = true
+}
+const submitOp = async () => {
+  if (!detail.value) return
+  const id = detail.value.asset.id
+  const a = detail.value.asset
+  if (opForm.action === '报废') {
+    try {
+      await ElMessageBox.confirm(`确认将资产「${a.name}」${a.assetType === 'consumable' ? `的 ${opForm.qty} ${a.unit}` : ''}标记为报废？`, '报废确认', { type: 'warning', confirmButtonText: '确认报废', cancelButtonText: '取消' })
+    } catch (e) { if (e === 'cancel') return }
+  }
+  loading.value = true
+  try {
+    let res
+    if (opForm.action === '领用') res = await assetIssue(id, { responsibleUser: opForm.responsibleUser, department: opForm.department, qty: opForm.qty })
+    else if (opForm.action === '归还') res = await assetReturn(id, { qty: opForm.qty })
+    else if (opForm.action === '维修') res = await assetRepair(id)
+    else if (opForm.action === '恢复') res = await assetRestore(id)
+    else if (opForm.action === '报废') res = await assetScrap(id, { qty: opForm.qty })
+    else res = { success: false, message: '未知操作' }
+    if (res.success) {
+      await Promise.all([loadAssets(), loadSummary()])
+      const r = await getAsset(id)
+      if (r.success) detail.value = r.data
+      opVisible.value = false
+      ElMessage.success(`「${opForm.action}」操作成功`)
+    } else ElMessage.error(res.message || '操作失败')
+  } catch (e) { console.error(e); ElMessage.error('操作失败') }
+  finally { loading.value = false }
 }
 
 // ============ 盘点 ============
@@ -542,22 +762,15 @@ const completeInv = async (inv: AssetInventory) => {
 }
 
 // ============ 统计 ============
-const deptStats = computed(() => {
-  const map: Record<string, { department: string; count: number; value: number }> = {}
-  for (const a of assets.value) {
-    const d = a.department || '未分配'
-    if (!map[d]) map[d] = { department: d, count: 0, value: 0 }
-    map[d].count++
-    map[d].value += Number(a.originalValue || 0)
-  }
-  return Object.values(map).sort((x, y) => y.value - x.value)
-})
 const exportExcel = () => {
   try {
     const rows = assets.value.map(a => ({
       资产编号: a.assetCode, 名称: a.name, 类型: typeLabel(a.assetType), 分类: a.categoryName || '',
-      责任人: a.responsibleUser, 部门: a.department, 状态: a.status, 数量: a.quantity, 单位: a.unit,
-      原值: a.originalValue, 残值: a.residualValue, 获取日期: a.acquireDate, 到期日: a.expireDate || ''
+      规格型号: a.spec || '', 责任人: a.responsibleUser, 部门: a.department, 状态: a.status,
+      数量: a.quantity, 单位: a.unit,
+      可用数量: a.availableQuantity == null ? a.quantity : a.availableQuantity,
+      原值: a.originalValue, 残值: a.residualValue, 供应商: a.supplier || '', 发票号: a.invoiceNo || '',
+      获取日期: a.acquireDate, 到期日: a.expireDate || ''
     }))
     const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
@@ -601,7 +814,6 @@ const handleCurrentChange = (c: number) => { currentPage.value = c }
 .chart-box { height:240px; }
 .warn-card { border-radius:10px; margin-bottom:1rem; }
 .section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:1rem; }
-.section-title { font-size:1.3rem; font-weight:600; color:#333; margin:0; display:flex; align-items:center; gap:0.5rem; text-shadow:0 0 10px rgba(30,90,168,0.3); }
 .title-icon { width:30px; height:30px; background:linear-gradient(45deg,#1E5AA8,#5B8FC9); border-radius:8px; display:flex; align-items:center; justify-content:center; color:#fff; }
 .title-icon svg { width:16px; height:16px; }
 .add-btn { background:linear-gradient(45deg,#1E5AA8,#5B8FC9)!important; border:none!important; border-radius:8px!important; padding:0.5rem 1.5rem!important; font-weight:600!important; box-shadow:0 4px 15px rgba(30,90,168,0.4)!important; }
