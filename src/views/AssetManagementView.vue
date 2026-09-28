@@ -79,7 +79,7 @@
               </el-select>
             </div>
 
-            <el-table :data="pagedLedger" style="width:100%" class="asset-table" v-loading="loading">
+            <el-table :data="pagedLedger" style="width:100%" class="asset-table" v-loading="loading" :row-class-name="ledgerRowClass">
               <el-table-column label="序号" width="60">
                 <template #default="{ $index }">{{ (currentPage - 1) * pageSize + $index + 1 }}</template>
               </el-table-column>
@@ -125,8 +125,8 @@
                   <el-button size="small" @click="viewDetail(row)" class="edit-btn">详情</el-button>
                   <el-button v-if="row.status === '闲置' && (row.assetType !== 'consumable' || (row.availableQuantity == null ? row.quantity : row.availableQuantity) > 0)" size="small" type="primary" @click="quickOp(row, '领用')" class="edit-btn">领用</el-button>
                   <el-button v-if="row.status === '在用'" size="small" @click="quickOp(row, '归还')" class="edit-btn">归还</el-button>
-                  <el-button size="small" @click="editAsset(row)" class="edit-btn">编辑</el-button>
-                  <el-button size="small" @click="removeAsset(row.id)" class="delete-btn">删除</el-button>
+                  <el-button size="small" @click="editAsset(row)" class="edit-btn" :disabled="row.status === '报废'" :title="row.status === '报废' ? '已报废资产不可编辑' : ''">编辑</el-button>
+                  <el-button size="small" @click="removeAsset(row)" class="delete-btn">删除</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -794,6 +794,7 @@ watch([ledgerAssets, pageSize], () => {
   if (currentPage.value > max) currentPage.value = max
 })
 const onLedgerTypeChange = () => { ledgerCat.value = ''; currentPage.value = 1 }
+const ledgerRowClass = ({ row }: { row: Asset }): string => row.status === '报废' ? 'asset-scraped-row' : ''
 
 // 概览 / 统计 下钻到台账：根据筛选条件切换并定位
 const drillToLedger = (opt: { type?: string; status?: string; department?: string; categoryId?: number | '' }) => {
@@ -827,10 +828,14 @@ const saveAsset = async () => {
   } catch (e) { console.error(e); ElMessage.error('保存失败') }
   finally { loading.value = false }
 }
-const removeAsset = async (id: number) => {
+const removeAsset = async (row: Asset) => {
   try {
-    await ElMessageBox.confirm('确定要删除该资产吗？相关轨迹也会一并删除。', '警告', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
-    const res = await apiDeleteAsset(id)
+    const isScrap = row.status === '报废'
+    const msg = isScrap
+      ? `该资产已报废，删除后将连同其全部生命周期轨迹一并永久移除，且不可恢复。确认删除「${row.assetCode} ${row.name}」吗？`
+      : '确定要删除该资产吗？相关轨迹也会一并删除。'
+    await ElMessageBox.confirm(msg, isScrap ? '报废资产删除确认' : '警告', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
+    const res = await apiDeleteAsset(row.id)
     if (res.success) { await Promise.all([loadAssets(), loadSummary()]); ElMessage.success('删除成功') }
     else ElMessage.error('删除失败')
   } catch (e) { if (e !== 'cancel') console.error(e) }
@@ -1070,6 +1075,8 @@ const handleCurrentChange = (c: number) => { currentPage.value = c }
 .asset-table th { background:rgba(30,90,168,0.2)!important; color:#333!important; font-weight:600!important; }
 .asset-table td { color:rgba(51,51,51,0.8)!important; }
 .asset-table tr:hover { background:rgba(30,90,168,0.1)!important; }
+.asset-table .asset-scraped-row { opacity:0.55; background:rgba(180,180,180,0.12)!important; }
+.asset-table .asset-scraped-row:hover { opacity:0.7; }
 .diff-red { color:#f44336; font-weight:600; }
 .diff-blue { color:#1E5AA8; font-weight:600; }
 .diff-ok { color:#3FA796; }
