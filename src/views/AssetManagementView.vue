@@ -19,7 +19,7 @@
           <!-- ============ 概览 ============ -->
           <el-tab-pane label="概览" name="overview">
             <div class="kpi-row">
-              <div class="kpi-card" v-for="k in kpiCards" :key="k.label" :style="{ borderTopColor: k.color }">
+              <div class="kpi-card" v-for="k in kpiCards" :key="k.label" :style="{ borderTopColor: k.color }" @click="drillKpi(k)" title="点击查看对应台账">
                 <div class="kpi-value">{{ k.value }}</div>
                 <div class="kpi-label">{{ k.label }}</div>
               </div>
@@ -55,7 +55,7 @@
           <!-- ============ 资产台账 ============ -->
           <el-tab-pane label="资产台账" name="ledger">
             <div class="section-header">
-              <el-radio-group v-model="ledgerType" @change="currentPage = 1">
+              <el-radio-group v-model="ledgerType" @change="onLedgerTypeChange">
                 <el-radio label="fixed">固定资产</el-radio>
                 <el-radio label="intangible">无形资产</el-radio>
                 <el-radio label="consumable">耗材库存</el-radio>
@@ -65,6 +65,18 @@
 
             <div class="search-filter">
               <el-input v-model="ledgerKeyword" placeholder="搜索名称/编号/责任人" prefix-icon="Search" class="search-input" />
+              <el-select v-model="ledgerStatus" placeholder="全部状态" clearable style="width:130px" @change="currentPage = 1">
+                <el-option label="闲置" value="闲置" />
+                <el-option label="在用" value="在用" />
+                <el-option label="维修" value="维修" />
+                <el-option label="报废" value="报废" />
+              </el-select>
+              <el-select v-model="ledgerDept" placeholder="全部部门" clearable filterable style="width:150px" @change="currentPage = 1">
+                <el-option v-for="d in options.departments" :key="d" :label="d" :value="d" />
+              </el-select>
+              <el-select v-model="ledgerCat" placeholder="全部分类" clearable style="width:150px" @change="currentPage = 1">
+                <el-option v-for="c in ledgerCatOptions" :key="c.id" :label="c.name" :value="c.id" />
+              </el-select>
             </div>
 
             <el-table :data="pagedLedger" style="width:100%" class="asset-table" v-loading="loading">
@@ -159,7 +171,7 @@
               <h2 class="section-title">部门资产统计</h2>
               <el-button type="primary" @click="exportExcel" class="add-btn">导出 Excel</el-button>
             </div>
-            <el-table :data="summary.deptStats" style="width:100%" class="asset-table" v-loading="loading">
+            <el-table :data="summary.deptStats" style="width:100%" class="asset-table" v-loading="loading" @row-click="(row: any) => drillToLedger({ department: row.department })" :row-style="{ cursor: 'pointer' }">
               <el-table-column prop="department" label="部门" />
               <el-table-column prop="total" label="数量" width="90" />
               <el-table-column prop="inUse" label="在用" width="80" />
@@ -183,6 +195,48 @@
                 <div ref="trendChart" class="chart-box"></div>
               </el-card>
             </div>
+          </el-tab-pane>
+
+          <!-- ============ 变动记录 ============ -->
+          <el-tab-pane label="变动记录" name="logs">
+            <div class="section-header">
+              <el-select v-model="logAction" placeholder="全部动作" clearable style="width:160px" @change="loadLogs">
+                <el-option label="领用" value="领用" />
+                <el-option label="归还" value="归还" />
+                <el-option label="维修" value="维修" />
+                <el-option label="恢复" value="恢复" />
+                <el-option label="报废" value="报废" />
+                <el-option label="入库" value="入库" />
+              </el-select>
+              <el-button type="primary" @click="exportLogs" class="add-btn">导出 Excel</el-button>
+            </div>
+            <el-table :data="logList" style="width:100%" class="asset-table" v-loading="logLoading" empty-text="暂无变动记录">
+              <el-table-column label="时间" width="160">
+                <template #default="{ row }">{{ row.opDate || row.createdAt }}</template>
+              </el-table-column>
+              <el-table-column label="动作" width="90">
+                <template #default="{ row }"><el-tag size="small" :type="logTag(row.action)">{{ row.action }}</el-tag></template>
+              </el-table-column>
+              <el-table-column prop="assetCode" label="资产编号" width="140" />
+              <el-table-column prop="assetName" label="名称" />
+              <el-table-column label="数量" width="70">
+                <template #default="{ row }">{{ row.qty && row.qty !== 1 ? row.qty : (row.qty ? 1 : '—') }}</template>
+              </el-table-column>
+              <el-table-column label="领用/处置" width="160">
+                <template #default="{ row }">
+                  <span v-if="row.recipient">{{ row.recipient }}{{ row.recipientDept ? '(' + row.recipientDept + ')' : '' }}</span>
+                  <span v-else-if="row.disposal">{{ row.disposal }}</span>
+                  <span v-else>—</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="operator" label="操作人" width="100" />
+              <el-table-column label="事由/说明" min-width="180">
+                <template #default="{ row }">
+                  <span>{{ row.purpose || row.detail || '—' }}</span>
+                  <span v-if="row.vendor" style="color:#888"> · {{ row.vendor }}</span>
+                </template>
+              </el-table-column>
+            </el-table>
           </el-tab-pane>
         </el-tabs>
       </div>
@@ -436,34 +490,70 @@
       </template>
     </el-dialog>
 
-    <!-- 盘点明细 -->
-    <el-dialog v-model="invVisible" :title="invDetail.inventory ? invDetail.inventory.inventoryNo + ' 盘点明细' : '盘点明细'" width="820px" class="dialog">
+    <!-- 盘点明细（单据式） -->
+    <el-dialog v-model="invVisible" :title="invDetail.inventory ? invDetail.inventory.inventoryNo + ' 盘点明细' : '盘点明细'" width="860px" class="dialog inventory-dialog">
       <template v-if="invDetail.inventory">
-        <div style="margin-bottom:12px;color:#666;font-size:13px">
-          标题：{{ invDetail.inventory.title }} ｜ 状态：{{ invDetail.inventory.status }} ｜ 盘点人：{{ invDetail.inventory.operator }}
+        <!-- 单据抬头 -->
+        <div class="sheet-head">
+          <div class="sheet-title">{{ invDetail.inventory.title || '资产盘点单' }}</div>
+          <div class="sheet-meta">
+            <span>盘点单号：{{ invDetail.inventory.inventoryNo }}</span>
+            <span>盘点人：{{ invDetail.inventory.operator || '—' }}</span>
+            <span>创建日期：{{ invDetail.inventory.createdAt ? invDetail.inventory.createdAt.slice(0, 10) : '—' }}</span>
+            <span>状态：
+              <el-tag size="small" :type="invDetail.inventory.status === '已完成' ? 'success' : 'warning'">{{ invDetail.inventory.status }}</el-tag>
+            </span>
+          </div>
         </div>
-        <el-table :data="invDetail.items" style="width:100%" max-height="420">
-          <el-table-column prop="assetCode" label="编号" width="130" />
-          <el-table-column prop="name" label="名称" />
-          <el-table-column prop="bookQuantity" label="账面" width="80" />
-          <el-table-column label="实盘" width="120">
-            <template #default="{ row }">
-              <el-input v-model.number="row.actualQuantity" type="number" size="small" :disabled="invDetail.inventory.status==='已完成'"
-                placeholder="未盘" @change="recalcDiff(row)" />
-            </template>
-          </el-table-column>
-          <el-table-column label="差异" width="80">
-            <template #default="{ row }"><span :class="row.diff>0?'diff-red':(row.diff<0?'diff-blue':'diff-ok')">{{ row.diff }}</span></template>
-          </el-table-column>
-          <el-table-column label="备注" width="160">
-            <template #default="{ row }"><el-input v-model="row.note" size="small" :disabled="invDetail.inventory.status==='已完成'" /></template>
-          </el-table-column>
-        </el-table>
+        <!-- 明细表（带框单据式） -->
+        <table class="sheet-table">
+          <thead>
+            <tr>
+              <th style="width:48px">序号</th>
+              <th style="width:130px">资产编号</th>
+              <th>名称</th>
+              <th style="width:120px">分类</th>
+              <th style="width:64px">账面</th>
+              <th style="width:110px">实盘</th>
+              <th style="width:60px">差异</th>
+              <th>备注</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, i) in invDetail.items" :key="row.id">
+              <td>{{ i + 1 }}</td>
+              <td>{{ row.assetCode || '—' }}</td>
+              <td>{{ row.name || '—' }}</td>
+              <td>{{ row.catName || '—' }}</td>
+              <td>{{ row.bookQuantity }}</td>
+              <td>
+                <el-input v-if="invDetail.inventory.status !== '已完成'" v-model.number="row.actualQuantity" type="number" size="small" placeholder="未盘" @change="recalcDiff(row)" />
+                <span v-else>{{ row.actualQuantity }}</span>
+              </td>
+              <td><span :class="row.diff > 0 ? 'diff-red' : (row.diff < 0 ? 'diff-blue' : 'diff-ok')">{{ row.diff }}</span></td>
+              <td>
+                <el-input v-if="invDetail.inventory.status !== '已完成'" v-model="row.note" size="small" />
+                <span v-else>{{ row.note || '—' }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <!-- 汇总 -->
+        <div class="sheet-summary">
+          应盘 <b>{{ invDetail.items.length }}</b> 项 ｜ 实盘 <b>{{ actualCount }}</b> 项 ｜ 盘盈 <b class="diff-red">{{ profitCount }}</b> ｜ 盘亏 <b class="diff-blue">{{ lossCount }}</b>
+        </div>
+        <!-- 落款 -->
+        <div class="sheet-sign">
+          <span>盘点人（签字）：____________</span>
+          <span>监盘人（签字）：____________</span>
+          <span>日期：____ 年 ____ 月 ____ 日</span>
+        </div>
       </template>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="invVisible=false">关闭</el-button>
-          <el-button v-if="invDetail.inventory && invDetail.inventory.status!=='已完成'" type="primary" @click="saveInvItems">保存盘点</el-button>
+          <el-button @click="invVisible = false">关闭</el-button>
+          <el-button @click="printInventory">打印盘点单</el-button>
+          <el-button v-if="invDetail.inventory && invDetail.inventory.status !== '已完成'" type="primary" @click="saveInvItems">保存盘点</el-button>
         </span>
       </template>
     </el-dialog>
@@ -479,7 +569,7 @@ import * as XLSX from 'xlsx'
 import {
   getAssets, getAsset, addAsset, updateAsset, deleteAsset as apiDeleteAsset, getAssetCategories,
   getAssetSummary, getInventories, createInventory, getInventory, updateInventoryItems, completeInventory,
-  getAssetOptions, assetIssue, assetReturn, assetRepair, assetRestore, assetScrap,
+  getAssetOptions, assetIssue, assetReturn, assetRepair, assetRestore, assetScrap, getAssetLogs,
   type Asset, type AssetLog, type AssetSummary, type AssetInventory, type AssetInventoryItem
 } from '../services/api'
 
@@ -512,8 +602,16 @@ const summaryLoading = ref(false)
 
 const ledgerType = ref('fixed')
 const ledgerKeyword = ref('')
+const ledgerStatus = ref('')
+const ledgerDept = ref('')
+const ledgerCat = ref<number | ''>('')
 const currentPage = ref(1)
 const pageSize = ref(10)
+
+// 变动记录
+const logAction = ref('')
+const logList = ref<AssetLog[]>([])
+const logLoading = ref(false)
 
 const inventories = ref<AssetInventory[]>([])
 const invLoading = ref(false)
@@ -614,6 +712,7 @@ const renderCharts = () => {
     tooltip: { trigger: 'item' }, legend: { bottom: 0 },
     series: [{ type: 'pie', radius: ['40%', '65%'], data: statusData.length ? statusData : [{ name: '暂无', value: 1 }] }]
   })
+  statusPie.on('click', (p: any) => { if (p && p.name && p.name !== '暂无') drillToLedger({ status: p.name }) })
   const typeBar = echarts.init(typeChart.value)
   const typeKeys = ['fixed', 'intangible', 'consumable']
   typeBar.setOption({
@@ -621,6 +720,10 @@ const renderCharts = () => {
     xAxis: { type: 'category', data: typeKeys.map(typeLabel) },
     yAxis: { type: 'value' },
     series: [{ type: 'bar', data: typeKeys.map(k => summary.byType[k] || 0), itemStyle: { color: '#1E5AA8' } }]
+  })
+  typeBar.on('click', (p: any) => {
+    const idx = typeKeys.findIndex(k => typeLabel(k) === (p && p.name))
+    if (idx >= 0) drillToLedger({ type: typeKeys[idx] })
   })
 }
 
@@ -631,6 +734,10 @@ const renderStatsCharts = () => {
   pie.setOption({
     tooltip: { trigger: 'item' }, legend: { bottom: 0, type: 'scroll' },
     series: [{ type: 'pie', radius: ['40%', '65%'], data: catData.length ? catData : [{ name: '暂无', value: 1 }] }]
+  })
+  pie.on('click', (p: any) => {
+    const cat = categories.value.find(c => c.name === (p && p.name))
+    if (cat) drillToLedger({ type: cat.parentType, categoryId: cat.id })
   })
   const line = echarts.init(trendChart.value)
   const months = summary.monthly.map(m => m.month)
@@ -643,10 +750,17 @@ const renderStatsCharts = () => {
   })
 }
 
+const drillKpi = (k: { label: string }) => {
+  const map: Record<string, string> = { '固定资产': 'fixed', '无形资产': 'intangible', '耗材库存': 'consumable' }
+  if (map[k.label]) drillToLedger({ type: map[k.label] })
+  else if (k.label === '资产总数') drillToLedger({})
+}
+
 watch(activeTab, async (t) => {
   await nextTick()
   if (t === 'overview') renderCharts()
   if (t === 'stats') renderStatsCharts()
+  if (t === 'logs') loadLogs()
 })
 watch([() => summary.byStatus, () => summary.byType], async () => {
   if (activeTab.value === 'overview') { await nextTick(); renderCharts() }
@@ -658,11 +772,19 @@ watch([() => summary.deptStats, () => summary.byCategory, () => summary.monthly]
 // ============ 台账 ============
 const ledgerAssets = computed(() => {
   const kw = ledgerKeyword.value.trim()
+  const status = ledgerStatus.value
+  const dept = ledgerDept.value
+  const cat = ledgerCat.value
   return assets.value.filter(a =>
     a.assetType === ledgerType.value &&
+    (!status || a.status === status) &&
+    (!dept || a.department === dept) &&
+    (!cat || a.categoryId === cat) &&
     (!kw || (a.name || '').includes(kw) || (a.assetCode || '').includes(kw) || (a.responsibleUser || '').includes(kw))
   )
 })
+// 台账分类下拉（随类型联动）
+const ledgerCatOptions = computed(() => categories.value.filter(c => c.parentType === ledgerType.value))
 const pagedLedger = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
   return ledgerAssets.value.slice(start, start + pageSize.value)
@@ -671,6 +793,17 @@ watch([ledgerAssets, pageSize], () => {
   const max = Math.max(1, Math.ceil(ledgerAssets.value.length / pageSize.value))
   if (currentPage.value > max) currentPage.value = max
 })
+const onLedgerTypeChange = () => { ledgerCat.value = ''; currentPage.value = 1 }
+
+// 概览 / 统计 下钻到台账：根据筛选条件切换并定位
+const drillToLedger = (opt: { type?: string; status?: string; department?: string; categoryId?: number | '' }) => {
+  if (opt.type) ledgerType.value = opt.type
+  ledgerStatus.value = opt.status || ''
+  ledgerDept.value = opt.department || ''
+  ledgerCat.value = opt.categoryId !== undefined ? opt.categoryId : ''
+  currentPage.value = 1
+  activeTab.value = 'ledger'
+}
 
 const openAddDialog = () => { form.value = emptyForm(); formVisible.value = true }
 const editAsset = (a: Asset) => {
@@ -795,7 +928,7 @@ const saveInvItems = async () => {
   try {
     const items = invDetail.items.map(it => ({ id: it.id, bookQuantity: it.bookQuantity, actualQuantity: it.actualQuantity, note: it.note || '' }))
     const res = await updateInventoryItems(invDetail.inventory.id, items)
-    if (res.success) { await loadInventories(); ElMessage.success('盘点明细已保存') }
+    if (res.success) { await loadInventories(); invVisible.value = false; ElMessage.success('盘点明细已保存') }
     else ElMessage.error(res.message || '保存失败')
   } catch (e) { console.error(e); ElMessage.error('保存失败') }
 }
@@ -806,6 +939,44 @@ const completeInv = async (inv: AssetInventory) => {
     if (res.success) { await loadInventories(); invVisible.value = false; ElMessage.success('盘点已完成') }
     else ElMessage.error(res.message || '完成失败')
   } catch (e) { if (e !== 'cancel') console.error(e) }
+}
+const actualCount = computed(() => (invDetail.items || []).filter(r => r.actualQuantity != null && r.actualQuantity !== '').length)
+const profitCount = computed(() => (invDetail.items || []).reduce((s, r) => s + (Number(r.actualQuantity || 0) > Number(r.bookQuantity || 0) ? Number(r.actualQuantity) - Number(r.bookQuantity) : 0), 0))
+const lossCount = computed(() => (invDetail.items || []).reduce((s, r) => s + (Number(r.actualQuantity || 0) < Number(r.bookQuantity || 0) ? Number(r.bookQuantity) - Number(r.actualQuantity) : 0), 0))
+const printInventory = () => {
+  if (!invDetail.inventory) return
+  const inv = invDetail.inventory
+  const items = invDetail.items || []
+  const rows = items.map((r, i) => `<tr>
+    <td>${i + 1}</td><td>${r.assetCode || ''}</td><td>${r.name || ''}</td><td>${r.catName || ''}</td>
+    <td>${Number(r.bookQuantity || 0)}</td><td>${r.actualQuantity == null || r.actualQuantity === '' ? '' : Number(r.actualQuantity)}</td>
+    <td>${Number(r.diff || 0)}</td><td>${r.note || ''}</td></tr>`).join('')
+  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+    <title>盘点单 ${inv.inventoryNo}</title>
+    <style>
+      body{font-family:"Microsoft YaHei",sans-serif;padding:32px;color:#222}
+      h1{text-align:center;font-size:22px;margin:0 0 4px}
+      .meta{display:flex;justify-content:space-between;font-size:13px;margin:6px 0 16px;color:#555}
+      table{width:100%;border-collapse:collapse;font-size:13px}
+      th,td{border:1px solid #333;padding:6px 8px;text-align:center}
+      th{background:#f2f2f2}
+      td:nth-child(3){text-align:left}
+      .sum{margin-top:14px;font-size:14px}
+      .sign{display:flex;justify-content:space-between;margin-top:40px;font-size:14px}
+      @media print{.noprint{display:none}}
+    </style></head><body>
+    <h1>${inv.title || '资产盘点单'}</h1>
+    <div class="meta"><span>盘点单号：${inv.inventoryNo}</span><span>盘点人：${inv.operator || ''}</span><span>创建日期：${inv.createdAt ? inv.createdAt.slice(0, 10) : ''}</span><span>状态：${inv.status}</span></div>
+    <table><thead><tr><th>序号</th><th>资产编号</th><th>名称</th><th>分类</th><th>账面</th><th>实盘</th><th>差异</th><th>备注</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    <div class="sum">应盘 ${items.length} 项 ｜ 实盘 ${actualCount.value} 项 ｜ 盘盈 ${profitCount.value} ｜ 盘亏 ${lossCount.value}</div>
+    <div class="sign"><span>盘点人（签字）：____________</span><span>监盘人（签字）：____________</span><span>日期：____ 年 ____ 月 ____ 日</span></div>
+    <script>window.onload=function(){window.print()}<\/script>
+    </body></html>`
+  const w = window.open('', '_blank')
+  if (!w) { ElMessage.error('浏览器拦截了打印窗口，请允许弹出窗口'); return }
+  w.document.write(html)
+  w.document.close()
 }
 
 // ============ 统计 ============
@@ -823,6 +994,33 @@ const exportExcel = () => {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '资产台账')
     XLSX.writeFile(wb, `资产台账_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    ElMessage.success('导出成功')
+  } catch (e) { console.error(e); ElMessage.error('导出失败') }
+}
+
+// ============ 变动记录 ============
+const logTag = (action: string): any => ({ '领用': 'warning', '归还': 'success', '维修': 'warning', '恢复': 'success', '报废': 'danger', '入库': 'info' }[action] || 'info')
+const loadLogs = async () => {
+  logLoading.value = true
+  try {
+    const res = await getAssetLogs(logAction.value || undefined)
+    if (res.success) logList.value = res.data
+    else ElMessage.error('加载变动记录失败')
+  } catch (e) { console.error(e); ElMessage.error('加载变动记录失败') }
+  finally { logLoading.value = false }
+}
+const exportLogs = () => {
+  try {
+    const rows = logList.value.map(l => ({
+      时间: l.opDate || l.createdAt, 动作: l.action, 资产编号: l.assetCode || '', 名称: l.assetName || '',
+      数量: l.qty && l.qty !== 1 ? l.qty : (l.qty ? 1 : ''),
+      领用_处置: l.recipient ? `${l.recipient}${l.recipientDept ? '(' + l.recipientDept + ')' : ''}` : (l.disposal || ''),
+      操作人: l.operator, 事由_说明: l.purpose || l.detail || ''
+    }))
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '变动记录')
+    XLSX.writeFile(wb, `资产变动记录_${new Date().toISOString().slice(0, 10)}.xlsx`)
     ElMessage.success('导出成功')
   } catch (e) { console.error(e); ElMessage.error('导出失败') }
 }
@@ -851,7 +1049,8 @@ const handleCurrentChange = (c: number) => { currentPage.value = c }
 .content-wrapper { max-width:1200px; margin:0 auto; }
 .asset-tabs { background:rgba(255,255,255,0.8); border:1px solid rgba(30,90,168,0.3); border-radius:12px; padding:1rem 1.5rem; box-shadow:0 4px 12px rgba(0,0,0,0.1); backdrop-filter:blur(5px); }
 .kpi-row { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:1rem; margin-bottom:1.5rem; }
-.kpi-card { background:rgba(255,255,255,0.95); border:1px solid rgba(30,90,168,0.2); border-top:3px solid #1E5AA8; border-radius:10px; padding:1rem 1.2rem; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+.kpi-card { background:rgba(255,255,255,0.95); border:1px solid rgba(30,90,168,0.2); border-top:3px solid #1E5AA8; border-radius:10px; padding:1rem 1.2rem; box-shadow:0 2px 8px rgba(0,0,0,0.06); cursor:pointer; transition:transform .15s, box-shadow .15s; }
+.kpi-card:hover { transform:translateY(-3px); box-shadow:0 6px 16px rgba(30,90,168,0.18); }
 .kpi-value { font-size:1.8rem; font-weight:700; color:#1E5AA8; }
 .kpi-label { font-size:0.85rem; color:rgba(51,51,51,0.6); margin-top:0.3rem; }
 .chart-row { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem; }
@@ -890,4 +1089,18 @@ const handleCurrentChange = (c: number) => { currentPage.value = c }
 .detail-dialog .el-descriptions__content { color:#333!important; }
 .main-content::-webkit-scrollbar { width:8px; }
 .main-content::-webkit-scrollbar-thumb { background:rgba(30,90,168,0.5); border-radius:4px; }
+
+/* 盘点单据式 */
+.sheet-head { border-bottom:2px solid #1E5AA8; padding-bottom:10px; margin-bottom:14px; }
+.sheet-title { text-align:center; font-size:20px; font-weight:700; color:#1E5AA8; margin-bottom:8px; }
+.sheet-meta { display:flex; flex-wrap:wrap; gap:16px; font-size:13px; color:#555; justify-content:center; }
+.sheet-table { width:100%; border-collapse:collapse; font-size:13px; }
+.sheet-table th, .sheet-table td { border:1px solid #bbb; padding:7px 8px; text-align:center; }
+.sheet-table th { background:#eef3f9; color:#333; font-weight:600; }
+.sheet-table td:nth-child(3) { text-align:left; }
+.sheet-summary { margin-top:14px; font-size:14px; color:#333; }
+.sheet-sign { display:flex; justify-content:space-between; margin-top:38px; font-size:13px; color:#555; flex-wrap:wrap; gap:12px; }
+.diff-red { color:#c0504d; font-weight:600; }
+.diff-blue { color:#2e7d32; font-weight:600; }
+.diff-ok { color:#888; }
 </style>

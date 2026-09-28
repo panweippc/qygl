@@ -446,6 +446,8 @@ export interface AssetLog {
   purpose: string | null
   disposal: string | null
   vendor: string | null
+  assetCode: string | null
+  assetName: string | null
   createdAt: string
 }
 
@@ -456,6 +458,12 @@ export const getAssets = async (params: Record<string, any> = {}): Promise<ApiRe
 
 export const getAsset = async (id: number): Promise<ApiResponse<{ asset: Asset; logs: AssetLog[] }>> => {
   const response = await api.get(`/assets/${id}`);
+  return response.data;
+};
+
+// 资产变动记录（领用/归还/维修/报废/恢复/入库）
+export const getAssetLogs = async (action?: string): Promise<ApiResponse<AssetLog[]>> => {
+  const response = await api.get('/asset-logs', { params: action ? { action } : {} });
   return response.data;
 };
 

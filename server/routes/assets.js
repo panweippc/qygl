@@ -135,6 +135,26 @@ router.get('/assets/:id', async (req, res) => {
   }
 });
 
+// 资产变动记录（领用/归还/维修/恢复/报废/入库），联表取资产编号与名称，支持按动作过滤
+router.get('/asset-logs', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const { action } = req.query;
+    let sql = `SELECT l.*, a.assetCode, a.name AS assetName
+               FROM asset_logs l
+               LEFT JOIN assets a ON l.assetId = a.id
+               WHERE 1=1`;
+    const params = [];
+    if (action) { sql += ' AND l.action = ?'; params.push(action); }
+    sql += ' ORDER BY l.createdAt DESC, l.id DESC LIMIT 1000';
+    const [rows] = await pool.execute(sql, params);
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('获取资产变动记录失败:', error);
+    res.status(500).json({ success: false, message: '获取资产变动记录失败' });
+  }
+});
+
 // 新增资产（自动生成资产编号 ZC-YYYY-NNNN；新增默认状态为「闲置(在库)」；
 // 固定资产支持批量入库生成多条；耗材写入可用数量；记录入库轨迹）
 router.post('/assets', async (req, res) => {
