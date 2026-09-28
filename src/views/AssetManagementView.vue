@@ -307,7 +307,10 @@
     <el-dialog v-model="detailVisible" title="资产详情" width="720px" class="dialog detail-dialog">
       <template v-if="detail">
         <el-descriptions :column="2" border size="small">
-          <el-descriptions-item label="资产编号">{{ detail.asset.assetCode }}</el-descriptions-item>
+          <el-descriptions-item label="资产编号">
+            <span>{{ detail.asset.assetCode }}</span>
+            <el-button size="small" text type="primary" style="margin-left:8px" @click="copyCode">复制</el-button>
+          </el-descriptions-item>
           <el-descriptions-item label="名称">{{ detail.asset.name }}</el-descriptions-item>
           <el-descriptions-item label="类型">{{ typeLabel(detail.asset.assetType) }}</el-descriptions-item>
           <el-descriptions-item label="分类">{{ detail.asset.categoryName }}</el-descriptions-item>
@@ -360,11 +363,6 @@
             <el-button size="small" type="danger" @click="openOp('报废')">报废</el-button>
           </template>
           <span v-else style="color:#888;font-size:12px">该资产已报废，无可用操作</span>
-          <el-button size="small" type="primary" plain @click="genQR" style="margin-left:8px">生成资产二维码</el-button>
-        </div>
-        <div v-if="qrUrl" style="margin-top:14px;text-align:center">
-          <img :src="qrUrl" alt="资产二维码" style="width:160px;height:160px;border:1px solid #ddd;border-radius:8px;padding:8px" />
-          <div style="font-size:12px;color:#888;margin-top:6px">{{ detail.asset.assetCode }}</div>
         </div>
       </template>
     </el-dialog>
@@ -478,7 +476,6 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
 import * as XLSX from 'xlsx'
-import QRCode from 'qrcode'
 import {
   getAssets, getAsset, addAsset, updateAsset, deleteAsset as apiDeleteAsset, getAssetCategories,
   getAssetSummary, getInventories, createInventory, getInventory, updateInventoryItems, completeInventory,
@@ -526,7 +523,6 @@ const invVisible = ref(false)
 const formVisible = ref(false)
 const detailVisible = ref(false)
 const detail = ref<{ asset: Asset; logs: AssetLog[] } | null>(null)
-const qrUrl = ref('')
 const opVisible = ref(false)
 const opForm = reactive<{ action: string; responsibleUser: string; department: string; qty: number; opDate: string; planDate: string; purpose: string; disposal: string; vendor: string; location: string }>({ action: '', responsibleUser: '', department: '', qty: 1, opDate: '', planDate: '', purpose: '', disposal: '', vendor: '', location: '' })
 
@@ -707,7 +703,6 @@ const removeAsset = async (id: number) => {
   } catch (e) { if (e !== 'cancel') console.error(e) }
 }
 const viewDetail = async (a: Asset) => {
-  qrUrl.value = ''
   try {
     const res = await getAsset(a.id)
     if (res.success) { detail.value = res.data; detailVisible.value = true }
@@ -719,10 +714,12 @@ const quickOp = async (row: Asset, action: string) => {
   detailVisible.value = false
   openOp(action)
 }
-const genQR = async () => {
+const copyCode = async () => {
   if (!detail.value) return
-  try { qrUrl.value = await QRCode.toDataURL(detail.value.asset.assetCode, { width: 160 }) }
-  catch (e) { console.error(e); ElMessage.error('生成二维码失败') }
+  try {
+    await navigator.clipboard.writeText(detail.value.asset.assetCode)
+    ElMessage.success('资产编号已复制')
+  } catch (e) { console.error(e); ElMessage.error('复制失败，请手动选择复制') }
 }
 
 // ============ 生命周期操作 ============
