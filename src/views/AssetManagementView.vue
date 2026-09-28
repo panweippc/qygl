@@ -353,11 +353,13 @@
         </div>
         <div style="margin-top:14px">
           <span style="font-weight:600;margin-right:8px">资产操作：</span>
-          <el-button size="small" type="primary" @click="openOp('领用')" :disabled="detail.asset.status === '报废'">领用</el-button>
-          <el-button size="small" @click="openOp('归还')" :disabled="detail.asset.status === '报废' || detail.asset.status === '闲置'">归还</el-button>
-          <el-button size="small" @click="openOp('维修')" :disabled="detail.asset.status === '报废' || detail.asset.status === '维修'">维修</el-button>
-          <el-button size="small" @click="openOp('恢复')" :disabled="detail.asset.status !== '维修'">恢复</el-button>
-          <el-button size="small" type="danger" @click="openOp('报废')" :disabled="detail.asset.status === '报废'">报废</el-button>
+          <!-- 领用 / 归还为高频操作，已上提到列表行内快捷按钮；详情只保留低频操作，按状态显示 -->
+          <template v-if="detail.asset.status !== '报废'">
+            <el-button v-if="detail.asset.status === '闲置' || detail.asset.status === '在用'" size="small" @click="openOp('维修')">维修</el-button>
+            <el-button v-if="detail.asset.status === '维修'" size="small" type="primary" @click="openOp('恢复')">恢复</el-button>
+            <el-button size="small" type="danger" @click="openOp('报废')">报废</el-button>
+          </template>
+          <span v-else style="color:#888;font-size:12px">该资产已报废，无可用操作</span>
           <el-button size="small" type="primary" plain @click="genQR" style="margin-left:8px">生成资产二维码</el-button>
         </div>
         <div v-if="qrUrl" style="margin-top:14px;text-align:center">
