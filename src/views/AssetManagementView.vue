@@ -965,7 +965,7 @@ const completeInv = async (inv: AssetInventory) => {
     const res = await completeInventory(inv.id)
     if (res.success) { await loadInventories(); invVisible.value = false; ElMessage.success('盘点已完成') }
     else ElMessage.error(res.message || '完成失败')
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+  } catch (e) { if (e !== 'cancel') { console.error(e); ElMessage.error('完成失败，请检查网络或后端是否已更新到含「完成/作废」接口的版本') } }
 }
 const voidInv = async (inv: AssetInventory) => {
   try {
@@ -973,7 +973,7 @@ const voidInv = async (inv: AssetInventory) => {
     const res = await voidInventory(inv.id)
     if (res.success) { await loadInventories(); ElMessage.success('盘点单已作废') }
     else ElMessage.error(res.message || '作废失败')
-  } catch (e) { if (e !== 'cancel') console.error(e) }
+  } catch (e) { if (e !== 'cancel') { console.error(e); ElMessage.error('作废失败，请检查网络或后端是否已更新到含「完成/作废」接口的版本') } }
 }
 const actualCount = computed(() => (invDetail.items || []).filter(r => r.actualQuantity != null && r.actualQuantity !== '').length)
 const profitCount = computed(() => (invDetail.items || []).reduce((s, r) => s + (Number(r.actualQuantity || 0) > Number(r.bookQuantity || 0) ? Number(r.actualQuantity) - Number(r.bookQuantity) : 0), 0))
