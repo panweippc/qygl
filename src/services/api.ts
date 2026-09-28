@@ -538,6 +538,7 @@ export interface AssetSummary {
   byStatus: Record<string, number>
   depreciationTotal: number
   expiringIntangibles: Array<{ assetCode: string; name: string; expireDate: string; daysLeft: number }>
+  overdueReturns: Array<{ assetId: number; assetCode: string; name: string; recipient: string; recipientDept: string; planDate: string; daysOverdue: number }>
   deptStats: Array<{ department: string; total: number; inUse: number; idle: number; repair: number; scrap: number; originalSum: number; residualSum: number }>
   byCategory: Array<{ categoryName: string; count: number }>
   monthly: Array<{ month: string; count: number }>
@@ -591,6 +592,10 @@ export const updateInventoryItems = async (id: number, items: Array<{ id: number
 };
 export const completeInventory = async (id: number): Promise<ApiResponse> => {
   const response = await api.put(`/asset-inventories/${id}/complete`, {});
+  return response.data;
+};
+export const voidInventory = async (id: number): Promise<ApiResponse> => {
+  const response = await api.put(`/asset-inventories/${id}/void`, {});
   return response.data;
 };
 

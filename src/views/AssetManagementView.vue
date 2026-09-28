@@ -50,6 +50,22 @@
                 </el-table-column>
               </el-table>
             </el-card>
+            <el-card class="warn-card" shadow="never">
+              <template #header>
+                <span class="chart-title">逾期未还预警（领用超期未归还）</span>
+                <span class="warn-count">{{ summary.overdueReturns.length }}</span>
+              </template>
+              <el-table :data="summary.overdueReturns" v-loading="summaryLoading" empty-text="暂无逾期未还资产">
+                <el-table-column prop="assetCode" label="资产编号" width="140" />
+                <el-table-column prop="name" label="名称" />
+                <el-table-column prop="recipient" label="领用人" width="100" />
+                <el-table-column prop="recipientDept" label="部门" width="100" />
+                <el-table-column prop="planDate" label="应还日" width="130" />
+                <el-table-column label="逾期天数" width="110">
+                  <template #default="{ row }"><el-tag type="danger" size="small">{{ row.daysOverdue }} 天</el-tag></template>
+                </el-table-column>
+              </el-table>
+            </el-card>
           </el-tab-pane>
 
           <!-- ============ 资产台账 ============ -->
@@ -77,6 +93,7 @@
               <el-select v-model="ledgerCat" placeholder="全部分类" clearable style="width:150px" @change="currentPage = 1">
                 <el-option v-for="c in ledgerCatOptions" :key="c.id" :label="c.name" :value="c.id" />
               </el-select>
+              <el-switch v-model="showScrap" inline-prompt active-text="显示报废" inactive-text="隐藏报废" @change="currentPage = 1" style="margin-left:8px" />
             </div>
 
             <el-table :data="pagedLedger" style="width:100%" class="asset-table" v-loading="loading" :row-class-name="ledgerRowClass">
@@ -142,13 +159,13 @@
           <el-tab-pane label="资产盘点" name="inventory">
             <div class="section-header">
               <h2 class="section-title"><span class="title-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2ZM16 14H8V12H16V14ZM16 10H8V8H16V10Z"/></svg></span>资产盘点</h2>
-              <el-button type="primary" @click="createInventorySheet" class="add-btn">新建盘点单</el-button>
+              <el-button type="primary" @click="createInventorySheet" class="add-btn" :disabled="hasOngoingInventory">新建盘点单</el-button>
             </div>
             <el-table :data="inventories" style="width:100%" class="asset-table" v-loading="invLoading">
               <el-table-column prop="inventoryNo" label="盘点单号" width="160" />
               <el-table-column prop="title" label="标题" />
               <el-table-column prop="status" label="状态" width="100">
-                <template #default="{ row }"><el-tag :type="row.status==='已完成'?'success':'warning'" size="small">{{ row.status }}</el-tag></template>
+                <template #default="{ row }"><el-tag :type="row.status==='已完成'?'success':(row.status==='已作废'?'info':'warning')" size="small">{{ row.status }}</el-tag></template>
               </el-table-column>
               <el-table-column prop="itemCount" label="明细数" width="90" />
               <el-table-column prop="diffCount" label="差异数" width="90">
@@ -156,10 +173,12 @@
               </el-table-column>
               <el-table-column prop="operator" label="盘点人" width="100" />
               <el-table-column prop="createdAt" label="创建时间" width="170" />
-              <el-table-column label="操作" width="160" fixed="right">
+              <el-table-column label="操作" width="220" fixed="right">
                 <template #default="{ row }">
                   <el-button size="small" @click="openInventory(row)" class="edit-btn">盘点</el-button>
-                  <el-button v-if="row.status!=='已完成'" size="small" type="success" @click="completeInv(row)" class="edit-btn">完成</el-button>
+                  <el-button v-if="row.status==='进行中'" size="small" type="success" @click="completeInv(row)" class="edit-btn">完成</el-button>
+                  <el-button v-if="row.status==='进行中'" size="small" type="warning" @click="voidInv(row)" class="edit-btn">作废</el-button>
+                  <span v-if="row.status==='已作废'" style="color:#999;font-size:12px">已作废</span>
                 </template>
               </el-table-column>
             </el-table>
@@ -568,7 +587,7 @@ import * as echarts from 'echarts'
 import * as XLSX from 'xlsx'
 import {
   getAssets, getAsset, addAsset, updateAsset, deleteAsset as apiDeleteAsset, getAssetCategories,
-  getAssetSummary, getInventories, createInventory, getInventory, updateInventoryItems, completeInventory,
+  getAssetSummary, getInventories, createInventory, getInventory, updateInventoryItems, completeInventory, voidInventory,
   getAssetOptions, assetIssue, assetReturn, assetRepair, assetRestore, assetScrap, getAssetLogs,
   type Asset, type AssetLog, type AssetSummary, type AssetInventory, type AssetInventoryItem
 } from '../services/api'
@@ -595,7 +614,7 @@ const categories = ref<any[]>([])
 const options = reactive<{ departments: string[]; employees: string[] }>({ departments: [], employees: [] })
 const loading = ref(false)
 const summary = reactive<AssetSummary>({
-  total: 0, byType: {}, byStatus: {}, depreciationTotal: 0, expiringIntangibles: [],
+  total: 0, byType: {}, byStatus: {}, depreciationTotal: 0, expiringIntangibles: [], overdueReturns: [],
   deptStats: [], byCategory: [], monthly: []
 })
 const summaryLoading = ref(false)
@@ -605,6 +624,7 @@ const ledgerKeyword = ref('')
 const ledgerStatus = ref('')
 const ledgerDept = ref('')
 const ledgerCat = ref<number | ''>('')
+const showScrap = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
 
@@ -615,6 +635,7 @@ const logLoading = ref(false)
 
 const inventories = ref<AssetInventory[]>([])
 const invLoading = ref(false)
+const hasOngoingInventory = computed(() => inventories.value.some(i => i.status === '进行中'))
 const invDetail = reactive<{ inventory: AssetInventory | null; items: AssetInventoryItem[] }>({ inventory: null, items: [] })
 const invVisible = ref(false)
 
@@ -780,6 +801,7 @@ const ledgerAssets = computed(() => {
     (!status || a.status === status) &&
     (!dept || a.department === dept) &&
     (!cat || a.categoryId === cat) &&
+    (showScrap.value || a.status !== '报废') &&
     (!kw || (a.name || '').includes(kw) || (a.assetCode || '').includes(kw) || (a.responsibleUser || '').includes(kw))
   )
 })
@@ -943,6 +965,14 @@ const completeInv = async (inv: AssetInventory) => {
     const res = await completeInventory(inv.id)
     if (res.success) { await loadInventories(); invVisible.value = false; ElMessage.success('盘点已完成') }
     else ElMessage.error(res.message || '完成失败')
+  } catch (e) { if (e !== 'cancel') console.error(e) }
+}
+const voidInv = async (inv: AssetInventory) => {
+  try {
+    await ElMessageBox.confirm(`确定作废盘点单 ${inv.inventoryNo} 吗？作废后该单不可再盘点，且不可恢复。`, '作废确认', { confirmButtonText: '确定作废', cancelButtonText: '取消', type: 'warning' })
+    const res = await voidInventory(inv.id)
+    if (res.success) { await loadInventories(); ElMessage.success('盘点单已作废') }
+    else ElMessage.error(res.message || '作废失败')
   } catch (e) { if (e !== 'cancel') console.error(e) }
 }
 const actualCount = computed(() => (invDetail.items || []).filter(r => r.actualQuantity != null && r.actualQuantity !== '').length)
