@@ -362,6 +362,7 @@ router.post('/assets/:id/repair', async (req, res) => {
 // 恢复：维修→闲置
 router.post('/assets/:id/restore', async (req, res) => {
   const { id } = req.params;
+  const b = req.body || {};
   try {
     const { pool } = req.app.locals;
     const operator = getOperator(req);
