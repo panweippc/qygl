@@ -108,9 +108,11 @@
                   <template #default="{ row }">{{ row.availableQuantity == null ? row.quantity : row.availableQuantity }} {{ row.unit }}</template>
                 </el-table-column>
               </template>
-              <el-table-column label="操作" width="230" fixed="right">
+              <el-table-column label="操作" width="320" fixed="right">
                 <template #default="{ row }">
-                  <el-button size="small" @click="viewDetail(row)" class="edit-btn">查看</el-button>
+                  <el-button size="small" @click="viewDetail(row)" class="edit-btn">详情</el-button>
+                  <el-button v-if="row.status === '闲置' && (row.assetType !== 'consumable' || (row.availableQuantity == null ? row.quantity : row.availableQuantity) > 0)" size="small" type="primary" @click="quickOp(row, '领用')" class="edit-btn">领用</el-button>
+                  <el-button v-if="row.status === '在用'" size="small" @click="quickOp(row, '归还')" class="edit-btn">归还</el-button>
                   <el-button size="small" @click="editAsset(row)" class="edit-btn">编辑</el-button>
                   <el-button size="small" @click="removeAsset(row.id)" class="delete-btn">删除</el-button>
                 </template>
@@ -334,13 +336,17 @@
         <div style="margin-top:18px">
           <div style="font-weight:600;margin-bottom:10px">生命周期轨迹</div>
           <el-timeline>
-            <el-timeline-item v-for="log in detail.logs" :key="log.id" :timestamp="log.createdAt" placement="top">
-              <div><b>{{ log.action }}</b> <span v-if="log.fromStatus">（{{ log.fromStatus }} → {{ log.toStatus }}）</span> <span v-if="log.qty && log.qty !== 1">×{{ log.qty }}</span></div>
+            <el-timeline-item v-for="log in detail.logs" :key="log.id" :timestamp="log.opDate || log.createdAt" placement="top">
+              <div><b>{{ log.action }}</b> <span v-if="log.fromStatus && log.fromStatus !== log.toStatus">（{{ log.fromStatus }} → {{ log.toStatus }}）</span> <span v-if="log.qty && log.qty !== 1">×{{ log.qty }}</span></div>
               <div style="color:#888;font-size:12px">
                 {{ log.operator }}
                 <span v-if="log.recipient"> · 领用：{{ log.recipient }}({{ log.recipientDept }})</span>
-                · {{ log.detail }}
+                <span v-if="log.purpose"> · {{ log.purpose }}</span>
+                <span v-if="log.disposal"> · 处置：{{ log.disposal }}</span>
+                <span v-if="log.vendor"> · {{ log.vendor }}</span>
+                <span v-if="log.planDate"> · 预计：{{ log.planDate }}</span>
               </div>
+              <div v-if="log.detail" style="color:#888;font-size:12px">· {{ log.detail }}</div>
             </el-timeline-item>
           </el-timeline>
           <el-empty v-if="!detail.logs.length" description="暂无轨迹" />
@@ -362,7 +368,7 @@
     </el-dialog>
 
     <!-- 资产操作（领用 / 归还 / 维修 / 恢复 / 报废） -->
-    <el-dialog v-model="opVisible" :title="'资产' + opForm.action" width="440px" class="dialog">
+    <el-dialog v-model="opVisible" :title="'资产' + opForm.action" width="480px" class="dialog">
       <el-form label-position="top">
         <template v-if="opForm.action === '领用'">
           <el-form-item label="责任人">
@@ -375,6 +381,10 @@
               <el-option v-for="d in options.departments" :key="d" :label="d" :value="d" />
             </el-select>
           </el-form-item>
+          <el-form-item label="领用日期"><el-date-picker v-model="opForm.opDate" type="date" value-format="YYYY-MM-DD" placeholder="默认今天" style="width:100%" /></el-form-item>
+          <el-form-item label="预计归还日期"><el-date-picker v-model="opForm.planDate" type="date" value-format="YYYY-MM-DD" placeholder="借用场景填写，长期领用可留空" style="width:100%" /></el-form-item>
+          <el-form-item label="用途 / 事由"><el-input v-model="opForm.purpose" placeholder="领用用途或事由" /></el-form-item>
+          <el-form-item label="领用后存放位置"><el-input v-model="opForm.location" placeholder="留空则沿用当前位置" /></el-form-item>
           <el-form-item v-if="detail && detail.asset.assetType === 'consumable'" label="领用数量">
             <el-input v-model.number="opForm.qty" type="number" :min="1" />
           </el-form-item>
@@ -383,13 +393,38 @@
           <el-form-item v-if="detail && detail.asset.assetType === 'consumable'" label="归还数量">
             <el-input v-model.number="opForm.qty" type="number" :min="1" />
           </el-form-item>
-          <span v-else style="color:#888">固定资产归还后将恢复为「闲置（在库）」状态</span>
+          <el-form-item label="归还日期"><el-date-picker v-model="opForm.opDate" type="date" value-format="YYYY-MM-DD" placeholder="默认今天" style="width:100%" /></el-form-item>
+          <el-form-item label="归还后存放位置"><el-input v-model="opForm.location" placeholder="留空则沿用当前位置" /></el-form-item>
+          <el-form-item label="备注"><el-input v-model="opForm.purpose" placeholder="可选" /></el-form-item>
+          <span v-if="!(detail && detail.asset.assetType === 'consumable')" style="color:#888">固定资产归还后将恢复为「闲置（在库）」状态</span>
+        </template>
+        <template v-else-if="opForm.action === '维修'">
+          <el-form-item label="故障描述"><el-input v-model="opForm.purpose" type="textarea" :rows="2" placeholder="故障现象 / 维修原因" /></el-form-item>
+          <el-form-item label="送修日期"><el-date-picker v-model="opForm.opDate" type="date" value-format="YYYY-MM-DD" placeholder="默认今天" style="width:100%" /></el-form-item>
+          <el-form-item label="预计完成日期"><el-date-picker v-model="opForm.planDate" type="date" value-format="YYYY-MM-DD" placeholder="可选" style="width:100%" /></el-form-item>
+          <el-form-item label="维修供应商"><el-input v-model="opForm.vendor" placeholder="送修单位 / 联系人，可选" /></el-form-item>
         </template>
         <template v-else-if="opForm.action === '报废'">
           <el-form-item v-if="detail && detail.asset.assetType === 'consumable'" label="报废数量">
             <el-input v-model.number="opForm.qty" type="number" :min="1" />
           </el-form-item>
+          <el-form-item label="报废原因"><el-input v-model="opForm.purpose" type="textarea" :rows="2" placeholder="报废原因说明" /></el-form-item>
+          <el-form-item label="处置方式">
+            <el-select v-model="opForm.disposal" placeholder="选择处置方式" style="width:100%">
+              <el-option label="变卖" value="变卖" />
+              <el-option label="销毁" value="销毁" />
+              <el-option label="回收" value="回收" />
+              <el-option label="捐赠" value="捐赠" />
+              <el-option label="其他" value="其他" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="报废日期"><el-date-picker v-model="opForm.opDate" type="date" value-format="YYYY-MM-DD" placeholder="默认今天" style="width:100%" /></el-form-item>
+          <el-form-item label="处置方"><el-input v-model="opForm.vendor" placeholder="回收 / 处置单位，可选" /></el-form-item>
           <span style="color:#c0504d">确认将该资产{{ detail && detail.asset.assetType === 'consumable' ? '的对应数量' : '' }}标记为报废？此操作会记录到生命周期轨迹。</span>
+        </template>
+        <template v-else-if="opForm.action === '恢复'">
+          <el-form-item label="恢复日期"><el-date-picker v-model="opForm.opDate" type="date" value-format="YYYY-MM-DD" placeholder="默认今天" style="width:100%" /></el-form-item>
+          <el-form-item label="备注"><el-input v-model="opForm.purpose" placeholder="可选" /></el-form-item>
         </template>
         <span v-else style="color:#888">确认执行「{{ opForm.action }}」操作？</span>
       </el-form>
@@ -491,7 +526,7 @@ const detailVisible = ref(false)
 const detail = ref<{ asset: Asset; logs: AssetLog[] } | null>(null)
 const qrUrl = ref('')
 const opVisible = ref(false)
-const opForm = reactive<{ action: string; responsibleUser: string; department: string; qty: number }>({ action: '', responsibleUser: '', department: '', qty: 1 })
+const opForm = reactive<{ action: string; responsibleUser: string; department: string; qty: number; opDate: string; planDate: string; purpose: string; disposal: string; vendor: string; location: string }>({ action: '', responsibleUser: '', department: '', qty: 1, opDate: '', planDate: '', purpose: '', disposal: '', vendor: '', location: '' })
 
 const statusChart = ref<HTMLElement | null>(null)
 const typeChart = ref<HTMLElement | null>(null)
@@ -677,6 +712,11 @@ const viewDetail = async (a: Asset) => {
     else ElMessage.error('获取详情失败')
   } catch (e) { console.error(e); ElMessage.error('获取详情失败') }
 }
+const quickOp = async (row: Asset, action: string) => {
+  await viewDetail(row)
+  detailVisible.value = false
+  openOp(action)
+}
 const genQR = async () => {
   if (!detail.value) return
   try { qrUrl.value = await QRCode.toDataURL(detail.value.asset.assetCode, { width: 160 }) }
@@ -684,12 +724,19 @@ const genQR = async () => {
 }
 
 // ============ 生命周期操作 ============
+const todayStr = () => new Date().toISOString().slice(0, 10)
 const openOp = (action: string) => {
   if (!detail.value) return
   opForm.action = action
   opForm.responsibleUser = detail.value.asset.responsibleUser || ''
   opForm.department = detail.value.asset.department || ''
   opForm.qty = 1
+  opForm.opDate = todayStr()
+  opForm.planDate = ''
+  opForm.purpose = ''
+  opForm.disposal = ''
+  opForm.vendor = ''
+  opForm.location = detail.value.asset.location || ''
   opVisible.value = true
 }
 const submitOp = async () => {
@@ -704,11 +751,12 @@ const submitOp = async () => {
   loading.value = true
   try {
     let res
-    if (opForm.action === '领用') res = await assetIssue(id, { responsibleUser: opForm.responsibleUser, department: opForm.department, qty: opForm.qty })
-    else if (opForm.action === '归还') res = await assetReturn(id, { qty: opForm.qty })
-    else if (opForm.action === '维修') res = await assetRepair(id)
-    else if (opForm.action === '恢复') res = await assetRestore(id)
-    else if (opForm.action === '报废') res = await assetScrap(id, { qty: opForm.qty })
+    const base = { opDate: opForm.opDate || null, purpose: opForm.purpose || null, location: opForm.location || null }
+    if (opForm.action === '领用') res = await assetIssue(id, { responsibleUser: opForm.responsibleUser, department: opForm.department, qty: opForm.qty, planDate: opForm.planDate || null, ...base })
+    else if (opForm.action === '归还') res = await assetReturn(id, { qty: opForm.qty, ...base })
+    else if (opForm.action === '维修') res = await assetRepair(id, { planDate: opForm.planDate || null, vendor: opForm.vendor || null, ...base })
+    else if (opForm.action === '恢复') res = await assetRestore(id, base)
+    else if (opForm.action === '报废') res = await assetScrap(id, { qty: opForm.qty, disposal: opForm.disposal || null, vendor: opForm.vendor || null, ...base })
     else res = { success: false, message: '未知操作' }
     if (res.success) {
       await Promise.all([loadAssets(), loadSummary()])

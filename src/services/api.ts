@@ -441,6 +441,11 @@ export interface AssetLog {
   qty: number | null
   recipient: string
   recipientDept: string
+  opDate: string | null
+  planDate: string | null
+  purpose: string | null
+  disposal: string | null
+  vendor: string | null
   createdAt: string
 }
 
@@ -476,23 +481,34 @@ export const getAssetOptions = async (): Promise<ApiResponse<{ departments: stri
 };
 
 // 生命周期操作
-export const assetIssue = async (id: number, payload: { responsibleUser?: string; department?: string; qty?: number }): Promise<ApiResponse> => {
+export interface AssetOpPayload {
+  responsibleUser?: string
+  department?: string
+  qty?: number
+  opDate?: string | null
+  planDate?: string | null
+  purpose?: string | null
+  disposal?: string | null
+  vendor?: string | null
+  location?: string | null
+}
+export const assetIssue = async (id: number, payload: AssetOpPayload): Promise<ApiResponse> => {
   const response = await api.post(`/assets/${id}/issue`, payload);
   return response.data;
 };
-export const assetReturn = async (id: number, payload: { qty?: number } = {}): Promise<ApiResponse> => {
+export const assetReturn = async (id: number, payload: AssetOpPayload = {}): Promise<ApiResponse> => {
   const response = await api.post(`/assets/${id}/return`, payload);
   return response.data;
 };
-export const assetRepair = async (id: number): Promise<ApiResponse> => {
-  const response = await api.post(`/assets/${id}/repair`);
+export const assetRepair = async (id: number, payload: AssetOpPayload = {}): Promise<ApiResponse> => {
+  const response = await api.post(`/assets/${id}/repair`, payload);
   return response.data;
 };
-export const assetRestore = async (id: number): Promise<ApiResponse> => {
-  const response = await api.post(`/assets/${id}/restore`);
+export const assetRestore = async (id: number, payload: AssetOpPayload = {}): Promise<ApiResponse> => {
+  const response = await api.post(`/assets/${id}/restore`, payload);
   return response.data;
 };
-export const assetScrap = async (id: number, payload: { qty?: number } = {}): Promise<ApiResponse> => {
+export const assetScrap = async (id: number, payload: AssetOpPayload = {}): Promise<ApiResponse> => {
   const response = await api.post(`/assets/${id}/scrap`, payload);
   return response.data;
 };

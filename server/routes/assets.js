@@ -253,19 +253,25 @@ router.post('/assets/:id/issue', async (req, res) => {
     const recipient = b.responsibleUser || a.responsibleUser || '';
     const recipientDept = b.department || a.department || '';
     const qty = Number(b.qty || 1);
+    const opDate = b.opDate || null;
+    const planDate = b.planDate || null;
+    const purpose = b.purpose || null;
+    const loc = b.location || null;
     if (a.assetType === 'consumable') {
       const avail = a.availableQuantity == null ? a.quantity : a.availableQuantity;
       if (qty > avail) return res.status(400).json({ success: false, message: `领用数量 ${qty} 超出可用数量 ${avail}` });
       await pool.execute('UPDATE assets SET availableQuantity = availableQuantity - ? WHERE id = ?', [qty, id]);
       await pool.execute(
-        'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, qty, recipient, recipientDept) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [id, '领用', a.status, '闲置', operator, `领用 ${qty} ${a.unit || ''} 给 ${recipient}`, qty, recipient, recipientDept]
+        'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, qty, recipient, recipientDept, opDate, planDate, purpose, disposal, vendor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, '领用', a.status, '闲置', operator, `领用 ${qty} ${a.unit || ''} 给 ${recipient}`, qty, recipient, recipientDept, opDate, planDate, purpose, null, null]
       );
     } else {
-      await pool.execute("UPDATE assets SET status = '在用', responsibleUser = ?, department = ? WHERE id = ?", [recipient, recipientDept, id]);
+      const locSql = loc ? ", location = ?" : '';
+      const locParams = loc ? [recipient, recipientDept, loc, id] : [recipient, recipientDept, id];
+      await pool.execute(`UPDATE assets SET status = '在用', responsibleUser = ?, department = ?${locSql} WHERE id = ?`, locParams);
       await pool.execute(
-        'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, qty, recipient, recipientDept) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [id, '领用', a.status, '在用', operator, `领用给 ${recipient}（${recipientDept}）`, 1, recipient, recipientDept]
+        'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, qty, recipient, recipientDept, opDate, planDate, purpose, disposal, vendor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, '领用', a.status, '在用', operator, `领用给 ${recipient}（${recipientDept}）`, 1, recipient, recipientDept, opDate, planDate, purpose, null, null]
       );
     }
     createOperationLog(pool, { userId: null, username: operator, action: 'update', module: 'asset', targetId: Number(id), targetName: a.name, detail: `领用资产: ${a.name} x${qty}`, ipAddress: req.ip });
@@ -286,14 +292,19 @@ router.post('/assets/:id/return', async (req, res) => {
     const [[a]] = await pool.execute('SELECT * FROM assets WHERE id = ?', [id]);
     if (!a) return res.status(404).json({ success: false, message: '资产不存在' });
     const qty = Number(b.qty || 1);
+    const opDate = b.opDate || null;
+    const purpose = b.purpose || null;
+    const loc = b.location || null;
     if (a.assetType === 'consumable') {
       await pool.execute('UPDATE assets SET availableQuantity = availableQuantity + ? WHERE id = ?', [qty, id]);
     } else {
-      await pool.execute("UPDATE assets SET status = '闲置' WHERE id = ?", [id]);
+      const locSql = loc ? ", location = ?" : '';
+      const locParams = loc ? ['闲置', loc, id] : ['闲置', id];
+      await pool.execute(`UPDATE assets SET status = ?${locSql} WHERE id = ?`, locParams);
     }
     await pool.execute(
-      'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, qty) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, '归还', a.status, '闲置', operator, `归还 ${qty} ${a.unit || ''}`, qty]
+      'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, qty, opDate, purpose) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, '归还', a.status, '闲置', operator, `归还 ${qty} ${a.unit || ''}`, qty, opDate, purpose]
     );
     createOperationLog(pool, { userId: null, username: operator, action: 'update', module: 'asset', targetId: Number(id), targetName: a.name, detail: `归还资产: ${a.name}`, ipAddress: req.ip });
     res.json({ success: true, message: '归还成功' });
@@ -312,10 +323,14 @@ router.post('/assets/:id/repair', async (req, res) => {
     const [[a]] = await pool.execute('SELECT * FROM assets WHERE id = ?', [id]);
     if (!a) return res.status(404).json({ success: false, message: '资产不存在' });
     if (a.status === '报废') return res.status(400).json({ success: false, message: '已报废资产不可维修' });
+    const opDate = b.opDate || null;
+    const planDate = b.planDate || null;
+    const purpose = b.purpose || null;
+    const vendor = b.vendor || null;
     await pool.execute("UPDATE assets SET status = '维修' WHERE id = ?", [id]);
     await pool.execute(
-      'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, '维修', a.status, '维修', operator, `送修 ${a.name}`]
+      'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, opDate, planDate, purpose, vendor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, '维修', a.status, '维修', operator, `送修 ${a.name}`, opDate, planDate, purpose, vendor]
     );
     res.json({ success: true, message: '已标记为维修' });
   } catch (error) {
@@ -332,10 +347,12 @@ router.post('/assets/:id/restore', async (req, res) => {
     const operator = getOperator(req);
     const [[a]] = await pool.execute('SELECT * FROM assets WHERE id = ?', [id]);
     if (!a) return res.status(404).json({ success: false, message: '资产不存在' });
+    const opDate = (b && b.opDate) || null;
+    const purpose = (b && b.purpose) || null;
     await pool.execute("UPDATE assets SET status = '闲置' WHERE id = ?", [id]);
     await pool.execute(
-      'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, '恢复', a.status, '闲置', operator, `维修完成恢复 ${a.name}`]
+      'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, opDate, purpose) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, '恢复', a.status, '闲置', operator, `维修完成恢复 ${a.name}`, opDate, purpose]
     );
     res.json({ success: true, message: '已恢复为闲置' });
   } catch (error) {
@@ -355,6 +372,10 @@ router.post('/assets/:id/scrap', async (req, res) => {
     if (!a) return res.status(404).json({ success: false, message: '资产不存在' });
     if (a.status === '报废') return res.status(400).json({ success: false, message: '资产已报废' });
     const qty = Number(b.qty || 1);
+    const opDate = b.opDate || null;
+    const purpose = b.purpose || null;
+    const disposal = b.disposal || null;
+    const vendor = b.vendor || null;
     if (a.assetType === 'consumable') {
       if (qty > a.quantity) return res.status(400).json({ success: false, message: `报废数量 ${qty} 超出总数 ${a.quantity}` });
       const avail = a.availableQuantity == null ? a.quantity : a.availableQuantity;
@@ -364,8 +385,8 @@ router.post('/assets/:id/scrap', async (req, res) => {
       await pool.execute("UPDATE assets SET status = '报废' WHERE id = ?", [id]);
     }
     await pool.execute(
-      'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, qty) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, '报废', a.status, '报废', operator, `报废 ${qty} ${a.unit || ''}`, qty]
+      'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, qty, opDate, purpose, disposal, vendor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, '报废', a.status, '报废', operator, `报废 ${qty} ${a.unit || ''}`, qty, opDate, purpose, disposal, vendor]
     );
     createOperationLog(pool, { userId: null, username: operator, action: 'delete', module: 'asset', targetId: Number(id), targetName: a.name, detail: `报废资产: ${a.name} x${qty}`, ipAddress: req.ip });
     res.json({ success: true, message: '报废成功' });
