@@ -9,12 +9,17 @@ export interface AiShortcut {
   label: string
 }
 
+export interface AiSuggestion extends AiShortcut {
+  text: string
+}
+
 export interface AiResponse {
   success: boolean
   reply: string
   intent: { id: string; label: string } | null
   action: AiAction | null
   shortcuts: AiShortcut[]
+  related?: AiSuggestion[]
   matched: 'intent' | 'faq' | 'fallback'
 }
 
