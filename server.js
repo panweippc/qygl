@@ -73,6 +73,7 @@ import userProfileRouter from './server/routes/user-profile.js';
 import backupRouter from './server/routes/backup.js';
 import monitorRouter from './server/routes/monitor.js';
 import announcementsRouter, { ensureAnnouncementsSchema } from './server/routes/announcements.js';
+import aiRouter from './server/routes/ai.js';
 import { requireAuth } from './server/middleware/requireAuth.js';
 import { startMetricsCollector } from './server/utils/metrics-collector.js';
 
@@ -329,6 +330,7 @@ app.use('/api', userProfileRouter);
 app.use('/api', backupRouter);
 app.use('/api', monitorRouter);
 app.use('/api', announcementsRouter);
+app.use('/api', aiRouter);
 // H3: 上传文件静态服务 - 危险类型（html/svg等）强制下载而非渲染，防存储型XSS
 const DANGEROUS_UPLOAD_EXT = /\.(html?|svg|xml|swf|js|mjs)$/i;
 app.use('/uploads', (req, res, next) => {

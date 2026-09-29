@@ -1,12 +1,14 @@
 ﻿﻿﻿﻿﻿﻿<template>
   <div class="app-container">
     <router-view />
+    <AiAssistant />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import AiAssistant from './components/AiAssistant.vue'
 
 const router = useRouter()
 

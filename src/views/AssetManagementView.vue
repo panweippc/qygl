@@ -599,6 +599,7 @@
 import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useAiStore } from '../stores/ai'
 import * as echarts from 'echarts'
 import * as XLSX from 'xlsx'
 import {
@@ -854,7 +855,20 @@ const drillToLedger = (opt: { type?: string; status?: string; department?: strin
 
 const openAddDialog = () => { form.value = emptyForm(); formVisible.value = true }
 // 首页「新增资产」卡片入口：落到资产台账页签并弹出新增框
-const openAddFromQuery = () => { activeTab.value = 'ledger'; openAddDialog() }
+const aiStore = useAiStore()
+const openAddFromQuery = () => { activeTab.value = 'ledger'; openAddDialog(); applyAiPrefill() }
+
+// AI 小助手「帮我填好」：若有待填充指令则写入表单默认值（须在 openAddDialog 重置之后）
+const applyAiPrefill = () => {
+  const p = aiStore.pendingPrefill
+  if (p && p.target === 'asset') {
+    const d = p.data || {}
+    if (d.acquireDate) form.value.acquireDate = d.acquireDate
+    if (d.status) form.value.status = d.status
+    if (d.department) form.value.department = d.department
+    aiStore.clearPrefill()
+  }
+}
 const editAsset = (a: Asset) => {
   form.value = { ...emptyForm(), ...a, categoryId: a.categoryId ?? null, availableQuantity: a.availableQuantity ?? null } as AssetForm
   formVisible.value = true
