@@ -728,13 +728,13 @@ const loadInventories = async () => {
 
 onMounted(async () => {
   await Promise.all([loadAssets(), loadCategories(), loadOptions(), loadSummary(), loadInventories()])
-  if (route.query.action === 'add') openAddDialog()
+  openAddFromQuery()
 })
 
 // 已在资产页时再次从首页卡片进入（带 ?action=add）也能重开新增弹窗
 watch(
   () => route.query.action,
-  (val) => { if (val === 'add') openAddDialog() }
+  (val) => { if (val === 'add') openAddFromQuery() }
 )
 
 // ============ 概览 KPI + 图表 ============
@@ -853,6 +853,8 @@ const drillToLedger = (opt: { type?: string; status?: string; department?: strin
 }
 
 const openAddDialog = () => { form.value = emptyForm(); formVisible.value = true }
+// 首页「新增资产」卡片入口：落到资产台账页签并弹出新增框
+const openAddFromQuery = () => { activeTab.value = 'ledger'; openAddDialog() }
 const editAsset = (a: Asset) => {
   form.value = { ...emptyForm(), ...a, categoryId: a.categoryId ?? null, availableQuantity: a.availableQuantity ?? null } as AssetForm
   formVisible.value = true
