@@ -385,9 +385,7 @@ watch(visibleSegments, (vs) => {
 onMounted(() => {
   loadCategories()
   if (route.query.action === 'upload') {
-    // 首页「资料上传」快捷入口：切换到文件分段并默认选中「全部」分类
-    activeSegment.value = 'files'
-    selected.value = { id: 'all', name: '全部' }
+    enterUploadMode()
   } else {
     // 默认选中第一个分类（若有），否则全部
     getFileCategories().then(res => {
@@ -395,6 +393,17 @@ onMounted(() => {
     }).catch(() => {})
   }
 })
+
+// 首页「资料上传」快捷入口：切到文件分段并选中「全部」分类（供 onMounted 与 watch 共用）
+const enterUploadMode = () => {
+  activeSegment.value = 'files'
+  selected.value = { id: 'all', name: '全部' }
+}
+// 已在资料中心页时再次从首页卡片进入（带 ?action=upload）也能正确选中「全部」
+watch(
+  () => route.query.action,
+  (val) => { if (val === 'upload') enterUploadMode() }
+)
 </script>
 
 <style scoped>
