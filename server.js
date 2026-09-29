@@ -48,7 +48,7 @@ import attendanceRouter from './server/routes/attendance.js';
 import reimbursementRouter from './server/routes/reimbursement.js';
 import visitsRouter from './server/routes/visits.js';
 import filesRouter from './server/routes/files.js';
-import chatsRouter from './server/routes/chats.js';
+import chatsRouter, { sendChatMessage } from './server/routes/chats.js';
 import projectsRouter from './server/routes/projects.js';
 import customersRouter from './server/routes/customers.js';
 import meetingsRouter from './server/routes/meetings.js';
@@ -554,90 +554,9 @@ const initDatabase = async () => {
       console.error('更新files字段类型失败:', error);
     }
     
-    // 创建messages表
-    await connection.execute(`
-      CREATE TABLE IF NOT EXISTS messages (
-        id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        chatId BIGINT NOT NULL,
-        senderId VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-        text TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-        time VARCHAR(50) NOT NULL,
-        isOwn BOOLEAN DEFAULT FALSE,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_chatId (chatId),
-        INDEX idx_createdAt (createdAt)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
-    
-    // 检查并更新senderId字段类型（如果需要）
-    try {
-      // 尝试修改senderId字段为VARCHAR类型
-      await connection.execute(`
-        ALTER TABLE messages MODIFY COLUMN senderId VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL
-      `);
-      console.log('senderId字段类型更新成功');
-    } catch (error) {
-      console.error('更新senderId字段类型失败:', error);
-    }
-    
-    // 检查并添加messages表的createdAt字段（如果不存在）
-    try {
-      const [msgColumns] = await connection.execute(`
-        SHOW COLUMNS FROM messages WHERE Field = 'createdAt'
-      `);
-      if (msgColumns.length === 0) {
-        await connection.execute(`
-          ALTER TABLE messages ADD COLUMN createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-        `);
-        console.log('messages表createdAt字段添加成功');
-      }
-    } catch (error) {
-      console.error('添加messages表createdAt字段失败:', error);
-    }
-    
-    // 创建chats表
-    await connection.execute(`
-      CREATE TABLE IF NOT EXISTS chats (
-        id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-        lastMessage TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-        time VARCHAR(50),
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_createdAt (createdAt)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
-    
-    // 检查并添加chats表的createdAt字段（如果不存在）
-    try {
-      const [chatColumns] = await connection.execute(`
-        SHOW COLUMNS FROM chats WHERE Field = 'createdAt'
-      `);
-      if (chatColumns.length === 0) {
-        await connection.execute(`
-          ALTER TABLE chats ADD COLUMN createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-        `);
-        console.log('chats表createdAt字段添加成功');
-      }
-    } catch (error) {
-      console.error('添加chats表createdAt字段失败:', error);
-    }
-    
-    // 检查并添加chats表的updatedAt字段（如果不存在）
-    try {
-      const [chatUpdateColumns] = await connection.execute(`
-        SHOW COLUMNS FROM chats WHERE Field = 'updatedAt'
-      `);
-      if (chatUpdateColumns.length === 0) {
-        await connection.execute(`
-          ALTER TABLE chats ADD COLUMN updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        `);
-        console.log('chats表updatedAt字段添加成功');
-      }
-    } catch (error) {
-      console.error('添加chats表updatedAt字段失败:', error);
-    }
-    
+    // 备注：聊天(IM)相关表 chat_conversations / chat_members / chat_messages
+    // 由 scripts/chat-schema-v1.2.52.sql 迁移统一创建，此处不再维护旧的 chats/messages 表。
+
     // 创建file_categories表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS file_categories (
@@ -2466,26 +2385,8 @@ const initDatabase = async () => {
     }
     console.log('员工同步完成');
     
-    // 只在公共聊天不存在时添加
-    const [existingChats] = await connection.execute('SELECT * FROM chats WHERE id = ?', [1]);
-    if (existingChats.length === 0) {
-      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-      const currentTime = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-      // 创建公共聊天
-      await connection.execute(
-        'INSERT INTO chats (id, name, lastMessage, time) VALUES (?, ?, ?, ?)',
-        [1, '公共聊天', '欢迎大家加入公共聊天！', currentTime]
-      );
-      // 添加系统欢迎消息
-      await connection.execute(
-        'INSERT INTO messages (chatId, senderId, text, time, isOwn) VALUES (?, ?, ?, ?, ?)',
-        [1, 0, '欢迎大家加入公共聊天！', currentTime, false]
-      );
-      console.log('公共聊天创建成功');
-    }
-    
+    // 备注：旧的"公共聊天"功能已由 IM 私聊/群聊（chat_* 表）取代，不再写入 chats/messages 表。
 
-    
     // 创建通知表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS notifications (
@@ -2633,7 +2534,59 @@ io.on('connection', (socket) => {
     socket.leave(`chat_${chatId}`);
     console.log(`用户 ${socket.id} 离开聊天室 ${chatId}`);
   });
-  
+
+  // ===== 聊天功能事件 =====
+  // 发送消息（复用 REST 落库逻辑，单一真相源；广播给房间内成员）
+  socket.on('chat:send', async (payload) => {
+    if (!socket.employeeId) return;
+    const conversationId = parseInt(payload?.conversationId);
+    if (!conversationId) return;
+    try {
+      await sendChatMessage(app.locals.pool, io, {
+        conversationId,
+        employeeId: socket.employeeId,
+        content: payload?.content,
+        msgType: payload?.msgType || 'text',
+        attachmentUrl: payload?.attachmentUrl || null,
+        attachmentName: payload?.attachmentName || null,
+        attachmentSize: payload?.attachmentSize || null,
+        tempId: payload?.tempId || null
+      });
+    } catch (e) {
+      socket.emit('chat:send-error', { tempId: payload?.tempId, message: e.message });
+    }
+  });
+
+  // 正在输入（仅通知房间内其他成员）
+  socket.on('chat:typing', (payload) => {
+    const conversationId = parseInt(payload?.conversationId);
+    if (!conversationId || !socket.employeeId) return;
+    socket.to(`chat_${conversationId}`).emit('chat:typing', {
+      conversationId, userId: socket.employeeId, isTyping: !!payload?.isTyping
+    });
+  });
+
+  // 已读（更新指针并通知房间内其他成员刷新未读）
+  socket.on('chat:read', async (payload) => {
+    const conversationId = parseInt(payload?.conversationId);
+    if (!conversationId || !socket.employeeId) return;
+    try {
+      const [rows] = await app.locals.pool.execute(
+        'SELECT MAX(id) AS maxId FROM chat_messages WHERE conversation_id = ? AND deleted_at IS NULL',
+        [conversationId]
+      );
+      const maxId = rows[0]?.maxId || 0;
+      await app.locals.pool.execute(
+        `INSERT INTO chat_members (conversation_id, user_id, last_read_message_id, joined_at)
+         VALUES (?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE last_read_message_id = ?`,
+        [conversationId, socket.employeeId, maxId, maxId]
+      );
+      socket.to(`chat_${conversationId}`).emit('chat:read', {
+        conversationId, userId: socket.employeeId, lastReadMessageId: maxId
+      });
+    } catch (e) { /* ignore */ }
+  });
+
   // 断开连接
   socket.on('disconnect', () => {
     // 减少在线用户数
@@ -2665,17 +2618,8 @@ io.on('connection', (socket) => {
   });
 });
 
-// 发送消息的函数，用于在API中调用
-const sendMessageToChat = (chatId, message) => {
-  // 只向特定聊天室广播消息
-  io.to(`chat_${chatId}`).emit('newMessage', message);
-  
-  // 广播消息已送达状态
-  io.to(`chat_${chatId}`).emit('messageDelivered', {
-    messageId: message.id,
-    chatId: message.chatId
-  });
-};
+// 备注：旧版公共聊天室的 sendMessageToChat / newMessage / messageDelivered 事件已废弃，
+// IM 消息收发统一走 chats.js 的 sendChatMessage + 'chat:message' 事件。
 
 
 

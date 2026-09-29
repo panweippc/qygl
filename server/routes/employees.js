@@ -97,7 +97,7 @@ router.get('/employees/directory', async (req, res) => {
     const connection = await pool.getConnection();
     await connection.execute('SET NAMES utf8mb4');
     const [rows] = await connection.execute(
-      'SELECT name, department, position, email, phone FROM employees ORDER BY department, name'
+      'SELECT id, name, department, position, email, phone FROM employees ORDER BY department, name'
     );
     // 关联「负责项目」：category_projects.manager 为逗号分隔多人，按姓名聚合每人负责的项目（含全字段）
     let projectsByManager = {};
