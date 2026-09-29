@@ -858,7 +858,7 @@ const openAddDialog = () => { form.value = emptyForm(); formVisible.value = true
 const aiStore = useAiStore()
 const openAddFromQuery = () => { activeTab.value = 'ledger'; openAddDialog(); applyAiPrefill() }
 
-// AI 小助手「帮我填好」：若有待填充指令则写入表单默认值（须在 openAddDialog 重置之后）
+// 宏小助「帮我填好」：若有待填充指令则写入表单默认值（须在 openAddDialog 重置之后）
 const applyAiPrefill = () => {
   const p = aiStore.pendingPrefill
   if (p && p.target === 'asset') {

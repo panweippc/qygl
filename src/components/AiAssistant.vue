@@ -4,10 +4,13 @@
       <div v-if="store.open" class="ai-panel">
         <div class="ai-header">
           <div class="ai-title">
-            <span class="ai-logo">✦</span>
+            <span class="ai-logo">
+              <svg class="ai-logo-bubble" viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H11l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="#fff"/></svg>
+              <span class="ai-logo-char">宏</span>
+            </span>
             <div class="ai-title-text">
-              <div class="ai-title-main">AI 小助手</div>
-              <div class="ai-title-sub">智能引导 · 快捷答疑</div>
+              <div class="ai-title-main">宏小助</div>
+              <div class="ai-title-sub">智慧办公 · 智能引导</div>
             </div>
           </div>
           <button class="ai-close" @click="store.toggle()">×</button>
@@ -16,7 +19,7 @@
         <div class="ai-body" ref="bodyRef">
           <!-- 欢迎引导（无消息时） -->
           <div v-if="store.messages.length === 0" class="ai-welcome">
-            <div class="ai-hello">{{ greeting }}，我是系统 AI 小助手 👋</div>
+            <div class="ai-hello">{{ greeting }}，我是宏小助，你的智慧办公助手 👋</div>
             <div class="ai-hello-sub">可以直接输入需求，也可以从下面的常用事项开始：</div>
             <div class="ai-cards">
               <button v-for="c in FEATURED" :key="c.title" class="ai-card" @click="store.sendRaw(c.text)">
@@ -43,7 +46,7 @@
           <!-- 消息流 -->
           <template v-for="m in store.messages" :key="m.id">
             <div :class="['ai-msg', m.role]">
-              <div v-if="m.role === 'ai'" class="ai-avatar">✦</div>
+              <div v-if="m.role === 'ai'" class="ai-avatar">宏</div>
               <div class="ai-msg-main">
                 <div class="ai-bubble">{{ m.text }}</div>
 
@@ -74,7 +77,7 @@
 
           <!-- 打字动效 -->
           <div v-if="store.loading" class="ai-msg ai">
-            <div class="ai-avatar">✦</div>
+            <div class="ai-avatar">宏</div>
             <div class="ai-msg-main">
               <div class="ai-bubble typing"><span></span><span></span><span></span></div>
             </div>
@@ -106,7 +109,8 @@
     </transition>
 
     <button v-if="!store.open" class="ai-fab" @click="store.toggle()">
-      <span>✦</span>
+      <svg class="ai-fab-bubble" viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H11l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="#fff"/></svg>
+      <span class="ai-fab-char">宏</span>
     </button>
   </div>
 </template>
@@ -175,20 +179,40 @@ function prefillAsset() {
   z-index: 3000;
 }
 .ai-fab {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
+  position: relative;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
   border: none;
-  background: linear-gradient(135deg, #2b7de1, #185fa5);
+  background: linear-gradient(135deg, #2b7de1, #14568f);
   color: #fff;
-  font-size: 20px;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(24, 95, 165, 0.4);
+  box-shadow: 0 6px 16px rgba(20, 86, 143, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .ai-fab:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(24, 95, 165, 0.5);
+  box-shadow: 0 8px 20px rgba(20, 86, 143, 0.5);
+}
+.ai-fab-bubble {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 36px;
+  height: 32px;
+}
+.ai-fab-char {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 21px;
+  font-weight: 700;
+  color: #14568f;
 }
 .ai-panel {
   width: 380px;
@@ -215,6 +239,7 @@ function prefillAsset() {
   gap: 10px;
 }
 .ai-logo {
+  position: relative;
   width: 32px;
   height: 32px;
   border-radius: 9px;
@@ -222,7 +247,23 @@ function prefillAsset() {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+}
+.ai-logo-bubble {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 18px;
+}
+.ai-logo-char {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  font-weight: 700;
+  color: #14568f;
 }
 .ai-title-main {
   font-size: 14px;
@@ -345,7 +386,8 @@ function prefillAsset() {
   border-radius: 50%;
   background: linear-gradient(135deg, #2b7de1, #14568f);
   color: #fff;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
