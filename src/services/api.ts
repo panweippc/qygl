@@ -1,9 +1,10 @@
 import axios from 'axios';
 import type { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import { ElMessage } from 'element-plus';
 import type {
   ApiResponse, Employee, MonthlyReport, FileItem, FileCategory,
   Project, Customer, CustomerActivity, ClosingProject,
-  LeaveApplication, Reimbursement, Meeting, OfficeSupply,
+  LeaveApplication, Reimbursement, Meeting,
   Role, Menu, Department, DistributedRecord, EmployeeDirectoryEntry
 } from './types';
 
@@ -101,6 +102,24 @@ api.interceptors.response.use(
       window.location.href = '/login'
     }
     return Promise.reject(error)
+  }
+)
+
+// ===== 全局错误提示：消除按钮"静默失败" =====
+// 仅对 网络错误 / 404(路由不存在) / 5xx(服务端错误) 弹统一红条，
+// 避免与组件自身的 400 校验、403 权限等提示重复；401 交由上方刷新/登出逻辑处理。
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response ? error.response.status : 0;
+    if (status !== 401) {
+      const data = error.response && error.response.data;
+      const msg = (data && data.message) ? data.message : (error.message || '网络异常');
+      if (status === 0 || status === 404 || status >= 500) {
+        ElMessage.error('请求失败' + (status ? ' (' + status + ')' : '（网络异常）') + '：' + msg);
+      }
+    }
+    return Promise.reject(error);
   }
 )
 
@@ -345,10 +364,6 @@ export const softDeleteLeave = async (id: number): Promise<ApiResponse> => (awai
 export const withdrawReimbursement = async (id: number): Promise<ApiResponse> => (await api.post(`/reimbursements/${id}/withdraw`)).data;
 export const returnReimbursement = async (id: number, reason: string): Promise<ApiResponse> => (await api.post(`/reimbursements/${id}/return`, { reason })).data;
 export const softDeleteReimbursement = async (id: number): Promise<ApiResponse> => (await api.post(`/reimbursements/${id}/soft-delete`)).data;
-// 办公用品
-export const withdrawOfficeSupply = async (id: number): Promise<ApiResponse> => (await api.post(`/office-supplies/${id}/withdraw`)).data;
-export const returnOfficeSupply = async (id: number, reason: string): Promise<ApiResponse> => (await api.post(`/office-supplies/${id}/return`, { reason })).data;
-export const softDeleteOfficeSupply = async (id: number): Promise<ApiResponse> => (await api.post(`/office-supplies/${id}/soft-delete`)).data;
 // 出差
 export const withdrawBusinessTrip = async (id: number): Promise<ApiResponse> => (await api.post(`/business-trips/${id}/withdraw`)).data;
 export const returnBusinessTrip = async (id: number, reason: string): Promise<ApiResponse> => (await api.post(`/business-trips/${id}/return`, { reason })).data;
@@ -361,7 +376,6 @@ export const softDeleteEntertainment = async (id: number): Promise<ApiResponse> 
 export const resubmitMeeting = async (id: number, data: any): Promise<ApiResponse> => (await api.post(`/meetings/${id}/resubmit`, data)).data;
 export const resubmitLeave = async (id: number, data: any): Promise<ApiResponse> => (await api.post(`/leave-applications/${id}/resubmit`, data)).data;
 export const resubmitReimbursement = async (id: number, data: any): Promise<ApiResponse> => (await api.post(`/reimbursements/${id}/resubmit`, data)).data;
-export const resubmitOfficeSupply = async (id: number, data: any): Promise<ApiResponse> => (await api.post(`/office-supplies/${id}/resubmit`, data)).data;
 export const resubmitBusinessTrip = async (id: number, data: any): Promise<ApiResponse> => (await api.post(`/business-trips/${id}/resubmit`, data)).data;
 export const resubmitEntertainment = async (id: number, data: any): Promise<ApiResponse> => (await api.post(`/entertainment-expenses/${id}/resubmit`, data)).data;
 export const resubmitProject = async (id: number, data: any): Promise<ApiResponse> => (await api.post(`/projects/${id}/resubmit`, data)).data;
@@ -537,8 +551,10 @@ export interface AssetSummary {
   byType: Record<string, number>
   byStatus: Record<string, number>
   depreciationTotal: number
+  monthlyDepreciation: number
   expiringIntangibles: Array<{ assetCode: string; name: string; expireDate: string; daysLeft: number }>
   overdueReturns: Array<{ assetId: number; assetCode: string; name: string; recipient: string; recipientDept: string; planDate: string; daysOverdue: number }>
+  idleWarnings: Array<{ assetCode: string; name: string; department: string; responsibleUser: string; status: string; inStockDate: string; idleDays: number }>
   deptStats: Array<{ department: string; total: number; inUse: number; idle: number; repair: number; scrap: number; originalSum: number; residualSum: number }>
   byCategory: Array<{ categoryName: string; count: number }>
   monthly: Array<{ month: string; count: number }>
@@ -697,27 +713,6 @@ export const updateMeeting = async (id: number, data: Partial<Meeting>): Promise
 
 export const getPendingMeetings = async (approver: string): Promise<ApiResponse<Meeting[]>> => {
   const response = await api.get(`/meetings/pending/${approver}`);
-  return response.data;
-};
-
-// 办公用品申请
-export const getOfficeSupplies = async (): Promise<ApiResponse<OfficeSupply[]>> => {
-  const response = await api.get('/office-supplies');
-  return response.data;
-};
-
-export const addOfficeSupply = async (data: OfficeSupply): Promise<ApiResponse> => {
-  const response = await api.post('/office-supplies', data);
-  return response.data;
-};
-
-export const updateOfficeSupply = async (id: number, data: Partial<OfficeSupply>): Promise<ApiResponse> => {
-  const response = await api.put(`/office-supplies/${id}`, data);
-  return response.data;
-};
-
-export const getPendingOfficeSupplies = async (approver: string): Promise<ApiResponse<OfficeSupply[]>> => {
-  const response = await api.get(`/office-supplies/pending/${approver}`);
   return response.data;
 };
 

@@ -159,17 +159,6 @@ export interface Meeting {
   createdAt?: string
 }
 
-export interface OfficeSupply {
-  id: number
-  applicant: string
-  itemName: string
-  quantity?: number
-  reason?: string
-  status?: string
-  approver?: string
-  createdAt?: string
-}
-
 export interface ClosingProject {
   id: number
   name: string

@@ -66,6 +66,22 @@
                 </el-table-column>
               </el-table>
             </el-card>
+            <el-card class="warn-card" shadow="never">
+              <template #header>
+                <span class="chart-title">闲置资产预警（入库超 180 天未动用）</span>
+                <span class="warn-count">{{ summary.idleWarnings.length }}</span>
+              </template>
+              <el-table :data="summary.idleWarnings" v-loading="summaryLoading" empty-text="暂无长期闲置资产">
+                <el-table-column prop="assetCode" label="资产编号" width="140" />
+                <el-table-column prop="name" label="名称" />
+                <el-table-column prop="department" label="部门" width="100" />
+                <el-table-column prop="responsibleUser" label="责任人" width="100" />
+                <el-table-column prop="inStockDate" label="入库日" width="130" />
+                <el-table-column label="闲置天数" width="110">
+                  <template #default="{ row }"><el-tag type="warning" size="small">{{ row.idleDays }} 天</el-tag></template>
+                </el-table-column>
+              </el-table>
+            </el-card>
           </el-tab-pane>
 
           <!-- ============ 资产台账 ============ -->
@@ -614,7 +630,7 @@ const categories = ref<any[]>([])
 const options = reactive<{ departments: string[]; employees: string[] }>({ departments: [], employees: [] })
 const loading = ref(false)
 const summary = reactive<AssetSummary>({
-  total: 0, byType: {}, byStatus: {}, depreciationTotal: 0, expiringIntangibles: [], overdueReturns: [],
+  total: 0, byType: {}, byStatus: {}, depreciationTotal: 0, monthlyDepreciation: 0, expiringIntangibles: [], overdueReturns: [], idleWarnings: [],
   deptStats: [], byCategory: [], monthly: []
 })
 const summaryLoading = ref(false)
@@ -722,7 +738,9 @@ const kpiCards = computed(() => [
   { label: '无形资产', value: summary.byType.intangible || 0, color: '#7C6BD6' },
   { label: '耗材库存', value: summary.byType.consumable || 0, color: '#3FA796' },
   { label: '临近到期(30天)', value: summary.expiringIntangibles.length, color: '#E08A3C' },
-  { label: '累计折旧(元)', value: summary.depreciationTotal.toFixed(2), color: '#C0504D' }
+  { label: '累计折旧(元)', value: summary.depreciationTotal.toFixed(2), color: '#C0504D' },
+  { label: '月折旧(元)', value: summary.monthlyDepreciation.toFixed(2), color: '#A64B8C' },
+  { label: '闲置预警(>180天)', value: summary.idleWarnings.length, color: '#D98324' }
 ])
 
 const renderCharts = () => {

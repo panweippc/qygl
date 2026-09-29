@@ -134,13 +134,14 @@ router.get('/operation-logs/actions', requireRole('系统管理员', '总经理'
 // 导出操作日志（CSV 格式，管理员/总经理可用）
 router.get('/operation-logs/export', requireRole('系统管理员', '总经理'), async (req, res) => {
   const { pool } = req.app.locals;
-  const { module: mod, action, userId: uid, startDate, endDate } = req.query;
+  const { module: mod, action, userId: uid, username: uname, startDate, endDate } = req.query;
   try {
     const conditions = [];
     const params = [];
     if (mod) { conditions.push('module = ?'); params.push(mod); }
     if (action) { conditions.push('action = ?'); params.push(action); }
     if (uid) { conditions.push('userId = ?'); params.push(uid); }
+    if (uname) { conditions.push('username = ?'); params.push(uname); }
     if (startDate) { conditions.push('createdAt >= ?'); params.push(startDate); }
     if (endDate) { conditions.push('createdAt <= ?'); params.push(endDate); }
     const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
@@ -178,7 +179,7 @@ router.get('/operation-logs/export', requireRole('系统管理员', '总经理')
         action: 'export',
         module: 'operation_log',
         targetName: `操作日志导出(${rows.length}条)`,
-        detail: `导出操作日志${rows.length}条，筛选: 模块=${mod || '全部'}, 动作=${action || '全部'}`
+        detail: `导出操作日志${rows.length}条，筛选: 模块=${mod || '全部'}, 动作=${action || '全部'}, 操作人=${uname || uid || '全部'}`
       });
     } catch (e) { /* 日志失败不影响导出 */ }
     // 加 BOM 头 \uFEFF，Excel 打开中文不乱码

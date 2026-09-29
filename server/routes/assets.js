@@ -32,9 +32,16 @@ router.get('/assets/summary', async (req, res) => {
     const [[totalRow]] = await pool.execute('SELECT COUNT(*) AS total FROM assets');
     const [byType] = await pool.execute('SELECT assetType, COUNT(*) AS c FROM assets GROUP BY assetType');
     const [byStatus] = await pool.execute('SELECT status, COUNT(*) AS c FROM assets GROUP BY status');
-    const [[depRow]] = await pool.execute(
-      "SELECT COALESCE(SUM(originalValue - residualValue), 0) AS dep FROM assets WHERE assetType = 'fixed'"
+    // 折旧自动计算（直线法）：累计折旧 = (原值-残值)/年限/12 × 已计提月数(封顶总月数)；月折旧 = (原值-残值)/年限/12
+    const [depRows] = await pool.execute(
+      `SELECT
+         COALESCE(SUM((originalValue - residualValue) / (usefulLifeYears * 12) *
+           LEAST(usefulLifeYears * 12, GREATEST(0, TIMESTAMPDIFF(MONTH, COALESCE(acquireDate, createdAt), CURDATE())))), 0) AS dep,
+         COALESCE(SUM((originalValue - residualValue) / (usefulLifeYears * 12)), 0) AS monthly
+       FROM assets
+       WHERE assetType = 'fixed' AND usefulLifeYears > 0 AND originalValue > residualValue`
     );
+    const depRow = depRows[0] || { dep: 0, monthly: 0 };
     const [expiring] = await pool.execute(
       `SELECT assetCode, name, expireDate, DATEDIFF(expireDate, CURDATE()) AS daysLeft
        FROM assets
@@ -96,6 +103,22 @@ router.get('/assets/summary', async (req, res) => {
       planDate: String(r.planDate).slice(0, 10), daysOverdue: Number(r.daysOverdue || 0)
     }));
 
+    // 闲置资产预警：状态为"闲置"且入库( acquireDate 优先，否则 createdAt )超过 180 天，提示处置/调配
+    const [idleRows] = await pool.execute(
+      `SELECT assetCode, name, department, responsibleUser, status,
+              COALESCE(acquireDate, createdAt) AS inStockDate,
+              DATEDIFF(CURDATE(), COALESCE(acquireDate, createdAt)) AS idleDays
+       FROM assets
+       WHERE status = '闲置' AND COALESCE(acquireDate, createdAt) IS NOT NULL
+         AND DATEDIFF(CURDATE(), COALESCE(acquireDate, createdAt)) > 180
+       ORDER BY idleDays DESC`
+    );
+    const idleWarnings = idleRows.map(r => ({
+      assetCode: r.assetCode, name: r.name, department: r.department || '未分配',
+      responsibleUser: r.responsibleUser || '—', status: r.status,
+      inStockDate: String(r.inStockDate).slice(0, 10), idleDays: Number(r.idleDays || 0)
+    }));
+
     res.json({
       success: true,
       data: {
@@ -103,8 +126,10 @@ router.get('/assets/summary', async (req, res) => {
         byType: typeMap,
         byStatus: statusMap,
         depreciationTotal: Number(depRow.dep || 0),
+        monthlyDepreciation: Number(depRow.monthly || 0),
         expiringIntangibles: expiring,
         overdueReturns,
+        idleWarnings,
         deptStats,
         byCategory,
         monthly

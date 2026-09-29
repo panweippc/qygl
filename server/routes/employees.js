@@ -279,10 +279,12 @@ router.put('/employees/:name', requireRole('系统管理员', '总经理'), veri
       if (beforeRows.length > 0) beforeEmployee = beforeRows[0];
     } catch (e) { /* ignore */ }
 
+    // 离职/调岗判定：status 含"离职"或数值为 0 视为禁用账号（函数级作用域，供下方联动块复用）
+    const isDisabling = String(status || '').includes('离职') || Number(status) === 0;
+
     if (hasEmployeeFields) {
       // 安全加固：若本次操作涉及"禁用账号"（将员工状态改为离职），需校验操作者权限
       // 不能禁用系统管理员、不能禁用自己、不能禁用权限更高的用户
-      const isDisabling = String(status || '').includes('离职') || Number(status) === 0;
       if (isDisabling && oldName) {
         const opName = getOperator(req);
         const permCheck = await checkManagePermission(connection, opName, oldName);
@@ -334,6 +336,36 @@ router.put('/employees/:name', requireRole('系统管理员', '总经理'), veri
             console.error('级联更新失败:', syncErr.message);
           }
         }
+      }
+    }
+
+    // ===== 离职 / 调岗联动 =====
+    // 离职：禁用登录账号(users.status=0) + 释放名下在用资产→闲置
+    if (isDisabling) {
+      try {
+        await connection.execute('UPDATE users SET status = 0 WHERE username = ?', [oldName]);
+      } catch (e) { console.error('禁用账号失败:', e.message); }
+      const [aff] = await connection.execute("SELECT id FROM assets WHERE responsibleUser = ? AND status = '在用'", [oldName]);
+      for (const a of aff) {
+        await connection.execute("UPDATE assets SET status = '闲置' WHERE id = ?", [a.id]);
+        await connection.execute(
+          'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail) VALUES (?, ?, ?, ?, ?, ?)',
+          [a.id, '状态变更', '在用', '闲置', getOperator(req), `员工${oldName}离职，自动释放资产`]
+        );
+      }
+      try {
+        await createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'update', module: 'asset', targetId: null, targetName: oldName, detail: `员工离职联动：禁用登录账号 + 释放 ${aff.length} 项在用资产`, ipAddress: req.ip });
+      } catch (e) { /* 日志失败不影响主流程 */ }
+    } else if (beforeEmployee && beforeEmployee.department !== (department || '') && (department || '') !== '') {
+      // 调岗：同步名下在用资产部门
+      const [aff2] = await connection.execute("SELECT id FROM assets WHERE responsibleUser = ? AND status = '在用'", [oldName]);
+      for (const a of aff2) {
+        await connection.execute('UPDATE assets SET department = ? WHERE id = ?', [department || '', a.id]);
+      }
+      if (aff2.length) {
+        try {
+          await createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'update', module: 'asset', targetId: null, targetName: oldName, detail: `员工调岗联动：同步 ${aff2.length} 项在用资产部门为「${department}」`, ipAddress: req.ip });
+        } catch (e) { /* 日志失败不影响主流程 */ }
       }
     }
 
@@ -440,6 +472,78 @@ router.get('/employees/export', requireRole('系统管理员', '总经理', '财
     console.error('导出员工数据失败:', error);
     res.status(500).json({ success: false, message: '导出员工数据失败' });
   }
+});
+
+// 批量导入员工：前端已把 XLSX 解析为 JSON 数组，POST { employees: [...] }
+// 逐条校验（姓名/部门必填）、跳过重名、批量写入 employees 并同步生成登录账号
+router.post('/employees/import', requireRole('系统管理员', '总经理', '人事经理', '人事专员', '业务中心经理', '技术部经理', '销售部经理'), async (req, res) => {
+  const list = Array.isArray(req.body?.employees) ? req.body.employees : [];
+  if (list.length === 0) {
+    return res.status(400).json({ success: false, message: '未收到有效的员工数据' });
+  }
+  const { pool } = req.app.locals;
+  const connection = await pool.getConnection();
+  await connection.execute('SET NAMES utf8mb4');
+  await connection.execute('SET CHARACTER SET utf8mb4');
+  const inserted = [];
+  const skipped = [];
+  const errors = [];
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  // 日期归一化：兼容 Excel 序列号 / YYYY-MM-DD / YYYY/M/D / 其他可解析格式
+  const normDate = (v) => {
+    if (!v) return null;
+    if (typeof v === 'number' && v > 1000) {
+      const d = new Date((v - 25569) * 86400 * 1000);
+      if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+      return null;
+    }
+    const s = String(v).trim();
+    const m1 = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (m1) return `${m1[1]}-${m1[2].padStart(2, '0')}-${m1[3].padStart(2, '0')}`;
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+    return null;
+  };
+  for (let i = 0; i < list.length; i++) {
+    const row = list[i];
+    const idx = i + 2; // Excel 行号（含表头）
+    const name = String(row.name || '').trim();
+    const department = String(row.department || '').trim();
+    if (!name || !department) {
+      skipped.push({ row: idx, name: name || '(空)', reason: '姓名或部门为空' });
+      continue;
+    }
+    try {
+      const [dupEmp] = await connection.execute('SELECT id FROM employees WHERE name = ?', [name]);
+      if (dupEmp.length > 0) {
+        skipped.push({ row: idx, name, reason: '姓名已存在，已跳过' });
+        continue;
+      }
+      const entryDate = normDate(row.entryDate);
+      const birthDate = normDate(row.birthDate);
+      const status = String(row.status || '在职').trim() || '在职';
+      const employeeType = String(row.employeeType || '正式员工').trim() || '正式员工';
+      await connection.execute(
+        'INSERT INTO employees (name, department, position, email, phone, entryDate, roleId, status, employeeType, education, birthDate, idCard, address, emergencyContact, emergencyPhone, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [name, department, row.position || '', row.email || '', row.phone || '', entryDate ? entryDate + ' 00:00:00' : now, null, status, employeeType, row.education || '', birthDate ? birthDate + ' 00:00:00' : null, String(row.idCard || '').slice(0, 18), row.address || '', row.emergencyContact || '', row.emergencyPhone || '', now]
+      );
+      const initPassword = generateRandomPassword(14);
+      const [existingUser] = await connection.execute('SELECT id FROM users WHERE username = ?', [name]);
+      if (existingUser.length === 0) {
+        await connection.execute('INSERT INTO users (username, password, createdAt) VALUES (?, ?, ?)', [name, hashPassword(String(initPassword)), now]);
+      }
+      const [newEmp] = await connection.execute('SELECT id FROM employees WHERE name = ?', [name]);
+      try {
+        await createOperationLog(pool, { userId: null, username: getOperator(req), action: 'import', module: 'employee', targetId: newEmp[0]?.id, targetName: name, detail: `批量导入员工: ${name}`, ipAddress: req.ip });
+      } catch (logErr) { /* 日志失败不影响导入 */ }
+      inserted.push(name);
+    } catch (e) {
+      errors.push({ row: idx, name, reason: e.message });
+    }
+  }
+  connection.release();
+  const message = `成功导入 ${inserted.length} 条，跳过 ${skipped.length} 条` + (errors.length ? `，失败 ${errors.length} 条` : '');
+  res.json({ success: true, message, data: { inserted: inserted.length, skipped: skipped.length, errors: errors.length, details: { skipped, errors } } });
 });
 
 router.get('/departments', async (req, res) => {

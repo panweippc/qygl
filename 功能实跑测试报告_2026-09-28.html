@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OA 系统全功能实跑测试报告（2026-09-28）</title>
+<style>
+  :root{ --bg:#f5f7fa; --card:#fff; --line:#e6e9ef; --ok:#1f9d55; --bad:#d93025; --ink:#1f2329; --sub:#5b6168; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+  .wrap{max-width:1100px;margin:0 auto;padding:32px 24px 64px}
+  h1{font-size:24px;margin:0 0 4px}
+  .meta{color:var(--sub);font-size:13px;margin-bottom:24px}
+  .banner{display:flex;gap:16px;flex-wrap:wrap;margin:18px 0 28px}
+  .stat{flex:1;min-width:160px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .stat .n{font-size:30px;font-weight:700}
+  .stat .l{color:var(--sub);font-size:13px}
+  .ok .n{color:var(--ok)}
+  section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:20px}
+  section h2{font-size:17px;margin:0 0 12px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--sub);font-weight:600;background:#fafbfc}
+  td.s{font-weight:700;white-space:nowrap}
+  td.s.pass{color:var(--ok)}
+  code{background:#eef1f5;padding:1px 6px;border-radius:5px;font-size:12px}
+  .note{background:#fff8e6;border:1px solid #ffe2a8;border-radius:10px;padding:14px 16px;font-size:13px;margin-top:8px}
+  .fix{background:#eef7f0;border:1px solid #bfe3c9;border-radius:10px;padding:14px 16px;font-size:13px;margin-top:10px}
+  .fix b{color:var(--ok)}
+  .kv{font-size:13px;color:var(--sub)}
+  .tag{display:inline-block;background:#eef1f5;border-radius:6px;padding:1px 8px;font-size:12px;color:var(--sub);margin-right:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>OA 系统全功能实跑测试报告</h1>
+  <div class="meta">测试日期：2026-09-28 ｜ 测试账号：李智鑫（admin，全权限）｜ 测试实例：独立端口 3099 连本地 qyglfb 库，不扰动线上 3005 ｜ 用例总数：55</div>
+
+  <div class="banner">
+    <div class="stat ok"><div class="n">55</div><div class="l">通过用例</div></div>
+    <div class="stat"><div class="n">0</div><div class="l">失败用例</div></div>
+    <div class="stat"><div class="n">2</div><div class="l">修复的缺陷（本轮）</div></div>
+    <div class="stat"><div class="n">25</div><div class="l">GET 菜单冒烟</div></div>
+  </div>
+
+  <section>
+    <h2>测试方法</h2>
+    <p class="kv">
+      自起独立后端实例（<code>PORT=3099</code>）连接本地 <code>qyglfb</code> 数据库，避免扰动线上 <code>3005</code> 实例。
+      从服务端 SVG 验证码解码取码 → 完整登录拿 Token → 逐接口调用（覆盖菜单冒烟、新功能、生命周期、联动、审批流）→ 自动清理全部测试数据 → 输出结果。
+      脚本：<code>_functional_test.cjs</code>（可重复运行，幂等清理）。
+    </p>
+  </section>
+
+  <section>
+    <h2>本轮修复的两个缺陷</h2>
+    <div class="fix">
+      <b>① 员工离职/调岗联动 ReferenceError（我引入的作用域 Bug）</b><br/>
+      文件 <code>server/routes/employees.js</code>：<code>const isDisabling</code> 原声明在 <code>if (hasEmployeeFields) {}</code> 块内，而联动块在该块<b>之外</b>引用它，运行时抛 <code>ReferenceError: isDisabling is not defined</code>，导致离职/调岗 4 项全部 500。<br/>
+      <b>修复：</b>将 <code>const isDisabling = String(status||'').includes('离职') || Number(status)===0;</code> 提升到函数级作用域（块之前），块内仅保留权限校验 <code>if (isDisabling &amp;&amp; oldName) {...}</code>。
+    </div>
+    <div class="fix">
+      <b>② 请假提交 approver 为 undefined / NOT NULL 报错（预存脆弱性）</b><br/>
+      文件 <code>server/routes/attendance.js</code>：<code>POST /leave-applications</code> 当请求体无 <code>approver</code> 时，INSERT 绑定 <code>undefined</code>（mysql2 报错）→ 改为 <code>null</code> 后又撞上 <code>leave_applications.approver</code> 列的 <code>NOT NULL</code> 约束（<code>ER_BAD_NULL_ERROR</code>），均返回 500。<br/>
+      <b>修复：</b>（a）在校验阶段新增业务规则——缺审批人时返回干净的 <code>400「请指定审批人」</code>，不再 500；（b）INSERT 与通知/日志统一使用校验后非空的 <code>approver</code>。前端一向传审批人，因此为健壮性加固而非功能 Bug。
+    </div>
+  </section>
+
+  <section>
+    <h2>关键功能验证（精确断言）</h2>
+    <p class="kv">
+      • <b>折旧自动计算（直线法）</b>：新建原值 12000、残值 2000、年限 5 的资产，期望月折旧 <code>(12000-2000)/(5×12)=166.67</code>，实际增量 <code>166.67</code>；期望累计 <code>166.67 × 已计提月数(32)=5333.33</code>，实际增量 <code>5333.33</code> —— 完全一致。<br/>
+      • <b>闲置资产预警</b>：新建状态=闲置、入库 2020-01-01 的资产，命中 <code>idleWarnings</code>，<code>idleDays=2463</code>（&gt;180 天阈值）。<br/>
+      • <b>离职联动</b>：置状态=离职 → 账号 <code>users.status=0</code> 生效（登录返回「账号已被停用，请联系管理员」）；名下在用资产自动释放为「闲置」。<br/>
+      • <b>调岗联动</b>：改部门=技术部 → 名下在用资产的部门同步为「技术部」。<br/>
+      • <b>员工导入 404</b>：已修复，导入成功写入员工表。<br/>
+      • <b>操作日志导出（按操作人）</b>：<code>GET /operation-logs/export?username=李智鑫</code> 返回 29706 字节 CSV，含「操作人」列。
+    </p>
+  </section>
+
+  <section>
+    <h2>逐功能测试结果（55 / 55 通过）</h2>
+    <table>
+      <thead><tr><th style="width:40px">#</th><th>用例</th><th>方法 / 端点</th><th style="width:70px">结果</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>后端启动（测试实例就绪）</td><td>GET /captcha</td><td class="s pass">PASS</td></tr>
+        <tr><td>2</td><td>登录-李智鑫</td><td>POST /login</td><td class="s pass">PASS</td></tr>
+        <tr><td colspan="4" style="background:#fafbfc;color:var(--sub)">— 菜单 GET 冒烟（25 项）—</td></tr>
+        <tr><td>3</td><td>员工列表</td><td>GET /employees</td><td class="s pass">PASS</td></tr>
+        <tr><td>4</td><td>资产概览</td><td>GET /assets/summary</td><td class="s pass">PASS</td></tr>
+        <tr><td>5</td><td>资产台账</td><td>GET /assets</td><td class="s pass">PASS</td></tr>
+        <tr><td>6</td><td>资产分类</td><td>GET /asset-categories</td><td class="s pass">PASS</td></tr>
+        <tr><td>7</td><td>资产选项</td><td>GET /assets/options</td><td class="s pass">PASS</td></tr>
+        <tr><td>8</td><td>月报</td><td>GET /monthly-reports</td><td class="s pass">PASS</td></tr>
+        <tr><td>9</td><td>消息中心</td><td>GET /notifications?userId=</td><td class="s pass">PASS</td></tr>
+        <tr><td>10</td><td>操作日志</td><td>GET /operation-logs</td><td class="s pass">PASS</td></tr>
+        <tr><td>11</td><td>客户</td><td>GET /customers</td><td class="s pass">PASS</td></tr>
+        <tr><td>12</td><td>成交(closed)</td><td>GET /closing-projects</td><td class="s pass">PASS</td></tr>
+        <tr><td>13</td><td>项目</td><td>GET /projects</td><td class="s pass">PASS</td></tr>
+        <tr><td>14</td><td>会议</td><td>GET /meetings</td><td class="s pass">PASS</td></tr>
+        <tr><td>15</td><td>拜访</td><td>GET /visit-records/town/1</td><td class="s pass">PASS</td></tr>
+        <tr><td>16</td><td>考勤(请假)</td><td>GET /leave-applications</td><td class="s pass">PASS</td></tr>
+        <tr><td>17</td><td>报销</td><td>GET /reimbursements</td><td class="s pass">PASS</td></tr>
+        <tr><td>18</td><td>招待</td><td>GET /entertainment-expenses</td><td class="s pass">PASS</td></tr>
+        <tr><td>19</td><td>出差</td><td>GET /business-trips</td><td class="s pass">PASS</td></tr>
+        <tr><td>20</td><td>下发记录</td><td>GET /distributed-records</td><td class="s pass">PASS</td></tr>
+        <tr><td>21</td><td>知识库(文章)</td><td>GET /knowledge/articles</td><td class="s pass">PASS</td></tr>
+        <tr><td>22</td><td>知识库(分类)</td><td>GET /knowledge/categories</td><td class="s pass">PASS</td></tr>
+        <tr><td>23</td><td>资料中心</td><td>GET /resource-center/categories</td><td class="s pass">PASS</td></tr>
+        <tr><td>24</td><td>审批待办</td><td>GET /approvals/todo?userId=</td><td class="s pass">PASS</td></tr>
+        <tr><td>25</td><td>审批已办</td><td>GET /approvals/done?userId=</td><td class="s pass">PASS</td></tr>
+        <tr><td>26</td><td>聊天</td><td>GET /chats</td><td class="s pass">PASS</td></tr>
+        <tr><td>27</td><td>公告</td><td>GET /announcements</td><td class="s pass">PASS</td></tr>
+        <tr><td colspan="4" style="background:#fafbfc;color:var(--sub)">— 资产管理新功能 —</td></tr>
+        <tr><td>28</td><td>折旧-新建资产</td><td>POST /assets</td><td class="s pass">PASS</td></tr>
+        <tr><td>29</td><td>折旧-月折旧计算（精确 166.67）</td><td>GET /assets/summary</td><td class="s pass">PASS</td></tr>
+        <tr><td>30</td><td>折旧-累计折旧计算（精确 5333.33）</td><td>GET /assets/summary</td><td class="s pass">PASS</td></tr>
+        <tr><td>31</td><td>闲置-新建资产</td><td>POST /assets</td><td class="s pass">PASS</td></tr>
+        <tr><td>32</td><td>闲置-预警命中（idleDays=2463）</td><td>GET /assets/summary</td><td class="s pass">PASS</td></tr>
+        <tr><td>33</td><td>资产生命周期（领用/归还/报废）</td><td>POST /assets/:id/issue|return|scrap</td><td class="s pass">PASS</td></tr>
+        <tr><td colspan="4" style="background:#fafbfc;color:var(--sub)">— 员工管理 —</td></tr>
+        <tr><td>34</td><td>员工导入（修复 404）</td><td>POST /employees/import</td><td class="s pass">PASS</td></tr>
+        <tr><td>35</td><td>员工导入-数据落地</td><td>GET /employees</td><td class="s pass">PASS</td></tr>
+        <tr><td>36</td><td>离职-建员工</td><td>POST /employees</td><td class="s pass">PASS</td></tr>
+        <tr><td>37</td><td>离职-资产置在用</td><td>POST /assets/:id/issue</td><td class="s pass">PASS</td></tr>
+        <tr><td>38</td><td>离职-置状态（修复后）</td><td>PUT /employees/:name</td><td class="s pass">PASS</td></tr>
+        <tr><td>39</td><td>离职-账号禁用生效</td><td>POST /login(离职账号)</td><td class="s pass">PASS</td></tr>
+        <tr><td>40</td><td>离职-资产释放为闲置</td><td>GET /assets/:id</td><td class="s pass">PASS</td></tr>
+        <tr><td>41</td><td>调岗-资产置在用</td><td>POST /assets/:id/issue</td><td class="s pass">PASS</td></tr>
+        <tr><td>42</td><td>调岗-改部门（修复后）</td><td>PUT /employees/:name</td><td class="s pass">PASS</td></tr>
+        <tr><td>43</td><td>调岗-资产部门同步</td><td>GET /assets/:id</td><td class="s pass">PASS</td></tr>
+        <tr><td colspan="4" style="background:#fafbfc;color:var(--sub)">— 审批流 / 系统 —</td></tr>
+        <tr><td>44</td><td>日志导出（按操作人）</td><td>GET /operation-logs/export</td><td class="s pass">PASS</td></tr>
+        <tr><td>45</td><td>审批流-请假提交（无审批人→400）</td><td>POST /leave-applications</td><td class="s pass">PASS</td></tr>
+        <tr><td>46</td><td>审批流-请假提交（带审批人）</td><td>POST /leave-applications</td><td class="s pass">PASS</td></tr>
+        <tr><td>47</td><td>审批流-请假撤回</td><td>POST /leave-applications/:id/withdraw</td><td class="s pass">PASS</td></tr>
+        <tr><td>48</td><td>审批流-请假删除</td><td>DELETE /leave-applications/:id</td><td class="s pass">PASS</td></tr>
+        <tr><td colspan="4" style="background:#fafbfc;color:var(--sub)">— 测试数据清理（幂等）—</td></tr>
+        <tr><td>49-52</td><td>清理-资产（4 项）</td><td>DELETE /assets/:id</td><td class="s pass">PASS</td></tr>
+        <tr><td>53-55</td><td>清理-员工（3 项）</td><td>DELETE /employees/:name</td><td class="s pass">PASS</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>结论</h2>
+    <p class="kv">
+      <span class="tag">结论先行</span> 本轮审计+优化涉及的全部功能<b>实跑通过 55/55</b>，无遗留失败项。
+      两个真实缺陷已修复并复测：①员工离职/调岗联动作用域 Bug；②请假审批人缺失时的 500 已收敛为 400。
+      新功能（折旧直线法、闲置预警、离职/调岗资产联动、员工导入修复、操作日志按操作人导出）均按精确断言验证通过。
+      测试数据已自动清理，不影响线上数据。
+    </p>
+    <div class="note">
+      注：测试脚本 <code>_functional_test.cjs</code> 仍在仓库工作树（未提交），作为可重复回归测试；如需纳入版本管理可告知。
+      部署生效需先将本批改动提交并推送至 <code>main</code>，由 Jenkins（v1.2.x）自动拉取部署；或本地 <code>pm2 restart</code> 后端以加载工作树改动。
+    </div>
+  </section>
+</div>
+</body>
+</html>

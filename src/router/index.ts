@@ -111,11 +111,6 @@ const router = createRouter({
       component: () => import('../views/MeetingManagementView.vue')
     },
     {
-      path: '/office-supplies',
-      name: 'office-supplies',
-      component: () => import('../views/OfficeSuppliesView.vue')
-    },
-    {
       path: '/system',
       name: 'system-management',
       component: () => import('../views/SystemManagementView.vue')

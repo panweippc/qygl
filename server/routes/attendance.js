@@ -151,6 +151,10 @@ router.post('/leave-applications', async (req, res) => {
   if (!leaveType || !startDate || !endDate) {
     return res.status(400).json({ success: false, message: '请假类型和日期不能为空' });
   }
+  // 业务规则：请假必须有审批人（leave_applications.approver 为 NOT NULL），缺省时返回明确 400 而非 500
+  if (!approver) {
+    return res.status(400).json({ success: false, message: '请指定审批人' });
+  }
   try {
     const { pool } = req.app.locals;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -159,6 +163,7 @@ router.post('/leave-applications', async (req, res) => {
       [applicant, leaveType, startDate, endDate, days, reason, approver, attachments || null, halfDayPeriod || null, '审批中', now]
     );
 
+    // approver 已校验非空，直接发通知与审批记录
     await createNotification(pool, {
       userId: approver,
       title: '请假审批提醒',
