@@ -330,7 +330,7 @@ app.use('/api', userProfileRouter);
 app.use('/api', backupRouter);
 app.use('/api', monitorRouter);
 app.use('/api', announcementsRouter);
-app.use('/api', aiRouter);
+app.use('/api/ai', aiRouter);
 // H3: 上传文件静态服务 - 危险类型（html/svg等）强制下载而非渲染，防存储型XSS
 const DANGEROUS_UPLOAD_EXT = /\.(html?|svg|xml|swf|js|mjs)$/i;
 app.use('/uploads', (req, res, next) => {
