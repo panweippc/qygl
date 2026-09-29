@@ -731,6 +731,12 @@ onMounted(async () => {
   if (route.query.action === 'add') openAddDialog()
 })
 
+// 已在资产页时再次从首页卡片进入（带 ?action=add）也能重开新增弹窗
+watch(
+  () => route.query.action,
+  (val) => { if (val === 'add') openAddDialog() }
+)
+
 // ============ 概览 KPI + 图表 ============
 const kpiCards = computed(() => [
   { label: '资产总数', value: summary.total, color: '#1E5AA8' },
