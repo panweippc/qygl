@@ -18,7 +18,7 @@
                 v-for="t in todoStats"
                 :key="t.label"
                 class="todo-card"
-                :class="{ 'todo-strong': t.label === '待我审批' && t.value > 0 }"
+                :class="{ 'todo-strong': (t.label === '待我审批' || t.label === '待处理的') && t.value > 0 }"
                 @click="goOa(t.label)"
               >
                 <span class="todo-value">{{ t.value }}</span>
@@ -133,10 +133,18 @@ const tierLabel = computed(() => TIER_LABELS[roleTier.value] || '普通员工')
 // ---------- 待办概览（对接真实业务审批数据） ----------
 const summary = ref({
   myTotal: 0, myPending: 0, myApproved: 0, myRejected: 0,
-  myReturned: 0, myWithdrawn: 0, todoTotal: 0, doneTotal: 0
+  myReturned: 0, myWithdrawn: 0, todoTotal: 0, doneTotal: 0,
+  pendingDistributedTotal: 0
 })
 
 const todoStats = computed(() => {
+  if (roleTier.value === 'finance') {
+    return [
+      { label: '待我审批', value: summary.value.todoTotal },
+      { label: '待处理的', value: summary.value.pendingDistributedTotal },
+      { label: '已审批', value: summary.value.doneTotal }
+    ]
+  }
   if (isApprover.value) {
     return [
       { label: '待我审批', value: summary.value.todoTotal },
@@ -151,8 +159,12 @@ const todoStats = computed(() => {
   ]
 })
 
-// 待办卡片跳转审批中心：待我审批 → 我收到的；我发起的 → 我申请的；其余默认
+// 待办卡片跳转审批中心：待我审批 → 我收到的；我发起的 → 我申请的；待处理的 → 下发单据；其余默认
 const goOa = (label?: string) => {
+  if (label === '待处理的') {
+    router.push('/oa-office?tab=distributed')
+    return
+  }
   const subTab = label === '待我审批' ? 'received' : label === '我发起的' ? 'applied' : ''
   router.push(subTab ? `/oa-office?subTab=${subTab}` : '/oa-office')
 }
@@ -183,7 +195,6 @@ const ROLE_OPERATIONS: Record<string, HomeOperation[]> = {
     { label: '资料上传', path: '/resource-center?action=upload', icon: opIcon('M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2zm0 4h8v2h-8V8zm0 3h8v2h-8v-2zm0 3h5v2h-5v-2z') }
   ],
   finance: [
-    { label: '接收单据处理', path: '/oa-office?tab=distributed', icon: opIcon('M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h3.56c.69 1.19 1.97 2 3.44 2s2.75-.81 3.44-2H19v3zm0-5h-4.06l-.61 1.02c-.42.7-1.18 1.13-2 1.13h-.66c-.82 0-1.58-.43-2-1.13L9.06 14H5V5h14v9z') },
     { label: '添加员工', path: '/employee-management?action=add', icon: opIcon('M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z') },
     { label: '新增资产', path: '/asset-management?action=add', icon: opIcon('M19 3h-1V2h-2v1H8V2H6v1H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V9h14v10zM13 11h-2v2H9v2h2v2h2v-2h2v-2h-2z') },
     { label: '资料上传', path: '/resource-center?action=upload', icon: opIcon('M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2zm0 4h8v2h-8V8zm0 3h8v2h-8v-2zm0 3h5v2h-5v-2z') }

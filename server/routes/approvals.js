@@ -631,7 +631,8 @@ router.get('/home/approval-summary', async (req, res) => {
 
     const counts = {
       myTotal: 0, myPending: 0, myApproved: 0, myRejected: 0,
-      myReturned: 0, myWithdrawn: 0, todoTotal: 0, doneTotal: 0
+      myReturned: 0, myWithdrawn: 0, todoTotal: 0, doneTotal: 0,
+      pendingDistributedTotal: 0
     };
 
     for (const { table, applicantCol, approverCol, isDeleted } of applicantTables) {
@@ -692,6 +693,18 @@ router.get('/home/approval-summary', async (req, res) => {
         [userName, ...pendingStatuses]
       );
       counts.doneTotal += doneTotal[0].c;
+    }
+
+    // 下发给我的待处理单据数（财务等接收方视角）
+    try {
+      const [pendingDistributed] = await pool.execute(
+        'SELECT COUNT(*) as c FROM distributed_records WHERE targetUser = ? AND status = ?',
+        [userName, '待处理']
+      );
+      counts.pendingDistributedTotal = pendingDistributed[0]?.c || 0;
+    } catch (e) {
+      console.warn('统计待处理下发单据失败:', e.message);
+      counts.pendingDistributedTotal = 0;
     }
 
     res.json({ success: true, data: counts });

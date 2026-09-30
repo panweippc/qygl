@@ -137,10 +137,18 @@ const tierLabel = computed(() => TIER_LABELS[guard.roleTier.value] || '普通员
 // ---------- 待办概览（与 PC 端 HomeView 口径一致）----------
 const summary = ref({
   myTotal: 0, myPending: 0, myApproved: 0, myRejected: 0,
-  myReturned: 0, myWithdrawn: 0, todoTotal: 0, doneTotal: 0
+  myReturned: 0, myWithdrawn: 0, todoTotal: 0, doneTotal: 0,
+  pendingDistributedTotal: 0
 })
 
 const todoStats = computed(() => {
+  if (guard.roleTier.value === 'finance') {
+    return [
+      { label: '待我审批', value: summary.value.todoTotal, color: '#ee0a24', path: '/todo' },
+      { label: '待处理的', value: summary.value.pendingDistributedTotal, color: '#185fa5', path: '/todo' },
+      { label: '已审批', value: summary.value.doneTotal, color: '#07c160', path: '/todo' }
+    ]
+  }
   if (isApprover.value) {
     return [
       { label: '待我审批', value: summary.value.todoTotal, color: '#ee0a24', path: '/todo' },
@@ -192,7 +200,6 @@ const ROLE_OPERATIONS: Record<string, HomeOperation[]> = {
     { label: '资料上传', path: '/resource?action=upload', icon: opIcon('M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2zm0 4h8v2h-8V8zm0 3h8v2h-8v-2zm0 3h5v2h-5v-2z') }
   ],
   finance: [
-    { label: '接收单据处理', path: '/todo?tab=distributed', icon: opIcon('M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h3.56c.69 1.19 1.97 2 3.44 2s2.75-.81 3.44-2H19v3zm0-5h-4.06l-.61 1.02c-.42.7-1.18 1.13-2 1.13h-.66c-.82 0-1.58-.43-2-1.13L9.06 14H5V5h14v9z') },
     { label: '添加员工', path: '/employee-management?action=add', icon: opIcon('M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z') },
     { label: '新增资产', path: '/asset-management?action=add', icon: opIcon('M19 3h-1V2h-2v1H8V2H6v1H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V9h14v10zM13 11h-2v2H9v2h2v2h2v-2h2v-2h-2z') },
     { label: '资料上传', path: '/resource?action=upload', icon: opIcon('M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2zm0 4h8v2h-8V8zm0 3h8v2h-8v-2zm0 3h5v2h-5v-2z') }
