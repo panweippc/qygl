@@ -5,6 +5,7 @@ import { createNotification, createOperationLog, getOperator } from '../utils/au
 import { resubmitApplication } from '../utils/resubmitHelper.js';
 import { getRealName } from '../utils/identity.js';
 import { appendReturnHistory } from '../utils/returnHistory.js';
+import { appendApprovalLog } from '../utils/approvalLog.js';
 
 // 会议审批：仅当前审批人或管理角色可操作
 const isManagerUser = async (req) => {
@@ -49,7 +50,9 @@ router.post('/meetings/:id/withdraw', async (req, res) => {
     if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
       return res.status(400).json({ success: false, message: '当前状态不可撤回' });
     }
-    await pool.execute('UPDATE meetings SET status = ?, result = ? WHERE id = ?', ['已撤回', '已撤回', id]);
+    const [[wdRec]] = await pool.query('SELECT result FROM meetings WHERE id = ?', [id]);
+    const prevWd = wdRec?.result ? `${wdRec.result};` : '';
+    await pool.execute('UPDATE meetings SET status = ?, result = ? WHERE id = ?', ['已撤回', `${prevWd}${operator}:已撤回`, id]);
     // withdrawNotify: 撤回后通知审批人，并给申请人一条消息中心回执
     try {
       const notifyTargets = new Set([rec.approver, operator].filter(Boolean));
@@ -67,6 +70,7 @@ router.post('/meetings/:id/withdraw', async (req, res) => {
       }
     } catch (e) { /* 通知失败不影响撤回主流程 */ }
     await createOperationLog(pool, { username: operator, action: 'withdraw', module: 'meeting', targetName: `会议"${rec.title || ''}"`, detail: '申请人撤回' });
+    await appendApprovalLog(pool, { applicationType: 'meeting', applicationId: id, actor: operator, actorRole: '申请人', action: 'withdraw', fromStatus: rec.status, toStatus: '已撤回' });
     res.json({ success: true, message: '撤回成功' });
   } catch (error) {
     console.error('撤回会议失败:', error);
@@ -90,10 +94,13 @@ router.post('/meetings/:id/return', async (req, res) => {
     if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
       return res.status(400).json({ success: false, message: '当前状态不可退回' });
     }
-    await pool.execute('UPDATE meetings SET status = ?, result = ?, return_reason = ? WHERE id = ?', ['已退回', '已退回', reason, id]);
+    const [[retRec]] = await pool.query('SELECT result FROM meetings WHERE id = ?', [id]);
+    const prevRet = retRec?.result ? `${retRec.result};` : '';
+    await pool.execute('UPDATE meetings SET status = ?, result = ?, return_reason = ? WHERE id = ?', ['已退回', `${prevRet}${operator}:退回`, reason, id]);
     await appendReturnHistory(pool, 'meetings', id, operator, reason);
     await createNotification(pool, { userId: rec.organizer, title: '会议申请被退回', content: `您发起的会议"${rec.title || ''}"被${operator}退回，原因：${reason}`, type: 'approval' });
     await createOperationLog(pool, { username: operator, action: 'return', module: 'meeting', targetName: `会议"${rec.title || ''}"`, detail: reason });
+    await appendApprovalLog(pool, { applicationType: 'meeting', applicationId: id, actor: operator, actorRole: '审批人', action: 'return', fromStatus: rec.status, toStatus: '已退回', comment: reason });
     res.json({ success: true, message: '已退回' });
   } catch (error) {
     console.error('退回会议失败:', error);
@@ -151,13 +158,14 @@ router.post('/meetings', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    await pool.execute(
+    const [ins] = await pool.execute(
       'INSERT INTO meetings (title, organizer, meetingDate, meetingTime, location, participants, agenda, approver, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [title, organizer, meetingDate, meetingTime, location, participants, agenda, approver, '待审批', now]
     );
 
     await createNotification(pool, { userId: approver, title: '会议审批提醒', content: `${organizer} 发起了会议"${title}"，请审批`, type: 'approval' });
     await createOperationLog(pool, { username: organizer, action: 'submit', module: 'meeting', targetName: `会议"${title}"`, detail: `提交给${approver}审批` });
+    await appendApprovalLog(pool, { applicationType: 'meeting', applicationId: ins.insertId, actor: organizer, actorRole: '申请人', action: 'submit', fromStatus: '', toStatus: '待审批', targetUser: approver || '' });
 
     res.json({ success: true, message: '会议创建成功' });
   } catch (error) {
@@ -185,8 +193,8 @@ router.put('/meetings/:id', async (req, res) => {
       const [[current]] = await pool.query('SELECT * FROM meetings WHERE id = ?', [id]);
       const currentApprover = current?.approver || '';
       const intermediateResult = result ? `${currentApprover}:${result}` : null;
-      const newComment = current?.oldComment
-        ? `${current.oldComment}\n---\n${currentApprover}: ${comment || ''}`
+      const newComment = current?.comment
+        ? `${current.comment}\n---\n${currentApprover}: ${comment || ''}`
         : `${currentApprover}: ${comment || ''}`;
       await pool.execute(
         'UPDATE meetings SET comment = ?, result = ?, approver = ? WHERE id = ?',
@@ -197,16 +205,17 @@ router.put('/meetings/:id', async (req, res) => {
         await createNotification(pool, { userId: app.organizer, title: '会议已转发', content: `您发起的会议"${app.title}"已转发至总经理审批`, type: 'approval' });
         await createNotification(pool, { userId: forwardTo, title: '会议审批提醒', content: `${app.organizer} 发起的会议"${app.title}"已转发给您，请审批`, type: 'approval' });
         await createOperationLog(pool, { username: getOperator(req), action: 'forward', module: 'meeting', targetName: `会议"${app.title}"`, detail: comment || '' });
+        await appendApprovalLog(pool, { applicationType: 'meeting', applicationId: id, actor: getOperator(req), actorRole: '审批人', action: 'forward', fromStatus: current?.status || '', toStatus: current?.status || '', targetUser: forwardTo, comment: comment || '' });
       }
     } else {
       const status = result === '批准' ? '已批准' : result === '拒绝' ? '已拒绝' : '待审批';
       const [[current]] = await pool.query('SELECT * FROM meetings WHERE id = ?', [id]);
       const currentApprover = current?.approver || '';
-      const accumulatedResult = current?.oldResult && current.oldResult.includes(':')
-        ? `${current.oldResult};${currentApprover}:${result}`
+      const accumulatedResult = current?.result && current.result.includes(':')
+        ? `${current.result};${currentApprover}:${result}`
         : `${currentApprover}:${result}`;
-      const newComment = current?.oldComment
-        ? `${current.oldComment}\n---\n${currentApprover}: ${comment || ''}`
+      const newComment = current?.comment
+        ? `${current.comment}\n---\n${currentApprover}: ${comment || ''}`
         : `${currentApprover}: ${comment || ''}`;
       await pool.execute(
         'UPDATE meetings SET comment = ?, result = ?, status = ? WHERE id = ?',
@@ -217,6 +226,8 @@ router.put('/meetings/:id', async (req, res) => {
         const actionLabel = result === '批准' ? '已通过' : result === '拒绝' ? '被拒绝' : '已更新';
         await createNotification(pool, { userId: app.organizer, title: `会议审批${actionLabel}`, content: `您发起的会议"${app.title}"${actionLabel}`, type: 'approval' });
         await createOperationLog(pool, { username: getOperator(req), action: result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update', module: 'meeting', targetName: `会议"${app.title}"`, detail: comment || '' });
+        const mtLogAction = result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update';
+        await appendApprovalLog(pool, { applicationType: 'meeting', applicationId: id, actor: getOperator(req), actorRole: '审批人', action: mtLogAction, fromStatus: current?.status || '', toStatus: status, comment: comment || '' });
       }
     }
 
@@ -271,6 +282,7 @@ router.post('/meetings/:id/resubmit', async (req, res) => {
       targetName: `${operator}的会议申请`,
       detail: '撤回/退回后重新提交'
     });
+    await appendApprovalLog(pool, { applicationType: 'meeting', applicationId: id, actor: operator, actorRole: '申请人', action: 'resubmit', fromStatus: '', toStatus: '待审批' });
     res.json({ success: true, message: r.message });
   } catch (error) {
     console.error('重新提交失败:', error);

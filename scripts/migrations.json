@@ -5,5 +5,6 @@
   "asset-inventory-status-v1.2.51.sql",
   "asset-fields-v1.2.51.sql",
   "asset-logs-fields-v1.2.51.sql",
-  "chat-schema-v1.2.52.sql"
+  "chat-schema-v1.2.52.sql",
+  "approval-logs-v1.2.60.sql"
 ]

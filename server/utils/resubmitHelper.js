@@ -46,8 +46,11 @@ export async function resubmitApplication(pool, { table, id, operator, applicant
     values.push(value !== null && typeof value === 'object' ? JSON.stringify(value) : value);
   }
 
-  sets.push('status = ?', 'return_reason = NULL');
+  // 重新提交：保留历史审批链，追加「申请人:重新提交」，避免覆盖陈东/李智鑫等人的历史动作（证据链不被清空）
+  const prevRes = rec.result ? `${rec.result};` : '';
+  sets.push('status = ?', 'return_reason = NULL', 'result = ?');
   values.push(newStatus);
+  values.push(`${prevRes}${operator}:重新提交`);
   values.push(id);
 
   await pool.execute(`UPDATE ${table} SET ${sets.join(', ')} WHERE id = ?`, values);

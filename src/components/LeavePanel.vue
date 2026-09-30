@@ -200,6 +200,8 @@
                 size="small"
                 @click="withdrawLeaveAction(row)"
                 class="cancel-btn"
+                :disabled="hasApproverActed(row)"
+                :title="hasApproverActed(row) ? '审批人已处理该申请，无法撤回' : ''"
               >
                 撤回
               </el-button>
@@ -279,6 +281,8 @@
               v-if="canWithdraw(row)"
               size="small"
               @click="withdrawLeaveAction(row)"
+              :disabled="hasApproverActed(row)"
+              :title="hasApproverActed(row) ? '审批人已处理该申请，无法撤回' : ''"
             >
               撤回
             </el-button>
@@ -427,7 +431,8 @@ import {
   exportToCSV,
   exportSingleRow,
   exportLeaveFormHTML,
-  formatDays
+  formatDays,
+  hasApproverActed
 } from '../utils/oaWorkflowUtils'
 
 const props = defineProps<{
@@ -1044,6 +1049,7 @@ defineExpose({ fetchData })
 }
 .action-group {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
 }
 .action-btn-small {

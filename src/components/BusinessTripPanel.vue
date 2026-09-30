@@ -144,6 +144,8 @@
                 size="small"
                 @click="withdrawBusinessTripAction(row)"
                 class="cancel-btn"
+                :disabled="hasApproverActed(row)"
+                :title="hasApproverActed(row) ? '审批人已处理该申请，无法撤回' : ''"
               >
                 撤回
               </el-button>
@@ -231,6 +233,8 @@
               v-if="canWithdraw(row)"
               size="small"
               @click="withdrawBusinessTripAction(row)"
+              :disabled="hasApproverActed(row)"
+              :title="hasApproverActed(row) ? '审批人已处理该申请，无法撤回' : ''"
             >
               撤回
             </el-button>
@@ -295,7 +299,8 @@ import {
   getTripTypeClass,
   exportToCSV,
   exportSingleRow,
-  exportBusinessTripFormHTML
+  exportBusinessTripFormHTML,
+  hasApproverActed
 } from '../utils/oaWorkflowUtils'
 
 const router = useRouter()

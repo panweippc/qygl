@@ -5,6 +5,7 @@ import { createNotification, createOperationLog, getOperator } from '../utils/au
 import { resubmitApplication } from '../utils/resubmitHelper.js';
 import { getRealName } from '../utils/identity.js';
 import { appendReturnHistory } from '../utils/returnHistory.js';
+import { appendApprovalLog } from '../utils/approvalLog.js';
 
 // 请假审批：仅当前审批人或管理角色可操作
 const isManagerUser = async (req) => {
@@ -50,7 +51,10 @@ router.post('/leave-applications/:id/withdraw', async (req, res) => {
     if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
       return res.status(400).json({ success: false, message: '当前状态不可撤回' });
     }
-    await pool.execute('UPDATE leave_applications SET status = ?, result = ? WHERE id = ?', ['已撤回', '已撤回', id]);
+    // 撤回：保留既有审批链，追加「申请人:已撤回」，避免覆盖陈东/李智鑫等人的历史动作
+    const [[wdRec]] = await pool.query('SELECT result FROM leave_applications WHERE id = ?', [id]);
+    const prevWd = wdRec?.result ? `${wdRec.result};` : '';
+    await pool.execute('UPDATE leave_applications SET status = ?, result = ? WHERE id = ?', ['已撤回', `${prevWd}${operator}:已撤回`, id]);
     // withdrawNotify: 撤回后通知审批人，并给申请人一条消息中心回执
     try {
       const notifyTargets = new Set([rec.approver, operator].filter(Boolean));
@@ -68,6 +72,7 @@ router.post('/leave-applications/:id/withdraw', async (req, res) => {
       }
     } catch (e) { /* 通知失败不影响撤回主流程 */ }
     await createOperationLog(pool, { username: operator, action: 'withdraw', module: 'attendance', targetName: `${rec.leaveType || ''}请假`, detail: '申请人撤回' });
+    await appendApprovalLog(pool, { applicationType: 'leave', applicationId: id, actor: operator, actorRole: '申请人', action: 'withdraw', fromStatus: rec.status, toStatus: '已撤回' });
     res.json({ success: true, message: '撤回成功' });
   } catch (error) {
     console.error('撤回请假失败:', error);
@@ -91,10 +96,14 @@ router.post('/leave-applications/:id/return', async (req, res) => {
     if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
       return res.status(400).json({ success: false, message: '当前状态不可退回' });
     }
-    await pool.execute('UPDATE leave_applications SET status = ?, result = ?, return_reason = ? WHERE id = ?', ['已退回', '已退回', reason, id]);
+    // 退回：保留既有审批链，追加「退回人:退回」，避免覆盖前面审批人的历史动作
+    const [[retRec]] = await pool.query('SELECT result FROM leave_applications WHERE id = ?', [id]);
+    const prevRet = retRec?.result ? `${retRec.result};` : '';
+    await pool.execute('UPDATE leave_applications SET status = ?, result = ?, return_reason = ? WHERE id = ?', ['已退回', `${prevRet}${operator}:退回`, reason, id]);
     await appendReturnHistory(pool, 'leave_applications', id, operator, reason);
     await createNotification(pool, { userId: rec.applicant, title: '请假申请被退回', content: `您的${rec.leaveType || ''}请假被${operator}退回，原因：${reason}`, type: 'approval' });
     await createOperationLog(pool, { username: operator, action: 'return', module: 'attendance', targetName: `${rec.leaveType || ''}请假`, detail: reason });
+    await appendApprovalLog(pool, { applicationType: 'leave', applicationId: id, actor: operator, actorRole: '审批人', action: 'return', fromStatus: rec.status, toStatus: '已退回', comment: reason });
     res.json({ success: true, message: '已退回' });
   } catch (error) {
     console.error('退回请假失败:', error);
@@ -158,7 +167,7 @@ router.post('/leave-applications', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    await pool.execute(
+    const [ins] = await pool.execute(
       'INSERT INTO leave_applications (applicant, leaveType, startDate, endDate, days, reason, approver, attachments, halfDayPeriod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [applicant, leaveType, startDate, endDate, days, reason, approver, attachments || null, halfDayPeriod || null, '审批中', now]
     );
@@ -176,6 +185,10 @@ router.post('/leave-applications', async (req, res) => {
       module: 'attendance',
       targetName: `${leaveType}请假(${days}天)`,
       detail: `提交给${approver}审批`
+    });
+    await appendApprovalLog(pool, {
+      applicationType: 'leave', applicationId: ins.insertId,
+      actor: applicant, actorRole: '申请人', action: 'submit', fromStatus: '', toStatus: '审批中', targetUser: approver || ''
     });
 
     res.json({ success: true, message: '请假申请提交成功' });
@@ -217,8 +230,8 @@ router.put('/leave-applications/:id', async (req, res) => {
       const [[current]] = await pool.query('SELECT * FROM leave_applications WHERE id = ?', [id]);
       const currentApprover = current?.approver || '';
       const intermediateResult = result ? `${currentApprover}:${result}` : null;
-      const newComment = current?.oldComment
-        ? `${current.oldComment}\n---\n${currentApprover}: ${comment || ''}`
+      const newComment = current?.comment
+        ? `${current.comment}\n---\n${currentApprover}: ${comment || ''}`
         : `${currentApprover}: ${comment || ''}`;
       await pool.execute(
         'UPDATE leave_applications SET comment = ?, result = ?, approver = ? WHERE id = ?',
@@ -245,15 +258,16 @@ router.put('/leave-applications/:id', async (req, res) => {
           targetName: `${app.applicant}的${app.leaveType}请假`,
           detail: comment || ''
         });
+        await appendApprovalLog(pool, { applicationType: 'leave', applicationId: id, actor: getOperator(req), actorRole: '审批人', action: 'forward', fromStatus: current?.status || '', toStatus: current?.status || '', targetUser: forwardTo, comment: comment || '' });
       }
     } else {
       const [[current]] = await pool.query('SELECT * FROM leave_applications WHERE id = ?', [id]);
       const currentApprover = current?.approver || '';
-      const accumulatedResult = current?.oldResult && current.oldResult.includes(':')
-        ? `${current.oldResult};${currentApprover}:${result}`
+      const accumulatedResult = current?.result && current.result.includes(':')
+        ? `${current.result};${currentApprover}:${result}`
         : `${currentApprover}:${result}`;
-      const newComment = current?.oldComment
-        ? `${current.oldComment}\n---\n${currentApprover}: ${comment || ''}`
+      const newComment = current?.comment
+        ? `${current.comment}\n---\n${currentApprover}: ${comment || ''}`
         : `${currentApprover}: ${comment || ''}`;
       await pool.execute(
         'UPDATE leave_applications SET comment = ?, result = ?, status = ?, nextApprover = ? WHERE id = ?',
@@ -275,6 +289,8 @@ router.put('/leave-applications/:id', async (req, res) => {
           targetName: `${app.applicant}的${app.leaveType}请假`,
           detail: comment || ''
         });
+        const leaveLogAction = result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : (result === '取消' ? 'cancel' : 'update');
+        await appendApprovalLog(pool, { applicationType: 'leave', applicationId: id, actor: getOperator(req), actorRole: '审批人', action: leaveLogAction, fromStatus: current?.status || '', toStatus: status, comment: comment || '' });
       }
     }
 
@@ -335,6 +351,7 @@ router.post('/leave-applications/:id/resubmit', async (req, res) => {
       targetName: `${operator}的请假申请`,
       detail: '撤回/退回后重新提交'
     });
+    await appendApprovalLog(pool, { applicationType: 'leave', applicationId: id, actor: operator, actorRole: '申请人', action: 'resubmit', fromStatus: '', toStatus: '审批中' });
     res.json({ success: true, message: r.message });
   } catch (error) {
     console.error('重新提交失败:', error);

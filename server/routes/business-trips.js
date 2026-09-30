@@ -5,6 +5,7 @@ import { createNotification, createOperationLog, getOperator } from '../utils/au
 import { resubmitApplication } from '../utils/resubmitHelper.js';
 import { getRealName } from '../utils/identity.js';
 import { appendReturnHistory } from '../utils/returnHistory.js';
+import { appendApprovalLog } from '../utils/approvalLog.js';
 
 // 仅当前审批人或管理角色可操作（退回/软删判断用）
 const isManagerUser = async (req) => {
@@ -61,6 +62,7 @@ router.post('/business-trips/:id/withdraw', async (req, res) => {
       }
     } catch (e) { /* 通知失败不影响撤回主流程 */ }
     await createOperationLog(pool, { username: operator, action: 'withdraw', module: 'business_trip', targetName: `${rec.destination}出差(${rec.trip_code})`, detail: '申请人撤回' });
+    await appendApprovalLog(pool, { applicationType: 'businessTrip', applicationId: id, actor: operator, actorRole: '申请人', action: 'withdraw', fromStatus: rec.status, toStatus: '已撤回' });
     res.json({ success: true, message: '撤回成功' });
   } catch (error) {
     console.error('撤回出差失败:', error);
@@ -88,6 +90,7 @@ router.post('/business-trips/:id/return', async (req, res) => {
     await appendReturnHistory(pool, 'business_trip_applications', id, operator, reason);
     await createNotification(pool, { userId: rec.applicant_name, title: '出差申请被退回', content: `您的${rec.destination}出差申请(${rec.trip_code})被${operator}退回，原因：${reason}`, type: 'approval', relatedId: parseInt(id), relatedType: 'business_trip' });
     await createOperationLog(pool, { username: operator, action: 'return', module: 'business_trip', targetName: `${rec.destination}出差(${rec.trip_code})`, detail: reason });
+    await appendApprovalLog(pool, { applicationType: 'businessTrip', applicationId: id, actor: operator, actorRole: '审批人', action: 'return', fromStatus: rec.status, toStatus: '已退回', comment: reason });
     res.json({ success: true, message: '已退回' });
   } catch (error) {
     console.error('退回出差失败:', error);
@@ -192,6 +195,7 @@ router.post('/business-trips/:id/resubmit', async (req, res) => {
       targetName: `${operator}的出差申请`,
       detail: '撤回/退回后重新提交'
     });
+    await appendApprovalLog(pool, { applicationType: 'businessTrip', applicationId: id, actor: operator, actorRole: '申请人', action: 'resubmit', fromStatus: '', toStatus: 'pending' });
     res.json({ success: true, message: r.message });
   } catch (error) {
     console.error('重新提交失败:', error);

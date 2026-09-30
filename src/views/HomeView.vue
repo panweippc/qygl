@@ -19,7 +19,7 @@
                 :key="t.label"
                 class="todo-card"
                 :class="{ 'todo-strong': t.label === '待我审批' && t.value > 0 }"
-                @click="goOa"
+                @click="goOa(t.label)"
               >
                 <span class="todo-value">{{ t.value }}</span>
                 <span class="todo-label">{{ t.label }}</span>
@@ -151,7 +151,11 @@ const todoStats = computed(() => {
   ]
 })
 
-const goOa = () => router.push('/oa-office')
+// 待办卡片跳转审批中心：待我审批 → 我收到的；我发起的 → 我申请的；其余默认
+const goOa = (label?: string) => {
+  const subTab = label === '待我审批' ? 'received' : label === '我发起的' ? 'applied' : ''
+  router.push(subTab ? `/oa-office?subTab=${subTab}` : '/oa-office')
+}
 
 // ---------- 常用操作：按角色固定映射 ----------
 interface HomeOperation {

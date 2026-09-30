@@ -160,6 +160,8 @@
                 size="small"
                 @click="withdrawMeetingAction(row)"
                 class="cancel-btn"
+                :disabled="hasApproverActed(row)"
+                :title="hasApproverActed(row) ? '审批人已处理该申请，无法撤回' : ''"
               >
                 撤回
               </el-button>
@@ -263,6 +265,8 @@
               v-if="canWithdraw(row)"
               size="small"
               @click="withdrawMeetingAction(row)"
+              :disabled="hasApproverActed(row)"
+              :title="hasApproverActed(row) ? '审批人已处理该申请，无法撤回' : ''"
             >
               撤回
             </el-button>
@@ -404,10 +408,9 @@ import {
   getStatusClass,
   getStatusText,
   exportToCSV,
-  exportSingleRow
-} from '../utils/oaWorkflowUtils'
-
-const props = defineProps<{
+  exportSingleRow,
+  hasApproverActed
+} from '../utils/oaWorkflowUtils'const props = defineProps<{
   isAdmin: boolean
   canDistribute: boolean
   currentUser: string

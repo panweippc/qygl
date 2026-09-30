@@ -4,6 +4,7 @@ const router = express.Router();
 import { createNotification, createOperationLog, getOperator } from '../utils/audit.js';
 import { resubmitApplication } from '../utils/resubmitHelper.js';
 import { appendReturnHistory } from '../utils/returnHistory.js';
+import { appendApprovalLog } from '../utils/approvalLog.js';
 
 // ---- 报销/招待费数据访问控制：申请人本人 + 财务/总经理 可见 ----
 const FINANCE_ROLES = ['财务总监', '财务经理', '总经理', '系统管理员'];
@@ -90,7 +91,9 @@ router.post('/reimbursements/:id/withdraw', async (req, res) => {
     if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
       return res.status(400).json({ success: false, message: '当前状态不可撤回' });
     }
-    await pool.execute('UPDATE reimbursements SET status = ?, result = ? WHERE id = ?', ['已撤回', '已撤回', id]);
+    const [[wdRec]] = await pool.query('SELECT result FROM reimbursements WHERE id = ?', [id]);
+    const prevWd = wdRec?.result ? `${wdRec.result};` : '';
+    await pool.execute('UPDATE reimbursements SET status = ?, result = ? WHERE id = ?', ['已撤回', `${prevWd}${operator}:已撤回`, id]);
     // withdrawNotify: 撤回后通知审批人，并给申请人一条消息中心回执
     try {
       const notifyTargets = new Set([rec.approver, operator].filter(Boolean));
@@ -108,6 +111,7 @@ router.post('/reimbursements/:id/withdraw', async (req, res) => {
       }
     } catch (e) { /* 通知失败不影响撤回主流程 */ }
     await createOperationLog(pool, { username: operator, action: 'withdraw', module: 'reimbursement', targetName: `${rec.reimburseType || ''}报销`, detail: '申请人撤回' });
+    await appendApprovalLog(pool, { applicationType: 'reimbursement', applicationId: id, actor: operator, actorRole: '申请人', action: 'withdraw', fromStatus: rec.status, toStatus: '已撤回' });
     res.json({ success: true, message: '撤回成功' });
   } catch (error) {
     console.error('撤回报销失败:', error);
@@ -131,10 +135,13 @@ router.post('/reimbursements/:id/return', async (req, res) => {
     if (!['待审批', '审批中', 'pending', '待审核'].includes(rec.status)) {
       return res.status(400).json({ success: false, message: '当前状态不可退回' });
     }
-    await pool.execute('UPDATE reimbursements SET status = ?, result = ?, return_reason = ? WHERE id = ?', ['已退回', '已退回', reason, id]);
+    const [[retRec]] = await pool.query('SELECT result FROM reimbursements WHERE id = ?', [id]);
+    const prevRet = retRec?.result ? `${retRec.result};` : '';
+    await pool.execute('UPDATE reimbursements SET status = ?, result = ?, return_reason = ? WHERE id = ?', ['已退回', `${prevRet}${operator}:退回`, reason, id]);
     await appendReturnHistory(pool, 'reimbursements', id, operator, reason);
     await createNotification(pool, { userId: rec.applicant, title: '报销申请被退回', content: `您的${rec.reimburseType || ''}报销被${operator}退回，原因：${reason}`, type: 'approval' });
     await createOperationLog(pool, { username: operator, action: 'return', module: 'reimbursement', targetName: `${rec.reimburseType || ''}报销`, detail: reason });
+    await appendApprovalLog(pool, { applicationType: 'reimbursement', applicationId: id, actor: operator, actorRole: '审批人', action: 'return', fromStatus: rec.status, toStatus: '已退回', comment: reason });
     res.json({ success: true, message: '已退回' });
   } catch (error) {
     console.error('退回报销失败:', error);
@@ -155,7 +162,7 @@ router.post('/reimbursements', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    await pool.execute(
+    const [ins] = await pool.execute(
       'INSERT INTO reimbursements (applicant, reimburseType, amount, reimburseDate, reason, approver, attachments, detail, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [applicant, reimburseType, amount, reimburseDate, reason, approver, attachments || null, detail ? JSON.stringify(detail) : null, '审批中', now]
     );
@@ -164,6 +171,7 @@ router.post('/reimbursements', async (req, res) => {
       userId: approver, title: '报销审批提醒', content: `${applicant} 提交了${amount}元的${reimburseType}报销申请，请审批`, type: 'approval',
     });
     await createOperationLog(pool, { username: applicant, action: 'submit', module: 'reimbursement', targetName: `${reimburseType}报销(${amount}元)`, detail: `提交给${approver}审批` });
+    await appendApprovalLog(pool, { applicationType: 'reimbursement', applicationId: ins.insertId, actor: applicant, actorRole: '申请人', action: 'submit', fromStatus: '', toStatus: '审批中', targetUser: approver || '' });
 
     res.json({ success: true, message: '报销申请提交成功' });
   } catch (error) {
@@ -192,8 +200,8 @@ router.put('/reimbursements/:id', async (req, res) => {
       const [[current]] = await pool.query('SELECT * FROM reimbursements WHERE id = ?', [id]);
       const currentApprover = current?.approver || '';
       const intermediateResult = result ? `${currentApprover}:${result}` : null;
-      const newComment = current?.oldComment
-        ? `${current.oldComment}\n---\n${currentApprover}: ${comment || ''}`
+      const newComment = current?.comment
+        ? `${current.comment}\n---\n${currentApprover}: ${comment || ''}`
         : `${currentApprover}: ${comment || ''}`;
       await pool.execute(
         'UPDATE reimbursements SET comment = ?, result = ?, approver = ? WHERE id = ?',
@@ -204,16 +212,17 @@ router.put('/reimbursements/:id', async (req, res) => {
         await createNotification(pool, { userId: app.applicant, title: '报销已转发', content: `您的${app.reimburseType}报销(${app.amount}元)已转发至总经理审批`, type: 'approval' });
         await createNotification(pool, { userId: forwardTo, title: '报销审批提醒', content: `${app.applicant} 的${app.reimburseType}报销(${app.amount}元)已转发给您，请审批`, type: 'approval' });
         await createOperationLog(pool, { username: getOperator(req), action: 'forward', module: 'reimbursement', targetName: `${app.applicant}的${app.reimburseType}报销`, detail: comment || '' });
+        await appendApprovalLog(pool, { applicationType: 'reimbursement', applicationId: id, actor: getOperator(req), actorRole: '审批人', action: 'forward', fromStatus: current?.status || '', toStatus: current?.status || '', targetUser: forwardTo, comment: comment || '' });
       }
     } else {
       const status = result === '批准' ? '已批准' : result === '拒绝' ? '已拒绝' : '审批中';
       const [[current]] = await pool.query('SELECT * FROM reimbursements WHERE id = ?', [id]);
       const currentApprover = current?.approver || '';
-      const accumulatedResult = current?.oldResult && current.oldResult.includes(':')
-        ? `${current.oldResult};${currentApprover}:${result}`
+      const accumulatedResult = current?.result && current.result.includes(':')
+        ? `${current.result};${currentApprover}:${result}`
         : `${currentApprover}:${result}`;
-      const newComment = current?.oldComment
-        ? `${current.oldComment}\n---\n${currentApprover}: ${comment || ''}`
+      const newComment = current?.comment
+        ? `${current.comment}\n---\n${currentApprover}: ${comment || ''}`
         : `${currentApprover}: ${comment || ''}`;
       await pool.execute(
         'UPDATE reimbursements SET comment = ?, result = ?, status = ? WHERE id = ?',
@@ -224,6 +233,8 @@ router.put('/reimbursements/:id', async (req, res) => {
         const actionLabel = result === '批准' ? '已通过' : result === '拒绝' ? '被拒绝' : '已更新';
         await createNotification(pool, { userId: app.applicant, title: `报销${actionLabel}`, content: `您的${app.reimburseType}报销(${app.amount}元)${actionLabel}`, type: 'approval' });
         await createOperationLog(pool, { username: getOperator(req), action: result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update', module: 'reimbursement', targetName: `${app.applicant}的${app.reimburseType}报销`, detail: comment || '' });
+        const rbLogAction = result === '批准' ? 'approve' : result === '拒绝' ? 'reject' : 'update';
+        await appendApprovalLog(pool, { applicationType: 'reimbursement', applicationId: id, actor: getOperator(req), actorRole: '审批人', action: rbLogAction, fromStatus: current?.status || '', toStatus: status, comment: comment || '' });
       }
     }
 
@@ -320,6 +331,7 @@ router.post('/reimbursements/:id/resubmit', async (req, res) => {
       targetName: `${operator}的报销申请`,
       detail: '撤回/退回后重新提交'
     });
+    await appendApprovalLog(pool, { applicationType: 'reimbursement', applicationId: id, actor: operator, actorRole: '申请人', action: 'resubmit', fromStatus: '', toStatus: '审批中' });
     res.json({ success: true, message: r.message });
   } catch (error) {
     console.error('重新提交失败:', error);

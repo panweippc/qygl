@@ -109,7 +109,7 @@
               <el-button v-if="canApprove(row)" size="small" type="primary" @click="handleApprove(row)" class="action-btn-small">审批</el-button>
               <el-tag v-if="row.status === '已批准' && canDistribute && isDistributed(row, 'entertainment')" type="warning" size="small" effect="plain">已下发</el-tag>
               <el-button v-if="canReturn(row)" size="small" type="warning" @click="returnEntertainmentAction(row)">退回</el-button>
-              <el-button v-if="canWithdraw(row)" size="small" @click="withdrawEntertainmentAction(row)" class="cancel-btn">撤回</el-button>
+              <el-button v-if="canWithdraw(row)" size="small" @click="withdrawEntertainmentAction(row)" class="cancel-btn" :disabled="hasApproverActed(row)" :title="hasApproverActed(row) ? '审批人已处理该申请，无法撤回' : ''">撤回</el-button>
               <el-button v-if="canResubmitDelete(row)" size="small" type="warning" @click="resubmitEntertainment(row)">重新提交</el-button>
               <el-button v-if="canResubmitDelete(row)" size="small" type="danger" @click="deleteEntertainmentAction(row)">删除</el-button>
               <el-button
@@ -154,7 +154,7 @@
             <el-button v-if="canApprove(row)" size="small" type="primary" @click="handleApprove(row)">审批</el-button>
             <el-tag v-if="row.status === '已批准' && canDistribute && isDistributed(row, 'entertainment')" type="warning" size="small" effect="plain">已下发</el-tag>
             <el-button v-if="canReturn(row)" size="small" type="warning" @click="returnEntertainmentAction(row)">退回</el-button>
-            <el-button v-if="canWithdraw(row)" size="small" @click="withdrawEntertainmentAction(row)">撤回</el-button>
+            <el-button v-if="canWithdraw(row)" size="small" @click="withdrawEntertainmentAction(row)" :disabled="hasApproverActed(row)" :title="hasApproverActed(row) ? '审批人已处理该申请，无法撤回' : ''">撤回</el-button>
             <el-button v-if="canResubmitDelete(row)" size="small" type="warning" @click="resubmitEntertainment(row)">重新提交</el-button>
             <el-button v-if="canResubmitDelete(row)" size="small" type="danger" @click="deleteEntertainmentAction(row)">删除</el-button>
             <el-button
@@ -261,7 +261,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getEntertainmentExpenses, addEntertainmentExpense, updateEntertainmentExpense, getDistributedRecords, markDistributedRead } from '../services/api'
-import { extractRealName, formatDate, getStatusClass, getStatusText, exportToCSV, exportSingleRow, exportEntertainmentFormHTML } from '../utils/oaWorkflowUtils'
+import { extractRealName, formatDate, getStatusClass, getStatusText, exportToCSV, exportSingleRow, exportEntertainmentFormHTML, hasApproverActed } from '../utils/oaWorkflowUtils'
 
 const props = defineProps<{
   isAdmin: boolean

@@ -172,6 +172,8 @@
                 size="small"
                 @click="withdrawReimbursementAction(row)"
                 class="cancel-btn"
+                :disabled="hasApproverActed(row)"
+                :title="hasApproverActed(row) ? '审批人已处理该申请，无法撤回' : ''"
               >
                 撤回
               </el-button>
@@ -241,7 +243,7 @@
             </el-button>
             <el-tag v-if="row.status === '已批准' && canDistribute && isDistributed(row, 'reimbursement')" type="warning" size="small" effect="plain" style="margin-right:6px;">已下发</el-tag>
             <el-button v-if="canReturn(row)" size="small" type="warning" @click="returnReimbursementAction(row)">退回</el-button>
-            <el-button v-if="canWithdraw(row)" size="small" @click="withdrawReimbursementAction(row)">撤回</el-button>
+            <el-button v-if="canWithdraw(row)" size="small" @click="withdrawReimbursementAction(row)" :disabled="hasApproverActed(row)" :title="hasApproverActed(row) ? '审批人已处理该申请，无法撤回' : ''">撤回</el-button>
             <el-button v-if="canResubmitDelete(row)" size="small" type="warning" @click="resubmitReimbursement(row)">重新提交</el-button>
             <el-button v-if="canResubmitDelete(row)" size="small" type="danger" @click="deleteReimbursementAction(row)">删除</el-button>
             <el-button
@@ -488,7 +490,8 @@ import {
   getReimburseTypeClass,
   exportToCSV,
   exportSingleRow,
-  exportReimbursementFormHTML
+  exportReimbursementFormHTML,
+  hasApproverActed
 } from '../utils/oaWorkflowUtils'
 
 const props = defineProps<{

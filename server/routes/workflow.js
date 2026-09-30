@@ -8,6 +8,7 @@ import { resubmitApplication } from '../utils/resubmitHelper.js';
 import { getRealName } from '../utils/identity.js';
 import { requireRole } from '../middleware/auth.js';
 import { appendReturnHistory } from '../utils/returnHistory.js';
+import { appendApprovalLog } from '../utils/approvalLog.js';
 
 const router = express.Router();
 
@@ -247,6 +248,7 @@ router.post("/projects", async (req, res) => {
       targetName: projectName || project_name || `协同申请(${projectCode})`,
       detail: `创建协同申请，提交给${approverNameVal || '未指定'}审批`
     });
+    await appendApprovalLog(pool, { applicationType: 'project', applicationId: result.insertId, actor: applicantNameVal, actorRole: '申请人', action: 'submit', fromStatus: '', toStatus: 'pending', targetUser: approverNameVal || '' });
     // 通知审批人
     if (approverNameVal) {
       try {
@@ -346,6 +348,7 @@ router.post('/projects/:id/approve', async (req, res) => {
         detail: comment || '',
         ipAddress: req.ip
       });
+      await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: getRealName(req) || currentApprover || '系统', actorRole: '审批人', action: 'forward', fromStatus: project.status, toStatus: project.status, targetUser: forwardTo, comment: comment || '' });
       return res.json({ success: true, message: '已转交审批' });
     }
 
@@ -417,6 +420,8 @@ router.post('/projects/:id/approve', async (req, res) => {
       detail: comment || '',
       ipAddress: req.ip
     });
+    const prjLogAction = action === 'agree' ? 'approve' : action === 'reject' ? 'reject' : 'update';
+    await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: approver.name, actorRole: '审批人', action: prjLogAction, fromStatus: project.status, toStatus: newStatus, comment: comment || '' });
 
     res.json({ success: true });
   } catch (error) {
@@ -472,6 +477,7 @@ router.post('/projects/:id/withdraw', async (req, res) => {
       }
     } catch (e) { /* 通知失败不影响撤回主流程 */ }
     await createOperationLog(pool, { username: operator, action: 'withdraw', module: 'project', targetName: `${rec.project_name}项目(${rec.project_code})`, detail: '申请人撤回' });
+    await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: operator, actorRole: '申请人', action: 'withdraw', fromStatus: rec.status, toStatus: '已撤回' });
     res.json({ success: true, message: '撤回成功' });
   } catch (error) {
     console.error('撤回项目失败:', error);
@@ -499,6 +505,7 @@ router.post('/projects/:id/return', async (req, res) => {
     await appendReturnHistory(pool, 'project_applications', id, operator, reason);
     await createNotification(pool, { userId: rec.applicant_name, title: '项目申请被退回', content: `您的${rec.project_name}项目申请(${rec.project_code})被${operator}退回，原因：${reason}`, type: 'approval', relatedId: parseInt(id), relatedType: 'project' });
     await createOperationLog(pool, { username: operator, action: 'return', module: 'project', targetName: `${rec.project_name}项目(${rec.project_code})`, detail: reason });
+    await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: operator, actorRole: '审批人', action: 'return', fromStatus: rec.status, toStatus: '已退回', comment: reason });
     res.json({ success: true, message: '已退回' });
   } catch (error) {
     console.error('退回项目失败:', error);
@@ -787,6 +794,7 @@ router.post("/business-trips", async (req, res) => {
       targetName: `出差申请(${tripCode})`,
       detail: `创建出差申请，目的地: ${destination || ''}, 天数: ${finalDays}, 提交给${approverNameVal || '未指定'}审批`
     });
+    await appendApprovalLog(pool, { applicationType: 'businessTrip', applicationId: result.insertId, actor: applicantNameVal, actorRole: '申请人', action: 'submit', fromStatus: '', toStatus: 'pending', targetUser: approverNameVal || '' });
     res.json({
       success: true,
       data: {
@@ -873,6 +881,7 @@ router.post('/business-trips/:id/approve', async (req, res) => {
         detail: comment || '',
         ipAddress: req.ip
       });
+      await appendApprovalLog(pool, { applicationType: 'businessTrip', applicationId: id, actor: getRealName(req) || currentApprover || '系统', actorRole: '审批人', action: 'forward', fromStatus: trip.status, toStatus: trip.status, targetUser: forwardTo, comment: comment || '' });
       return res.json({ success: true, message: '已转交审批' });
     }
 
@@ -944,6 +953,8 @@ router.post('/business-trips/:id/approve', async (req, res) => {
       detail: comment || '',
       ipAddress: req.ip
     });
+    const tripLogAction = action === 'agree' ? 'approve' : action === 'reject' ? 'reject' : 'update';
+    await appendApprovalLog(pool, { applicationType: 'businessTrip', applicationId: id, actor: approver.name, actorRole: '审批人', action: tripLogAction, fromStatus: trip.status, toStatus: newStatus, comment: comment || '' });
 
     res.json({ success: true });
   } catch (error) {
@@ -1042,10 +1053,39 @@ router.post('/projects/:id/resubmit', async (req, res) => {
       targetName: `${operator}的项目申请`,
       detail: '撤回/退回后重新提交'
     });
+    await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: operator, actorRole: '申请人', action: 'resubmit', fromStatus: '', toStatus: 'pending' });
     res.json({ success: true, message: r.message });
   } catch (error) {
     console.error('重新提交失败:', error);
     res.status(500).json({ success: false, message: '重新提交失败' });
+  }
+});
+
+// 审批生命周期日志查询（详情页时间线使用）：返回某条申请的全部动作链，按时间升序
+router.get('/approval-logs', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const { type, id } = req.query;
+    if (!type || !id) return res.status(400).json({ success: false, message: '缺少 type 或 id' });
+    const [logs] = await pool.execute(
+      'SELECT * FROM approval_logs WHERE application_type = ? AND application_id = ? ORDER BY created_at ASC, id ASC',
+      [type, id]
+    );
+    let distributes = [];
+    try {
+      const [dr] = await pool.execute(
+        'SELECT * FROM distributed_records WHERE applicationType = ? AND applicationId = ? ORDER BY createdAt ASC, id ASC',
+        [type, id]
+      );
+      distributes = dr;
+    } catch (e) {
+      // distributed_records 表或字段异常不影响主时间线
+      console.error('查询关联下发记录失败(可忽略):', e && e.message);
+    }
+    res.json({ success: true, data: logs, distributes });
+  } catch (error) {
+    console.error('查询审批日志失败:', error);
+    res.status(500).json({ success: false, message: '查询审批日志失败' });
   }
 });
 

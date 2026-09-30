@@ -555,16 +555,42 @@
           </el-table>
         </div>
         <div class="detail-footer">
+          <div class="detail-section lifecycle-block" v-if="lifecycleTimeline.length > 0">
+            <div class="detail-row lifecycle-head">
+              <span class="detail-label">审批生命周期</span>
+              <span class="detail-value lifecycle-count">共 {{ lifecycleTimeline.length }} 个节点</span>
+            </div>
+            <div class="lifecycle-timeline">
+              <div
+                class="lifecycle-node"
+                :class="['lc-' + node.action, { 'lc-distribute': node.isDistribute }]"
+                v-for="(node, idx) in lifecycleTimeline"
+                :key="idx"
+              >
+                <div class="lc-dot"></div>
+                <div class="lc-body">
+                  <div class="lc-meta">
+                    <span class="lc-actor">{{ extractRealName(node.actor) }}</span>
+                    <span class="lc-role" v-if="node.actorRole">{{ node.actorRole }}</span>
+                    <span class="lc-action">{{ node.title }}</span>
+                    <span class="lc-time" v-if="node.time">{{ formatReturnTime(node.time) }}</span>
+                  </div>
+                  <div class="lc-desc" v-if="node.desc">{{ node.desc }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <template v-else>
           <div class="detail-section" v-if="currentDetailType === 'businessTrip' && getBusinessTripApprovalChain(currentDetailItem)">
             <div class="detail-row">
               <span class="detail-label">审批流程</span>
               <span class="detail-value result-chain">{{ getBusinessTripApprovalChain(currentDetailItem) }}</span>
             </div>
           </div>
-          <div class="detail-section" v-if="currentDetailType !== 'businessTrip' && currentDetailItem.result">
+          <div class="detail-section" v-if="currentDetailType !== 'businessTrip' && getResultChain(currentDetailItem)">
             <div class="detail-row">
               <span class="detail-label">审批流程</span>
-              <span class="detail-value result-chain">{{ currentDetailItem.result }}</span>
+              <span class="detail-value result-chain">{{ getResultChain(currentDetailItem) }}</span>
             </div>
           </div>
           <div class="detail-section return-history-block" v-if="returnHistoryRows.length > 0">
@@ -586,6 +612,7 @@
               </div>
             </div>
           </div>
+          </template>
           <div class="detail-section" v-if="currentAttachments.length > 0">
             <div class="detail-row">
               <span class="detail-label">附件</span>
@@ -623,6 +650,35 @@
           </template>
         </el-table-column>
       </el-table>
+      <div
+        class="detail-section lifecycle-block distributed-lifecycle"
+        v-if="lifecycleTimeline.length > 0"
+        style="margin-top: 16px; border-top: 1px solid #ebeef5; padding-top: 12px;"
+      >
+        <div class="detail-row lifecycle-head">
+          <span class="detail-label">审批生命周期</span>
+          <span class="detail-value lifecycle-count">共 {{ lifecycleTimeline.length }} 个节点</span>
+        </div>
+        <div class="lifecycle-timeline">
+          <div
+            class="lifecycle-node"
+            :class="['lc-' + node.action, { 'lc-distribute': node.isDistribute }]"
+            v-for="(node, idx) in lifecycleTimeline"
+            :key="idx"
+          >
+            <div class="lc-dot"></div>
+            <div class="lc-body">
+              <div class="lc-meta">
+                <span class="lc-actor">{{ extractRealName(node.actor) }}</span>
+                <span class="lc-role" v-if="node.actorRole">{{ node.actorRole }}</span>
+                <span class="lc-action">{{ node.title }}</span>
+                <span class="lc-time" v-if="node.time">{{ formatReturnTime(node.time) }}</span>
+              </div>
+              <div class="lc-desc" v-if="node.desc">{{ node.desc }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
       <template #footer>
         <el-button @click="distributedDetailVisible = false">关闭</el-button>
       </template>
@@ -713,6 +769,7 @@ import {
   getDeletedApplications,
   parseAttachments
 } from '../services/api'
+import api from '../services/api'
 import {
   extractRealName,
   formatDate,
@@ -1372,6 +1429,87 @@ const detailDialogVisible = ref(false)
 const currentDetailItem = ref<any>(null)
 const currentDetailType = ref('')
 
+// 审批生命周期时间线：合并 approval_logs（审批动作）+ distributed_records（下发），按时间排序，
+// 形成「提交→审批动作→退回/撤回→重提→下发」完整证据链。
+const lifecycleLogs = ref<any[]>([])
+const lifecycleDistributes = ref<any[]>([])
+const lifecycleLoading = ref(false)
+
+const ACTION_LABEL: Record<string, string> = {
+  submit: '提交申请',
+  approve: '批准',
+  reject: '拒绝',
+  forward: '转交',
+  return: '退回',
+  withdraw: '撤回',
+  resubmit: '重新提交'
+}
+
+// 拉取某条申请的完整生命周期（审批动作 + 下发），供详情页时间线展示
+const loadLifecycle = async (type: string, id: any) => {
+  lifecycleLogs.value = []
+  lifecycleDistributes.value = []
+  if (!type || !id) return
+  lifecycleLoading.value = true
+  try {
+    const res = await api.get('/approval-logs', { params: { type, id } })
+    if (res?.data?.success) {
+      lifecycleLogs.value = res.data.data || []
+      lifecycleDistributes.value = res.data.distributes || []
+    }
+  } catch (e) {
+    // 拉取失败不阻断详情展示，退化为旧式的 result 链
+    lifecycleLogs.value = []
+  } finally {
+    lifecycleLoading.value = false
+  }
+}
+
+// 合并审批动作与下发记录为时间线节点（按时间升序），每个节点含操作人/角色/动作/时间/说明
+const lifecycleTimeline = computed(() => {
+  const typeLabelMap: Record<string, string> = {
+    leave: '请假', reimbursement: '报销', meeting: '会议', project: '协同', businessTrip: '出差', entertainment: '招待'
+  }
+  const nodes: any[] = []
+  for (const log of lifecycleLogs.value) {
+    const action = String(log.action || '')
+    if (action === 'distribute') continue // 下发展示由 distributes 单独渲染，避免重复
+    const label = ACTION_LABEL[action] || action
+    let desc = ''
+    if (action === 'submit') desc = log.targetUser ? `提交给 ${extractRealName(log.targetUser)} 审批` : '提交申请'
+    else if (action === 'forward') desc = log.targetUser ? `转交给 ${extractRealName(log.targetUser)} 审批` : '转交'
+    else if (action === 'return') desc = log.comment ? `退回理由：${log.comment}` : '退回申请'
+    else if (action === 'withdraw') desc = '申请人撤回该申请'
+    else if (action === 'resubmit') desc = '撤回/退回后重新提交，重新进入审批'
+    else if (log.comment) desc = log.comment
+    nodes.push({
+      time: log.created_at,
+      actor: log.actor,
+      actorRole: log.actorRole || '',
+      action,
+      title: label,
+      desc,
+      isDistribute: false
+    })
+  }
+  for (const d of lifecycleDistributes.value) {
+    const target = Array.isArray(d.targetUser)
+      ? d.targetUser.map((t: string) => extractRealName(t)).join('、')
+      : extractRealName(d.targetUser || '')
+    nodes.push({
+      time: d.createdAt,
+      actor: d.distributedBy,
+      actorRole: '审批人/管理员',
+      action: 'distribute',
+      title: '下发',
+      desc: `下发给 ${target}${d.status ? `（${d.status}）` : ''}`,
+      isDistribute: true
+    })
+  }
+  nodes.sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')))
+  return nodes
+})
+
 const currentAttachments = computed(() => {
   return parseAttachments(currentDetailItem.value?.attachments)
 })
@@ -1399,6 +1537,7 @@ const viewDetail = (row: any, type: string) => {
   currentDetailItem.value = row
   currentDetailType.value = type
   detailDialogVisible.value = true
+  loadLifecycle(type, row?.id)
 }
 
 const getBusinessTripApprovalChain = (item: any) => {
@@ -1436,6 +1575,25 @@ const getBusinessTripApprovalChain = (item: any) => {
     return `当前审批人:${extractRealName(item.approver)}`
   }
   return ''
+}
+
+// 审批流程链：把 result 字段（"陈东:批准;李智鑫:退回"）格式化为「陈东 批准 → 李智鑫 退回」，
+// 让申请人清晰看到每个审批人的具体动作及顺序（覆盖退回/撤回前的中间动作）。
+const getResultChain = (item: any) => {
+  if (!item || !item.result) return ''
+  return String(item.result)
+    .split(';')
+    .map((seg: string) => {
+      const s = seg.trim()
+      if (!s) return ''
+      const idx = s.indexOf(':')
+      if (idx <= 0) return s
+      const name = s.substring(0, idx).trim()
+      const act = s.substring(idx + 1).trim()
+      return `${name} ${act}`
+    })
+    .filter(Boolean)
+    .join(' → ')
 }
 
 // 退回记录：结构化展示每次退回的「退回人 / 时间 / 理由」，解决多审批人时申请人看不清是谁退回、因何退回的问题
@@ -1622,7 +1780,7 @@ const getDistributedAttachmentsList = (row: any) => {
 const distributedDetailVisible = ref(false)
 const distributedDetailRows = ref<any[]>([])
 
-const viewDistributedDetail = (row: any, extraRows: { label: string; value: string }[] = []) => {
+const viewDistributedDetail = async (row: any, extraRows: { label: string; value: string }[] = []) => {
   const rows: any[] = []
   const push = (label: string, value: any) => {
     if (value === undefined || value === null || value === '') return
@@ -1642,6 +1800,10 @@ const viewDistributedDetail = (row: any, extraRows: { label: string; value: stri
   const files = getDistributedAttachmentsList(row)
   if (files.length) rows.push({ label: '附件', value: files.map((f: any) => f.name).join('、'), attachments: files })
   distributedDetailRows.value = rows
+  // 同步拉取该申请的完整审批生命周期（提交→审批动作→退回/撤回→重提→下发），使下发管理详情也能看到证据链
+  if (row.applicationType && row.applicationId) {
+    await loadLifecycle(row.applicationType, row.applicationId)
+  }
   distributedDetailVisible.value = true
 }
 
@@ -3009,6 +3171,108 @@ onUnmounted(() => {
 .return-history-reason {
   color: #333;
   font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 审批生命周期时间线 */
+.lifecycle-block {
+  flex-direction: column;
+  align-items: stretch;
+}
+.lifecycle-head {
+  margin-bottom: 10px;
+}
+.lifecycle-count {
+  color: rgba(51, 51, 51, 0.5);
+  font-size: 0.82rem;
+}
+.lifecycle-timeline {
+  position: relative;
+  padding-left: 22px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.lifecycle-timeline::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: #e3e8f0;
+}
+.lifecycle-node {
+  position: relative;
+  padding: 0 0 14px 0;
+}
+.lifecycle-node:last-child {
+  padding-bottom: 0;
+}
+.lc-dot {
+  position: absolute;
+  left: -22px;
+  top: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #9aa7bd;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px #e3e8f0;
+}
+.lc-submit .lc-dot { background: #42a5f5; }
+.lc-approve .lc-dot { background: #4CAF50; }
+.lc-reject .lc-dot { background: #ef5350; }
+.lc-forward .lc-dot { background: #7e57c2; }
+.lc-return .lc-dot { background: #ff9800; }
+.lc-withdraw .lc-dot { background: #78909c; }
+.lc-resubmit .lc-dot { background: #26a69a; }
+.lc-distribute .lc-dot { background: #26c6da; }
+.lc-body {
+  background: #f7f9fc;
+  border: 1px solid #e8edf5;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.lc-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lc-actor {
+  font-weight: 600;
+  color: #1a2b4a;
+}
+.lc-role {
+  font-size: 0.75rem;
+  color: #fff;
+  background: #90a4ae;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.lc-action {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.lc-submit .lc-action { color: #1976d2; }
+.lc-approve .lc-action { color: #2e7d32; }
+.lc-reject .lc-action { color: #c62828; }
+.lc-forward .lc-action { color: #5e35b1; }
+.lc-return .lc-action { color: #ef6c00; }
+.lc-withdraw .lc-action { color: #455a64; }
+.lc-resubmit .lc-action { color: #00897b; }
+.lc-distribute .lc-action { color: #0097a7; }
+.lc-time {
+  margin-left: auto;
+  color: rgba(51, 51, 51, 0.5);
+  font-size: 0.78rem;
+}
+.lc-desc {
+  margin-top: 4px;
+  color: #555;
+  font-size: 0.86rem;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-all;

@@ -7,6 +7,16 @@ export const extractRealName = (name: string): string => {
   return name
 }
 
+/**
+ * 判断某条申请的审批人是否已经做过处理动作（批准/拒绝/退回/转交）。
+ * 依据 result 链中的「审批人:动作」标记。申请人自己的「重新提交/撤回」不算。
+ * 用于「撤回」按钮的置灰逻辑：审批人已处理则申请人不可再撤回。
+ */
+export const hasApproverActed = (row: any): boolean => {
+  const r = row?.result || ''
+  return /:(批准|拒绝|退回|转交)/.test(r)
+}
+
 
 /**
  * 打印纸质表单（使用 iframe 隔离打印，避免弹窗拦截问题）

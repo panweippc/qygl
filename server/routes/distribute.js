@@ -1,6 +1,7 @@
 import express from 'express';
 import { createNotification, createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 import { getRealName } from '../utils/identity.js';
+import { appendApprovalLog } from '../utils/approvalLog.js';
 const router = express.Router();
 
 const APP_TYPE_CN = {
@@ -299,6 +300,12 @@ router.post('/distributed-records', async (req, res) => {
     );
 
     console.log('下发记录添加成功, ID:', result.insertId);
+
+    // 写入审批生命周期日志：下发动作（知会/交办），作为证据链一环
+    await appendApprovalLog(pool, {
+      applicationType, applicationId, actor: distributedBy, actorRole: '审批人',
+      action: 'distribute', fromStatus: '', toStatus: '', targetUser, comment: comment || ''
+    });
 
     try {
       // 将英文申请类型映射为对应中文，避免消息中心出现 "leave申请" 等英文

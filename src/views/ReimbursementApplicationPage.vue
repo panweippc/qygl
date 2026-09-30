@@ -479,10 +479,11 @@ const loadForEdit = async () => {
         for (const key of Object.keys(form)) {
           if (camel[key] !== undefined && camel[key] !== null) form[key] = camel[key]
         }
-        // 审批人：表单存员工 id，接口返回姓名
-        if (rec.approver && typeof form.approver === 'number') {
+        // 审批人：表单存员工 id，接口返回姓名（rec.approver 为姓名字符串）
+        if (rec.approver) {
           const opt = approverOptions.value.find((o: any) => o.name === rec.approver)
           if (opt) form.approver = opt.id
+          else if (!form.approver) form.approver = rec.approver
         }
         returnReason.value = rec.return_reason || ''
       }
