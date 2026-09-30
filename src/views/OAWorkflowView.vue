@@ -1506,7 +1506,23 @@ const lifecycleTimeline = computed(() => {
       isDistribute: true
     })
   }
-  nodes.sort((a, b) => String(b.time || '').localeCompare(String(a.time || '')))
+  // 按业务阶段排序（下发在审批动作之后，审批动作在申请人动作之后），同阶段内按时间倒序
+  const phasePriority: Record<string, number> = {
+    distribute: 3,
+    approve: 2,
+    reject: 2,
+    forward: 2,
+    return: 2,
+    submit: 1,
+    withdraw: 1,
+    resubmit: 1
+  }
+  nodes.sort((a, b) => {
+    const pa = phasePriority[a.action] || 0
+    const pb = phasePriority[b.action] || 0
+    if (pa !== pb) return pb - pa
+    return String(b.time || '').localeCompare(String(a.time || ''))
+  })
   return nodes
 })
 
