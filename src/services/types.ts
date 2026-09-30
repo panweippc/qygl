@@ -36,7 +36,7 @@ export interface MonthlyReport {
   status?: string
 }
 
-// 通讯录目录条目（仅公开联系字段；id 用于发起聊天会话）
+// 通讯录目录条目（仅公开联系字段）
 export interface EmployeeDirectoryEntry {
   id: number
   name: string

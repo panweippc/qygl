@@ -1506,7 +1506,7 @@ const lifecycleTimeline = computed(() => {
       isDistribute: true
     })
   }
-  nodes.sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')))
+  nodes.sort((a, b) => String(b.time || '').localeCompare(String(a.time || '')))
   return nodes
 })
 

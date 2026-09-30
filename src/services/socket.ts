@@ -104,21 +104,3 @@ export function disconnectSocket(): void {
   }
 }
 
-/**
- * 获取当前 Socket 实例（聊天模块需要监听 chat:* 事件）
- */
-export function getSocket(): Socket | null {
-  return socket
-}
-
-/**
- * 通过 Socket 发送聊天事件（chat:send / chat:typing / chat:read 等）
- * 返回是否真正发出（未连接则发不出去，调用方可降级走 REST）
- */
-export function emitChat(event: string, payload: any): boolean {
-  if (socket && socket.connected) {
-    socket.emit(event, payload)
-    return true
-  }
-  return false
-}

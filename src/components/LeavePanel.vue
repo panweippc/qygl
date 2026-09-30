@@ -167,7 +167,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="340" fixed="right">
+        <el-table-column label="操作" width="260" align="center" header-align="center">
           <template #default="{ row }">
             <div class="action-group">
               <el-button
@@ -1050,7 +1050,9 @@ defineExpose({ fetchData })
 .action-group {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 .action-btn-small {
   background: linear-gradient(45deg, #1E5AA8, #87CEEB) !important;

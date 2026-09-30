@@ -48,7 +48,6 @@ import attendanceRouter from './server/routes/attendance.js';
 import reimbursementRouter from './server/routes/reimbursement.js';
 import visitsRouter from './server/routes/visits.js';
 import filesRouter from './server/routes/files.js';
-import chatsRouter, { sendChatMessage } from './server/routes/chats.js';
 import projectsRouter from './server/routes/projects.js';
 import customersRouter from './server/routes/customers.js';
 import meetingsRouter from './server/routes/meetings.js';
@@ -305,7 +304,6 @@ app.use('/api', attendanceRouter);
 app.use('/api', reimbursementRouter);
 app.use('/api', visitsRouter);
 app.use('/api', filesRouter);
-app.use('/api', chatsRouter);
 app.use('/api', projectsRouter);
 app.use('/api', customersRouter);
 app.use('/api', meetingsRouter);
@@ -2027,7 +2025,6 @@ const initDatabase = async () => {
         // 办公管理
         { name: '审批中心', path: '/oa-office', component: 'OAWorkflowView', icon: '📝', sort: 1 },
         { name: '月报', path: '/monthly-report', component: 'MonthlyReportView', icon: '📅', sort: 2 },
-        { name: '物资管理', path: '/tool-inventory', component: 'ToolInventoryView', icon: '🔧', sort: 3 },
         { name: '资料中心', path: '/resource-center', component: 'ResourceCenterView', icon: '📁', sort: 4 },
         { name: '消息中心', path: '/message-center', component: 'MessageCenterView', icon: '💬', sort: 5 },
         // 业务管理
@@ -2061,8 +2058,7 @@ const initDatabase = async () => {
 
       // 菜单更名迁移（幂等）：仅当仍是旧名时才更新，避免覆盖管理员在菜单管理页的自定义名称
       const menuRenames = [
-        { path: '/oa-office', from: 'OA办公', to: '审批中心' },
-        { path: '/tool-inventory', from: '工具入库', to: '物资管理' }
+        { path: '/oa-office', from: 'OA办公', to: '审批中心' }
       ];
       for (const r of menuRenames) {
         const [renameRes] = await connection.execute(
@@ -2175,7 +2171,7 @@ const initDatabase = async () => {
         'SELECT id, name FROM roles WHERE name NOT IN (?, ?)',
         ['系统管理员', '总经理']
       );
-      const basicMenuPaths = ['/oa-office', '/monthly-report', '/tool-inventory', '/resource-center', '/message-center'];
+      const basicMenuPaths = ['/oa-office', '/monthly-report', '/resource-center', '/message-center'];
       for (const role of otherRoles) {
         const [existingPerms] = await connection.execute(
           'SELECT COUNT(*) as cnt FROM role_permissions WHERE roleId = ?',
@@ -2458,168 +2454,6 @@ const io = new Server(server, {
 });
 app.set('io', io);
 
-// 跟踪在线用户数和在线员工ID
-let onlineUserCount = 0;
-const onlineEmployeeIds = new Set();
-
-// 监听Socket连接
-io.on('connection', (socket) => {
-  // P3: Socket.IO 连接鉴权——校验 handshake 携带的 token，无效则拒绝连接
-  const authToken = socket.handshake?.auth?.token || socket.handshake?.query?.token;
-  let authedUser = null;
-  if (authToken) {
-    try {
-      const decoded = verifyToken(String(authToken));
-      // 提取纯姓名
-      let uname = decoded?.username || '';
-      if (uname && /^emp_/.test(uname)) {
-        const parts = uname.split('_');
-        if (parts.length >= 2) uname = parts[1];
-      }
-      authedUser = { username: uname, id: decoded?.id };
-    } catch (e) {
-      authedUser = null;
-    }
-  }
-  if (!authedUser) {
-    console.log('Socket 连接被拒绝（token 无效）:', socket.id);
-    socket.disconnect(true);
-    return;
-  }
-  // 增加在线用户数
-  onlineUserCount++;
-  console.log(`新用户连接: ${socket.id} (${authedUser.username})`);
-  console.log('当前在线用户数:', onlineUserCount);
-  
-  // 广播在线用户数
-  io.emit('onlineUsers', onlineUserCount);
-  
-  // 接收员工ID
-  socket.on('setEmployeeId', (employeeId) => {
-    console.log(`用户 ${socket.id} 设置员工ID: ${employeeId}`);
-    // 存储员工ID与socket的映射
-    socket.employeeId = employeeId;
-    // 添加到在线员工集合
-    onlineEmployeeIds.add(employeeId);
-    // 广播在线员工ID列表
-    io.emit('onlineEmployeeIds', Array.from(onlineEmployeeIds));
-  });
-  
-  // 接收用户登录状态（携带 deviceType: pc/mobile），按设备维度登记会话，实现移动端与 PC 多端共存
-  socket.on('setUserLogin', (payload) => {
-    const username = typeof payload === 'string' ? payload : (payload && payload.username);
-    const deviceType = (payload && typeof payload === 'object' && payload.deviceType) ? payload.deviceType : 'pc';
-    if (!username) return;
-    console.log(`用户 ${socket.id} 登录(${deviceType}): ${username}`);
-    socket.username = username;
-    socket.deviceType = deviceType;
-    const sessionKey = `${username}|${deviceType}`;
-    // 同设备类型已存在其他 socket 时，踢掉旧的（保证 PC/PC、手机/手机 不共存）
-    const oldSocketId = userSessions.get(sessionKey);
-    if (oldSocketId && oldSocketId !== socket.id) {
-      io.to(oldSocketId).emit('kickedOut', { message: '您的账号在其他设备登录，已被强制退出' });
-    }
-    // 按 用户名|设备类型 存储，避免跨设备类型互踢
-    userSessions.set(sessionKey, socket.id);
-  });
-  
-  // 加入聊天室
-  socket.on('joinChat', (chatId) => {
-    socket.join(`chat_${chatId}`);
-    console.log(`用户 ${socket.id} 加入聊天室 ${chatId}`);
-  });
-  
-  // 离开聊天室
-  socket.on('leaveChat', (chatId) => {
-    socket.leave(`chat_${chatId}`);
-    console.log(`用户 ${socket.id} 离开聊天室 ${chatId}`);
-  });
-
-  // ===== 聊天功能事件 =====
-  // 发送消息（复用 REST 落库逻辑，单一真相源；广播给房间内成员）
-  socket.on('chat:send', async (payload) => {
-    if (!socket.employeeId) return;
-    const conversationId = parseInt(payload?.conversationId);
-    if (!conversationId) return;
-    try {
-      await sendChatMessage(app.locals.pool, io, {
-        conversationId,
-        employeeId: socket.employeeId,
-        content: payload?.content,
-        msgType: payload?.msgType || 'text',
-        attachmentUrl: payload?.attachmentUrl || null,
-        attachmentName: payload?.attachmentName || null,
-        attachmentSize: payload?.attachmentSize || null,
-        tempId: payload?.tempId || null
-      });
-    } catch (e) {
-      socket.emit('chat:send-error', { tempId: payload?.tempId, message: e.message });
-    }
-  });
-
-  // 正在输入（仅通知房间内其他成员）
-  socket.on('chat:typing', (payload) => {
-    const conversationId = parseInt(payload?.conversationId);
-    if (!conversationId || !socket.employeeId) return;
-    socket.to(`chat_${conversationId}`).emit('chat:typing', {
-      conversationId, userId: socket.employeeId, isTyping: !!payload?.isTyping
-    });
-  });
-
-  // 已读（更新指针并通知房间内其他成员刷新未读）
-  socket.on('chat:read', async (payload) => {
-    const conversationId = parseInt(payload?.conversationId);
-    if (!conversationId || !socket.employeeId) return;
-    try {
-      const [rows] = await app.locals.pool.execute(
-        'SELECT MAX(id) AS maxId FROM chat_messages WHERE conversation_id = ? AND deleted_at IS NULL',
-        [conversationId]
-      );
-      const maxId = rows[0]?.maxId || 0;
-      await app.locals.pool.execute(
-        `INSERT INTO chat_members (conversation_id, user_id, last_read_message_id, joined_at)
-         VALUES (?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE last_read_message_id = ?`,
-        [conversationId, socket.employeeId, maxId, maxId]
-      );
-      socket.to(`chat_${conversationId}`).emit('chat:read', {
-        conversationId, userId: socket.employeeId, lastReadMessageId: maxId
-      });
-    } catch (e) { /* ignore */ }
-  });
-
-  // 断开连接
-  socket.on('disconnect', () => {
-    // 减少在线用户数
-    onlineUserCount--;
-    if (onlineUserCount < 0) onlineUserCount = 0;
-    console.log('用户断开连接:', socket.id);
-    
-    // 如果有员工ID，从在线员工集合中移除
-    if (socket.employeeId) {
-      onlineEmployeeIds.delete(socket.employeeId);
-      console.log(`员工 ${socket.employeeId} 离线`);
-      // 广播在线员工ID列表
-      io.emit('onlineEmployeeIds', Array.from(onlineEmployeeIds));
-    }
-    
-    // 如果有用户名，从用户会话中移除（按设备维度）
-    if (socket.username) {
-      const devKey = `${socket.username}|${socket.deviceType || 'pc'}`;
-      console.log(`用户 ${socket.username}(${socket.deviceType || 'pc'}) 离线`);
-      userSessions.delete(devKey);
-    }
-    
-    console.log('当前在线用户数:', onlineUserCount);
-    console.log('当前在线员工数:', onlineEmployeeIds.size);
-    console.log('当前在线用户会话数:', userSessions.size);
-    
-    // 广播在线用户数
-    io.emit('onlineUsers', onlineUserCount);
-  });
-});
-
-// 备注：旧版公共聊天室的 sendMessageToChat / newMessage / messageDelivered 事件已废弃，
-// IM 消息收发统一走 chats.js 的 sendChatMessage + 'chat:message' 事件。
 
 
 

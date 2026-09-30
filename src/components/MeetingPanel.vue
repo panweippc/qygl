@@ -410,7 +410,8 @@ import {
   exportToCSV,
   exportSingleRow,
   hasApproverActed
-} from '../utils/oaWorkflowUtils'const props = defineProps<{
+} from '../utils/oaWorkflowUtils'
+const props = defineProps<{
   isAdmin: boolean
   canDistribute: boolean
   currentUser: string

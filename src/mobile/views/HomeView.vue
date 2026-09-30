@@ -62,7 +62,7 @@
             <div class="contact-name">{{ c.name }}</div>
             <div class="contact-dept">{{ c.department || '—' }} · {{ c.position || '—' }}</div>
           </div>
-          <button class="contact-chat" @click.stop="startChat(c)">💬</button>
+
         </div>
           <div class="contact-name">{{ c.name }}</div>
           <div class="contact-dept">{{ c.department || '—' }} · {{ c.position || '—' }}</div>
@@ -286,10 +286,6 @@ function openContact(c: any) {
   contactDialogVisible.value = true
 }
 
-function startChat(c: any) {
-  if (c && c.id) router.push('/chat?user=' + c.id)
-}
-
 function progressStageText(p: number): string {
   if (!p || p <= 0) return '未开始'
   if (p <= 30) return '初期'
@@ -502,16 +498,6 @@ onUnmounted(() => {
 .contact-main { flex: 1; min-width: 0; }
 .contact-name { font-size: 14px; font-weight: 600; color: #333; }
 .contact-dept { font-size: 12px; color: #969799; }
-.contact-chat {
-  flex-shrink: 0;
-  width: 34px; height: 34px;
-  border-radius: 50%;
-  border: none;
-  background: linear-gradient(135deg,#1E5AA8,#2b7fc4);
-  color: #fff;
-  font-size: 16px;
-  cursor: pointer;
-}
 .empty { text-align: center; color: #969799; font-size: 13px; padding: 12px 0; }
 
 .contact-detail { display: flex; flex-direction: column; gap: 10px; }

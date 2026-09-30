@@ -3,18 +3,6 @@
     <div class="sidebar-content">
       <nav class="sidebar-nav">
 
-        <!-- 聊天（全员可见，内部即时通讯）-->
-        <router-link to="/chat" class="sidebar-item" :class="{ active: $route.path === '/chat' }">
-          <div class="sidebar-icon sidebar-icon-sm">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM7 9h10v2H7V9zm0 4h7v2H7v-2z"/>
-            </svg>
-          </div>
-          <span>聊天</span>
-          <span v-if="chatUnread > 0" class="sidebar-badge">{{ chatUnread > 99 ? '99+' : chatUnread }}</span>
-          <div class="sidebar-item-indicator"></div>
-        </router-link>
-
         <!-- 办公管理 -->
         <div v-if="groupVisible.office" class="menu-group">
           <div class="group-header" @click="toggleGroup('office')">
@@ -205,7 +193,6 @@ import { ref, computed, reactive, onMounted } from 'vue'
 
 const permissions = ref<any[]>([])
 const unreadCount = ref(0)
-const chatUnread = ref(0)
 
 const expandedGroups = reactive({
   office: true,
@@ -224,16 +211,6 @@ const fetchUnreadCount = async () => {
     const res = await fetch(`/api/notifications/unread-count?userId=${username}`)
     const json = await res.json()
     if (json.success) unreadCount.value = json.data.count
-  } catch { /* ignore */ }
-}
-
-const fetchChatUnread = async () => {
-  const employeeId = localStorage.getItem('userId')
-  if (!employeeId) return
-  try {
-    const res = await fetch(`/api/chat/unread-count?employeeId=${employeeId}`)
-    const json = await res.json()
-    if (json.success) chatUnread.value = json.data.count
   } catch { /* ignore */ }
 }
 
@@ -300,9 +277,7 @@ const fetchLatestPermissions = async () => {
 onMounted(() => {
   fetchLatestPermissions()
   fetchUnreadCount()
-  fetchChatUnread()
   setInterval(fetchUnreadCount, 30000)
-  setInterval(fetchChatUnread, 10000)
 })
 </script>
 

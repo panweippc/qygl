@@ -5,7 +5,7 @@ import type {
   ApiResponse, Employee, MonthlyReport, FileItem, FileCategory,
   Project, Customer, CustomerActivity, ClosingProject,
   LeaveApplication, Reimbursement, Meeting,
-  Role, Menu, Department, DistributedRecord, EmployeeDirectoryEntry
+  Role, Menu, Department, DistributedRecord
 } from './types';
 
 const api = axios.create({
@@ -973,113 +973,5 @@ export const parseAttachments = (raw: any): { name: string; url: string; size: n
     return [];
   }
 };
-
-// ==================== 即时通讯（聊天）====================
-export interface ChatConversation {
-  id: number
-  type: 'single' | 'group'
-  title: string
-  avatar: string | null
-  updatedAt: string
-  lastMessage: {
-    id: number
-    msgType: string
-    content: string
-    senderName: string
-    createdAt: string
-    deleted: boolean
-  } | null
-  unread: number
-  members: { user_id: number; username: string }[]
-}
-export interface ChatMessage {
-  id: number
-  conversationId: number
-  senderId: number
-  senderName: string
-  msgType: 'text' | 'image' | 'file' | 'system'
-  content: string
-  attachmentUrl: string | null
-  attachmentName: string | null
-  attachmentSize: number | null
-  deleted: boolean
-  createdAt: string
-  // 前端乐观消息的临时标记
-  tempId?: string
-  sending?: boolean
-}
-
-export const getChatConversations = async (employeeId: number): Promise<ApiResponse<ChatConversation[]>> => {
-  const response = await api.get('/chat/conversations', { params: { employeeId } })
-  return response.data
-}
-
-export const createChatConversation = async (payload: {
-  employeeId: number
-  type?: 'single' | 'group'
-  memberIds?: number[]
-  title?: string
-}): Promise<ApiResponse<{ id: number; existed: boolean }>> => {
-  const response = await api.post('/chat/conversations', payload)
-  return response.data
-}
-
-export const getChatMessages = async (
-  conversationId: number,
-  employeeId: number,
-  before?: number,
-  limit?: number
-): Promise<ApiResponse<ChatMessage[]>> => {
-  const params: any = { employeeId }
-  if (before) params.before = before
-  if (limit) params.limit = limit
-  const response = await api.get(`/chat/conversations/${conversationId}/messages`, { params })
-  return response.data
-}
-
-export const sendChatMessageApi = async (
-  conversationId: number,
-  payload: {
-    employeeId: number
-    content?: string
-    msgType?: 'text' | 'image' | 'file'
-    attachmentUrl?: string | null
-    attachmentName?: string | null
-    attachmentSize?: number | null
-  }
-): Promise<ApiResponse<ChatMessage>> => {
-  const response = await api.post(`/chat/conversations/${conversationId}/messages`, payload)
-  return response.data
-}
-
-export const markChatRead = async (conversationId: number, employeeId: number): Promise<ApiResponse> => {
-  const response = await api.post(`/chat/conversations/${conversationId}/read`, { employeeId })
-  return response.data
-}
-
-export const addChatMembers = async (conversationId: number, employeeIds: number[]): Promise<ApiResponse> => {
-  const response = await api.post(`/chat/conversations/${conversationId}/members`, { employeeIds })
-  return response.data
-}
-
-export const getChatMembers = async (conversationId: number, employeeId: number): Promise<ApiResponse<{ user_id: number; username: string; role: string }[]>> => {
-  const response = await api.get(`/chat/conversations/${conversationId}/members`, { params: { employeeId } })
-  return response.data
-}
-
-export const recallChatMessage = async (conversationId: number, messageId: number, employeeId: number): Promise<ApiResponse> => {
-  const response = await api.delete(`/chat/conversations/${conversationId}/messages/${messageId}`, { data: { employeeId } })
-  return response.data
-}
-
-export const searchChatMessages = async (employeeId: number, q: string): Promise<ApiResponse<{ id: number; conversationId: number; senderName: string; content: string; createdAt: string }[]>> => {
-  const response = await api.get('/chat/search', { params: { employeeId, q } })
-  return response.data
-}
-
-export const getChatUnreadCount = async (employeeId: number): Promise<ApiResponse<{ count: number }>> => {
-  const response = await api.get('/chat/unread-count', { params: { employeeId } })
-  return response.data
-}
 
 export default api;

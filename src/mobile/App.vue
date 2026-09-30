@@ -11,11 +11,6 @@
         <span class="tab-ico">⌂</span>
         <span class="tab-label">首页</span>
       </router-link>
-      <router-link to="/chat" class="tab-item" active-class="active">
-        <span class="tab-ico">💬</span>
-        <span class="tab-label">聊天</span>
-        <span class="tab-badge" v-if="badge.chat > 0">{{ badge.chat > 99 ? '99+' : badge.chat }}</span>
-      </router-link>
       <router-link to="/todo" class="tab-item" active-class="active">
         <span class="tab-ico">✓</span>
         <span class="tab-label">审批中心</span>
@@ -42,30 +37,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { badge } from '@/mobile/badge'
 
 const route = useRoute()
 const showTab = computed(() => route.path !== '/login')
 
-let chatTimer: ReturnType<typeof setInterval> | null = null
-async function fetchChatBadge() {
-  const employeeId = localStorage.getItem('userId')
-  if (!employeeId) return
-  try {
-    const res = await fetch(`/api/chat/unread-count?employeeId=${employeeId}`)
-    const json = await res.json()
-    if (json.success) badge.chat = json.data.count
-  } catch { /* ignore */ }
-}
-onMounted(() => {
-  fetchChatBadge()
-  chatTimer = setInterval(fetchChatBadge, 10000)
-})
-onUnmounted(() => {
-  if (chatTimer) clearInterval(chatTimer)
-})
 </script>
 
 <style scoped>
