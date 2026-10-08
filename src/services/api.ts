@@ -614,6 +614,76 @@ export const voidInventory = async (id: number): Promise<ApiResponse> => {
   const response = await api.put(`/asset-inventories/${id}/void`, {});
   return response.data;
 };
+export const getInventoryDiscrepancies = async (id: number): Promise<ApiResponse<AssetInventoryDiscrepancy[]>> => {
+  const response = await api.get(`/asset-inventories/${id}/discrepancies`);
+  return response.data;
+};
+export const handleDiscrepancy = async (invId: number, did: number, data: { handleAction: string; handleNote: string }): Promise<ApiResponse> => {
+  const response = await api.post(`/asset-inventories/${invId}/discrepancies/${did}/handle`, data);
+  return response.data;
+};
+export const getInventoryCompare = async (ids: number[]): Promise<ApiResponse<{ inventories: AssetInventory[]; rows: AssetInventoryCompareRow[] }>> => {
+  const response = await api.get(`/asset-inventories/compare?ids=${ids.join(',')}`);
+  return response.data;
+};
+
+// 周期盘点计划
+export interface AssetInventoryPlan {
+  id: number
+  name: string
+  frequency: string
+  dayOfMonth: number
+  status: string
+  lastRunAt: string | null
+  nextRunAt: string | null
+  operator: string | null
+  createdAt: string
+  updatedAt: string
+}
+export interface AssetInventoryDiscrepancy {
+  id: number
+  inventoryId: number
+  itemId: number
+  assetId: number | null
+  assetCode: string | null
+  name: string | null
+  diffType: string
+  bookQuantity: number
+  actualQuantity: number | null
+  diff: number
+  status: string
+  handleAction: string | null
+  handleNote: string | null
+  handledBy: string | null
+  handledAt: string | null
+}
+export interface AssetInventoryCompareRow {
+  assetId: number
+  assetCode: string | null
+  name: string | null
+  catName: string | null
+  byInv: Record<number, { bookQuantity: number; actualQuantity: number | null; diff: number }>
+}
+export const getInventoryPlans = async (): Promise<ApiResponse<AssetInventoryPlan[]>> => {
+  const response = await api.get('/asset-inventory-plans');
+  return response.data;
+};
+export const createInventoryPlan = async (data: { name: string; frequency?: string; dayOfMonth?: number; status?: string }): Promise<ApiResponse> => {
+  const response = await api.post('/asset-inventory-plans', data);
+  return response.data;
+};
+export const updateInventoryPlan = async (id: number, data: Partial<{ name: string; frequency: string; dayOfMonth: number; status: string }>): Promise<ApiResponse> => {
+  const response = await api.put(`/asset-inventory-plans/${id}`, data);
+  return response.data;
+};
+export const deleteInventoryPlan = async (id: number): Promise<ApiResponse> => {
+  const response = await api.delete(`/asset-inventory-plans/${id}`);
+  return response.data;
+};
+export const runInventoryPlan = async (id: number): Promise<ApiResponse> => {
+  const response = await api.post(`/asset-inventory-plans/${id}/run`, {});
+  return response.data;
+};
 
 // 客户管理
 export const getCustomers = async (): Promise<ApiResponse<Customer[]>> => {

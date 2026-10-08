@@ -173,11 +173,22 @@
 
           <!-- ============ 资产盘点 ============ -->
           <el-tab-pane label="资产盘点" name="inventory">
+            <el-alert v-if="hasOngoingInventory" type="warning" :closable="false" show-icon
+              title="盘点进行中：资产库存已冻结" description="领用 / 归还 / 报废 / 编辑数量等改动库存的操作已锁定，完成或作废盘点后自动解冻。" style="margin-bottom:12px" />
             <div class="section-header">
               <h2 class="section-title"><span class="title-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2ZM16 14H8V12H16V14ZM16 10H8V8H16V10Z"/></svg></span>资产盘点</h2>
+              <el-radio-group v-model="invStatusFilter" size="small" class="inv-filter">
+                <el-radio-button label="active">进行中/已完成</el-radio-button>
+                <el-radio-button label="all">全部</el-radio-button>
+                <el-radio-button label="进行中">进行中</el-radio-button>
+                <el-radio-button label="已完成">已完成</el-radio-button>
+                <el-radio-button label="已作废">已作废</el-radio-button>
+              </el-radio-group>
+              <el-button @click="openPlanDialog" class="add-btn">周期计划</el-button>
+              <el-button @click="openCompareDialog" class="add-btn">历史对比</el-button>
               <el-button type="primary" @click="createInventorySheet" class="add-btn" :disabled="hasOngoingInventory">新建盘点单</el-button>
             </div>
-            <el-table :data="inventories" style="width:100%" class="asset-table" v-loading="invLoading">
+            <el-table :data="filteredInventories" style="width:100%" class="asset-table" v-loading="invLoading">
               <el-table-column prop="inventoryNo" label="盘点单号" width="160" />
               <el-table-column prop="title" label="标题" />
               <el-table-column prop="status" label="状态" width="100">
@@ -242,6 +253,7 @@
                 <el-option label="恢复" value="恢复" />
                 <el-option label="报废" value="报废" />
                 <el-option label="入库" value="入库" />
+                <el-option label="盘点调整" value="盘点调整" />
               </el-select>
               <el-button type="primary" @click="exportLogs" class="add-btn">导出 Excel</el-button>
             </div>
@@ -577,6 +589,35 @@
         <div class="sheet-summary">
           应盘 <b>{{ invDetail.items.length }}</b> 项 ｜ 实盘 <b>{{ actualCount }}</b> 项 ｜ 盘盈 <b class="diff-red">{{ profitCount }}</b> ｜ 盘亏 <b class="diff-blue">{{ lossCount }}</b>
         </div>
+        <!-- 差异处理闭环（仅已完成盘点单显示） -->
+        <div v-if="invDetail.inventory.status === '已完成' && invDetail.discrepancies.length" class="disc-block">
+          <div class="disc-title">差异处理（{{ invDetail.discrepancies.filter((d:any)=>d.status==='待处理').length }} 项待处理 / 共 {{ invDetail.discrepancies.length }} 项）</div>
+          <table class="sheet-table disc-table">
+            <thead>
+              <tr><th style="width:130px">资产编号</th><th>名称</th><th style="width:70px">类型</th><th style="width:70px">差异</th><th style="width:90px">状态</th><th>处置 / 说明</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="d in invDetail.discrepancies" :key="d.id">
+                <td>{{ d.assetCode || '—' }}</td>
+                <td>{{ d.name || '—' }}</td>
+                <td><el-tag size="small" :type="d.diffType==='盘盈'?'success':'danger'">{{ d.diffType }}</el-tag></td>
+                <td><span :class="d.diff>0?'diff-red':'diff-blue'">{{ d.diff>0?'+':'' }}{{ d.diff }}</span></td>
+                <td><el-tag size="small" :type="d.status==='已处理'?'success':'warning'">{{ d.status }}</el-tag></td>
+                <td>
+                  <template v-if="d.status==='已处理'">
+                    <span>{{ d.handleAction || '—' }}</span>
+                    <span v-if="d.handleNote" style="color:#888"> · {{ d.handleNote }}</span>
+                  </template>
+                  <template v-else>
+                    <el-button size="small" type="success" @click="handleDisc(d,'盘盈入库')" v-if="d.diffType==='盘盈'">盘盈入库</el-button>
+                    <el-button size="small" type="danger" @click="handleDisc(d,'盘亏报废')" v-if="d.diffType==='盘亏'">盘亏报废</el-button>
+                    <el-button size="small" @click="handleDisc(d,'备注说明')">备注说明</el-button>
+                  </template>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <!-- 落款 -->
         <div class="sheet-sign">
           <span>盘点人（签字）：____________</span>
@@ -592,6 +633,76 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 周期盘点计划 -->
+    <el-dialog v-model="planVisible" title="周期盘点计划" width="820px" class="dialog">
+      <el-form :inline="true" class="plan-form">
+        <el-form-item label="计划名称" required>
+          <el-input v-model="planForm.name" placeholder="如：月度全盘" style="width:160px" />
+        </el-form-item>
+        <el-form-item label="频率">
+          <el-select v-model="planForm.frequency" style="width:110px">
+            <el-option label="每月" value="每月" />
+            <el-option label="每季度" value="每季度" />
+            <el-option label="每年" value="每年" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="执行日(日)">
+          <el-input-number v-model="planForm.dayOfMonth" :min="1" :max="28" style="width:110px" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="savePlan">新增计划</el-button>
+        </el-form-item>
+      </el-form>
+      <el-table :data="plans" style="width:100%" class="asset-table" v-loading="planLoading" empty-text="暂无计划">
+        <el-table-column prop="name" label="计划名称" />
+        <el-table-column prop="frequency" label="频率" width="90" />
+        <el-table-column prop="dayOfMonth" label="执行日" width="80" />
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }"><el-tag size="small" :type="row.status==='启用'?'success':'info'">{{ row.status }}</el-tag></template>
+        </el-table-column>
+        <el-table-column prop="nextRunAt" label="下次执行" width="160" />
+        <el-table-column prop="lastRunAt" label="上次生成" width="160" />
+        <el-table-column label="操作" width="230" fixed="right">
+          <template #default="{ row }">
+            <el-button size="small" type="success" @click="runPlan(row)" :disabled="row.status!=='启用'">立即生成</el-button>
+            <el-button size="small" @click="togglePlan(row)">{{ row.status==='启用'?'停用':'启用' }}</el-button>
+            <el-button size="small" type="danger" @click="removePlan(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="plan-tip">说明：计划用于约定周期性盘点；点击「立即生成」可手动生成盘点单，系统同时计算下次执行时间。周期自动执行可在部署端配置定时任务调用后端 <code>/asset-inventory-plans/auto</code>。</div>
+    </el-dialog>
+
+    <!-- 历史对比 -->
+    <el-dialog v-model="compareVisible" title="历史盘点对比" width="900px" class="dialog">
+      <div class="compare-bar">
+        <span>选择已完成盘点单（至少 2 期）：</span>
+        <el-select v-model="compareIds" multiple collapse-tags style="width:520px" placeholder="选择盘点单">
+          <el-option v-for="inv in completedInventories" :key="inv.id" :label="`${inv.inventoryNo}（${inv.createdAt ? inv.createdAt.slice(0,10) : ''}）`" :value="inv.id" />
+        </el-select>
+        <el-button type="primary" @click="doCompare" :disabled="compareIds.length<2">对比</el-button>
+      </div>
+      <div v-if="compareLoading" v-loading="true" style="height:200px" />
+      <template v-else-if="compareData">
+        <div class="compare-head">
+          <span v-for="inv in compareData.inventories" :key="inv.id" class="compare-col-label">{{ inv.inventoryNo }}（{{ inv.createdAt?inv.createdAt.slice(0,10):'' }}）</span>
+        </div>
+        <el-table :data="compareData.rows" style="width:100%" class="asset-table" max-height="420">
+          <el-table-column prop="assetCode" label="资产编号" width="140" />
+          <el-table-column prop="name" label="名称" />
+          <el-table-column v-for="inv in compareData.inventories" :key="inv.id" :label="`${inv.inventoryNo} 实盘`">
+            <template #default="{ row }">
+              <span v-if="row.byInv[inv.id]">{{ row.byInv[inv.id].actualQuantity == null ? '未盘' : row.byInv[inv.id].actualQuantity }}
+                <small :class="row.byInv[inv.id].diff>0?'diff-red':(row.byInv[inv.id].diff<0?'diff-blue':'')">{{ row.byInv[inv.id].diff>0?'(+'+row.byInv[inv.id].diff+')':(row.byInv[inv.id].diff<0?'('+row.byInv[inv.id].diff+')':'') }}</small>
+              </span>
+              <span v-else>—</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </template>
+      <el-empty v-else description="请选择盘点单后点击对比" />
+    </el-dialog>
   </div>
 </template>
 
@@ -605,8 +716,11 @@ import * as XLSX from 'xlsx'
 import {
   getAssets, getAsset, addAsset, updateAsset, deleteAsset as apiDeleteAsset, getAssetCategories,
   getAssetSummary, getInventories, createInventory, getInventory, updateInventoryItems, completeInventory, voidInventory,
+  getInventoryDiscrepancies, handleDiscrepancy, getInventoryCompare, getInventoryPlans, createInventoryPlan,
+  updateInventoryPlan, deleteInventoryPlan, runInventoryPlan,
   getAssetOptions, assetIssue, assetReturn, assetRepair, assetRestore, assetScrap, getAssetLogs,
-  type Asset, type AssetLog, type AssetSummary, type AssetInventory, type AssetInventoryItem
+  type Asset, type AssetLog, type AssetSummary, type AssetInventory, type AssetInventoryItem,
+  type AssetInventoryDiscrepancy, type AssetInventoryPlan, type AssetInventoryCompareRow
 } from '../services/api'
 
 const router = useRouter()
@@ -653,7 +767,13 @@ const logLoading = ref(false)
 const inventories = ref<AssetInventory[]>([])
 const invLoading = ref(false)
 const hasOngoingInventory = computed(() => inventories.value.some(i => i.status === '进行中'))
-const invDetail = reactive<{ inventory: AssetInventory | null; items: AssetInventoryItem[] }>({ inventory: null, items: [] })
+const invStatusFilter = ref<'active' | 'all' | '进行中' | '已完成' | '已作废'>('active')
+const filteredInventories = computed(() => {
+  if (invStatusFilter.value === 'all') return inventories.value
+  if (invStatusFilter.value === 'active') return inventories.value.filter(i => i.status === '进行中' || i.status === '已完成')
+  return inventories.value.filter(i => i.status === invStatusFilter.value)
+})
+const invDetail = reactive<{ inventory: AssetInventory | null; items: AssetInventoryItem[]; discrepancies: AssetInventoryDiscrepancy[] }>({ inventory: null, items: [], discrepancies: [] })
 const invVisible = ref(false)
 
 const formVisible = ref(false)
@@ -984,6 +1104,7 @@ const openInventory = async (inv: AssetInventory) => {
     if (res.success) {
       invDetail.inventory = res.data.inventory
       invDetail.items = res.data.items.map((it: any) => ({ ...it, actualQuantity: it.actualQuantity === null ? null : it.actualQuantity }))
+      invDetail.discrepancies = res.data.discrepancies || []
       invVisible.value = true
     } else ElMessage.error('获取盘点明细失败')
   } catch (e) { console.error(e); ElMessage.error('获取盘点明细失败') }
@@ -1075,8 +1196,93 @@ const exportExcel = () => {
   } catch (e) { console.error(e); ElMessage.error('导出失败') }
 }
 
+// ============ 差异处理闭环 ============
+const handleDisc = async (d: AssetInventoryDiscrepancy, action: string) => {
+  try {
+    let note = ''
+    if (action === '备注说明') {
+      const { value } = await ElMessageBox.prompt('请输入差异说明', '差异处理', { confirmButtonText: '确定', cancelButtonText: '取消', inputType: 'textarea' })
+      note = value || ''
+    } else {
+      await ElMessageBox.confirm(`确认将差异「${d.assetCode} ${d.name}」标记为「${action}」？`, '差异处理', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
+    }
+    if (!invDetail.inventory) return
+    const res = await handleDiscrepancy(invDetail.inventory.id, d.id, { handleAction: action, handleNote: note })
+    if (res.success) {
+      const r = await getInventory(invDetail.inventory.id)
+      if (r.success) { invDetail.discrepancies = r.data.discrepancies || []; invDetail.inventory = r.data.inventory; invDetail.items = r.data.items }
+      ElMessage.success('差异已处置')
+    } else ElMessage.error(res.message || '处置失败')
+  } catch (e) { if (e !== 'cancel') { console.error(e); ElMessage.error('处置失败') } }
+}
+
+// ============ 周期盘点计划 ============
+const planVisible = ref(false)
+const plans = ref<AssetInventoryPlan[]>([])
+const planLoading = ref(false)
+const planForm = reactive<{ name: string; frequency: string; dayOfMonth: number }>({ name: '', frequency: '每月', dayOfMonth: 1 })
+const openPlanDialog = async () => { planVisible.value = true; await loadPlans() }
+const loadPlans = async () => {
+  planLoading.value = true
+  try {
+    const res = await getInventoryPlans()
+    if (res.success) plans.value = res.data
+    else ElMessage.error('加载计划失败')
+  } catch (e) { console.error(e); ElMessage.error('加载计划失败') }
+  finally { planLoading.value = false }
+}
+const savePlan = async () => {
+  if (!planForm.name.trim()) { ElMessage.warning('请填写计划名称'); return }
+  try {
+    const res = await createInventoryPlan({ name: planForm.name.trim(), frequency: planForm.frequency, dayOfMonth: planForm.dayOfMonth, status: '启用' })
+    if (res.success) { planForm.name = ''; await loadPlans(); ElMessage.success('计划已创建') }
+    else ElMessage.error(res.message || '创建失败')
+  } catch (e) { console.error(e); ElMessage.error('创建失败') }
+}
+const runPlan = async (p: AssetInventoryPlan) => {
+  try {
+    await ElMessageBox.confirm(`立即按「${p.name}」生成一张盘点单？`, '生成盘点单', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
+    const res = await runInventoryPlan(p.id)
+    if (res.success) { await Promise.all([loadPlans(), loadInventories()]); ElMessage.success(res.message || '已生成') }
+    else ElMessage.error(res.message || '生成失败')
+  } catch (e) { if (e !== 'cancel') { console.error(e); ElMessage.error('生成失败') } }
+}
+const togglePlan = async (p: AssetInventoryPlan) => {
+  try {
+    const res = await updateInventoryPlan(p.id, { status: p.status === '启用' ? '停用' : '启用' })
+    if (res.success) { await loadPlans(); ElMessage.success('已更新') }
+    else ElMessage.error(res.message || '更新失败')
+  } catch (e) { console.error(e); ElMessage.error('更新失败') }
+}
+const removePlan = async (p: AssetInventoryPlan) => {
+  try {
+    await ElMessageBox.confirm(`确认删除计划「${p.name}」？`, '删除计划', { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' })
+    const res = await deleteInventoryPlan(p.id)
+    if (res.success) { await loadPlans(); ElMessage.success('已删除') }
+    else ElMessage.error(res.message || '删除失败')
+  } catch (e) { if (e !== 'cancel') { console.error(e); ElMessage.error('删除失败') } }
+}
+
+// ============ 历史对比 ============
+const compareVisible = ref(false)
+const compareIds = ref<number[]>([])
+const compareData = ref<{ inventories: AssetInventory[]; rows: AssetInventoryCompareRow[] } | null>(null)
+const compareLoading = ref(false)
+const completedInventories = computed(() => inventories.value.filter(i => i.status === '已完成'))
+const openCompareDialog = () => { compareVisible.value = true; compareIds.value = []; compareData.value = null }
+const doCompare = async () => {
+  if (compareIds.value.length < 2) { ElMessage.warning('请至少选择两期盘点单'); return }
+  compareLoading.value = true
+  try {
+    const res = await getInventoryCompare(compareIds.value)
+    if (res.success) compareData.value = res.data
+    else ElMessage.error(res.message || '对比失败')
+  } catch (e) { console.error(e); ElMessage.error('对比失败') }
+  finally { compareLoading.value = false }
+}
+
 // ============ 变动记录 ============
-const logTag = (action: string): any => ({ '领用': 'warning', '归还': 'success', '维修': 'warning', '恢复': 'success', '报废': 'danger', '入库': 'info' }[action] || 'info')
+const logTag = (action: string): any => ({ '领用': 'warning', '归还': 'success', '维修': 'warning', '恢复': 'success', '报废': 'danger', '入库': 'info', '盘点调整': 'danger' }[action] || 'info')
 const loadLogs = async () => {
   logLoading.value = true
   try {
@@ -1182,4 +1388,17 @@ const handleCurrentChange = (c: number) => { currentPage.value = c }
 .diff-red { color:#c0504d; font-weight:600; }
 .diff-blue { color:#2e7d32; font-weight:600; }
 .diff-ok { color:#888; }
+/* 差异处理闭环 */
+.disc-block { margin-top:18px; border:1px solid #e3e8ef; border-radius:8px; padding:12px 14px; background:#fafbfc; }
+.disc-title { font-size:14px; font-weight:600; color:#333; margin-bottom:10px; }
+.disc-table { font-size:12px; }
+.disc-table th, .disc-table td { padding:5px 6px; }
+.disc-table td:nth-child(2) { text-align:left; }
+/* 周期计划 / 历史对比 */
+.plan-form { margin-bottom:12px; }
+.plan-tip { margin-top:12px; font-size:12px; color:#888; line-height:1.6; }
+.plan-tip code { background:#f0f3f7; padding:1px 5px; border-radius:4px; color:#1E5AA8; }
+.compare-bar { display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+.compare-head { display:none; }
+.compare-col-label { font-size:13px; color:#555; }
 </style>

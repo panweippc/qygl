@@ -1,5 +1,6 @@
 import express from 'express';
 import { createOperationLog, getOperator } from '../utils/audit.js';
+import { computeNextRun, generateInventoryFromPlan, runDueInventoryPlans } from '../utils/inventoryPlan.js';
 const router = express.Router();
 
 // 资产列表（支持类型/状态/部门/关键字筛选）
@@ -257,6 +258,9 @@ router.put('/assets/:id', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const [[old]] = await pool.execute('SELECT * FROM assets WHERE id = ?', [id]);
+    if (old && old.frozen && ((b.quantity !== undefined && Number(b.quantity) !== Number(old.quantity)) || (b.status !== undefined && b.status !== old.status))) {
+      return res.status(409).json({ success: false, message: '资产处于盘点冻结期，盘点完成前不可变更数量或状态' });
+    }
     const status = b.status !== undefined ? b.status : (old ? old.status : '闲置');
     const avail = b.assetType === 'consumable'
       ? (b.availableQuantity !== undefined && b.availableQuantity !== null ? b.availableQuantity : b.quantity)
@@ -335,6 +339,7 @@ router.post('/assets/:id/issue', async (req, res) => {
     const operator = getOperator(req);
     const [[a]] = await pool.execute('SELECT * FROM assets WHERE id = ?', [id]);
     if (!a) return res.status(404).json({ success: false, message: '资产不存在' });
+    if (a.frozen) return res.status(409).json({ success: false, message: '资产处于盘点冻结期，盘点完成前不可领用' });
     const recipient = b.responsibleUser || a.responsibleUser || '';
     const recipientDept = b.department || a.department || '';
     const qty = Number(b.qty || 1);
@@ -376,6 +381,7 @@ router.post('/assets/:id/return', async (req, res) => {
     const operator = getOperator(req);
     const [[a]] = await pool.execute('SELECT * FROM assets WHERE id = ?', [id]);
     if (!a) return res.status(404).json({ success: false, message: '资产不存在' });
+    if (a.frozen) return res.status(409).json({ success: false, message: '资产处于盘点冻结期，盘点完成前不可归还' });
     const qty = Number(b.qty || 1);
     const opDate = b.opDate || null;
     const purpose = b.purpose || null;
@@ -407,6 +413,7 @@ router.post('/assets/:id/repair', async (req, res) => {
     const operator = getOperator(req);
     const [[a]] = await pool.execute('SELECT * FROM assets WHERE id = ?', [id]);
     if (!a) return res.status(404).json({ success: false, message: '资产不存在' });
+    if (a.frozen) return res.status(409).json({ success: false, message: '资产处于盘点冻结期，盘点完成前不可维修' });
     if (a.status === '报废') return res.status(400).json({ success: false, message: '已报废资产不可维修' });
     const opDate = b.opDate || null;
     const planDate = b.planDate || null;
@@ -456,6 +463,7 @@ router.post('/assets/:id/scrap', async (req, res) => {
     const operator = getOperator(req);
     const [[a]] = await pool.execute('SELECT * FROM assets WHERE id = ?', [id]);
     if (!a) return res.status(404).json({ success: false, message: '资产不存在' });
+    if (a.frozen) return res.status(409).json({ success: false, message: '资产处于盘点冻结期，盘点完成前不可报废' });
     if (a.status === '报废') return res.status(400).json({ success: false, message: '资产已报废' });
     const qty = Number(b.qty || 1);
     const opDate = b.opDate || null;
@@ -552,6 +560,8 @@ router.post('/asset-inventories', async (req, res) => {
         [r.insertId, a.id, a.quantity, null, 0, 0]
       );
     }
+    // 冻结库存：盘点进行中锁定全部资产，防止领用/归还/报废/编辑改动数量
+    await pool.execute('UPDATE assets SET frozen = 1 WHERE frozen = 0');
     createOperationLog(pool, {
       userId: null, username: operator, action: 'create', module: 'asset',
       targetId: r.insertId, targetName: inventoryNo, detail: `新建盘点单 ${inventoryNo}`, ipAddress: req.ip
@@ -560,6 +570,46 @@ router.post('/asset-inventories', async (req, res) => {
   } catch (error) {
     console.error('创建盘点单失败:', error);
     res.status(500).json({ success: false, message: '创建盘点单失败' });
+  }
+});
+
+// 历史对比：对比多期盘点单的实盘/差异（必须定义在 /:id 之前，避免被 :id 捕获）
+router.get('/asset-inventories/compare', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const ids = (req.query.ids || '').toString().split(',').map(s => Number(s)).filter(n => n > 0);
+    if (ids.length < 2) return res.status(400).json({ success: false, message: '请选择至少两期盘点单进行对比' });
+    const [invs] = await pool.execute(
+      `SELECT id, inventoryNo, title, status, createdAt FROM asset_inventories WHERE id IN (?) ORDER BY id`,
+      [ids]
+    );
+    const [items] = await pool.execute(
+      `SELECT it.inventoryId, it.assetId, it.bookQuantity, it.actualQuantity, it.diff,
+              a.assetCode, a.name, c.name AS catName
+       FROM asset_inventory_items it
+       LEFT JOIN assets a ON it.assetId = a.id
+       LEFT JOIN asset_categories c ON a.categoryId = c.id
+       WHERE it.inventoryId IN (?)`,
+      [ids]
+    );
+    const byAsset = {};
+    for (const it of items) {
+      const key = it.assetId;
+      if (!byAsset[key]) byAsset[key] = { assetId: it.assetId, assetCode: it.assetCode, name: it.name, catName: it.catName, byInv: {} };
+      byAsset[key].byInv[it.inventoryId] = {
+        bookQuantity: it.bookQuantity, actualQuantity: it.actualQuantity, diff: it.diff
+      };
+    }
+    res.json({
+      success: true,
+      data: {
+        inventories: invs,
+        rows: Object.values(byAsset)
+      }
+    });
+  } catch (error) {
+    console.error('盘点对比失败:', error);
+    res.status(500).json({ success: false, message: '盘点对比失败' });
   }
 });
 
@@ -579,7 +629,12 @@ router.get('/asset-inventories/:id', async (req, res) => {
        ORDER BY it.id`,
       [id]
     );
-    res.json({ success: true, data: { inventory: inv, items } });
+    let discrepancies = [];
+    if (inv.status === '已完成') {
+      const [disc] = await pool.execute('SELECT * FROM asset_inventory_discrepancies WHERE inventoryId = ? ORDER BY id', [id]);
+      discrepancies = disc;
+    }
+    res.json({ success: true, data: { inventory: inv, items, discrepancies } });
   } catch (error) {
     console.error('获取盘点明细失败:', error);
     res.status(500).json({ success: false, message: '获取盘点明细失败' });
@@ -619,6 +674,8 @@ router.put('/asset-inventories/:id/void', async (req, res) => {
     if (!inv) return res.status(404).json({ success: false, message: '盘点单不存在' });
     if (inv.status !== '进行中') return res.status(400).json({ success: false, message: '仅进行中的盘点单可作废' });
     await pool.execute("UPDATE asset_inventories SET status = '已作废' WHERE id = ?", [id]);
+    // 解冻全部资产（作废即结束盘点，释放库存冻结）
+    await pool.execute('UPDATE assets SET frozen = 0 WHERE frozen = 1');
     const operator = getOperator(req);
     createOperationLog(pool, {
       userId: null, username: operator, action: 'delete', module: 'asset',
@@ -631,13 +688,54 @@ router.put('/asset-inventories/:id/void', async (req, res) => {
   }
 });
 
-// 完成盘点
+// 完成盘点（回写实盘数量到资产库存，记录变动，生成差异待处理，解冻库存）
 router.put('/asset-inventories/:id/complete', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const { id } = req.params;
-    await pool.execute("UPDATE asset_inventories SET status = '已完成' WHERE id = ?", [id]);
     const operator = getOperator(req);
+    // 回写：实盘数成为新总数，可用数同步扣减（保持"非可用"部分不变）
+    const [items] = await pool.execute(
+      `SELECT it.id, it.assetId, it.actualQuantity, it.bookQuantity, it.diff, a.assetCode, a.name
+       FROM asset_inventory_items it
+       LEFT JOIN assets a ON it.assetId = a.id
+       WHERE it.inventoryId = ?`,
+      [id]
+    );
+    for (const it of items) {
+      const actual = (it.actualQuantity === null || it.actualQuantity === undefined) ? null : Number(it.actualQuantity);
+      if (actual === null) continue; // 未录入实盘的资产不回写
+      const [[a]] = await pool.execute('SELECT quantity, availableQuantity, status FROM assets WHERE id = ?', [it.assetId]);
+      if (!a) continue;
+      const qty = Number(a.quantity || 0);
+      const avail = a.availableQuantity == null ? qty : Number(a.availableQuantity);
+      const inUse = Math.max(0, qty - avail); // 使用中/借出/维修等非可用量
+      const newAvail = Math.max(0, actual - inUse);
+      await pool.execute('UPDATE assets SET quantity = ?, availableQuantity = ? WHERE id = ?', [actual, newAvail, it.assetId]);
+      // 资产变动记录：盘点调整写入 asset_logs（联动「变动记录」页）
+      await pool.execute(
+        'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, qty) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [it.assetId, '盘点调整', a.status, a.status, operator, `盘点调整：账面 ${qty} → 实盘 ${actual}`, Math.abs(actual - qty)]
+      );
+      createOperationLog(pool, {
+        userId: null, username: operator, action: 'update', module: 'asset',
+        targetId: Number(it.assetId), targetName: '资产', detail: `盘点调整：账面 ${qty} → 实盘 ${actual}`, ipAddress: req.ip
+      });
+      // 差异处理闭环：差异不为 0 时生成待处理差异记录
+      const diff = Number(it.diff || 0);
+      if (diff !== 0 && it.id) {
+        const diffType = diff > 0 ? '盘盈' : '盘亏';
+        await pool.execute(
+          `INSERT INTO asset_inventory_discrepancies
+            (inventoryId, itemId, assetId, assetCode, name, diffType, bookQuantity, actualQuantity, diff, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '待处理')`,
+          [id, it.id, it.assetId, it.assetCode, it.name, diffType, Number(it.bookQuantity || 0), actual, diff]
+        );
+      }
+    }
+    await pool.execute("UPDATE asset_inventories SET status = '已完成' WHERE id = ?", [id]);
+    // 解冻全部资产（盘点结束，释放库存冻结）
+    await pool.execute('UPDATE assets SET frozen = 0 WHERE frozen = 1');
     createOperationLog(pool, {
       userId: null, username: operator, action: 'update', module: 'asset',
       targetId: Number(id), targetName: '盘点单', detail: `完成盘点单 ID:${id}`, ipAddress: req.ip
@@ -646,6 +744,159 @@ router.put('/asset-inventories/:id/complete', async (req, res) => {
   } catch (error) {
     console.error('完成盘点失败:', error);
     res.status(500).json({ success: false, message: '完成盘点失败' });
+  }
+});
+
+// 差异处理闭环：获取盘点单的差异列表
+router.get('/asset-inventories/:id/discrepancies', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const { id } = req.params;
+    const [rows] = await pool.execute('SELECT * FROM asset_inventory_discrepancies WHERE inventoryId = ? ORDER BY id', [id]);
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('获取差异列表失败:', error);
+    res.status(500).json({ success: false, message: '获取差异列表失败' });
+  }
+});
+
+// 差异处理闭环：处置单条差异（盘盈入库 / 盘亏报废 / 备注说明）
+router.post('/asset-inventories/:id/discrepancies/:did/handle', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const { id, did } = req.params;
+    const { handleAction, handleNote } = req.body || {};
+    const operator = getOperator(req);
+    const [[disc]] = await pool.execute('SELECT * FROM asset_inventory_discrepancies WHERE id = ? AND inventoryId = ?', [did, id]);
+    if (!disc) return res.status(404).json({ success: false, message: '差异记录不存在' });
+    if (disc.status === '已处理') return res.status(400).json({ success: false, message: '该差异已处理' });
+    await pool.execute(
+      `UPDATE asset_inventory_discrepancies
+       SET status = '已处理', handleAction = ?, handleNote = ?, handledBy = ?, handledAt = NOW()
+       WHERE id = ?`,
+      [handleAction || '备注说明', handleNote || '', operator, did]
+    );
+    createOperationLog(pool, {
+      userId: null, username: operator, action: 'update', module: 'asset',
+      targetId: Number(did), targetName: '盘点差异', detail: `处置差异(${disc.diffType}) ID:${did} - ${handleAction || '备注说明'}`, ipAddress: req.ip
+    });
+    res.json({ success: true, message: '差异已处置' });
+  } catch (error) {
+    console.error('处置差异失败:', error);
+    res.status(500).json({ success: false, message: '处置差异失败' });
+  }
+});
+
+// 周期盘点计划列表
+router.get('/asset-inventory-plans', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const [rows] = await pool.execute('SELECT * FROM asset_inventory_plans ORDER BY id DESC');
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('获取盘点计划失败:', error);
+    res.status(500).json({ success: false, message: '获取盘点计划失败' });
+  }
+});
+
+// 新建周期盘点计划
+router.post('/asset-inventory-plans', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const { name, frequency = '每月', dayOfMonth = 1, status = '启用' } = req.body || {};
+    if (!name) return res.status(400).json({ success: false, message: '计划名称必填' });
+    const operator = getOperator(req);
+    const nextRunAt = computeNextRun(frequency, Number(dayOfMonth));
+    const [r] = await pool.execute(
+      'INSERT INTO asset_inventory_plans (name, frequency, dayOfMonth, status, nextRunAt, operator) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, frequency, Number(dayOfMonth), status, nextRunAt, operator]
+    );
+    res.json({ success: true, message: '计划已创建', planId: r.insertId, nextRunAt });
+  } catch (error) {
+    console.error('创建盘点计划失败:', error);
+    res.status(500).json({ success: false, message: '创建盘点计划失败' });
+  }
+});
+
+// 更新周期盘点计划
+router.put('/asset-inventory-plans/:id', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const { id } = req.params;
+    const { name, frequency, dayOfMonth, status } = req.body || {};
+    const fields = [], params = [];
+    if (name !== undefined) { fields.push('name = ?'); params.push(name); }
+    if (frequency !== undefined) { fields.push('frequency = ?'); params.push(frequency); }
+    if (dayOfMonth !== undefined) { fields.push('dayOfMonth = ?'); params.push(Number(dayOfMonth)); }
+    if (status !== undefined) { fields.push('status = ?'); params.push(status); }
+    if (frequency !== undefined || dayOfMonth !== undefined) {
+      // 重新计算下次执行时间（基于当前最新频率/日）
+      const [[cur]] = await pool.execute('SELECT frequency, dayOfMonth FROM asset_inventory_plans WHERE id = ?', [id]);
+      const f = frequency !== undefined ? frequency : cur.frequency;
+      const d = dayOfMonth !== undefined ? Number(dayOfMonth) : cur.dayOfMonth;
+      fields.push('nextRunAt = ?');
+      params.push(computeNextRun(f, d));
+    }
+    if (!fields.length) return res.json({ success: true, message: '无变更' });
+    params.push(id);
+    await pool.execute(`UPDATE asset_inventory_plans SET ${fields.join(', ')} WHERE id = ?`, params);
+    res.json({ success: true, message: '计划已更新' });
+  } catch (error) {
+    console.error('更新盘点计划失败:', error);
+    res.status(500).json({ success: false, message: '更新盘点计划失败' });
+  }
+});
+
+// 删除周期盘点计划
+router.delete('/asset-inventory-plans/:id', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const { id } = req.params;
+    await pool.execute('DELETE FROM asset_inventory_plans WHERE id = ?', [id]);
+    res.json({ success: true, message: '计划已删除' });
+  } catch (error) {
+    console.error('删除盘点计划失败:', error);
+    res.status(500).json({ success: false, message: '删除盘点计划失败' });
+  }
+});
+
+// 立即按计划生成盘点单
+router.post('/asset-inventory-plans/:id/run', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const { id } = req.params;
+    const operator = getOperator(req);
+    const [[plan]] = await pool.execute('SELECT * FROM asset_inventory_plans WHERE id = ?', [id]);
+    if (!plan) return res.status(404).json({ success: false, message: '计划不存在' });
+    if (plan.status !== '启用') return res.status(400).json({ success: false, message: '计划已停用' });
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const title = `${plan.name}（${dateStr}）`;
+    const { inventoryId, inventoryNo } = await generateInventoryFromPlan(pool, title, operator);
+    await pool.execute(
+      'UPDATE asset_inventory_plans SET lastRunAt = NOW(), nextRunAt = ? WHERE id = ?',
+      [computeNextRun(plan.frequency, plan.dayOfMonth), id]
+    );
+    createOperationLog(pool, {
+      userId: null, username: operator, action: 'create', module: 'asset',
+      targetId: inventoryId, targetName: inventoryNo, detail: `按计划「${plan.name}」生成盘点单 ${inventoryNo}`, ipAddress: req.ip
+    });
+    res.json({ success: true, message: `已生成盘点单 ${inventoryNo}`, inventoryId, inventoryNo });
+  } catch (error) {
+    console.error('按计划生成盘点单失败:', error);
+    res.status(500).json({ success: false, message: error.message || '按计划生成盘点单失败' });
+  }
+});
+
+// 自动执行到期计划（供前端手动触发 / pm2 cron 周期调用）
+router.post('/asset-inventory-plans/auto', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const operator = req.body?.operator || '系统定时';
+    const generated = await runDueInventoryPlans(pool, operator);
+    res.json({ success: true, message: `已自动生成 ${generated.length} 张盘点单`, generated });
+  } catch (error) {
+    console.error('自动执行计划失败:', error);
+    res.status(500).json({ success: false, message: '自动执行计划失败' });
   }
 });
 

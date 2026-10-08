@@ -263,6 +263,19 @@ pipeline {
       }
     }
 
+    // 阶段7.5：注册周期盘点计划定时任务（pm2 cron，幂等；镜像 qygl-security-audit）
+    stage('Register Inventory Plan Cron') {
+      when { expression { return !skipDeploy } }
+      steps {
+        echo '=== 阶段7.5: 注册周期盘点计划定时任务 (pm2 cron qygl-inventory-plan) ==='
+        // 进程不存在才 start（--cron-restart 每日 02:00 触发），已存在则保留既有 cron 调度不重复创建；
+        // 脚本执行完即退出，pm2 cron_restart 在每个周期重新拉起，无需常驻。命令全 ASCII 规避 GBK 解码。
+        dir("${PROJECT_DIR}") {
+          bat "pm2 describe qygl-inventory-plan >nul 2>nul && (echo cron task already registered) || (pm2 start scripts/cron-inventory-plan.js --name qygl-inventory-plan --cron-restart \"0 2 * * *\" --cwd \"${PROJECT_DIR}\" && pm2 save)"
+        }
+      }
+    }
+
     // 阶段8：验证后端
     stage('Verify Backend') {
       when { expression { return !skipDeploy } }
