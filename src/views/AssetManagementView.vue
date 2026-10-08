@@ -729,7 +729,9 @@ const loadInventories = async () => {
 
 onMounted(async () => {
   await Promise.all([loadAssets(), loadCategories(), loadOptions(), loadSummary(), loadInventories()])
-  openAddFromQuery()
+  // 仅当从首页「新增资产」卡片进入（带 ?action=add）才自动弹出新增弹窗；
+  // 普通点击「资产管理」菜单进入时不弹窗，正常展示页面。
+  if (route.query.action === 'add') openAddFromQuery()
 })
 
 // 已在资产页时再次从首页卡片进入（带 ?action=add）也能重开新增弹窗
