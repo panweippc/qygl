@@ -35,6 +35,11 @@ const PROCESSES = [
 
 const DRY_RUN = process.argv.includes('--dry-run')
 
+function normalizePath(p) {
+  // Windows 路径大小写、正斜杠/反斜杠差异不影响实际执行，但会导致字符串比较不一致，统一归一化
+  return (p || '').toLowerCase().replace(/\\/g, '/')
+}
+
 function runPm2(cmd) {
   // 使用 execSync 执行完整命令字符串,与 Jenkinsfile bat 步骤行为完全一致,
   // 避免 spawnSync + shell:true 在 Windows 下对含空格/逗号的 cron 表达式解析异常
@@ -62,7 +67,9 @@ function parsePm2List() {
         if (!name) continue
         const env = item?.pm2_env || {}
         const status = env?.status || item?.status || 'unknown'
-        map[name] = { status, pid: env?.pm_id ?? item?.pid }
+        const script = env?.pm_exec_path || ''
+        const cwd = env?.cwd || env?.pm_cwd || item?.cwd || ''
+        map[name] = { status, script, cwd, pid: env?.pm_id ?? item?.pid }
       }
       return map
     } catch (e) {
@@ -124,8 +131,16 @@ async function main() {
     const info = processMap[p.name]
     const desc = p.name + ' (' + p.script + (p.cron ? ', cron=' + p.cron : '') + ')'
     if (info) {
-      if (info.status === 'errored') {
-        console.log('[ensure-pm2] exists but errored -> delete and recreate: ' + p.name)
+      // 当进程在线但启动脚本/cwd 与当前配置不一致时（例如变更过 script 或 cwd），需要删除重建
+      const scriptMismatched = info.script && normalizePath(info.script) !== normalizePath(p.script)
+      const cwdMismatched = info.cwd && normalizePath(info.cwd) !== normalizePath(p.cwd)
+      const configMismatched = scriptMismatched || cwdMismatched
+      if (info.status === 'errored' || configMismatched) {
+        if (info.status === 'errored') {
+          console.log('[ensure-pm2] exists but errored -> delete and recreate: ' + p.name)
+        } else if (configMismatched) {
+          console.log('[ensure-pm2] config mismatch (script=' + scriptMismatched + ', cwd=' + cwdMismatched + ') -> delete and recreate: ' + p.name)
+        }
         if (DRY_RUN) {
           console.log('[ensure-pm2] [dry-run] would delete+start: ' + desc)
           changed = true
