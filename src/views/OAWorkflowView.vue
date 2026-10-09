@@ -330,12 +330,13 @@
               </div>
               <div class="panel-content">
                 <div class="table-container">
-                  <el-table
+                    <el-table
                     :data="myDistributedGroups"
                     style="width: 100%"
                     :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: '600' }"
                     v-loading="loading"
                     row-key="key"
+                    :expand-row-keys="expandedGroupKeys"
                     stripe
                     fit
                   >
@@ -806,6 +807,19 @@ const loading = ref(false)
 const activeTab = ref('project')
 const defaultSubTab = ref('applied')
 const viewMode = ref('list')
+const expandedGroupKeys = ref<string[]>([])
+
+// 从 URL 的 expandKey 参数解析并自动展开「我下发的」对应分组
+function applyExpandKey() {
+  const key = String(route.query.expandKey || '')
+  if (!key || activeTab.value !== 'distributedByMe') {
+    expandedGroupKeys.value = []
+    return
+  }
+  if (myDistributedGroups.value.some(g => g.key === key)) {
+    expandedGroupKeys.value = [key]
+  }
+}
 
 // 各审批子面板在「我申请的/我收到的」口径下计算的徽标数据，回传后由父级聚合为顶部主页签角标
 // 口径：appliedReturned(已退回待我修改重提) + receivedPendingUnread(我收到未读/未处理) 为红色待办；否则灰色显示总数
@@ -2260,6 +2274,9 @@ const loadMyDistributedRecords = async () => {
   } catch (error) {
     console.error('获取我下发的记录失败:', error)
     myDistributedRecords.value = []
+  } finally {
+    await nextTick()
+    applyExpandKey()
   }
 }
 
@@ -2338,6 +2355,15 @@ watch(() => route.query, (query) => {
   }
   if (query.subTab) {
     defaultSubTab.value = (query.subTab as string) || 'applied'
+  }
+  if (query.subType) {
+    const validSubTypes = ['all', 'leave', 'reimbursement', 'meeting', 'project', 'businessTrip', 'entertainment']
+    if (validSubTypes.includes(query.subType as string)) {
+      distributedActiveSubTab.value = query.subType as string
+    }
+  }
+  if (query.expandKey) {
+    applyExpandKey()
   }
   if (query.action === 'create' && query.type) {
     const type = query.type as string

@@ -65,21 +65,22 @@ function inferTypeFromText(item: any): string | null {
  * 根据消息类型/内容计算跳转目标路由
  * 规则：
  *   - 审批提醒/撤回/退回通知 → /oa-office?tab=<类型>&subTab=received
- *   - 下发已读回执 → /oa-office?tab=distributedByMe
- *   - 普通下发 → /oa-office?tab=<类型>&subTab=received
+ *   - 下发已读回执 → /oa-office?tab=distributedByMe&expandKey=<类型>-<申请ID>
+ *   - 普通下发 → /oa-office?tab=distributed&subType=<类型>
  *   - 默认 /（首页）
  */
 function resolveJumpRoute(item: any): string {
   const t = item?.applicationType || inferTypeFromText(item)
 
-  // 下发类通知：已读回执跳「我下发的」，其余跳对应申请页签的「我收到的」
+  // 下发已读回执：跳「我下发的」页签并自动展开对应（申请类型-原申请编号）分组
+  if (item?.type === 'distributed_read' && item?.relatedType && item?.relatedId) {
+    return `/oa-office?tab=distributedByMe&expandKey=${item.relatedType}-${item.relatedId}`
+  }
+
+  // 普通下发通知：跳「下发管理」并选中对应申请类型
   if (item?.relatedType === 'distributed' && item?.relatedId) {
-    const hay = `${item?.title || ''} ${item?.content || ''}`.toLowerCase()
-    if (/已读回执|已读您下发|已查看/.test(hay)) {
-      return '/oa-office?tab=distributedByMe'
-    }
     if (['leave', 'reimbursement', 'meeting', 'project', 'businessTrip', 'entertainment'].includes(t)) {
-      return `/oa-office?tab=${t}&subTab=received`
+      return `/oa-office?tab=distributed&subType=${t}`
     }
     return '/oa-office?tab=distributed'
   }
