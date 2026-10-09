@@ -11,7 +11,7 @@
  *
  * 注意：脚本全 ASCII（部署机代码页 GBK(936)，中文命令会被错误解码），进程启动参数集中在 PROCESSES。
  */
-import { spawnSync } from 'child_process'
+import { execSync } from 'child_process'
 
 const ROOT = 'E:/qygl/qygl'
 const NGINX_DIR = 'E:/qygl/qygl/nginx-1.22.1'
@@ -33,19 +33,24 @@ const PROCESSES = [
 
 const DRY_RUN = process.argv.includes('--dry-run')
 
-function runPm2(args) {
-  // 直接用 spawnSync 传参数数组,避免 cmd /c 对引号的重复解析导致路径/cron表达式被嵌套引号污染
-  // Windows 下 pm2 实际可执行文件是 pm2.cmd,spawnSync 默认不搜索 .cmd 扩展名,
-  // 使用 shell:true 让 Node 通过系统 shell 执行,从而正确解析 .cmd 并继承 PATH。
-  const r = spawnSync('pm2', args, { encoding: 'utf8', windowsHide: true, shell: true })
-  if (r.error) {
-    console.error('[ensure-pm2] spawn error: ' + r.error.message)
+function runPm2(cmd) {
+  // 使用 execSync 执行完整命令字符串,与 Jenkinsfile bat 步骤行为完全一致,
+  // 避免 spawnSync + shell:true 在 Windows 下对含空格/逗号的 cron 表达式解析异常
+  // (此前出现 --cron-restart "0,30 * * * *" 只被 pm2 识别为 "0,30" 的问题)。
+  try {
+    const stdout = execSync(cmd, { encoding: 'utf8', windowsHide: true }).toString()
+    return { status: 0, stdout, stderr: '' }
+  } catch (e) {
+    return {
+      status: e.status || 1,
+      stdout: e.stdout ? e.stdout.toString() : '',
+      stderr: e.stderr ? e.stderr.toString() : (e.message || ''),
+    }
   }
-  return r
 }
 
 function parsePm2List() {
-  const r = runPm2(['jlist'])
+  const r = runPm2('pm2 jlist')
   if (r.status === 0 && r.stdout && r.stdout.trim()) {
     try {
       const list = JSON.parse(r.stdout)
@@ -67,7 +72,7 @@ function parsePm2List() {
     if (r.stderr) console.log('[ensure-pm2] jlist stderr: ' + r.stderr.trim())
   }
   // 退化：从 pm2 list 文本扫描名字
-  const r2 = runPm2(['list', '--no-color'])
+  const r2 = runPm2('pm2 list --no-color')
   const map = {}
   const lines = (r2.stdout || '').split('\n')
   for (const line of lines) {
@@ -77,28 +82,36 @@ function parsePm2List() {
   return map
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 function deleteProcess(name) {
   console.log('[ensure-pm2] exec: pm2 delete ' + name)
   if (DRY_RUN) return true
-  const r = runPm2(['delete', name])
+  const r = runPm2('pm2 delete ' + name)
   if (r.stdout && r.stdout.trim()) console.log(r.stdout.trim())
   if (r.stderr && r.stderr.trim()) console.log(r.stderr.trim())
   return r.status === 0 || (r.stderr || '').toLowerCase().includes('not found')
 }
 
-function startProcess(p) {
+function buildStartCmd(p) {
   const args = ['start', p.script, '--name', p.name, '--cwd', p.cwd]
   if (p.cron) args.push('--cron-restart', p.cron)
-  const cmdPreview = 'pm2 ' + args.map((a) => (a.includes(' ') ? '"' + a + '"' : a)).join(' ')
-  console.log('[ensure-pm2] exec: ' + cmdPreview)
-  if (DRY_RUN) return true
-  const r = runPm2(args)
-  if (r.stdout && r.stdout.trim()) console.log(r.stdout.trim())
-  if (r.stderr && r.stderr.trim()) console.log(r.stderr.trim())
-  return r.status === 0 && !r.error
+  return 'pm2 ' + args.map((a) => (a.includes(' ') ? '"' + a + '"' : a)).join(' ')
 }
 
-function main() {
+function startProcess(p) {
+  const cmd = buildStartCmd(p)
+  console.log('[ensure-pm2] exec: ' + cmd)
+  if (DRY_RUN) return true
+  const r = runPm2(cmd)
+  if (r.stdout && r.stdout.trim()) console.log(r.stdout.trim())
+  if (r.stderr && r.stderr.trim()) console.log(r.stderr.trim())
+  return r.status === 0
+}
+
+async function main() {
   console.log('[ensure-pm2] running as user: ' + (process.env.USERDOMAIN ? process.env.USERDOMAIN + '\\' : '') + (process.env.USERNAME || 'unknown'))
   if (process.env.PM2_HOME) console.log('[ensure-pm2] PM2_HOME: ' + process.env.PM2_HOME)
   const processMap = parsePm2List()
@@ -117,6 +130,8 @@ function main() {
           continue
         }
         deleteProcess(p.name)
+        // 等待 PM2 内部状态刷新，避免 delete 后立即 start 出现 "Process X not found"
+        await sleep(800)
       } else {
         console.log('[ensure-pm2] skip (already exists, status=' + info.status + '): ' + p.name)
         continue
@@ -136,7 +151,7 @@ function main() {
     }
   }
   if (changed && !DRY_RUN) {
-    const r = runPm2(['save'])
+    const r = runPm2('pm2 save')
     if (r.status === 0) {
       console.log('[ensure-pm2] pm2 save done')
     } else {
@@ -146,4 +161,7 @@ function main() {
   console.log('[ensure-pm2] done' + (DRY_RUN ? ' (dry-run)' : ''))
 }
 
-main()
+main().catch((e) => {
+  console.error('[ensure-pm2] unexpected error:', e)
+  process.exit(1)
+})
