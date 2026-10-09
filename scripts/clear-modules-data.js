@@ -6,6 +6,7 @@
  *     leave_applications, reimbursements, meetings, business_trip_applications,
  *     office_supplies_applications, entertainment_expenses, project_applications, distributed_records
  *   月报      -> weeklyReports
+ *   通知      -> notifications（系统通知）
  *
  * 安全设计：
  *   1. 默认【试运行 DRY-RUN】：只统计每张表当前行数并打印，不做任何删除。
@@ -32,7 +33,9 @@ const TABLES = [
   // —— 审批中心：下发记录 ——
   'distributed_records',
   // —— 月报（实际表名 weeklyreports，Windows 下大小写不敏感） ——
-  'weeklyreports'
+  'weeklyreports',
+  // —— 系统通知 ——
+  'notifications'
 ]
 
 const DO_EXECUTE = process.argv.includes('--execute')
