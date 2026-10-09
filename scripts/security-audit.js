@@ -20,6 +20,7 @@ try {
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
     timeout: 120000, // 120秒超时，避免卡住
+    windowsHide: true, // Windows 下不弹出 cmd 窗口
   }).toString();
 
   const data = JSON.parse(output);

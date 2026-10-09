@@ -26,7 +26,8 @@ const PROCESSES = [
   { name: 'qygl-health',         script: ROOT + '/scripts/monitor-health.js',       cron: '0,30 * * * *', cwd: ROOT },
   { name: 'qygl-backup',         script: ROOT + '/scripts/auto-backup.js',          cron: '0 2 * * *',    cwd: ROOT },
   { name: 'qygl-cleanup',        script: ROOT + '/scripts/cleanup-logs.js',         cron: '30 3 * * *',   cwd: ROOT },
-  { name: 'qygl-security-audit', script: ROOT + '/scripts/security-audit.js',       cron: '0 4 * * 1',    cwd: ROOT },
+  // qygl-security-audit 默认不自动重建：它会执行 npm audit，Windows 下可能弹出 cmd 窗口干扰桌面；如需启用请取消下面注释
+  // { name: 'qygl-security-audit', script: ROOT + '/scripts/security-audit.js',       cron: '0 4 * * 1',    cwd: ROOT },
   { name: 'qygl-inactive',       script: ROOT + '/scripts/inactive-account-check.js', cron: '30 3 * * 1',  cwd: ROOT },
 ]
 
