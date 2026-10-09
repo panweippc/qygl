@@ -11,6 +11,7 @@ import mysql from 'mysql2/promise';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { startScheduler } from './scheduler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -34,7 +35,7 @@ const ALERT = (line) => {
   try { fs.appendFileSync(ALERT_FILE, JSON.stringify({ time: new Date().toISOString(), level: 'MEDIUM', type: 'inactive_account', detail: line }) + '\n', 'utf8'); } catch (e) {}
 };
 
-(async () => {
+async function runInactiveCheck() {
   let conn;
   try {
     conn = await mysql.createConnection({
@@ -63,7 +64,7 @@ const ALERT = (line) => {
     console.log(`符合条件的账号数: ${rows.length}`);
     if (rows.length === 0) {
       console.log('✅ 无需停用的账号');
-      process.exit(0);
+      return;
     }
 
     for (const u of rows) {
@@ -82,11 +83,13 @@ const ALERT = (line) => {
     } else {
       console.log(`\n已停用 ${rows.length} 个长期未登录账号`);
     }
-    process.exit(0);
   } catch (err) {
     console.error('[FATAL]', err.message);
-    process.exitCode = 1;
+    throw err;
   } finally {
     if (conn) await conn.end();
   }
-})();
+}
+
+// 改造为常驻自调度：每周一 03:30 执行一次
+startScheduler({ weekday: 1, hour: 3, minute: 30 }, runInactiveCheck);

@@ -12,6 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 import { fileURLToPath } from 'url';
+import { startScheduler } from './scheduler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -116,4 +117,9 @@ async function main() {
   }
 }
 
-main().catch(e => { console.error('[cleanup] 执行失败:', e.message); process.exit(1); });
+async function runCleanup() {
+  await main();
+}
+
+// 改造为常驻自调度：每天 03:30 执行一次
+startScheduler({ hour: 3, minute: 30 }, runCleanup);

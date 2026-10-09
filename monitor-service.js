@@ -66,7 +66,8 @@ const monitors = [
     id: 2,
     name: '前端页面',
     type: 'http',
-    url: 'http://localhost:3003/index.html',
+    // 生产环境由 nginx 8080 对外服务，3003 为本地 dev 端口，通常不常驻
+    url: process.env.MONITOR_FRONT_URL || 'http://localhost:8080/index.html',
     method: 'GET',
     checkParams: { heartbeatInterval: 30, timeout: 30 },
     status: 'unknown',

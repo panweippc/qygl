@@ -2,14 +2,15 @@
 // 与 POST /asset-inventory-plans/auto 复用同一套 DB 逻辑（server/utils/inventoryPlan.js），
 // 不走 HTTP/鉴权，直接连库执行到期计划 → 生成盘点单并推进 nextRunAt。
 //
-// 注册方式（部署机，一次性，镜像 qygl-security-audit）：
-//   pm2 start scripts/cron-inventory-plan.js --name qygl-inventory-plan --cron-restart "0 2 * * *"
+// 注册方式（部署机）：
+//   pm2 start scripts/cron-inventory-plan.js --name qygl-inventory-plan
 //   pm2 save
-// 说明：脚本执行完即退出，pm2 cron_restart 会在每个周期重新拉起；日志见 ~/.pm2/logs/qygl-inventory-plan-*.log
+// 说明：脚本已改造为常驻自调度，每天 02:00 自动执行；日志见 ~/.pm2/logs/qygl-inventory-plan-*.log
 
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
 import { runDueInventoryPlans } from '../server/utils/inventoryPlan.js';
+import { startScheduler } from './scheduler.js';
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
@@ -24,7 +25,7 @@ const pool = mysql.createPool({
   timezone: '+08:00'
 });
 
-(async () => {
+async function runInventoryPlan() {
   const ts = new Date().toISOString();
   try {
     const generated = await runDueInventoryPlans(pool, '系统定时');
@@ -33,11 +34,11 @@ const pool = mysql.createPool({
     } else {
       console.log(`[${ts}] 周期盘点计划：无到期计划，跳过`);
     }
-    process.exit(0);
   } catch (e) {
     console.error(`[${ts}] 周期盘点计划自动执行失败:`, e.message);
-    process.exit(1);
-  } finally {
-    await pool.end().catch(() => {});
+    throw e;
   }
-})();
+}
+
+// 改造为常驻自调度：每天 02:00 执行一次
+startScheduler({ hour: 2, minute: 0 }, runInventoryPlan);

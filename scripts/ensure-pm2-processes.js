@@ -17,18 +17,20 @@ const ROOT = 'E:/qygl/qygl'
 const NGINX_DIR = 'E:/qygl/qygl/nginx-1.22.1'
 const NGINX_EXE = 'E:/qygl/qygl/nginx-1.22.1/nginx.exe'
 
-// 期望存在的全部 PM2 进程；cron 为 null 表示常驻（如后端/nginx/监控采集），否则为 cron-restart 表达式
+// 期望存在的全部 PM2 进程；cron 为 null 表示常驻（脚本自身已实现循环/调度）
+// 注意：health/inventory-plan/backup/cleanup/inactive 已改造为常驻自调度，不再使用 --cron-restart
 const PROCESSES = [
-  { name: 'qygl',                script: ROOT + '/server.js',                       cron: null,           cwd: ROOT },
-  { name: 'qygl-nginx',          script: NGINX_EXE,                                 cron: null,           cwd: NGINX_DIR },
-  { name: 'qygl-inventory-plan', script: ROOT + '/scripts/cron-inventory-plan.js',  cron: '0 2 * * *',    cwd: ROOT },
-  { name: 'qygl-monitor',        script: ROOT + '/scripts/monitor-collector.js',    cron: null,           cwd: ROOT },
-  { name: 'qygl-health',         script: ROOT + '/scripts/monitor-health.js',       cron: '0,30 * * * *', cwd: ROOT },
-  { name: 'qygl-backup',         script: ROOT + '/scripts/auto-backup.js',          cron: '0 2 * * *',    cwd: ROOT },
-  { name: 'qygl-cleanup',        script: ROOT + '/scripts/cleanup-logs.js',         cron: '30 3 * * *',   cwd: ROOT },
+  { name: 'qygl',                    script: ROOT + '/server.js',                           cron: null, cwd: ROOT },
+  { name: 'qygl-nginx',              script: NGINX_EXE,                                     cron: null, cwd: NGINX_DIR },
+  { name: 'qygl-inventory-plan',     script: ROOT + '/scripts/cron-inventory-plan.js',      cron: null, cwd: ROOT },
+  { name: 'qygl-monitor',            script: ROOT + '/monitor-service.js',                  cron: null, cwd: ROOT },
+  { name: 'qygl-monitor-collector',  script: ROOT + '/scripts/monitor-collector.js',        cron: null, cwd: ROOT },
+  { name: 'qygl-health',             script: ROOT + '/scripts/monitor-health.js',           cron: null, cwd: ROOT },
+  { name: 'qygl-backup',             script: ROOT + '/scripts/auto-backup.js',              cron: null, cwd: ROOT },
+  { name: 'qygl-cleanup',            script: ROOT + '/scripts/cleanup-logs.js',             cron: null, cwd: ROOT },
   // qygl-security-audit 默认不自动重建：它会执行 npm audit，Windows 下可能弹出 cmd 窗口干扰桌面；如需启用请取消下面注释
-  // { name: 'qygl-security-audit', script: ROOT + '/scripts/security-audit.js',       cron: '0 4 * * 1',    cwd: ROOT },
-  { name: 'qygl-inactive',       script: ROOT + '/scripts/inactive-account-check.js', cron: '30 3 * * 1',  cwd: ROOT },
+  // { name: 'qygl-security-audit',     script: ROOT + '/scripts/security-audit.js',           cron: '0 4 * * 1', cwd: ROOT },
+  { name: 'qygl-inactive',           script: ROOT + '/scripts/inactive-account-check.js',    cron: null, cwd: ROOT },
 ]
 
 const DRY_RUN = process.argv.includes('--dry-run')

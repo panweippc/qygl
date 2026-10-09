@@ -10,6 +10,7 @@ import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { startScheduler } from './scheduler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -97,4 +98,5 @@ async function check() {
   await sendEmail('【告警】智慧办公平台服务异常', detail);
 }
 
-check().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });
+// 改造为常驻自调度：每 30 分钟检查一次，任务异常不退出
+startScheduler({ everyMinutes: 30 }, check);

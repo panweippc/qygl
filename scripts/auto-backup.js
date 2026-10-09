@@ -10,6 +10,7 @@ import mysql from 'mysql2/promise';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { startScheduler } from './scheduler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -166,8 +167,9 @@ async function main() {
   } catch (e) {
     console.error('[auto-backup] 备份失败:', e.message);
     try { fs.unlinkSync(full); } catch (_) {}
-    process.exit(1);
+    throw e;
   }
 }
 
-main();
+// 改造为常驻自调度：每天 02:00 执行一次
+startScheduler({ hour: 2, minute: 0 }, main);
