@@ -165,7 +165,7 @@ router.post('/meetings', async (req, res) => {
 
     await createNotification(pool, { userId: approver, title: '会议审批提醒', content: `${organizer} 发起了会议"${title}"，请审批`, type: 'approval' });
     await createOperationLog(pool, { username: organizer, action: 'submit', module: 'meeting', targetName: `会议"${title}"`, detail: `提交给${approver}审批` });
-    await appendApprovalLog(pool, { applicationType: 'meeting', applicationId: ins.insertId, actor: organizer, actorRole: '申请人', action: 'submit', fromStatus: '', toStatus: '待审批', targetUser: approver || '' });
+    await appendApprovalLog(pool, { applicationType: 'meeting', applicationId: ins.insertId, actor: organizer, actorRole: '申请人', action: 'submit', fromStatus: '', toStatus: '审批中', targetUser: approver || '' });
 
     res.json({ success: true, message: '会议创建成功' });
   } catch (error) {
@@ -208,7 +208,7 @@ router.put('/meetings/:id', async (req, res) => {
         await appendApprovalLog(pool, { applicationType: 'meeting', applicationId: id, actor: getOperator(req), actorRole: '审批人', action: 'forward', fromStatus: current?.status || '', toStatus: current?.status || '', targetUser: forwardTo, comment: comment || '' });
       }
     } else {
-      const status = result === '批准' ? '已批准' : result === '拒绝' ? '已拒绝' : '待审批';
+      const status = result === '批准' ? '已批准' : result === '拒绝' ? '已拒绝' : '审批中';
       const [[current]] = await pool.query('SELECT * FROM meetings WHERE id = ?', [id]);
       const currentApprover = current?.approver || '';
       const accumulatedResult = current?.result && current.result.includes(':')
@@ -282,7 +282,7 @@ router.post('/meetings/:id/resubmit', async (req, res) => {
       targetName: `${operator}的会议申请`,
       detail: '撤回/退回后重新提交'
     });
-    await appendApprovalLog(pool, { applicationType: 'meeting', applicationId: id, actor: operator, actorRole: '申请人', action: 'resubmit', fromStatus: '', toStatus: '待审批' });
+    await appendApprovalLog(pool, { applicationType: 'meeting', applicationId: id, actor: operator, actorRole: '申请人', action: 'resubmit', fromStatus: '', toStatus: '审批中' });
     res.json({ success: true, message: r.message });
   } catch (error) {
     console.error('重新提交失败:', error);

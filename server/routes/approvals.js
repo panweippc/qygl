@@ -610,11 +610,12 @@ router.get('/home/approval-summary', async (req, res) => {
       return res.status(401).json({ success: false, message: '未登录' });
     }
 
-    const pendingStatuses = ['待审批', '审批中', 'pending', '待审核'];
-    const approvedStatuses = ['已批准', 'approved'];
-    const rejectedStatuses = ['已拒绝', '拒绝', 'rejected'];
-    const returnedStatuses = ['已退回', 'returned'];
-    const withdrawnStatuses = ['已撤回', 'withdrawn', '已取消', 'cancelled'];
+    // 状态枚举分组（统一后：进行中=审批中，兼容历史 待审批/pending/待审核）
+    const PENDING = `'审批中','待审批','pending','待审核'`;
+    const APPROVED = `'已批准','approved'`;
+    const REJECTED = `'已拒绝','拒绝','rejected'`;
+    const RETURNED = `'已退回','returned'`;
+    const WITHDRAWN = `'已撤回','withdrawn','已取消','cancelled'`;
 
     // 7 张业务表的申请人/审批人字段映射
     const applicantTables = [
@@ -627,72 +628,59 @@ router.get('/home/approval-summary', async (req, res) => {
       { table: 'business_trip_applications', applicantCol: 'applicant_name', approverCol: 'approver', isDeleted: true }
     ];
 
-    const statusFilter = (col, statuses) => statuses.map(s => `${col} = ?`).join(' OR ');
-
     const counts = {
       myTotal: 0, myPending: 0, myApproved: 0, myRejected: 0,
       myReturned: 0, myWithdrawn: 0, todoTotal: 0, doneTotal: 0,
       pendingDistributedTotal: 0
     };
 
+    // 性能优化：每张表仅 2 条聚合查询（我发起视角 + 待我审批/已办视角），用 CASE WHEN 替代原先 8 条 COUNT
     for (const { table, applicantCol, approverCol, isDeleted } of applicantTables) {
       const deletedSql = isDeleted ? ` AND (is_deleted = 0 OR is_deleted IS NULL)` : '';
 
-      // 我发起的总数
-      const [myTotal] = await pool.execute(
-        `SELECT COUNT(*) as c FROM ${table} WHERE ${applicantCol} = ?${deletedSql}`,
+      // 我发起视角：一次聚合各类状态
+      const [mine] = await pool.execute(
+        `SELECT
+           COUNT(*) AS total,
+           SUM(CASE WHEN status IN (${PENDING}) THEN 1 ELSE 0 END) AS pending,
+           SUM(CASE WHEN status IN (${APPROVED}) THEN 1 ELSE 0 END) AS approved,
+           SUM(CASE WHEN status IN (${REJECTED}) THEN 1 ELSE 0 END) AS rejected,
+           SUM(CASE WHEN status IN (${RETURNED}) THEN 1 ELSE 0 END) AS returned,
+           SUM(CASE WHEN status IN (${WITHDRAWN}) THEN 1 ELSE 0 END) AS withdrawn
+         FROM \`${table}\` WHERE \`${applicantCol}\` = ?${deletedSql}`,
         [userName]
       );
-      counts.myTotal += myTotal[0].c;
+      counts.myTotal += Number(mine[0].total) || 0;
+      counts.myPending += Number(mine[0].pending) || 0;
+      counts.myApproved += Number(mine[0].approved) || 0;
+      counts.myRejected += Number(mine[0].rejected) || 0;
+      counts.myReturned += Number(mine[0].returned) || 0;
+      counts.myWithdrawn += Number(mine[0].withdrawn) || 0;
 
-      // 我发起的 - 进行中
-      const [myPending] = await pool.execute(
-        `SELECT COUNT(*) as c FROM ${table} WHERE ${applicantCol} = ? AND (${statusFilter('status', pendingStatuses)})${deletedSql}`,
-        [userName, ...pendingStatuses]
+      // 待我审批 + 已办视角：一次聚合
+      const [other] = await pool.execute(
+        `SELECT
+           SUM(CASE WHEN status IN (${PENDING}) THEN 1 ELSE 0 END) AS todo,
+           SUM(CASE WHEN status NOT IN (${PENDING}) THEN 1 ELSE 0 END) AS done
+         FROM \`${table}\` WHERE \`${approverCol}\` = ?${deletedSql}`,
+        [userName]
       );
-      counts.myPending += myPending[0].c;
+      counts.todoTotal += Number(other[0].todo) || 0;
+      counts.doneTotal += Number(other[0].done) || 0;
+    }
 
-      // 我发起的 - 已通过
-      const [myApproved] = await pool.execute(
-        `SELECT COUNT(*) as c FROM ${table} WHERE ${applicantCol} = ? AND (${statusFilter('status', approvedStatuses)})${deletedSql}`,
-        [userName, ...approvedStatuses]
+    // 已办精确统计（基于审批生命周期审计 approval_logs 反查，覆盖多级审批历史；可选增强，失败不影响主流程）
+    try {
+      const [precise] = await pool.execute(
+        `SELECT COUNT(DISTINCT CONCAT(application_type, '-', application_id)) AS c
+         FROM approval_logs
+         WHERE actor = ? AND action IN ('approve','reject','return','forward')`,
+        [userName]
       );
-      counts.myApproved += myApproved[0].c;
-
-      // 我发起的 - 已拒绝
-      const [myRejected] = await pool.execute(
-        `SELECT COUNT(*) as c FROM ${table} WHERE ${applicantCol} = ? AND (${statusFilter('status', rejectedStatuses)})${deletedSql}`,
-        [userName, ...rejectedStatuses]
-      );
-      counts.myRejected += myRejected[0].c;
-
-      // 我发起的 - 已退回
-      const [myReturned] = await pool.execute(
-        `SELECT COUNT(*) as c FROM ${table} WHERE ${applicantCol} = ? AND (${statusFilter('status', returnedStatuses)})${deletedSql}`,
-        [userName, ...returnedStatuses]
-      );
-      counts.myReturned += myReturned[0].c;
-
-      // 我发起的 - 已撤回
-      const [myWithdrawn] = await pool.execute(
-        `SELECT COUNT(*) as c FROM ${table} WHERE ${applicantCol} = ? AND (${statusFilter('status', withdrawnStatuses)})${deletedSql}`,
-        [userName, ...withdrawnStatuses]
-      );
-      counts.myWithdrawn += myWithdrawn[0].c;
-
-      // 待我审批：当前审批人 = 我 且 进行中
-      const [todoTotal] = await pool.execute(
-        `SELECT COUNT(*) as c FROM ${table} WHERE ${approverCol} = ? AND (${statusFilter('status', pendingStatuses)})${deletedSql}`,
-        [userName, ...pendingStatuses]
-      );
-      counts.todoTotal += todoTotal[0].c;
-
-      // 已办：当前审批人 = 我 且 非进行中（单审批人流程近似；精确历史需 approval_history 表）
-      const [doneTotal] = await pool.execute(
-        `SELECT COUNT(*) as c FROM ${table} WHERE ${approverCol} = ? AND NOT (${statusFilter('status', pendingStatuses)})${deletedSql}`,
-        [userName, ...pendingStatuses]
-      );
-      counts.doneTotal += doneTotal[0].c;
+      counts.doneTotalPrecise = Number(precise[0]?.c) || 0;
+    } catch (e) {
+      console.warn('精确统计已办失败:', e.message);
+      counts.doneTotalPrecise = 0;
     }
 
     // 下发给我的待处理单据数（财务等接收方视角）
@@ -824,7 +812,16 @@ router.get('/oa/all-my-applications/:userId', async (req, res) => {
 
     all.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
-    res.json({ success: true, data: all });
+    // 可选分页（page/pageSize 查询参数）；未传或 pageSize<=0 时返回全部，保持兼容移动端
+    const page = parseInt(req.query.page) || 0;
+    const pageSize = parseInt(req.query.pageSize) || 0;
+    let result = all;
+    if (page > 0 && pageSize > 0) {
+      const start = (page - 1) * pageSize;
+      result = all.slice(start, start + pageSize);
+    }
+
+    res.json({ success: true, data: result });
   } catch (error) {
     console.error('获取全部申请列表失败:', error);
     res.status(500).json({ success: false, message: '获取全部申请列表失败: ' + error.message });
