@@ -263,15 +263,15 @@ pipeline {
       }
     }
 
-    // 阶段7.5：注册周期盘点计划定时任务（pm2 cron，幂等；镜像 qygl-security-audit）
-    stage('Register Inventory Plan Cron') {
-      when { expression { return !skipDeploy } }
+    // 阶段7.5：确保全部 PM2 进程齐全（缺失则重建，已存在则跳过）
+    // 覆盖：后端(qygl)、nginx(qygl-nginx) 及 7 个运维/定时进程，弥补"机器重启 pm2 列表清空后只能手动恢复"的痛点；
+    // 每次构建（含无新提交轮询）都执行：先查 pm2 列表，缺哪个补哪个，已存在绝不重建/重启，不扰动在跑的进程；
+    // 实际启动逻辑集中在 scripts/ensure-pm2-processes.js（全 ASCII，规避 GBK 解码）。
+    stage('Ensure PM2 Processes') {
       steps {
-        echo '=== 阶段7.5: 注册周期盘点计划定时任务 (pm2 cron qygl-inventory-plan) ==='
-        // 进程不存在才 start（--cron-restart 每日 02:00 触发），已存在则保留既有 cron 调度不重复创建；
-        // 脚本执行完即退出，pm2 cron_restart 在每个周期重新拉起，无需常驻。命令全 ASCII 规避 GBK 解码。
+        echo '=== 阶段7.5: 确保 PM2 进程齐全（缺失则重建，已存在则跳过）==='
         dir("${PROJECT_DIR}") {
-          bat "pm2 describe qygl-inventory-plan >nul 2>nul && (echo cron task already registered) || (pm2 start scripts/cron-inventory-plan.js --name qygl-inventory-plan --cron-restart \"0 2 * * *\" --cwd \"${PROJECT_DIR}\" && pm2 save)"
+          bat 'node scripts/ensure-pm2-processes.js'
         }
       }
     }
