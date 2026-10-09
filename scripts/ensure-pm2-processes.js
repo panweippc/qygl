@@ -32,13 +32,17 @@ const PROCESSES = [
 
 const DRY_RUN = process.argv.includes('--dry-run')
 
-function runCmd(cmd) {
-  // 统一走 cmd /c，和手动在命令行里执行 pm2 start 行为一致，规避非 shell 下 .cmd/参数解析差异
-  return spawnSync('cmd', ['/c', cmd], { encoding: 'utf8', windowsHide: true })
+function runPm2(args) {
+  // 直接用 spawnSync 传参数数组，避免 cmd /c 对引号的重复解析导致路径/cron表达式被嵌套引号污染
+  const r = spawnSync('pm2', args, { encoding: 'utf8', windowsHide: true })
+  if (r.error) {
+    console.error('[ensure-pm2] spawn error: ' + r.error.message)
+  }
+  return r
 }
 
 function existingNames() {
-  const r = runCmd('pm2 jlist')
+  const r = runPm2(['jlist'])
   if (r.status === 0 && r.stdout && r.stdout.trim()) {
     try {
       const list = JSON.parse(r.stdout)
@@ -51,7 +55,7 @@ function existingNames() {
     console.log('[ensure-pm2] warn: pm2 jlist exited ' + r.status)
     if (r.stderr) console.log('[ensure-pm2] jlist stderr: ' + r.stderr.trim())
   }
-  const r2 = runCmd('pm2 list --no-color')
+  const r2 = runPm2(['list', '--no-color'])
   const names = []
   const lines = (r2.stdout || '').split('\n')
   for (const line of lines) {
@@ -62,14 +66,15 @@ function existingNames() {
 }
 
 function startProcess(p) {
-  const args = ['start', '"' + p.script + '"', '--name', p.name, '--cwd', '"' + p.cwd + '"']
-  if (p.cron) args.push('--cron-restart', '"' + p.cron + '"')
-  const cmd = args.join(' ')
-  console.log('[ensure-pm2] exec: pm2 ' + cmd)
-  const r = runCmd('pm2 ' + cmd)
+  const args = ['start', p.script, '--name', p.name, '--cwd', p.cwd]
+  if (p.cron) args.push('--cron-restart', p.cron)
+  const cmdPreview = 'pm2 ' + args.map((a) => (a.includes(' ') ? '"' + a + '"' : a)).join(' ')
+  console.log('[ensure-pm2] exec: ' + cmdPreview)
+  if (DRY_RUN) return true
+  const r = runPm2(args)
   if (r.stdout && r.stdout.trim()) console.log(r.stdout.trim())
   if (r.stderr && r.stderr.trim()) console.log(r.stderr.trim())
-  return r.status === 0
+  return r.status === 0 && !r.error
 }
 
 function main() {
@@ -98,8 +103,12 @@ function main() {
     }
   }
   if (changed && !DRY_RUN) {
-    runCmd('pm2 save')
-    console.log('[ensure-pm2] pm2 save done')
+    const r = runPm2(['save'])
+    if (r.status === 0) {
+      console.log('[ensure-pm2] pm2 save done')
+    } else {
+      console.error('[ensure-pm2] pm2 save failed: ' + (r.stderr || '').trim())
+    }
   }
   console.log('[ensure-pm2] done' + (DRY_RUN ? ' (dry-run)' : ''))
 }
