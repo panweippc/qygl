@@ -32,21 +32,26 @@ const PROCESSES = [
 
 const DRY_RUN = process.argv.includes('--dry-run')
 
-function pm2(args) {
-  return spawnSync('pm2', args, { encoding: 'utf8', windowsHide: true })
+function runCmd(cmd) {
+  // 统一走 cmd /c，和手动在命令行里执行 pm2 start 行为一致，规避非 shell 下 .cmd/参数解析差异
+  return spawnSync('cmd', ['/c', cmd], { encoding: 'utf8', windowsHide: true })
 }
 
 function existingNames() {
-  const r = pm2(['jlist'])
+  const r = runCmd('pm2 jlist')
   if (r.status === 0 && r.stdout && r.stdout.trim()) {
     try {
       const list = JSON.parse(r.stdout)
       return list.map((p) => p.name)
     } catch (e) {
-      // 解析失败则退化到文本扫描
+      console.log('[ensure-pm2] warn: pm2 jlist parse failed, fallback to text scan')
     }
   }
-  const r2 = pm2(['list', '--no-color'])
+  if (r.status !== 0) {
+    console.log('[ensure-pm2] warn: pm2 jlist exited ' + r.status)
+    if (r.stderr) console.log('[ensure-pm2] jlist stderr: ' + r.stderr.trim())
+  }
+  const r2 = runCmd('pm2 list --no-color')
   const names = []
   const lines = (r2.stdout || '').split('\n')
   for (const line of lines) {
@@ -57,13 +62,19 @@ function existingNames() {
 }
 
 function startProcess(p) {
-  const args = ['start', p.script, '--name', p.name, '--cwd', p.cwd]
-  if (p.cron) args.push('--cron-restart', p.cron)
-  const r = pm2(args)
+  const args = ['start', '"' + p.script + '"', '--name', p.name, '--cwd', '"' + p.cwd + '"']
+  if (p.cron) args.push('--cron-restart', '"' + p.cron + '"')
+  const cmd = args.join(' ')
+  console.log('[ensure-pm2] exec: pm2 ' + cmd)
+  const r = runCmd('pm2 ' + cmd)
+  if (r.stdout && r.stdout.trim()) console.log(r.stdout.trim())
+  if (r.stderr && r.stderr.trim()) console.log(r.stderr.trim())
   return r.status === 0
 }
 
 function main() {
+  console.log('[ensure-pm2] running as user: ' + (process.env.USERDOMAIN ? process.env.USERDOMAIN + '\\' : '') + (process.env.USERNAME || 'unknown'))
+  if (process.env.PM2_HOME) console.log('[ensure-pm2] PM2_HOME: ' + process.env.PM2_HOME)
   const existing = existingNames()
   console.log('[ensure-pm2] existing processes: ' + (existing.length ? existing.join(', ') : '(none)'))
   let changed = false
@@ -87,7 +98,7 @@ function main() {
     }
   }
   if (changed && !DRY_RUN) {
-    pm2(['save'])
+    runCmd('pm2 save')
     console.log('[ensure-pm2] pm2 save done')
   }
   console.log('[ensure-pm2] done' + (DRY_RUN ? ' (dry-run)' : ''))
