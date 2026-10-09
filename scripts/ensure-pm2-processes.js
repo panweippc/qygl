@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * 确保部署机 PM2 进程齐全：已存在则跳过，缺失则自动重建（幂等，不扰动在跑的进程）。
+ * 确保部署机 PM2 进程齐全：已存在则跳过，缺失/异常则自动重建（幂等，不扰动在跑的进程）。
  *
  * 背景：Windows 下 PM2 无 `pm2 startup`，机器重启后 `pm2 save` 列表不会自动拉起，
  *       导致 qygl / qygl-nginx / 各运维定时进程丢失。本脚本在每次 Jenkins 构建（含无新提交轮询）时
@@ -33,20 +33,30 @@ const PROCESSES = [
 const DRY_RUN = process.argv.includes('--dry-run')
 
 function runPm2(args) {
-  // 直接用 spawnSync 传参数数组，避免 cmd /c 对引号的重复解析导致路径/cron表达式被嵌套引号污染
-  const r = spawnSync('pm2', args, { encoding: 'utf8', windowsHide: true })
+  // 直接用 spawnSync 传参数数组,避免 cmd /c 对引号的重复解析导致路径/cron表达式被嵌套引号污染
+  // Windows 下 pm2 实际可执行文件是 pm2.cmd,spawnSync 默认不搜索 .cmd 扩展名,
+  // 使用 shell:true 让 Node 通过系统 shell 执行,从而正确解析 .cmd 并继承 PATH。
+  const r = spawnSync('pm2', args, { encoding: 'utf8', windowsHide: true, shell: true })
   if (r.error) {
     console.error('[ensure-pm2] spawn error: ' + r.error.message)
   }
   return r
 }
 
-function existingNames() {
+function parsePm2List() {
   const r = runPm2(['jlist'])
   if (r.status === 0 && r.stdout && r.stdout.trim()) {
     try {
       const list = JSON.parse(r.stdout)
-      return list.map((p) => p.name)
+      const map = {}
+      for (const item of list) {
+        const name = item?.name
+        if (!name) continue
+        const env = item?.pm2_env || {}
+        const status = env?.status || item?.status || 'unknown'
+        map[name] = { status, pid: env?.pm_id ?? item?.pid }
+      }
+      return map
     } catch (e) {
       console.log('[ensure-pm2] warn: pm2 jlist parse failed, fallback to text scan')
     }
@@ -55,14 +65,24 @@ function existingNames() {
     console.log('[ensure-pm2] warn: pm2 jlist exited ' + r.status)
     if (r.stderr) console.log('[ensure-pm2] jlist stderr: ' + r.stderr.trim())
   }
+  // 退化：从 pm2 list 文本扫描名字
   const r2 = runPm2(['list', '--no-color'])
-  const names = []
+  const map = {}
   const lines = (r2.stdout || '').split('\n')
   for (const line of lines) {
     const m = line.match(/\|\s*\d+\s*\|\s*([\w\-]+)\s*\|/)
-    if (m) names.push(m[1])
+    if (m) map[m[1]] = { status: 'unknown' }
   }
-  return names
+  return map
+}
+
+function deleteProcess(name) {
+  console.log('[ensure-pm2] exec: pm2 delete ' + name)
+  if (DRY_RUN) return true
+  const r = runPm2(['delete', name])
+  if (r.stdout && r.stdout.trim()) console.log(r.stdout.trim())
+  if (r.stderr && r.stderr.trim()) console.log(r.stderr.trim())
+  return r.status === 0 || (r.stderr || '').toLowerCase().includes('not found')
 }
 
 function startProcess(p) {
@@ -80,21 +100,33 @@ function startProcess(p) {
 function main() {
   console.log('[ensure-pm2] running as user: ' + (process.env.USERDOMAIN ? process.env.USERDOMAIN + '\\' : '') + (process.env.USERNAME || 'unknown'))
   if (process.env.PM2_HOME) console.log('[ensure-pm2] PM2_HOME: ' + process.env.PM2_HOME)
-  const existing = existingNames()
+  const processMap = parsePm2List()
+  const existing = Object.keys(processMap)
   console.log('[ensure-pm2] existing processes: ' + (existing.length ? existing.join(', ') : '(none)'))
   let changed = false
   for (const p of PROCESSES) {
-    if (existing.includes(p.name)) {
-      console.log('[ensure-pm2] skip (already exists): ' + p.name)
-      continue
-    }
+    const info = processMap[p.name]
     const desc = p.name + ' (' + p.script + (p.cron ? ', cron=' + p.cron : '') + ')'
-    if (DRY_RUN) {
+    if (info) {
+      if (info.status === 'errored') {
+        console.log('[ensure-pm2] exists but errored -> delete and recreate: ' + p.name)
+        if (DRY_RUN) {
+          console.log('[ensure-pm2] [dry-run] would delete+start: ' + desc)
+          changed = true
+          continue
+        }
+        deleteProcess(p.name)
+      } else {
+        console.log('[ensure-pm2] skip (already exists, status=' + info.status + '): ' + p.name)
+        continue
+      }
+    } else if (DRY_RUN) {
       console.log('[ensure-pm2] [dry-run] would start: ' + desc)
       changed = true
       continue
+    } else {
+      console.log('[ensure-pm2] MISSING -> start: ' + desc)
     }
-    console.log('[ensure-pm2] MISSING -> start: ' + desc)
     const ok = startProcess(p)
     if (ok) {
       changed = true
