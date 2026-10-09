@@ -13,7 +13,7 @@
 
     <div class="ft-table-wrapper">
       <el-table :data="list" v-loading="loading" stripe style="width:100%">
-        <el-table-column type="index" width="50" />
+        <el-table-column type="index" label="序号" width="60" :index="indexMethod" align="center" />
         <el-table-column prop="customer_name" label="客户名称" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">
             <el-button link size="small" @click.stop="emit('customer-click', row.customer_name)">{{ row.customer_name }}</el-button>
@@ -163,6 +163,7 @@ const loading = ref(false)
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
+const indexMethod = (index: number) => (page.value - 1) * pageSize.value + index + 1
 const filter = ref({ keyword: '', month: '' })
 const editVisible = ref(false)
 const diffVisible = ref(false)
