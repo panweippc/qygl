@@ -7,5 +7,6 @@
   "asset-logs-fields-v1.2.51.sql",
   "chat-schema-v1.2.52.sql",
   "approval-logs-v1.2.60.sql",
-  "asset-inventory-enhancements-v1.2.57.sql"
+  "asset-inventory-enhancements-v1.2.57.sql",
+  "migrations/comment-all-tables-v1.2.61.sql"
 ]
