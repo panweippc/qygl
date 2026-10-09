@@ -535,6 +535,26 @@ export const assetScrap = async (id: number, payload: AssetOpPayload = {}): Prom
   return response.data;
 };
 
+// 资产调拨（独立动作：变更责任人/部门/位置，状态保持）
+export const transferAsset = async (id: number, payload: { department?: string; responsibleUser?: string; location?: string; remark?: string }): Promise<ApiResponse> => {
+  const response = await api.post(`/assets/${id}/transfer`, payload);
+  return response.data;
+};
+
+// 资产 Excel 批量导入（multipart/form-data，字段名 file）
+export const importAsset = async (file: File): Promise<ApiResponse<{ imported: number; skipped: number; errors: string[] }>> => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const response = await api.post('/assets/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  return response.data;
+};
+
+// 下载资产导入模板（blob）
+export const downloadAssetTemplate = async (): Promise<Blob> => {
+  const response = await api.get('/assets/import/template', { responseType: 'blob' });
+  return response.data;
+};
+
 export const getAssetCategories = async (): Promise<ApiResponse<any[]>> => {
   const response = await api.get('/asset-categories');
   return response.data;

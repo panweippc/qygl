@@ -112,7 +112,7 @@
               <el-switch v-model="showScrap" inline-prompt active-text="显示报废" inactive-text="隐藏报废" @change="currentPage = 1" style="margin-left:8px" />
             </div>
 
-            <el-table :data="pagedLedger" style="width:100%" class="asset-table" v-loading="loading" :row-class-name="ledgerRowClass">
+            <el-table :data="assets" style="width:100%" class="asset-table" v-loading="loading" :row-class-name="ledgerRowClass">
               <el-table-column label="序号" width="60">
                 <template #default="{ $index }">{{ (currentPage - 1) * pageSize + $index + 1 }}</template>
               </el-table-column>
@@ -153,12 +153,13 @@
                   <template #default="{ row }">{{ row.availableQuantity == null ? row.quantity : row.availableQuantity }} {{ row.unit }}</template>
                 </el-table-column>
               </template>
-              <el-table-column label="操作" width="320" fixed="right">
+              <el-table-column label="操作" width="380" fixed="right">
                 <template #default="{ row }">
                   <el-button size="small" @click="viewDetail(row)" class="edit-btn">详情</el-button>
                   <el-button v-if="row.status === '闲置' && (row.assetType !== 'consumable' || (row.availableQuantity == null ? row.quantity : row.availableQuantity) > 0)" size="small" type="primary" @click="quickOp(row, '领用')" class="edit-btn">领用</el-button>
                   <el-button v-if="row.status === '在用'" size="small" @click="quickOp(row, '归还')" class="edit-btn">归还</el-button>
                   <el-button size="small" @click="editAsset(row)" class="edit-btn" :disabled="row.status === '报废'" :title="row.status === '报废' ? '已报废资产不可编辑' : ''">编辑</el-button>
+                  <el-button size="small" @click="openTransfer(row)" class="edit-btn" :disabled="row.status === '报废' || hasOngoingInventory" :title="hasOngoingInventory ? '盘点冻结中不可调拨' : '调拨责任人/部门/位置'">调拨</el-button>
                   <el-button size="small" @click="removeAsset(row)" class="delete-btn">删除</el-button>
                 </template>
               </el-table-column>
@@ -167,7 +168,7 @@
             <div class="pagination">
               <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize"
                 :page-sizes="[10, 20, 50, 100]" layout="total, sizes, prev, pager, next, jumper"
-                :total="ledgerAssets.length" @size-change="handleSizeChange" @current-change="handleCurrentChange" />
+                :total="total" @size-change="handleSizeChange" @current-change="handleCurrentChange" />
             </div>
           </el-tab-pane>
 
@@ -215,6 +216,7 @@
           <el-tab-pane label="统计分析" name="stats">
             <div class="section-header">
               <h2 class="section-title">部门资产统计</h2>
+              <el-button type="primary" @click="importVisible = true" class="add-btn">导入 Excel</el-button>
               <el-button type="primary" @click="exportExcel" class="add-btn">导出 Excel</el-button>
             </div>
             <el-table :data="summary.deptStats" style="width:100%" class="asset-table" v-loading="loading" @row-click="(row: any) => drillToLedger({ department: row.department })" :row-style="{ cursor: 'pointer' }">
@@ -537,6 +539,52 @@
       </template>
     </el-dialog>
 
+    <!-- 资产调拨（独立动作） -->
+    <el-dialog v-model="transferVisible" title="资产调拨" width="420px" class="dialog">
+      <el-form label-width="80px">
+        <el-form-item label="资产">
+          <span>{{ transferForm.name }}（{{ transferForm.assetCode }}）</span>
+        </el-form-item>
+        <el-form-item label="部门">
+          <el-select v-model="transferForm.department" filterable allow-create default-first-option clearable placeholder="选择或输入部门" style="width:100%">
+            <el-option v-for="d in options.departments" :key="d" :label="d" :value="d" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="责任人">
+          <el-select v-model="transferForm.responsibleUser" filterable allow-create default-first-option clearable placeholder="选择或输入责任人" style="width:100%">
+            <el-option v-for="e in options.employees" :key="e" :label="e" :value="e" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="位置">
+          <el-input v-model="transferForm.location" placeholder="可留空沿用原位置" />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="transferForm.remark" type="textarea" :rows="2" placeholder="可选" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="transferVisible = false">取消</el-button>
+        <el-button type="primary" :loading="transferring" @click="submitTransfer">确认调拨</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 资产 Excel 批量导入 -->
+    <el-dialog v-model="importVisible" title="导入资产 Excel" width="460px" class="dialog">
+      <div style="margin-bottom:12px">
+        <el-button link type="primary" @click="downloadTemplate">下载导入模板</el-button>
+        <span style="color:#999;font-size:12px">（按模板表头填写后上传，首行表头需一致）</span>
+      </div>
+      <el-upload ref="uploadRef" :auto-upload="false" :limit="1" accept=".xlsx,.xls"
+        :on-change="onImportFileChange" :on-exceed="() => ElMessage.warning('只能上传一个文件')">
+        <el-button>选择 Excel 文件</el-button>
+        <template #tip><div class="el-upload__tip">支持 .xlsx / .xls，单次仅一个文件</div></template>
+      </el-upload>
+      <template #footer>
+        <el-button @click="importVisible = false">取消</el-button>
+        <el-button type="primary" :loading="importing" @click="submitImport">开始导入</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 盘点明细（单据式） -->
     <el-dialog v-model="invVisible" :title="invDetail.inventory ? invDetail.inventory.inventoryNo + ' 盘点明细' : '盘点明细'" width="860px" class="dialog inventory-dialog">
       <template v-if="invDetail.inventory">
@@ -719,6 +767,7 @@ import {
   getInventoryDiscrepancies, handleDiscrepancy, getInventoryCompare, getInventoryPlans, createInventoryPlan,
   updateInventoryPlan, deleteInventoryPlan, runInventoryPlan,
   getAssetOptions, assetIssue, assetReturn, assetRepair, assetRestore, assetScrap, getAssetLogs,
+  transferAsset, importAsset, downloadAssetTemplate,
   type Asset, type AssetLog, type AssetSummary, type AssetInventory, type AssetInventoryItem,
   type AssetInventoryDiscrepancy, type AssetInventoryPlan, type AssetInventoryCompareRow
 } from '../services/api'
@@ -727,9 +776,9 @@ const router = useRouter()
 const route = useRoute()
 const handleBack = () => router.back()
 
-const STATUS_LIST = ['在用', '领用', '闲置', '维修', '报废']
+const STATUS_LIST = ['在用', '闲置', '维修', '报废']
 const typeLabel = (t: string) => ({ fixed: '固定资产', intangible: '无形资产', consumable: '耗材库存' }[t] || t)
-const statusTag = (s: string): any => ({ '在用': 'success', '领用': 'warning', '闲置': 'info', '维修': 'warning', '报废': 'danger' }[s] || 'info')
+const statusTag = (s: string): any => ({ '在用': 'success', '闲置': 'info', '维修': 'warning', '报废': 'danger' }[s] || 'info')
 const lowStockThreshold = 5
 const expireClass = (d: string) => {
   if (!d) return ''
@@ -758,6 +807,16 @@ const ledgerCat = ref<number | ''>('')
 const showScrap = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
+const total = ref(0)
+
+// 资产调拨 / 导入 状态
+const transferVisible = ref(false)
+const transferring = ref(false)
+const transferForm = reactive<{ id: number; name: string; assetCode: string; department: string; responsibleUser: string; location: string; remark: string }>({ id: 0, name: '', assetCode: '', department: '', responsibleUser: '', location: '', remark: '' })
+const importVisible = ref(false)
+const importing = ref(false)
+const importFile = ref<File | null>(null)
+const uploadRef = ref<any>(null)
 
 // 变动记录
 const logAction = ref('')
@@ -821,11 +880,24 @@ const syncAvail = () => {
 }
 
 // ============ 数据加载 ============
+// 组装台账查询参数；withPage=false 时返回全部匹配行（用于导出）
+const buildLedgerParams = (withPage = true): Record<string, any> => {
+  const p: Record<string, any> = {
+    type: ledgerType.value,
+    status: ledgerStatus.value || undefined,
+    department: ledgerDept.value || undefined,
+    categoryId: ledgerCat.value || undefined,
+    keyword: ledgerKeyword.value.trim() || undefined,
+    includeScrap: showScrap.value ? 'true' : 'false'
+  }
+  if (withPage) { p.page = currentPage.value; p.pageSize = pageSize.value }
+  return p
+}
 const loadAssets = async () => {
   loading.value = true
   try {
-    const res = await getAssets({})
-    if (res.success) assets.value = res.data
+    const res = await getAssets(buildLedgerParams(true))
+    if (res.success) { assets.value = res.data; total.value = res.total ?? res.data.length }
     else ElMessage.error('加载资产失败')
   } catch (e) { console.error(e); ElMessage.error('加载资产失败') }
   finally { loading.value = false }
@@ -938,32 +1010,76 @@ watch([() => summary.deptStats, () => summary.byCategory, () => summary.monthly]
 })
 
 // ============ 台账 ============
-const ledgerAssets = computed(() => {
-  const kw = ledgerKeyword.value.trim()
-  const status = ledgerStatus.value
-  const dept = ledgerDept.value
-  const cat = ledgerCat.value
-  return assets.value.filter(a =>
-    a.assetType === ledgerType.value &&
-    (!status || a.status === status) &&
-    (!dept || a.department === dept) &&
-    (!cat || a.categoryId === cat) &&
-    (showScrap.value || a.status !== '报废') &&
-    (!kw || (a.name || '').includes(kw) || (a.assetCode || '').includes(kw) || (a.responsibleUser || '').includes(kw))
-  )
-})
 // 台账分类下拉（随类型联动）
 const ledgerCatOptions = computed(() => categories.value.filter(c => c.parentType === ledgerType.value))
-const pagedLedger = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return ledgerAssets.value.slice(start, start + pageSize.value)
+// 筛选/分页变化即向后端重新拉取（服务端分页）
+watch([ledgerType, ledgerStatus, ledgerDept, ledgerCat, showScrap], () => {
+  currentPage.value = 1
+  loadAssets()
 })
-watch([ledgerAssets, pageSize], () => {
-  const max = Math.max(1, Math.ceil(ledgerAssets.value.length / pageSize.value))
-  if (currentPage.value > max) currentPage.value = max
+let kwTimer: any = null
+watch(ledgerKeyword, () => {
+  if (kwTimer) clearTimeout(kwTimer)
+  kwTimer = setTimeout(() => { currentPage.value = 1; loadAssets() }, 300)
 })
 const onLedgerTypeChange = () => { ledgerCat.value = ''; currentPage.value = 1 }
 const ledgerRowClass = ({ row }: { row: Asset }): string => row.status === '报废' ? 'asset-scraped-row' : ''
+
+// 资产调拨
+const openTransfer = (row: Asset) => {
+  transferForm.id = row.id
+  transferForm.name = row.name
+  transferForm.assetCode = row.assetCode
+  transferForm.department = row.department || ''
+  transferForm.responsibleUser = row.responsibleUser || ''
+  transferForm.location = row.location || ''
+  transferForm.remark = ''
+  transferVisible.value = true
+}
+const submitTransfer = async () => {
+  transferring.value = true
+  try {
+    const res = await transferAsset(transferForm.id, {
+      department: transferForm.department,
+      responsibleUser: transferForm.responsibleUser,
+      location: transferForm.location,
+      remark: transferForm.remark
+    })
+    if (res.success) { ElMessage.success('调拨成功'); transferVisible.value = false; await Promise.all([loadAssets(), loadSummary()]) }
+    else ElMessage.error(res.message || '调拨失败')
+  } catch (e) { console.error(e); ElMessage.error('调拨失败') }
+  finally { transferring.value = false }
+}
+
+// 资产 Excel 导入
+const onImportFileChange = (file: any) => { importFile.value = file && file.raw ? file.raw : null }
+const downloadTemplate = async () => {
+  try {
+    const blob = await downloadAssetTemplate()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'asset_import_template.xlsx'; a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) { console.error(e); ElMessage.error('下载模板失败') }
+}
+const submitImport = async () => {
+  if (!importFile.value) { ElMessage.warning('请先选择 Excel 文件'); return }
+  importing.value = true
+  try {
+    const res = await importAsset(importFile.value)
+    if (res.success) {
+      const d = res.data || {}
+      let msg = `导入完成：成功 ${d.imported ?? 0} 条，跳过 ${d.skipped ?? 0} 条`
+      if (d.errors && d.errors.length) msg += `；部分失败：${d.errors.slice(0, 3).join('；')}`
+      ElMessage.success(msg)
+      importVisible.value = false
+      importFile.value = null
+      if (uploadRef.value) uploadRef.value.clearFiles()
+      await Promise.all([loadAssets(), loadSummary()])
+    } else ElMessage.error(res.message || '导入失败')
+  } catch (e) { console.error(e); ElMessage.error('导入失败') }
+  finally { importing.value = false }
+}
 
 // 概览 / 统计 下钻到台账：根据筛选条件切换并定位
 const drillToLedger = (opt: { type?: string; status?: string; department?: string; categoryId?: number | '' }) => {
@@ -1178,9 +1294,12 @@ const printInventory = () => {
 }
 
 // ============ 统计 ============
-const exportExcel = () => {
+const exportExcel = async () => {
   try {
-    const rows = assets.value.map(a => ({
+    // 导出全量台账（忽略分页；含报废，与历史行为一致）
+    const res = await getAssets({ includeScrap: 'true' })
+    if (!res.success) { ElMessage.error('导出数据获取失败'); return }
+    const rows = (res.data || []).map(a => ({
       资产编号: a.assetCode, 名称: a.name, 类型: typeLabel(a.assetType), 分类: a.categoryName || '',
       规格型号: a.spec || '', 责任人: a.responsibleUser, 部门: a.department, 状态: a.status,
       数量: a.quantity, 单位: a.unit,
@@ -1308,8 +1427,8 @@ const exportLogs = () => {
   } catch (e) { console.error(e); ElMessage.error('导出失败') }
 }
 
-const handleSizeChange = (s: number) => { pageSize.value = s; currentPage.value = 1 }
-const handleCurrentChange = (c: number) => { currentPage.value = c }
+const handleSizeChange = (s: number) => { pageSize.value = s; currentPage.value = 1; loadAssets() }
+const handleCurrentChange = (c: number) => { currentPage.value = c; loadAssets() }
 </script>
 
 <style scoped>

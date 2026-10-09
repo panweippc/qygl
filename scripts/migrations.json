@@ -9,5 +9,6 @@
   "approval-logs-v1.2.60.sql",
   "asset-inventory-enhancements-v1.2.57.sql",
   "migrations/comment-all-tables-v1.2.61.sql",
-  "migrations/approval-center-optimize-v1.2.66.sql"
+  "migrations/approval-center-optimize-v1.2.66.sql",
+  "migrations/asset-optimize-v1.2.67.sql"
 ]

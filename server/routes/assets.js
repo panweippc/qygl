@@ -1,25 +1,53 @@
 import express from 'express';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import multer from 'multer';
+import xlsx from 'xlsx';
 import { createOperationLog, getOperator } from '../utils/audit.js';
 import { computeNextRun, generateInventoryFromPlan, runDueInventoryPlans } from '../utils/inventoryPlan.js';
 const router = express.Router();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const UPLOAD_DIR = path.join(__dirname, '../../uploads/temp');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const upload = multer({ dest: UPLOAD_DIR });
 
-// 资产列表（支持类型/状态/部门/关键字筛选）
+// 资产列表（支持类型/状态/部门/分类/关键字筛选；支持后端分页）
+// 分页参数：page / pageSize。两者均不传时返回全部（兼容导出场景）。
 router.get('/assets', async (req, res) => {
   try {
     const { pool } = req.app.locals;
-    const { type, status, department, keyword } = req.query;
-    let sql = 'SELECT a.*, c.name AS categoryName, c.parentType FROM assets a LEFT JOIN asset_categories c ON a.categoryId = c.id WHERE 1=1';
+    const { type, status, department, keyword, categoryId, includeScrap, page, pageSize } = req.query;
+    const where = ['1=1'];
     const params = [];
-    if (type) { sql += ' AND a.assetType = ?'; params.push(type); }
-    if (status) { sql += ' AND a.status = ?'; params.push(status); }
-    if (department) { sql += ' AND a.department = ?'; params.push(department); }
+    if (type) { where.push('a.assetType = ?'); params.push(type); }
+    if (status) { where.push('a.status = ?'); params.push(status); }
+    if (department) { where.push('a.department = ?'); params.push(department); }
+    if (categoryId) { where.push('a.categoryId = ?'); params.push(Number(categoryId)); }
+    // 默认隐藏已报废资产（与前端 showScrap 开关一致）
+    if (includeScrap !== 'true' && includeScrap !== '1') { where.push("a.status <> '报废'"); }
     if (keyword) {
-      sql += ' AND (a.name LIKE ? OR a.assetCode LIKE ? OR a.responsibleUser LIKE ?)';
+      where.push('(a.name LIKE ? OR a.assetCode LIKE ? OR a.responsibleUser LIKE ?)');
       params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
     }
-    sql += ' ORDER BY a.id DESC';
-    const [rows] = await pool.execute(sql, params);
-    res.json({ success: true, data: rows });
+    const whereSql = ' WHERE ' + where.join(' AND ');
+    const [[{ total }]] = await pool.execute(
+      `SELECT COUNT(*) AS total FROM assets a LEFT JOIN asset_categories c ON a.categoryId = c.id${whereSql}`,
+      params
+    );
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const ps = Math.min(200, Math.max(1, parseInt(pageSize, 10) || 10));
+    const paginate = page !== undefined && pageSize !== undefined;
+    let rows = [];
+    if (total > 0) {
+      const dataSql = `SELECT a.*, c.name AS categoryName, c.parentType FROM assets a LEFT JOIN asset_categories c ON a.categoryId = c.id${whereSql} ORDER BY a.id DESC`;
+      const [dataRows] = paginate
+        ? await pool.execute(dataSql + ' LIMIT ? OFFSET ?', [...params, ps, (p - 1) * ps])
+        : await pool.execute(dataSql);
+      rows = dataRows;
+    }
+    res.json({ success: true, data: rows, total, page: p, pageSize: ps });
   } catch (error) {
     console.error('获取资产列表失败:', error);
     res.status(500).json({ success: false, message: '获取资产列表失败' });
@@ -312,16 +340,20 @@ router.put('/assets/:id', async (req, res) => {
   }
 });
 
-// 删除资产（级联删除其生命周期轨迹）
+// 删除资产（保留生命周期轨迹：先写入「删除」事件再删主表，asset_logs.assetId 无外键约束，记录留存备查）
 router.delete('/assets/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const { pool } = req.app.locals;
-    const [[old]] = await pool.execute('SELECT name FROM assets WHERE id = ?', [id]);
-    await pool.execute('DELETE FROM asset_logs WHERE assetId = ?', [id]);
-    await pool.execute('DELETE FROM assets WHERE id = ?', [id]);
+    const [[old]] = await pool.execute('SELECT * FROM assets WHERE id = ?', [id]);
+    if (!old) return res.status(404).json({ success: false, message: '资产不存在' });
     const operator = getOperator(req);
-    createOperationLog(pool, { userId: null, username: operator, action: 'delete', module: 'asset', targetId: id, targetName: old ? old.name : `资产ID:${id}`, detail: `删除资产 ID: ${id}`, ipAddress: req.ip });
+    await pool.execute(
+      'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, '删除', old.status, '已删除', operator, `删除资产 ${old.assetCode || ''} ${old.name}`]
+    );
+    await pool.execute('DELETE FROM assets WHERE id = ?', [id]);
+    createOperationLog(pool, { userId: null, username: operator, action: 'delete', module: 'asset', targetId: id, targetName: old.name, detail: `删除资产 ID: ${id}`, ipAddress: req.ip });
     res.json({ success: true, message: '资产删除成功' });
   } catch (error) {
     console.error('删除资产失败:', error);
@@ -897,6 +929,129 @@ router.post('/asset-inventory-plans/auto', async (req, res) => {
   } catch (error) {
     console.error('自动执行计划失败:', error);
     res.status(500).json({ success: false, message: '自动执行计划失败' });
+  }
+});
+
+// ==================== 资产调拨（独立动作） ====================
+// 调拨：变更责任人/部门/位置，记录轨迹，资产状态保持不变
+router.post('/assets/:id/transfer', async (req, res) => {
+  const { id } = req.params;
+  const b = req.body || {};
+  try {
+    const { pool } = req.app.locals;
+    const operator = getOperator(req);
+    const [[a]] = await pool.execute('SELECT * FROM assets WHERE id = ?', [id]);
+    if (!a) return res.status(404).json({ success: false, message: '资产不存在' });
+    if (a.frozen) return res.status(409).json({ success: false, message: '资产处于盘点冻结期，盘点完成前不可调拨' });
+    const newDept = b.department != null ? b.department : a.department;
+    const newUser = b.responsibleUser != null ? b.responsibleUser : a.responsibleUser;
+    const newLoc = b.location != null ? b.location : a.location;
+    const remark = b.remark || '';
+    await pool.execute(
+      'UPDATE assets SET department = ?, responsibleUser = ?, location = ? WHERE id = ?',
+      [newDept, newUser, newLoc, id]
+    );
+    await pool.execute(
+      'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, '调拨', a.status, a.status, operator,
+        `调拨：${a.department || '—'}→${newDept}；${a.responsibleUser || '—'}→${newUser}${remark ? '；' + remark : ''}`]
+    );
+    createOperationLog(pool, { userId: null, username: operator, action: 'update', module: 'asset', targetId: Number(id), targetName: a.name, detail: `调拨资产: ${a.name}`, ipAddress: req.ip });
+    res.json({ success: true, message: '调拨成功' });
+  } catch (error) {
+    console.error('调拨失败:', error);
+    res.status(500).json({ success: false, message: '调拨失败' });
+  }
+});
+
+// ==================== 资产 Excel 批量导入 ====================
+// 下载导入模板
+router.get('/assets/import/template', (req, res) => {
+  const wb = xlsx.utils.book_new();
+  const headers = ['资产名称', '资产类型', '分类', '数量', '单位', '获取日期', '来源', '原值', '残值', '折旧方法', '责任人', '部门', '位置', '载体/账号', '状态', '到期日', '供应商', '发票号', '规格型号', '序列号', '备注'];
+  const demo = [{
+    资产名称: '示例-笔记本电脑', 资产类型: '固定资产', 分类: '电子设备', 数量: 1, 单位: '台', 获取日期: '2026-01-15',
+    来源: '采购', 原值: 6000, 残值: 500, 折旧方法: '直线法', 责任人: '张三', 部门: '技术部', 位置: 'A座3层',
+    载体账号: '', 状态: '闲置', 到期日: '', 供应商: '联想', 发票号: 'INV202601001', 规格型号: 'ThinkPad X1', 序列号: 'PF123456', 备注: '示例行，导入前请删除'
+  }];
+  const ws = xlsx.utils.json_to_sheet(demo, { header: headers });
+  xlsx.utils.book_append_sheet(wb, ws, '资产导入模板');
+  const buf = xlsx.write(wb, { bookType: 'xlsx', type: 'buffer' });
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename=asset_import_template.xlsx');
+  res.send(buf);
+});
+
+// 批量导入：解析 Excel → 逐行生成资产编号(ZC-年-序号)并入库，写入入库轨迹
+router.post('/assets/import', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: '请上传 Excel 文件' });
+    const { pool } = req.app.locals;
+    const operator = getOperator(req);
+    const workbook = xlsx.readFile(req.file.path);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = xlsx.utils.sheet_to_json(sheet, { defval: '' });
+    if (!rows.length) return res.status(400).json({ success: false, message: 'Excel 为空或无可识别的数据行' });
+
+    const clean = (s) => (s == null ? '' : String(s).toString().trim());
+    const typeMap = { 固定资产: 'fixed', 无形资产: 'intangible', 耗材: 'consumable', 耗材库存: 'consumable', fixed: 'fixed', intangible: 'intangible', consumable: 'consumable' };
+    const statusMap = { 闲置: '闲置', 在用: '在用', 维修: '维修', 报废: '报废' };
+
+    const [cats] = await pool.execute('SELECT id, name FROM asset_categories');
+    const catByName = {};
+    cats.forEach(c => { catByName[clean(c.name)] = c.id; });
+
+    const year = new Date().getFullYear();
+    const [[{ c: baseC }]] = await pool.execute('SELECT COUNT(*) AS c FROM assets WHERE YEAR(createdAt) = ?', [year]);
+    let seq = baseC;
+    const cols = ['assetCode', 'name', 'assetType', 'categoryId', 'quantity', 'unit', 'acquireDate', 'source', 'originalValue', 'residualValue', 'depMethod', 'responsibleUser', 'department', 'location', 'carrier', 'status', 'expireDate', 'supplier', 'invoiceNo', 'spec', 'sn', 'remark', 'createdBy', 'availableQuantity'];
+    const placeholders = cols.map(() => '?').join(', ');
+
+    let imported = 0, skipped = 0;
+    const errors = [];
+    for (const raw of rows) {
+      const name = clean(raw['资产名称'] || raw['名称'] || raw.name);
+      if (!name) { skipped++; continue; }
+      const assetType = typeMap[clean(raw['资产类型'] || raw['类型'] || raw.assetType)] || 'fixed';
+      const catName = clean(raw['分类'] || raw.categoryName);
+      const categoryId = catName && catByName[catName] ? catByName[catName] : null;
+      const unit = clean(raw['单位'] || raw.unit) || (assetType === 'consumable' ? '个' : '台');
+      const quantity = Math.max(1, parseInt(raw['数量'] || raw.quantity, 10) || 1);
+      const status = statusMap[clean(raw['状态'] || raw.status)] || '闲置';
+      const acquireDate = clean(raw['获取日期'] || raw.acquireDate) || null;
+      const expireDate = clean(raw['到期日'] || raw.expireDate) || null;
+      const originalValue = parseFloat(raw['原值'] || raw.originalValue) || 0;
+      const residualValue = parseFloat(raw['残值'] || raw.residualValue) || 0;
+      const avail = assetType === 'consumable' ? quantity : null;
+      seq += 1;
+      const assetCode = `ZC-${year}-${String(seq).padStart(4, '0')}`;
+      const params = [
+        assetCode, name, assetType, categoryId, quantity, unit, acquireDate,
+        clean(raw['来源'] || raw.source) || '', originalValue, residualValue,
+        clean(raw['折旧方法'] || raw.depMethod) || '', clean(raw['责任人'] || raw.responsibleUser) || '',
+        clean(raw['部门'] || raw.department) || '', clean(raw['位置'] || raw.location) || '',
+        clean(raw['载体/账号'] || raw.carrier) || '', status, expireDate,
+        clean(raw['供应商'] || raw.supplier) || '', clean(raw['发票号'] || raw.invoiceNo) || '',
+        clean(raw['规格型号'] || raw.spec) || '', clean(raw['序列号'] || raw.sn) || '',
+        clean(raw['备注'] || raw.remark) || '', operator, avail
+      ];
+      try {
+        const [result] = await pool.execute(`INSERT INTO assets (${cols.join(', ')}) VALUES (${placeholders})`, params);
+        await pool.execute(
+          'INSERT INTO asset_logs (assetId, action, toStatus, operator, detail, qty) VALUES (?, ?, ?, ?, ?, ?)',
+          [result.insertId, '入库', status, operator, `导入新增 ${assetCode} ${name}`, quantity]
+        );
+        imported++;
+      } catch (e) {
+        skipped++;
+        errors.push(`「${name}」导入失败：${e.message}`);
+      }
+    }
+    createOperationLog(pool, { userId: null, username: operator, action: 'import', module: 'asset', targetId: 0, targetName: '资产批量导入', detail: `导入资产: 成功${imported}条，跳过${skipped}条`, ipAddress: req.ip });
+    res.json({ success: true, message: `导入完成：成功 ${imported} 条，跳过 ${skipped} 条`, data: { imported, skipped, errors: errors.slice(0, 20) } });
+  } catch (error) {
+    console.error('资产导入失败:', error);
+    res.status(500).json({ success: false, message: '导入失败: ' + error.message });
   }
 });
 
