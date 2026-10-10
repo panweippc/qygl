@@ -2,6 +2,7 @@
   <div class="sft-page">
     <PageHeaderBar title="销售漏斗">
       <template #actions>
+        <el-button v-if="perm.canWrite" size="small" @click="openCleanup">清理版本快照</el-button>
         <el-tag v-if="perm.canWrite" type="success">可写入</el-tag>
         <el-tag v-else type="info">仅查看</el-tag>
       </template>
@@ -32,11 +33,28 @@
 
     <CrossReferenceDialog v-model="crossVisible" :customer="crossCustomer" @jump="onCrossJump" />
     <VisitRecordsDialog v-model="visitRecordsVisible" :customer-name="visitCustomer" :can-write="perm.canWrite" />
+
+    <el-dialog v-model="cleanupVisible" title="清理版本快照" width="480px">
+      <p class="cleanup-tip">
+        每次保存都会生成版本快照，长期运行会使 <code>sales_table_versions</code> 膨胀。
+        本操作为每一条记录仅保留最新的 <strong>{{ cleanupKeep }}</strong> 个版本，删除更早的历史快照（不可恢复）。
+      </p>
+      <el-form label-width="120px">
+        <el-form-item label="保留版本数">
+          <el-input-number v-model="cleanupKeep" :min="1" :max="50" style="width:100%" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="cleanupVisible = false">取消</el-button>
+        <el-button type="primary" :loading="cleaning" @click="submitCleanup">开始清理</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesFetchJSON } from '../components/sales/salesApi'
 import PageHeaderBar from '../components/PageHeaderBar.vue'
 import StatsPanel from '../components/sales/StatsPanel.vue'
@@ -57,6 +75,43 @@ const dealRef = ref<any>(null)
 const projectRef = ref<any>(null)
 const visitRecordsVisible = ref(false)
 const visitCustomer = ref('')
+
+// 版本快照清理
+const cleanupVisible = ref(false)
+const cleanupKeep = ref(20)
+const cleaning = ref(false)
+function openCleanup() {
+  cleanupKeep.value = 20
+  cleanupVisible.value = true
+}
+async function submitCleanup() {
+  try {
+    await ElMessageBox.confirm(
+      `确认清理？每一条记录仅保留最新 ${cleanupKeep.value} 个版本，更早的历史快照将被永久删除。`,
+      '清理版本快照',
+      { type: 'warning', confirmButtonText: '确认清理', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  cleaning.value = true
+  try {
+    const json = await salesFetchJSON('/api/sales-four-tables/cleanup-versions', {
+      method: 'POST',
+      body: JSON.stringify({ keep: cleanupKeep.value })
+    })
+    if (json.success) {
+      ElMessage.success(json.message)
+      cleanupVisible.value = false
+    } else {
+      ElMessage.error(json.message || '清理失败')
+    }
+  } catch (e: any) {
+    ElMessage.error('清理失败: ' + e.message)
+  } finally {
+    cleaning.value = false
+  }
+}
 
 function openVisitRecords(name: string) {
   visitCustomer.value = name
@@ -133,4 +188,6 @@ onMounted(loadPerm)
 .sft-guide { padding: 0.75rem 1.5rem; background: rgba(255,255,255,0.6); }
 .sft-guide p { margin: 0.4rem 0 0; line-height: 1.6; color: #4a5568; font-size: 0.9rem; }
 .sft-tabs { flex: 1; padding: 0 1.5rem 1.5rem; background: rgba(255,255,255,0.6); }
+.cleanup-tip { color: #666; font-size: 0.9rem; line-height: 1.6; margin: 0 0 1rem; }
+.cleanup-tip code { background: #f0f2f5; padding: 1px 5px; border-radius: 3px; }
 </style>

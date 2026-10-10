@@ -33,6 +33,11 @@
           <template #default="{ row }">{{ Number(row.estimated_total || 0).toLocaleString() }}</template>
         </el-table-column>
         <el-table-column prop="sales_status" label="销售状态" width="100" />
+        <el-table-column label="归属" width="110">
+          <template #default="{ row }">
+            <el-tag :type="row.progress_percent >= 91 ? 'success' : (row.progress_percent >= 41 ? 'warning' : 'info')" size="small" effect="light">{{ progressBandLabel(row.progress_percent) }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="report_month" label="申报月份" width="100" />
         <el-table-column label="拜访记录" width="90">
           <template #default="{ row }">
@@ -51,7 +56,16 @@
       </el-table>
     </div>
 
-    <el-pagination v-if="total > pageSize" v-model:current-page="page" :page-size="pageSize" :total="total" layout="prev,pager,next" class="ft-pagination" @current-change="load" />
+    <el-pagination
+      v-model:current-page="page"
+      :page-size="pageSize"
+      :page-sizes="[10, 20, 50, 100]"
+      :total="total"
+      layout="total, sizes, prev, pager, next"
+      class="ft-pagination"
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
 
     <el-dialog v-model="editVisible" :title="editForm.id ? '编辑' + title : '新增' + title" width="600px" align-center destroy-on-close>
       <div class="dialog-body">
@@ -59,15 +73,12 @@
           <el-form-item label="owner"><el-input v-model="editForm.owner" /></el-form-item>
           <el-form-item label="销售类型">
             <el-select v-model="editForm.sales_type" placeholder="请选择" style="width:100%">
-              <el-option label="渠道" value="渠道" />
-              <el-option label="直销" value="直销" />
-              <el-option label="服务" value="服务" />
+              <el-option v-for="s in SALES_TYPE_OPTIONS" :key="s" :label="s" :value="s" />
             </el-select>
           </el-form-item>
           <el-form-item label="代理类型">
             <el-select v-model="editForm.revenue_type" placeholder="请选择" style="width:100%">
-              <el-option label="代理" value="代理" />
-              <el-option label="直销" value="直销" />
+              <el-option v-for="s in REVENUE_TYPE_OPTIONS" :key="s" :label="s" :value="s" />
             </el-select>
           </el-form-item>
           <el-form-item label="申报日期"><el-date-picker v-model="editForm.report_date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item>
@@ -84,6 +95,14 @@
           <el-form-item label="进展状态%">
             <el-input-number v-model="editForm.progress_percent" :min="0" :max="100" style="width:100%" />
           </el-form-item>
+          <el-alert
+            v-if="predictedDest"
+            class="dest-hint"
+            :title="`保存后将归入：${DEST_TYPE_LABEL[predictedDest]}`"
+            :type="willMigrate ? 'warning' : 'info'"
+            :closable="false"
+            show-icon
+          />
           <el-form-item label="销售状态">
             <el-select v-model="editForm.sales_status" placeholder="请选择" style="width:100%">
               <el-option v-for="s in salesStatusOptions" :key="s" :label="s" :value="s" />
@@ -115,15 +134,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesFetch, salesFetchJSON } from './salesApi'
 import ImportDialog from './ImportDialog.vue'
 import DiffDialog from './DiffDialog.vue'
+import { SALES_TYPE_OPTIONS, REVENUE_TYPE_OPTIONS, SALES_STATUS_BY_TYPE, destTypeByProgress, progressBandLabel, DEST_TYPE_LABEL } from './salesConstants'
 
 const props = defineProps<{ type: 'intention' | 'key', title: string, perm: any }>()
 const emit = defineEmits(['customer-click', 'progress-jump', 'refresh-stats', 'open-visit-records'])
 
-const salesStatusMap: Record<string, string[]> = {
-  intention: ['确认意向', '引导立项', '方案提交'],
-  key: ['赢得认可', '商务谈判']
-}
-const salesStatusOptions = computed(() => salesStatusMap[props.type] || [])
+const salesStatusOptions = computed(() => SALES_STATUS_BY_TYPE[props.type] || [])
 
 const list = ref<any[]>([])
 const loading = ref(false)
@@ -144,6 +160,10 @@ const emptyForm = () => ({
   success_or_giveup: '', company_support: '', remark: ''
 })
 const editForm = ref<any>(emptyForm())
+
+// 跨表归属透明度：根据进展百分比预测保存后将归入的表，编辑跨表记录时二次确认
+const predictedDest = computed(() => destTypeByProgress(editForm.value.progress_percent))
+const willMigrate = computed(() => !!editForm.value.id && predictedDest.value !== props.type)
 
 async function load() {
   loading.value = true
@@ -168,23 +188,52 @@ function openEdit(row?: any) {
 }
 
 async function save() {
+  // 跨表归属透明度：编辑已有记录且保存后会跨表迁移时，二次确认
+  if (editForm.value.id && predictedDest.value !== props.type) {
+    try {
+      await ElMessageBox.confirm(
+        `保存后该记录将从「${DEST_TYPE_LABEL[props.type]}」迁移到「${DEST_TYPE_LABEL[predictedDest.value]}」（按进展状态 ${editForm.value.progress_percent}% 判定），是否继续？`,
+        '跨表归属确认',
+        { type: 'warning', confirmButtonText: '确认迁移', cancelButtonText: '取消' }
+      )
+    } catch {
+      return // 用户取消，不保存
+    }
+  }
   saving.value = true
   try {
     const url = `/api/sales-four-tables/${props.type}` + (editForm.value.id ? `/${editForm.value.id}` : '')
     const method = editForm.value.id ? 'PUT' : 'POST'
     const json = await salesFetchJSON(url, { method, body: JSON.stringify(editForm.value) })
     if (json.success) {
-      ElMessage.success('保存成功')
+      const dest = json.data?.destType
+      // 同步结果回显（大项目进展 / 客户档案）
+      const sync = json.data?.sync
+      let msg = '保存成功'
+      if (sync) {
+        const parts: string[] = []
+        if (sync.project?.created) parts.push('已自动带出大项目进展')
+        else if (sync.project?.analysisId) parts.push('已同步大项目进展')
+        if (sync.customer?.customerId) parts.push('已同步客户档案')
+        if (sync.project?.error) parts.push('大项目进展同步失败: ' + sync.project.error)
+        if (sync.customer?.error) parts.push('客户档案同步失败: ' + sync.customer.error)
+        if (parts.length) msg += '（' + parts.join('；') + '）'
+      }
       editVisible.value = false
       load()
       emit('refresh-stats')
-      // 后端已按进展百分比把记录归属到对应表，跳转到该表页签即可看到刚保存的记录
-      const dest = json.data?.destType
-      if (dest && dest !== props.type) emit('progress-jump', dest)
+      if (dest && dest !== props.type) {
+        emit('progress-jump', dest)
+        ElMessage.success(`保存成功，记录已归入「${DEST_TYPE_LABEL[dest]}」`)
+      } else {
+        ElMessage.success(msg)
+      }
     } else { ElMessage.error(json.message || '保存失败') }
   } catch (e: any) { ElMessage.error('保存失败: ' + e.message) }
   finally { saving.value = false }
 }
+
+function onSizeChange(s: number) { pageSize.value = s; page.value = 1; load() }
 
 async function remove(row: any) {
   try {
@@ -217,6 +266,7 @@ defineExpose({ load })
 .ft-actions { display: flex; gap: 0.5rem; }
 .ft-pagination { margin-top: 1rem; justify-content: flex-end; }
 .dialog-body { max-height: 60vh; overflow-y: auto; padding-right: 0.5rem; }
+.dest-hint { margin-bottom: 0.75rem; }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 0.5rem; }
 .ft-table-wrapper { width: 100%; overflow-x: auto; border: 1px solid #ebeef5; border-radius: 4px; }
 .ft-table-wrapper :deep(.el-table) { min-width: max-content; }

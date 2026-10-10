@@ -95,6 +95,16 @@ const TABLE_META = {
   }
 };
 
+// 大项目进展 Excel 导入表头（与 PROJECT_FIELD_LABELS 一致，排除系统字段）
+const PROJECT_IMPORT_HEADERS = [
+  '客户名称', '申报日期', '单位性质', '人员规模', '资金状况', '现有网络覆盖', '服务器及机房',
+  '是否用友老客户', '信息化规划', '3-5年规划', '项目预算', '客户其他情况', '项目启动时间',
+  '项目负责人', '领导关注', '准备上线模块', '是否招标', '可扩展模块', '项目价值', '当前进展',
+  '客户评价', '我们的优劣势', '当前困难', '售前支持内容', '风险-客户需求', '风险-商务关系',
+  '风险-竞争对手', '风险-项目上线', '行动计划-商务', '行动计划-产品', '行动计划-方案',
+  '行动计划-会议', '支持时间', '销售计划', '下步安排', '填写人'
+];
+
 // 漏斗类（意向/重点/成交）DB 字段 → 中文标签
 const FUNNEL_FIELD_LABELS = {
   owner: '负责人',
@@ -689,6 +699,23 @@ router.get('/sales-four-tables/stats', requireSalesView, async (req, res) => {
   }
 });
 
+// 版本快照清理（防 sales_table_versions 膨胀）：保留每记录最新 keep 版（默认 20）
+router.post('/sales-four-tables/cleanup-versions', requireSalesWriter, async (req, res) => {
+  const { pool } = req.app.locals;
+  try {
+    await ensureSchema(pool);
+    const keep = Math.max(1, parseInt(req.body.keep) || 20);
+    const tableType = req.body.tableType || null;
+    const recordId = req.body.recordId != null ? parseInt(req.body.recordId) : null;
+    const result = await cleanupVersions(pool, { keep, tableType, recordId });
+    createOperationLog(pool, { username: getOperator(req), action: 'delete', module: 'sales-four-tables', targetName: '版本快照清理', detail: `保留每记录最新${keep}版，清理${result.totalDeleted}条旧快照` });
+    res.json({ success: true, message: `清理完成，共删除 ${result.totalDeleted} 条旧版本快照`, data: result });
+  } catch (error) {
+    console.error('清理版本快照失败:', error);
+    res.status(500).json({ success: false, message: '清理失败' });
+  }
+});
+
 // 通用列表查询
 router.get('/sales-four-tables/:type', requireSalesView, async (req, res) => {
   const { pool } = req.app.locals;
@@ -874,38 +901,44 @@ async function mirrorVisitsToProject(pool, customerName, analysisId) {
 }
 
 // 漏斗保存后：按 customer_name 自动带出/同步大项目进展记录 + 拜访记录
-// 返回 { analysisId, created }（无客户名时返回 null）。失败不影响主流程。
+// 返回 { analysisId, created, skipped, error }。失败不再吞掉，error 回显给前端。
 async function ensureProjectForFunnel(pool, funnelBody, createdBy) {
   const customerName = funnelBody.customer_name;
-  if (!customerName) return null;
-  const [existing] = await pool.execute('SELECT id FROM sales_project_analysis WHERE customer_name = ? LIMIT 1', [customerName]);
-  let analysisId;
-  let created = false;
-  if (existing.length === 0) {
-    // 新建：带出客户名/负责人/申报日期/申报月份，其余项目字段留空待用户在「大项目进展」补充
-    const cols = ['customer_name', 'report_date', 'project_owner', 'report_month'];
-    const vals = [customerName, funnelBody.report_date || null, funnelBody.owner || '', funnelBody.report_month || ''];
-    const sql = `INSERT INTO sales_project_analysis (${cols.join(', ')}, created_by) VALUES (${cols.map(() => '?').join(', ')}, ?)`;
-    const [r] = await pool.execute(sql, [...vals, createdBy]);
-    analysisId = r.insertId;
-    created = true;
-    // 新建即把该客户已有的全局拜访记录带出到大项目进展
-    await mirrorVisitsToProject(pool, customerName, analysisId);
-  } else {
-    analysisId = existing[0].id;
-    // 轻量同步漏斗派生字段：仅覆盖项目_owner/report_date/report_month，不触碰项目自身丰富字段、不覆盖手动录入的拜访记录
-    await pool.execute(
-      'UPDATE sales_project_analysis SET project_owner = COALESCE(NULLIF(?, ""), project_owner), report_date = COALESCE(NULLIF(?, ""), report_date), report_month = COALESCE(NULLIF(?, ""), report_month) WHERE id = ?',
-      [funnelBody.owner || '', funnelBody.report_date || '', funnelBody.report_month || '', analysisId]
-    );
+  if (!customerName) return { analysisId: null, created: false, skipped: true, error: null };
+  try {
+    const [existing] = await pool.execute('SELECT id FROM sales_project_analysis WHERE customer_name = ? LIMIT 1', [customerName]);
+    let analysisId;
+    let created = false;
+    if (existing.length === 0) {
+      // 新建：带出客户名/负责人/申报日期/申报月份，其余项目字段留空待用户在「大项目进展」补充
+      const cols = ['customer_name', 'report_date', 'project_owner', 'report_month'];
+      const vals = [customerName, funnelBody.report_date || null, funnelBody.owner || '', funnelBody.report_month || ''];
+      const sql = `INSERT INTO sales_project_analysis (${cols.join(', ')}, created_by) VALUES (${cols.map(() => '?').join(', ')}, ?)`;
+      const [r] = await pool.execute(sql, [...vals, createdBy]);
+      analysisId = r.insertId;
+      created = true;
+      // 新建即把该客户已有的全局拜访记录带出到大项目进展
+      await mirrorVisitsToProject(pool, customerName, analysisId);
+    } else {
+      analysisId = existing[0].id;
+      // 轻量同步漏斗派生字段：仅覆盖项目_owner/report_date/report_month，不触碰项目自身丰富字段
+      await pool.execute(
+        'UPDATE sales_project_analysis SET project_owner = COALESCE(NULLIF(?, ""), project_owner), report_date = COALESCE(NULLIF(?, ""), report_date), report_month = COALESCE(NULLIF(?, ""), report_month) WHERE id = ?',
+        [funnelBody.owner || '', funnelBody.report_date || '', funnelBody.report_month || '', analysisId]
+      );
+    }
+    return { analysisId, created, skipped: false, error: null };
+  } catch (e) {
+    console.error('同步大项目进展失败:', e);
+    return { analysisId: null, created: false, skipped: false, error: e.message };
   }
-  return { analysisId, created };
 }
 
 // 销售漏斗 ↔ 客户管理 双向关联 + 成交联动
+// 返回 { customerId, skipped, status, error }。失败不再吞掉，error 回显给前端。
 async function syncCustomerFromFunnel(pool, { customerName, contact, phone, stage, isDeal, operator }) {
   const name = String(customerName || '').trim();
-  if (!name) return null;
+  if (!name) return { customerId: null, skipped: true, status: null, error: null };
   try {
     await ensureCustomerColumns(pool);
     const now = new Date().toISOString().replace('T', ' ').replace('Z', '');
@@ -929,11 +962,11 @@ async function syncCustomerFromFunnel(pool, { customerName, contact, phone, stag
           [cid, '销售漏斗标记成交', '成交', now, now]
         );
       }
-      return cid;
+      return { customerId: cid, skipped: false, status: isDeal ? '成交' : null, error: null };
     }
     const [result] = await pool.execute(
-      'INSERT INTO customers (name, contact, phone, status, tags, source, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [name, contact || '', phone || '', isDeal ? '成交' : '意向', '来源:销售漏斗', '销售漏斗', now]
+      'INSERT INTO customers (name, contact, phone, email, address, status, tags, source, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, contact || '', phone || '', '', '', isDeal ? '成交' : '意向', '来源:销售漏斗', '销售漏斗', now]
     );
     if (isDeal) {
       await pool.execute(
@@ -941,10 +974,10 @@ async function syncCustomerFromFunnel(pool, { customerName, contact, phone, stag
         [result.insertId, '销售漏斗标记成交', '成交', now, now]
       );
     }
-    return result.insertId;
+    return { customerId: result.insertId, skipped: false, status: isDeal ? '成交' : null, error: null };
   } catch (e) {
     console.error('同步客户档案失败(不影响销售主流程):', e);
-    return null;
+    return { customerId: null, skipped: false, status: null, error: e.message };
   }
 }
 
@@ -959,9 +992,47 @@ async function insertVersion(pool, tableType, recordId, data, createdBy) {
       'INSERT INTO sales_table_versions (table_type, record_id, version, data_json, created_by) VALUES (?, ?, ?, ?, ?)',
       [tableType, recordId, version, JSON.stringify(data), createdBy]
     );
+    // 硬上限：每记录最多保留 50 版，超出按 version 升序删除最旧，防止 sales_table_versions 失控膨胀
+    const HARD_CAP = 50;
+    const [cnt] = await pool.execute(
+      'SELECT COUNT(*) AS c FROM sales_table_versions WHERE table_type = ? AND record_id = ?',
+      [tableType, recordId]
+    );
+    if (cnt[0].c > HARD_CAP) {
+      const exceed = cnt[0].c - HARD_CAP;
+      await pool.execute(
+        'DELETE FROM sales_table_versions WHERE table_type = ? AND record_id = ? ORDER BY version ASC LIMIT ?',
+        [tableType, recordId, exceed]
+      );
+    }
   } catch (error) {
     console.error('版本快照失败:', error);
   }
+}
+
+// 清理版本快照：保留每记录最新的 keep 版（默认 20），删除更早的。可按 tableType/recordId 收敛范围。
+async function cleanupVersions(pool, { keep = 20, tableType = null, recordId = null } = {}) {
+  const where = [];
+  const params = [];
+  if (tableType) { where.push('table_type = ?'); params.push(tableType); }
+  if (recordId != null) { where.push('record_id = ?'); params.push(recordId); }
+  const cond = where.length ? 'WHERE ' + where.join(' AND ') : '';
+  const [groups] = await pool.execute(
+    `SELECT table_type, record_id, COUNT(*) AS cnt, MAX(version) AS maxv FROM sales_table_versions ${cond} GROUP BY table_type, record_id`,
+    params
+  );
+  let totalDeleted = 0;
+  for (const g of groups) {
+    const excess = g.cnt - keep;
+    if (excess <= 0) continue;
+    const threshold = g.maxv - keep; // 保留 version > threshold 的 keep 条
+    const [r] = await pool.execute(
+      'DELETE FROM sales_table_versions WHERE table_type = ? AND record_id = ? AND version <= ?',
+      [g.table_type, g.record_id, threshold]
+    );
+    totalDeleted += r.affectedRows;
+  }
+  return { totalDeleted, groups: groups.length };
 }
 
 // 新增
@@ -1001,24 +1072,18 @@ router.post('/sales-four-tables/:type', requireSalesWriter, async (req, res) => 
     const recordId = result.insertId;
     await insertVersion(pool, destType, recordId, { ...body, created_by: createdBy }, createdBy);
 
-    // 漏斗保存后自动带出大项目进展 + 同步拜访记录（仅 funnel 类型）
+    // 漏斗保存后自动带出大项目进展 + 同步拜访记录（仅 funnel 类型），同步结果回显给前端
+    const sync = { project: null, customer: null };
     if (type === 'intention' || type === 'key' || type === 'deal') {
-      try { await ensureProjectForFunnel(pool, body, createdBy); }
-      catch (e) { console.error('同步大项目进展失败(不影响主流程):', e); }
-    }
-
-    // 漏斗保存后同步到「客户管理」（双向关联 + 成交联动）
-    if (type === 'intention' || type === 'key' || type === 'deal') {
-      try {
-        await syncCustomerFromFunnel(pool, {
-          customerName: body.customer_name,
-          contact: body.contact,
-          phone: body.phone,
-          stage: destType,
-          isDeal: destType === 'deal',
-          operator: createdBy
-        });
-      } catch (e) { console.error('同步客户管理失败(不影响主流程):', e); }
+      sync.project = await ensureProjectForFunnel(pool, body, createdBy);
+      sync.customer = await syncCustomerFromFunnel(pool, {
+        customerName: body.customer_name,
+        contact: body.contact,
+        phone: body.phone,
+        stage: destType,
+        isDeal: destType === 'deal',
+        operator: createdBy
+      });
     }
 
     // 大项目子表
@@ -1047,7 +1112,7 @@ router.post('/sales-four-tables/:type', requireSalesWriter, async (req, res) => 
     }
 
     createOperationLog(pool, { username: getOperator(req), action: 'create', module: 'sales-four-tables', targetId: recordId, targetName: `${type} 数据`, detail: `创建${type}记录` });
-    res.json({ success: true, message: '创建成功', data: { id: recordId, destType } });
+    res.json({ success: true, message: '创建成功', data: { id: recordId, destType, sync } });
   } catch (error) {
     console.error('创建销售数据失败:', error);
     res.status(500).json({ success: false, message: '创建失败' });
@@ -1084,24 +1149,18 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
       destType = destTypeByProgress(parseNum(req.body.progress_percent));
     }
 
-    // 漏斗保存后自动带出大项目进展 + 同步拜访记录（仅 funnel 类型，迁移前后都执行）
+    // 漏斗保存后自动带出大项目进展 + 同步拜访记录（仅 funnel 类型，迁移前后都执行），同步结果回显
+    const sync = { project: null, customer: null };
     if (type === 'intention' || type === 'key' || type === 'deal') {
-      try { await ensureProjectForFunnel(pool, body, createdBy); }
-      catch (e) { console.error('同步大项目进展失败(不影响主流程):', e); }
-    }
-
-    // 漏斗保存后同步到「客户管理」（双向关联 + 成交联动），destType 反映最终归属（含成交迁移）
-    if (type === 'intention' || type === 'key' || type === 'deal') {
-      try {
-        await syncCustomerFromFunnel(pool, {
-          customerName: body.customer_name,
-          contact: body.contact,
-          phone: body.phone,
-          stage: destType,
-          isDeal: destType === 'deal',
-          operator: createdBy
-        });
-      } catch (e) { console.error('同步客户管理失败(不影响主流程):', e); }
+      sync.project = await ensureProjectForFunnel(pool, body, createdBy);
+      sync.customer = await syncCustomerFromFunnel(pool, {
+        customerName: body.customer_name,
+        contact: body.contact,
+        phone: body.phone,
+        stage: destType,
+        isDeal: destType === 'deal',
+        operator: createdBy
+      });
     }
 
     if (destType !== type) {
@@ -1126,7 +1185,7 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
       await pool.execute(`DELETE FROM ${table} WHERE id = ?`, [id]);
 
       createOperationLog(pool, { username: getOperator(req), action: 'update', module: 'sales-four-tables', targetId: recordId, targetName: `${type} 数据`, detail: `更新${type}记录并迁移到${destType}(原id=${id})` });
-      return res.json({ success: true, message: '更新成功', data: { id: recordId, destType } });
+      return res.json({ success: true, message: '更新成功', data: { id: recordId, destType, sync } });
     }
 
     const sets = Object.keys(body).map(k => `${k} = ?`).join(', ');
@@ -1162,7 +1221,7 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
     }
 
     createOperationLog(pool, { username: getOperator(req), action: 'update', module: 'sales-four-tables', targetId: id, targetName: `${type} 数据`, detail: `更新${type}记录(id=${id})` });
-    res.json({ success: true, message: '更新成功' });
+    res.json({ success: true, message: '更新成功', data: { id: parseInt(id), destType, sync } });
   } catch (error) {
     console.error('更新销售数据失败:', error);
     res.status(500).json({ success: false, message: '更新失败' });
@@ -1274,12 +1333,13 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
   const { pool } = req.app.locals;
   const { type } = req.params;
   const meta = TABLE_META[type];
-  if (!meta) return res.status(400).json({ success: false, message: '该类型暂不支持导入' });
+  if (!meta && type !== 'project') return res.status(400).json({ success: false, message: '该类型暂不支持导入' });
   if (!req.file) return res.status(400).json({ success: false, message: '请上传 Excel 文件' });
   try {
     await ensureSchema(pool);
     const workbook = xlsx.readFile(req.file.path, { cellDates: true });
     const createdBy = cleanOwner(req.user?.username);
+    const headersRef = type === 'project' ? PROJECT_IMPORT_HEADERS : meta.headers;
     let imported = 0;
     let skipped = 0;
     let projectCreated = 0;
@@ -1293,7 +1353,12 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
       let headerIdx = -1;
       for (let i = 0; i < Math.min(10, raw.length); i++) {
         const row = raw[i].map(c => String(c).trim());
-        if (meta.headers.every(h => row.includes(h))) { headerIdx = i; break; }
+        // 大项目进展表头字段多（36 列），放宽匹配：只需含「客户名称」「申报日期」即可识别；
+        // 漏斗/成交仍要求表头全匹配（与既有模板一致）
+        const matched = type === 'project'
+          ? (row.includes('客户名称') && row.includes('申报日期'))
+          : headersRef.every(h => row.includes(h));
+        if (matched) { headerIdx = i; break; }
       }
       if (headerIdx === -1) continue;
       const headers = raw[headerIdx].map(c => String(c).trim());
@@ -1316,6 +1381,23 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
               parseNum(obj['合同额']), parseNum(obj['实际金额']), parseNum(obj['回款金额']), parseNum(obj['未回款金额']),
               obj['备注'] || '', reportMonth, createdBy
             ];
+          } else if (type === 'project') {
+            // 大项目进展导入：仅主表字段（关键人物/竞争对手/拜访记录仍走手动录入）
+            const pCustomer = String(obj['客户名称'] || '').trim()
+            const pReportDate = parseDate(obj['申报日期'])
+            if (!pCustomer || !pReportDate) { skipped++; continue }
+            const pReportMonth = pReportDate.slice(0, 7)
+            const pCols = [], pParams = []
+            for (const [db, label] of Object.entries(PROJECT_FIELD_LABELS)) {
+              if (['id', 'created_at', 'updated_at', 'created_by'].includes(db)) continue
+              let v = obj[label] ?? ''
+              if (db === 'report_date') v = pReportDate
+              else if (db === 'report_month') v = pReportMonth
+              pCols.push(db)
+              pParams.push(String(v ?? ''))
+            }
+            sql = `INSERT INTO sales_project_analysis (${pCols.join(', ')}, created_by) VALUES (${pCols.map(() => '?').join(', ')}, ?)`
+            params = [...pParams, createdBy]
           } else {
             sql = `INSERT INTO ${meta.table}
               (owner, sales_type, revenue_type, report_date, product_type, partner_name, competitor, customer_name, contact, phone, site_count, monthly_repayment, monthly_confidence, estimated_total, progress_percent, sales_status, estimated_repay_month, opportunity_assessment, success_or_giveup, company_support, remark, report_month, created_by)
@@ -1331,6 +1413,12 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
           const [result] = await pool.execute(sql, params);
           await insertVersion(pool, type, result.insertId, { ...obj, created_by: createdBy }, createdBy);
           imported++;
+
+          // 大项目进展导入后，把该客户已有的全局拜访记录带出到项目子表
+          if (type === 'project') {
+            try { await mirrorVisitsToProject(pool, String(obj['客户名称'] || '').trim(), result.insertId); }
+            catch (e) { errors.push('拜访记录带出失败(' + (obj['客户名称'] || '') + '): ' + e.message); }
+          }
 
           // 与在线「新增/保存」保持一致：导入同样按客户名自动带出「大项目进展」记录
           const customerName = String(obj['客户名单'] || '').trim();

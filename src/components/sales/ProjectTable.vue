@@ -8,6 +8,7 @@
       </div>
       <div class="ft-actions">
         <el-button v-if="perm.canWrite" type="primary" @click="openEdit()">+ 新增</el-button>
+        <el-button v-if="perm.canWrite" @click="importVisible = true">导入 Excel</el-button>
       </div>
     </div>
 
@@ -41,7 +42,16 @@
       </el-table>
     </div>
 
-    <el-pagination v-if="total > pageSize" v-model:current-page="page" :page-size="pageSize" :total="total" layout="prev,pager,next" class="ft-pagination" @current-change="load" />
+    <el-pagination
+      v-model:current-page="page"
+      :page-size="pageSize"
+      :page-sizes="[10, 20, 50, 100]"
+      :total="total"
+      layout="total, sizes, prev, pager, next"
+      class="ft-pagination"
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
 
     <el-dialog v-model="editVisible" :title="editForm.id ? '编辑大项目进展' : '新增大项目进展'" width="700px" align-center destroy-on-close>
       <div class="dialog-body">
@@ -147,6 +157,7 @@
     </el-dialog>
 
     <DiffDialog v-model="diffVisible" type="project" :record-id="diffRecordId" />
+    <ImportDialog v-model="importVisible" type="project" @success="onImportSuccess" />
   </div>
 </template>
 
@@ -155,6 +166,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesFetchJSON } from './salesApi'
 import DiffDialog from './DiffDialog.vue'
+import ImportDialog from './ImportDialog.vue'
 
 const props = defineProps<{ perm: any }>()
 const emit = defineEmits(['customer-click', 'refresh-stats', 'open-visit-records'])
@@ -170,6 +182,7 @@ const diffVisible = ref(false)
 const diffRecordId = ref<number | null>(null)
 const saving = ref(false)
 const projectTab = ref('base')
+const importVisible = ref(false)
 
 const emptyForm = () => ({
   customer_name: '', report_date: '', unit_nature: '', staff_size: '', financial_status: '', network_coverage: '',
@@ -236,6 +249,8 @@ async function remove(row: any) {
 }
 
 function openVersions(row: any) { diffRecordId.value = row.id; diffVisible.value = true }
+function onImportSuccess() { load(); emit('refresh-stats') }
+function onSizeChange(s: number) { pageSize.value = s; page.value = 1; load() }
 onMounted(load)
 defineExpose({ load })
 </script>

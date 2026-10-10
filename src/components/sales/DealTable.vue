@@ -66,7 +66,16 @@
       </el-table>
     </div>
 
-    <el-pagination v-if="total > pageSize" v-model:current-page="page" :page-size="pageSize" :total="total" layout="prev,pager,next" class="ft-pagination" @current-change="load" />
+    <el-pagination
+      v-model:current-page="page"
+      :page-size="pageSize"
+      :page-sizes="[10, 20, 50, 100]"
+      :total="total"
+      layout="total, sizes, prev, pager, next"
+      class="ft-pagination"
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
 
     <el-dialog v-model="editVisible" :title="editForm.id ? '编辑成交用户' : '新增成交用户'" width="550px" align-center destroy-on-close>
       <div class="dialog-body">
@@ -74,15 +83,12 @@
           <el-form-item label="owner"><el-input v-model="editForm.owner" /></el-form-item>
           <el-form-item label="销售类型">
             <el-select v-model="editForm.sales_type" placeholder="请选择" style="width:100%">
-              <el-option label="渠道" value="渠道" />
-              <el-option label="直销" value="直销" />
-              <el-option label="服务" value="服务" />
+              <el-option v-for="s in SALES_TYPE_OPTIONS" :key="s" :label="s" :value="s" />
             </el-select>
           </el-form-item>
           <el-form-item label="代理类型">
             <el-select v-model="editForm.revenue_type" placeholder="请选择" style="width:100%">
-              <el-option label="代理" value="代理" />
-              <el-option label="直销" value="直销" />
+              <el-option v-for="s in REVENUE_TYPE_OPTIONS" :key="s" :label="s" :value="s" />
             </el-select>
           </el-form-item>
           <el-form-item label="申报日期"><el-date-picker v-model="editForm.report_date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item>
@@ -97,8 +103,7 @@
           <el-form-item label="未回款金额"><el-input-number v-model="editForm.unreceived_amount" :min="0" style="width:100%" /></el-form-item>
           <el-form-item label="销售状态">
             <el-select v-model="editForm.sales_status" placeholder="请选择" style="width:100%">
-              <el-option label="销售成交" value="销售成交" />
-              <el-option label="实施交付" value="实施交付" />
+              <el-option v-for="s in dealStatusOptions" :key="s" :label="s" :value="s" />
             </el-select>
           </el-form-item>
           <el-form-item label="备注"><el-input v-model="editForm.remark" type="textarea" :rows="2" /></el-form-item>
@@ -118,14 +123,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesFetchJSON } from './salesApi'
 import ImportDialog from './ImportDialog.vue'
 import DiffDialog from './DiffDialog.vue'
+import { SALES_TYPE_OPTIONS, REVENUE_TYPE_OPTIONS, SALES_STATUS_BY_TYPE, DEST_TYPE_LABEL } from './salesConstants'
 
 const props = defineProps<{ perm: any }>()
 const emit = defineEmits(['customer-click', 'refresh-stats', 'open-visit-records'])
+const dealStatusOptions = computed(() => SALES_STATUS_BY_TYPE.deal || [])
 const list = ref<any[]>([])
 const loading = ref(false)
 const total = ref(0)
@@ -174,11 +181,29 @@ async function save() {
     const url = '/api/sales-four-tables/deal' + (editForm.value.id ? `/${editForm.value.id}` : '')
     const method = editForm.value.id ? 'PUT' : 'POST'
     const json = await salesFetchJSON(url, { method, body: JSON.stringify(editForm.value) })
-    if (json.success) { ElMessage.success('保存成功'); editVisible.value = false; load(); emit('refresh-stats') }
-    else ElMessage.error(json.message || '保存失败')
+    if (json.success) {
+      // 同步结果回显（保存成交用户会触发大项目进展/客户档案同步）
+      const sync = json.data?.sync
+      let msg = '保存成功'
+      if (sync) {
+        const parts: string[] = []
+        if (sync.project?.created) parts.push('已自动带出大项目进展')
+        else if (sync.project?.analysisId) parts.push('已同步大项目进展')
+        if (sync.customer?.customerId) parts.push('已同步客户档案')
+        if (sync.project?.error) parts.push('大项目进展同步失败: ' + sync.project.error)
+        if (sync.customer?.error) parts.push('客户档案同步失败: ' + sync.customer.error)
+        if (parts.length) msg += '（' + parts.join('；') + '）'
+      }
+      ElMessage.success(msg)
+      editVisible.value = false
+      load()
+      emit('refresh-stats')
+    } else { ElMessage.error(json.message || '保存失败') }
   } catch (e: any) { ElMessage.error('保存失败: ' + e.message) }
   finally { saving.value = false }
 }
+
+function onSizeChange(s: number) { pageSize.value = s; page.value = 1; load() }
 async function remove(row: any) {
   try {
     await ElMessageBox.confirm('确定删除该记录吗？', '提示', { type: 'warning' })
