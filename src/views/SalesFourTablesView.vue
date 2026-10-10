@@ -2,6 +2,17 @@
   <div class="sft-page">
     <PageHeaderBar title="销售漏斗">
       <template #actions>
+        <el-popover placement="bottom-end" :width="380" trigger="click" popper-class="sft-guide-popover">
+          <template #reference>
+            <el-button size="small" circle title="使用说明">
+              <el-icon><QuestionFilled /></el-icon>
+            </el-button>
+          </template>
+          <div class="sft-guide-pop">
+            <p class="sft-guide-title">销售四表使用说明</p>
+            <p>本模块包含「意向漏斗、重点漏斗、成交用户、大项目进展」四张表。销售部成员和业务中心经理可在线填写或 Excel 导入；李智鑫（总经理/管理员）可查看全部数据。每次保存自动生成版本快照，支持字段级差异对比。</p>
+          </div>
+        </el-popover>
         <el-button v-if="perm.canWrite" size="small" @click="openCleanup">清理版本快照</el-button>
         <el-tag v-if="perm.canWrite" type="success">可写入</el-tag>
         <el-tag v-else type="info">仅查看</el-tag>
@@ -9,12 +20,6 @@
     </PageHeaderBar>
 
     <StatsPanel ref="statsPanelRef" />
-
-    <div class="sft-guide">
-      <el-alert title="销售四表使用说明" type="info" :closable="false" show-icon>
-        <p>本模块包含「意向漏斗、重点漏斗、成交用户、大项目进展」四张表。销售部成员和业务中心经理可在线填写或 Excel 导入；李智鑫（总经理/管理员）可查看全部数据。每次保存自动生成版本快照，支持字段级差异对比。</p>
-      </el-alert>
-    </div>
 
     <el-tabs v-model="activeTab" class="sft-tabs" @tab-change="onTabChange">
       <el-tab-pane label="意向漏斗" name="intention">
@@ -55,6 +60,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { QuestionFilled } from '@element-plus/icons-vue'
 import { salesFetchJSON } from '../components/sales/salesApi'
 import PageHeaderBar from '../components/PageHeaderBar.vue'
 import StatsPanel from '../components/sales/StatsPanel.vue'
@@ -185,8 +191,9 @@ onMounted(loadPerm)
 
 <style scoped>
 .sft-page { background: #E4EDF2; min-height: 100vh; display: flex; flex-direction: column; }
-.sft-guide { padding: 0.75rem 1.5rem; background: rgba(255,255,255,0.6); }
-.sft-guide p { margin: 0.4rem 0 0; line-height: 1.6; color: #4a5568; font-size: 0.9rem; }
+.sft-guide-pop { padding: 0.5rem; }
+.sft-guide-title { font-weight: 600; margin: 0 0 0.5rem; font-size: 1rem; color: #2c3e50; }
+.sft-guide-pop p:last-child { margin: 0; line-height: 1.6; color: #4a5568; font-size: 0.9rem; }
 .sft-tabs { flex: 1; padding: 0 1.5rem 1.5rem; background: rgba(255,255,255,0.6); }
 .cleanup-tip { color: #666; font-size: 0.9rem; line-height: 1.6; margin: 0 0 1rem; }
 .cleanup-tip code { background: #f0f2f5; padding: 1px 5px; border-radius: 3px; }

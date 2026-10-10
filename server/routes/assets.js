@@ -41,10 +41,10 @@ router.get('/assets', async (req, res) => {
     const paginate = page !== undefined && pageSize !== undefined;
     let rows = [];
     if (total > 0) {
-      const dataSql = `SELECT a.*, c.name AS categoryName, c.parentType FROM assets a LEFT JOIN asset_categories c ON a.categoryId = c.id${whereSql} ORDER BY a.id DESC`;
-      const [dataRows] = paginate
-        ? await pool.execute(dataSql + ' LIMIT ? OFFSET ?', [...params, ps, (p - 1) * ps])
-        : await pool.execute(dataSql);
+      let dataSql = `SELECT a.*, c.name AS categoryName, c.parentType FROM assets a LEFT JOIN asset_categories c ON a.categoryId = c.id${whereSql} ORDER BY a.id DESC`;
+      // 分页参数在 SQL 中直接拼接（mysql2 prepared statement 对 LIMIT/OFFSET 参数绑定不支持）
+      if (paginate) dataSql += ` LIMIT ${ps} OFFSET ${(p - 1) * ps}`;
+      const [dataRows] = await pool.execute(dataSql, params);
       rows = dataRows;
     }
     res.json({ success: true, data: rows, total, page: p, pageSize: ps });
