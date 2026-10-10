@@ -2,6 +2,17 @@
   <div class="closing-page">
     <PageHeaderBar title="成交项目">
       <template #actions>
+        <el-popover placement="bottom-end" :width="420" trigger="click" popper-class="cl-guide-popover">
+          <template #reference>
+            <el-button size="small" circle title="使用说明">
+              <el-icon><QuestionFilled /></el-icon>
+            </el-button>
+          </template>
+          <div class="cl-guide-pop">
+            <p class="cl-guide-title">成交项目使用说明</p>
+            <p>本页面为「成交项目」独立视图，展示销售漏斗中「成交用户」表的全部项目信息，含客户、负责人、销售/代理类型、合同与回款金额、联系人、站点数、备注等详细内容。销售部成员与业务中心经理可新增/编辑，总经理/管理员可查看全部。</p>
+          </div>
+        </el-popover>
         <el-tag v-if="perm.canWrite" type="success">可维护</el-tag>
         <el-tag v-else type="info">仅查看</el-tag>
       </template>
@@ -28,12 +39,6 @@
         <div class="cl-stat-label">未回款</div>
         <div class="cl-stat-value cl-neg">¥{{ fmt(summary.unreceived) }}</div>
       </div>
-    </div>
-
-    <div class="cl-guide">
-      <el-alert title="说明" type="info" :closable="false" show-icon>
-        <p>本页面为「成交项目」独立视图，展示销售漏斗中「成交用户」表的全部项目信息，含客户、负责人、销售/代理类型、合同与回款金额、联系人、站点数、备注等详细内容。销售部成员与业务中心经理可新增/编辑，总经理/管理员可查看全部。</p>
-      </el-alert>
     </div>
 
     <div class="cl-trend">
@@ -64,6 +69,7 @@ import * as echarts from 'echarts'
 import { salesFetchJSON } from '../components/sales/salesApi'
 import PageHeaderBar from '../components/PageHeaderBar.vue'
 import DealTable from '../components/sales/DealTable.vue'
+import { QuestionFilled } from '@element-plus/icons-vue'
 
 const perm = ref({ canWrite: false, canView: false, isAdmin: false })
 const summary = ref({ count: 0, contract: 0, actual: 0, received: 0, unreceived: 0 })
@@ -182,8 +188,9 @@ onUnmounted(() => { window.removeEventListener('resize', handleResize); trendCha
 .cl-stat-value { font-size: 1.4rem; font-weight: 700; color: #333; margin-top: 0.25rem; }
 .cl-stat-value.cl-pos { color: #2e7d32; }
 .cl-stat-value.cl-neg { color: #c62828; }
-.cl-guide { padding: 0.75rem 1.5rem; background: rgba(255,255,255,0.6); }
-.cl-guide p { margin: 0.4rem 0 0; line-height: 1.6; color: #4a5568; font-size: 0.9rem; }
+.cl-guide-pop { padding: 0.5rem; }
+.cl-guide-title { font-weight: 600; margin: 0 0 0.5rem; font-size: 1rem; color: #2c3e50; }
+.cl-guide-pop p:last-child { margin: 0; line-height: 1.6; color: #4a5568; font-size: 0.9rem; }
 .cl-trend { display: flex; gap: 1rem; padding: 0 1.5rem 1rem; flex-wrap: wrap; }
 .trend-card { flex: 3 1 460px; background: rgba(255,255,255,0.95); border: 1px solid rgba(30,90,168,0.25); border-radius: 10px; padding: 0.8rem 1rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 .rank-card { flex: 1 1 240px; background: rgba(255,255,255,0.95); border: 1px solid rgba(30,90,168,0.25); border-radius: 10px; padding: 0.8rem 1rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
