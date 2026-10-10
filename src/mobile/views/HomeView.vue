@@ -64,9 +64,6 @@
           </div>
 
         </div>
-          <div class="contact-name">{{ c.name }}</div>
-          <div class="contact-dept">{{ c.department || '—' }} · {{ c.position || '—' }}</div>
-        </div>
         <div v-if="contactsList.length === 0" class="empty">暂无通讯录数据</div>
       </div>
     </section>
