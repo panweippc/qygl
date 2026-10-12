@@ -43,25 +43,51 @@
             </div>
           </section>
 
-          <!-- 通讯录：与上方「常用操作」磁贴样式保持一致 -->
+          <!-- 通讯录：左侧部门筛选 + 右侧人员卡片（每行 5 人，横向） -->
           <section class="section-block">
             <div class="section-title">通讯录<span class="section-count">（{{ contactsStats.total }} 人）</span></div>
-            <div class="contacts-grid">
-              <div
-                v-for="c in contactsList"
-                :key="c.name + '|' + c.department"
-                class="contact-tile"
-                @click="openContact(c)"
-              >
-                <span class="contact-tile-name">{{ c.name }}</span>
-                <span class="contact-tile-dept">{{ c.department }} · {{ c.position }}</span>
-                <span class="contact-tile-meta">
-                  <span class="ct-line"><span class="ct-label">邮箱</span><span class="ct-value">{{ c.email || '—' }}</span></span>
-                  <span class="ct-line"><span class="ct-label">电话</span><span class="ct-value">{{ c.phone || '—' }}</span></span>
-                  <span v-if="c.projects && c.projects.length" class="ct-line ct-projects"><span class="ct-label">项目</span><span class="ct-value">{{ c.projects.map(p => p.name).join('、') }}</span></span>
-                </span>
+            <div class="contacts-layout">
+              <aside class="dept-filter">
+                <div class="dept-filter-title">部门筛选</div>
+                <button
+                  v-for="d in deptOptions"
+                  :key="d.name"
+                  type="button"
+                  class="dept-item"
+                  :class="{ active: selectedDept === d.name }"
+                  @click="selectedDept = d.name"
+                >
+                  <span>{{ d.name || '全部' }}</span>
+                  <span class="dept-count">{{ d.count }}</span>
+                </button>
+              </aside>
+              <div class="contacts-main">
+                <div class="contacts-toolbar">
+                  <input
+                    v-model="deptSearch"
+                    class="dept-search"
+                    placeholder="搜索姓名 / 职位…"
+                  />
+                  <span class="contacts-result">显示：{{ selectedDept || '全部' }}{{ deptSearch ? ' + 搜索' : '' }} · {{ filteredContacts.length }} 人</span>
+                </div>
+                <div class="contacts-grid">
+                  <div
+                    v-for="c in filteredContacts"
+                    :key="c.name + '|' + c.department"
+                    class="contact-tile"
+                    @click="openContact(c)"
+                  >
+                    <span class="contact-tile-name">{{ c.name }}</span>
+                    <span class="contact-tile-dept">{{ c.department }} · {{ c.position }}</span>
+                    <span class="contact-tile-meta">
+                      <span class="ct-line"><span class="ct-label">邮箱</span><span class="ct-value">{{ c.email || '—' }}</span></span>
+                      <span class="ct-line"><span class="ct-label">电话</span><span class="ct-value">{{ c.phone || '—' }}</span></span>
+                      <span v-if="c.projects && c.projects.length" class="ct-line ct-projects"><span class="ct-label">项目</span><span class="ct-value">{{ c.projects.map(p => p.name).join('、') }}</span></span>
+                    </span>
+                  </div>
+                  <div v-if="filteredContacts.length === 0" class="contact-empty">暂无符合条件的人员</div>
+                </div>
               </div>
-              <div v-if="contactsList.length === 0" class="contact-empty">暂无通讯录数据</div>
             </div>
           </section>
         </div>
@@ -219,6 +245,32 @@ const contactsList = ref<any[]>([])
 const contactsStats = computed(() => ({
   total: contactsList.value.length
 }))
+
+// 部门筛选 + 搜索（纯前端，无需后端改动；department 字段已随通讯录接口返回）
+const selectedDept = ref('')
+const deptSearch = ref('')
+
+// 部门列表（含「全部」与各部门人数），按人数降序、部门名升序
+const deptOptions = computed(() => {
+  const map = new Map<string, number>()
+  for (const c of contactsList.value) {
+    const d = c.department || '未分组'
+    map.set(d, (map.get(d) || 0) + 1)
+  }
+  const items = Array.from(map.entries()).map(([name, count]) => ({ name, count }))
+  items.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh'))
+  return [{ name: '', count: contactsList.value.length }, ...items]
+})
+
+// 按部门 + 关键字过滤后的人员
+const filteredContacts = computed(() => {
+  const q = deptSearch.value.trim().toLowerCase()
+  return contactsList.value.filter(c => {
+    const okDept = !selectedDept.value || (c.department || '未分组') === selectedDept.value
+    const okQ = !q || (c.name + ' ' + (c.department || '') + ' ' + (c.position || '')).toLowerCase().includes(q)
+    return okDept && okQ
+  })
+})
 
 const loadSummary = async () => {
   try {
@@ -435,10 +487,75 @@ function progressTagType(p: number): 'info' | 'warning' | 'success' {
 .quick-tile .quick-icon :deep(svg) { width: 20px; height: 20px; }
 .quick-tile .quick-label { white-space: nowrap; }
 
-/* 通讯录：与上方「常用操作」磁贴样式保持一致 */
+/* 通讯录：左侧部门筛选 + 右侧人员卡片（每行 5 人） */
+.contacts-layout {
+  display: flex;
+  gap: 1.2rem;
+  align-items: flex-start;
+}
+.dept-filter {
+  flex: 0 0 168px;
+  border-right: 0.5px solid rgba(30, 90, 168, 0.15);
+  padding-right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dept-filter-title {
+  font-size: 13px;
+  color: rgba(51, 51, 51, 0.6);
+  margin-bottom: 6px;
+}
+.dept-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+  color: #333;
+  background: transparent;
+  border: 0.5px solid transparent;
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.dept-item:hover { background: #f5f7fa; }
+.dept-item.active {
+  background: rgba(30, 90, 168, 0.1);
+  color: #1E5AA8;
+  border-color: rgba(30, 90, 168, 0.3);
+}
+.dept-count { font-size: 12px; color: rgba(51, 51, 51, 0.5); }
+.dept-item.active .dept-count { color: #1E5AA8; }
+
+.contacts-main { flex: 1; min-width: 0; }
+.contacts-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.dept-search {
+  flex: 1;
+  max-width: 280px;
+  font-size: 13px;
+  padding: 7px 10px;
+  border: 0.5px solid rgba(30, 90, 168, 0.2);
+  border-radius: 8px;
+  background: #fff;
+  color: #333;
+  font-family: inherit;
+}
+.contacts-result {
+  font-size: 13px;
+  color: rgba(51, 51, 51, 0.6);
+  white-space: nowrap;
+}
 .contacts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.9rem;
 }
 .contact-tile {
