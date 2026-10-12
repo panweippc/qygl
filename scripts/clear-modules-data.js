@@ -1,12 +1,17 @@
 /**
- * 清空「审批中心」与「月报」两个模块相关表的数据（仅删数据，不删表结构）。
+ * 清空各业务模块相关表的数据（仅删数据，不删表结构）。
  *
- * 范围（按用户确认）：
+ * 范围（按用户确认，共五个菜单）：
  *   审批中心 -> 7 张传统 OA 业务表 + 下发记录：
  *     leave_applications, reimbursements, meetings, business_trip_applications,
  *     office_supplies_applications, entertainment_expenses, project_applications, distributed_records
  *   月报      -> weeklyReports
- *   通知      -> notifications（系统通知）
+ *   销售漏斗  -> 四表（意向/重点漏斗、成交用户）+ 大项目进展（分析/关键人/竞争对手/拜访）+ 版本快照：
+ *     sales_intention_funnel, sales_key_funnel, sales_deal_customers,
+ *     sales_project_analysis, sales_project_key_persons, sales_project_competitors,
+ *     sales_project_visit_records, sales_table_versions
+ *   成交项目  -> closing_projects
+ *   操作日志  -> operation_logs
  *
  * 安全设计：
  *   1. 默认【试运行 DRY-RUN】：只统计每张表当前行数并打印，不做任何删除。
@@ -34,8 +39,19 @@ const TABLES = [
   'distributed_records',
   // —— 月报（实际表名 weeklyreports，Windows 下大小写不敏感） ——
   'weeklyreports',
-  // —— 系统通知 ——
-  'notifications'
+  // —— 销售漏斗（四表 + 大项目进展 + 版本快照） ——
+  'sales_intention_funnel',
+  'sales_key_funnel',
+  'sales_deal_customers',
+  'sales_project_analysis',
+  'sales_project_key_persons',
+  'sales_project_competitors',
+  'sales_project_visit_records',
+  'sales_table_versions',
+  // —— 成交项目 ——
+  'closing_projects',
+  // —— 操作日志 ——
+  'operation_logs'
 ]
 
 const DO_EXECUTE = process.argv.includes('--execute')
