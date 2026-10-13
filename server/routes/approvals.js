@@ -525,14 +525,45 @@ router.post('/oa/process', async (req, res) => {
         relatedType: 'oa_approval'
       });
     } else if (action === 'return') {
+      const returnReason = comment || '（未填写）'
+      // 申请人：告知被退回及原因
       await createNotification(pool, {
         userId: instance.applicantName,
         title: 'OA审批退回',
-        content: `您的${instance.businessType}审批申请已被退回修改`,
+        content: `您的${instance.businessType}审批申请已被退回修改，退回原因为：${returnReason}`,
         type: 'approval',
         relatedId: instanceId,
         relatedType: 'oa_approval'
-      });
+      })
+      // 最终点击退回的审批人：留痕确认自己执行了退回
+      if (approverName && approverName !== instance.applicantName) {
+        await createNotification(pool, {
+          userId: approverName,
+          title: 'OA审批退回',
+          content: `您已经退回了申请人${instance.applicantName}的${instance.businessType}申请，退回原因为：${returnReason}`,
+          type: 'approval',
+          relatedId: instanceId,
+          relatedType: 'oa_approval'
+        })
+      }
+      // 中间审批人（已处理过的节点）：告知其经手的申请被退回到申请人
+      const [histRows] = await pool.execute(
+        "SELECT approverName, nodeOrder FROM oa_approval_history WHERE instanceId = ? AND action IN ('agree','forward') AND nodeOrder < ?",
+        [instanceId, currentNodeOrder]
+      )
+      for (const h of histRows) {
+        if (!h.approverName || h.approverName === instance.applicantName) continue
+        const nextNode = approvalPath[h.nodeOrder] || null
+        const nextName = nextNode?.name || instance.applicantName
+        await createNotification(pool, {
+          userId: h.approverName,
+          title: 'OA审批退回',
+          content: `您转交到${nextName}审批的${instance.businessType}申请已被退回到申请人，退回原因为：${returnReason}`,
+          type: 'approval',
+          relatedId: instanceId,
+          relatedType: 'oa_approval'
+        })
+      }
     }
 
     await createOperationLog(pool, {

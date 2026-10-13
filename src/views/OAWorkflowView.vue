@@ -1457,7 +1457,9 @@ const ACTION_LABEL: Record<string, string> = {
   forward: '转交',
   return: '退回',
   withdraw: '撤回',
-  resubmit: '重新提交'
+  resubmit: '重新提交',
+  ack: '已知晓',
+  opinion: '提交意见'
 }
 
 // 拉取某条申请的完整生命周期（审批动作 + 下发），供详情页时间线展示
@@ -1496,6 +1498,8 @@ const lifecycleTimeline = computed(() => {
     else if (action === 'return') desc = log.comment ? `退回理由：${log.comment}` : '退回申请'
     else if (action === 'withdraw') desc = '申请人撤回该申请'
     else if (action === 'resubmit') desc = '撤回/退回后重新提交，重新进入审批'
+    else if (action === 'ack') desc = '协同对象已知晓'
+    else if (action === 'opinion') desc = log.comment ? `意见：${log.comment}` : '提交了意见'
     else if (log.comment) desc = log.comment
     nodes.push({
       time: log.created_at,
@@ -1521,23 +1525,8 @@ const lifecycleTimeline = computed(() => {
       isDistribute: true
     })
   }
-  // 按业务阶段排序（下发在审批动作之后，审批动作在申请人动作之后），同阶段内按时间倒序
-  const phasePriority: Record<string, number> = {
-    distribute: 3,
-    approve: 2,
-    reject: 2,
-    forward: 2,
-    return: 2,
-    submit: 1,
-    withdraw: 1,
-    resubmit: 1
-  }
-  nodes.sort((a, b) => {
-    const pa = phasePriority[a.action] || 0
-    const pb = phasePriority[b.action] || 0
-    if (pa !== pb) return pb - pa
-    return String(b.time || '').localeCompare(String(a.time || ''))
-  })
+  // 按时间倒序：最新的在最上方，最早的在最下方（审批生命周期时间线规范）
+  nodes.sort((a, b) => String(b.time || '').localeCompare(String(a.time || '')))
   return nodes
 })
 

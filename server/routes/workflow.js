@@ -1331,7 +1331,7 @@ router.post('/projects/:id/ack', async (req, res) => {
     const { id } = req.params;
     const me = getRealName(req);
     if (!me) return res.status(401).json({ success: false, message: '未登录' });
-    const [apps] = await pool.query('SELECT id, collaboration_mode, close_status FROM project_applications WHERE id = ?', [id]);
+    const [apps] = await pool.query('SELECT id, collaboration_mode, close_status, applicant_name, project_name FROM project_applications WHERE id = ?', [id]);
     if (apps.length === 0) return res.status(404).json({ success: false, message: '协同申请不存在' });
     if (apps[0].collaboration_mode !== 'notify') return res.status(400).json({ success: false, message: '该协同申请不是通知模式' });
     if (apps[0].close_status === 'closed') return res.status(400).json({ success: false, message: '该协同已结束，无法确认' });
@@ -1349,6 +1349,17 @@ router.post('/projects/:id/ack', async (req, res) => {
       [id, me, myDept]
     );
     await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: me, actorRole: '协同对象', action: 'ack', fromStatus: '', toStatus: 'acknowledged', targetUser: me });
+    // 回传消息中心给发起人：协同对象已知晓
+    if (apps[0].applicant_name) {
+      await createNotification(pool, {
+        userId: apps[0].applicant_name,
+        title: '协同已知晓',
+        content: `${me} 已知晓了您发起的协同事项「${apps[0].project_name || ''}」`,
+        type: 'collaboration',
+        relatedId: Number(id),
+        relatedType: 'project'
+      });
+    }
     res.json({ success: true, data: { updated: result.affectedRows } });
   } catch (error) {
     console.error('协同已知晓失败:', error);
@@ -1365,7 +1376,7 @@ router.post('/projects/:id/opinion', async (req, res) => {
     const me = getRealName(req);
     if (!me) return res.status(401).json({ success: false, message: '未登录' });
     if (!opinion || !opinion.toString().trim()) return res.status(400).json({ success: false, message: '意见内容不能为空' });
-    const [apps] = await pool.query('SELECT id, collaboration_mode, close_status FROM project_applications WHERE id = ?', [id]);
+    const [apps] = await pool.query('SELECT id, collaboration_mode, close_status, applicant_name, project_name FROM project_applications WHERE id = ?', [id]);
     if (apps.length === 0) return res.status(404).json({ success: false, message: '协同申请不存在' });
     if (apps[0].collaboration_mode !== 'opinion') return res.status(400).json({ success: false, message: '该协同申请不是意见征集模式' });
     if (apps[0].close_status === 'closed') return res.status(400).json({ success: false, message: '该协同已结束，无法提交意见' });
@@ -1383,6 +1394,17 @@ router.post('/projects/:id/opinion', async (req, res) => {
       [opinion.toString().trim(), id, me, myDept]
     );
     await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: me, actorRole: '协同对象', action: 'opinion', fromStatus: '', toStatus: '', targetUser: me, comment: opinion.toString().trim().slice(0, 200) });
+    // 回传消息中心给发起人：协同对象提交了意见
+    if (apps[0].applicant_name) {
+      await createNotification(pool, {
+        userId: apps[0].applicant_name,
+        title: '协同意见提交',
+        content: `${me} 对您发起的协同事项「${apps[0].project_name || ''}」提交了意见${opinion ? '：' + opinion.toString().trim().slice(0, 50) : ''}`,
+        type: 'collaboration',
+        relatedId: Number(id),
+        relatedType: 'project'
+      });
+    }
     res.json({ success: true, data: { updated: result.affectedRows } });
   } catch (error) {
     console.error('提交协同意见失败:', error);

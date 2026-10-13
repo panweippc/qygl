@@ -122,14 +122,42 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getProjects, getCollaboratedWithMe, ackCollaboration, submitCollaborationOpinion } from '@/services/api'
 import { getProjectApplication } from '@/services/workflow'
 import { extractRealName } from '@/utils/oaWorkflowUtils'
 
 const router = useRouter()
+const route = useRoute()
+
+// 从消息中心跳转过来时，根据 URL 的 expandKey=project-<id> 自动展开对应协同记录的协同对象
+const tryAutoExpand = async () => {
+  const key = String(route.query.expandKey || '')
+  const m = key.match(/^project-(\d+)$/)
+  if (!m) return
+  const targetId = Number(m[1])
+  if (mineList.value.length === 0 && tomeList.value.length === 0) {
+    await loadData()
+  }
+  const item = [...mineList.value, ...tomeList.value].find((i) => Number(i.id) === targetId)
+  if (!item) return
+  scope.value = 'mine'
+  expandedId.value = targetId
+  expandedLoading.value = true
+  expandedCollaborators.value = []
+  try {
+    const res = await getProjectApplication(targetId)
+    if (res.success) {
+      expandedCollaborators.value = (res.data && (res.data.collaborators || [])) || []
+    }
+  } catch (e) {
+    console.error('自动展开协同对象失败', e)
+  } finally {
+    expandedLoading.value = false
+  }
+}
 
 const props = defineProps<{
   isAdmin: boolean
@@ -274,7 +302,13 @@ const loadData = async () => {
 
 const goToProjectApply = () => router.push('/oa/project-apply')
 
-onMounted(loadData)
+onMounted(async () => {
+  await loadData()
+  await tryAutoExpand()
+})
+watch(() => route.query.expandKey, async () => {
+  await tryAutoExpand()
+})
 const fetchData = loadData
 defineExpose({ loadData, fetchData })
 </script>

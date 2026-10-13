@@ -77,6 +77,11 @@ function resolveJumpRoute(item: any): string {
     return `/oa-office?tab=distributedByMe&expandKey=${item.relatedType}-${item.relatedId}`
   }
 
+  // 协同已知晓/意见回传：跳「我发起的」协同 tab 并自动展开对应记录
+  if (item?.type === 'collaboration' && item?.relatedType === 'project' && item?.relatedId) {
+    return `/oa-office?tab=project&subTab=mine&expandKey=project-${item.relatedId}`
+  }
+
   // 普通下发通知：跳「下发管理」并选中对应申请类型
   if (item?.relatedType === 'distributed' && item?.relatedId) {
     if (['leave', 'reimbursement', 'meeting', 'project', 'businessTrip', 'entertainment'].includes(t)) {
