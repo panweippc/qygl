@@ -169,6 +169,10 @@ const expandedId = ref<number | null>(null)
 const expandedCollaborators = ref<any[]>([])
 const expandedLoading = ref(false)
 const toggleExpand = async (item: any) => {
+  if (!item?.id) {
+    ElMessage.warning('协同对象信息不完整，无法加载')
+    return
+  }
   if (expandedId.value === item.id) {
     expandedId.value = null
     return
@@ -271,7 +275,8 @@ const loadData = async () => {
 const goToProjectApply = () => router.push('/oa/project-apply')
 
 onMounted(loadData)
-defineExpose({ loadData })
+const fetchData = loadData
+defineExpose({ loadData, fetchData })
 </script>
 
 <style scoped>

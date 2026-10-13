@@ -47,8 +47,11 @@
           <section class="section-block">
             <div class="section-title">通讯录<span class="section-count">（{{ contactsStats.total }} 人）</span></div>
             <div class="contacts-layout">
-              <aside class="dept-filter">
-                <div class="dept-filter-title">部门筛选</div>
+              <aside v-show="showDeptFilter" class="dept-filter">
+                <div class="dept-filter-title">
+                  <span>部门筛选</span>
+                  <button type="button" class="dept-close" @click="showDeptFilter = false">×</button>
+                </div>
                 <button
                   v-for="d in deptOptions"
                   :key="d.name"
@@ -69,6 +72,14 @@
                     placeholder="搜索姓名 / 职位…"
                   />
                   <span class="contacts-result">显示：{{ selectedDept || '全部' }}{{ deptSearch ? ' + 搜索' : '' }} · {{ filteredContacts.length }} 人</span>
+                  <button
+                    v-if="!showDeptFilter"
+                    type="button"
+                    class="dept-toggle"
+                    @click="showDeptFilter = true"
+                  >
+                    部门筛选
+                  </button>
                 </div>
                 <div class="contacts-grid">
                   <div
@@ -247,6 +258,7 @@ const contactsStats = computed(() => ({
 }))
 
 // 部门筛选 + 搜索（纯前端，无需后端改动；department 字段已随通讯录接口返回）
+const showDeptFilter = ref(false) // 默认隐藏，点击工具栏按钮展开
 const selectedDept = ref('')
 const deptSearch = ref('')
 
@@ -502,9 +514,38 @@ function progressTagType(p: number): 'info' | 'warning' | 'success' {
   gap: 4px;
 }
 .dept-filter-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 13px;
   color: rgba(51, 51, 51, 0.6);
   margin-bottom: 6px;
+}
+.dept-close {
+  background: transparent;
+  border: none;
+  color: rgba(51, 51, 51, 0.4);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.dept-close:hover { color: #f44336; }
+.dept-toggle {
+  margin-left: auto;
+  font-size: 13px;
+  color: #1E5AA8;
+  background: rgba(30, 90, 168, 0.08);
+  border: 0.5px solid rgba(30, 90, 168, 0.25);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+.dept-toggle:hover {
+  background: rgba(30, 90, 168, 0.15);
+  border-color: rgba(30, 90, 168, 0.4);
 }
 .dept-item {
   display: flex;

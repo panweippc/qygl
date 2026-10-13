@@ -458,7 +458,7 @@ router.get('/projects/:id', async (req, res) => {
     );
 
     if (projects.length === 0) {
-      return res.status(404).json({ success: false, message: '项目申请不存在' });
+      return res.status(404).json({ success: false, message: `项目申请不存在 (id=${id})` });
     }
 
     const app = projects[0];

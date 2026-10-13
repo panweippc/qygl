@@ -66,8 +66,8 @@
               <el-col :span="12">
                 <el-form-item label="协同模式" prop="collaborationMode">
                   <el-radio-group v-model="form.collaborationMode">
-                    <el-radio-button value="opinion">意见征集</el-radio-button>
-                    <el-radio-button value="notify">通知</el-radio-button>
+                  <el-radio-button label="opinion">意见征集</el-radio-button>
+                  <el-radio-button label="notify">通知</el-radio-button>
                   </el-radio-group>
                 </el-form-item>
               </el-col>
@@ -160,13 +160,12 @@
 
                   <el-select
                     v-if="c.type === 'user'"
-                    v-model="c.empId"
+                    v-model="c.empIds"
+                    multiple
                     filterable
-                    remote
-                    :remote-method="searchEmployees"
-                    placeholder="选择人员"
+                    placeholder="可选择多名人员"
                     style="flex: 1"
-                    @change="onCollaboratorUserChange(c)"
+                    @change="onCollaboratorUsersChange(c)"
                   >
                     <el-option
                       v-for="emp in employeeOptions"
@@ -178,11 +177,12 @@
 
                   <el-select
                     v-else
-                    v-model="c.deptName"
+                    v-model="c.deptNames"
+                    multiple
                     filterable
                     allow-create
                     default-first-option
-                    placeholder="选择或输入部门"
+                    placeholder="可选择多个部门"
                     style="flex: 1"
                   >
                     <el-option
@@ -353,35 +353,39 @@ const removeExtraApplicant = (id: any) => {
   syncExtraApplicants();
 };
 
-// 协同对象
+// 协同对象（每行支持多选：同职责下可选多人或多部门）
 const collaborators = ref<{
   type: 'user' | 'dept';
-  empId: any;
-  empName: string;
-  empDept: string;
-  deptName: string;
+  empIds: (string | number)[];
+  empNames: string[];
+  empDepts: string[];
+  deptNames: string[];
   role: string;
 }[]>([]);
 
 const addCollaborator = () => {
-  collaborators.value.push({ type: 'user', empId: null, empName: '', empDept: '', deptName: '', role: '' });
+  collaborators.value.push({ type: 'user', empIds: [], empNames: [], empDepts: [], deptNames: [], role: '' });
 };
 const removeCollaborator = (idx: number) => {
   collaborators.value.splice(idx, 1);
 };
-const onCollaboratorUserChange = (c: any) => {
-  const emp = employeeOptions.value.find((e) => String(e.id) === String(c.empId));
-  if (emp) {
-    c.empName = emp.name;
-    c.empDept = emp.department;
+const onCollaboratorUsersChange = (c: any) => {
+  c.empNames = [];
+  c.empDepts = [];
+  for (const id of c.empIds) {
+    const emp = employeeOptions.value.find((e) => String(e.id) === String(id));
+    if (emp) {
+      c.empNames.push(emp.name);
+      c.empDepts.push(emp.department);
+    }
   }
 };
 const onCollaboratorTypeChange = (c: any) => {
   // 切换类型时清空已选目标，避免类型错配
-  c.empId = null;
-  c.empName = '';
-  c.empDept = '';
-  c.deptName = '';
+  c.empIds = [];
+  c.empNames = [];
+  c.empDepts = [];
+  c.deptNames = [];
 };
 
 // 禁用结束日期
@@ -421,11 +425,11 @@ const submitForm = async () => {
       return;
     }
     for (const c of collaborators.value) {
-      if (c.type === 'user' && !c.empId) {
+      if (c.type === 'user' && c.empIds.length === 0) {
         ElMessage.error('存在未选择人员的协同对象，请补全');
         return;
       }
-      if (c.type === 'dept' && !c.deptName) {
+      if (c.type === 'dept' && c.deptNames.length === 0) {
         ElMessage.error('存在未选择部门的协同对象，请补全');
         return;
       }
@@ -433,6 +437,32 @@ const submitForm = async () => {
 
     submitting.value = true;
     try {
+      // 把每行多选展开为后端需要的单对象数组
+      const flatCollaborators: any[] = []
+      for (const c of collaborators.value) {
+        if (c.type === 'user') {
+          for (let i = 0; i < c.empIds.length; i++) {
+            flatCollaborators.push({
+              type: 'user',
+              id: c.empIds[i],
+              name: c.empNames[i] || '',
+              dept: c.empDepts[i] || '',
+              role: c.role
+            })
+          }
+        } else {
+          for (const deptName of c.deptNames) {
+            flatCollaborators.push({
+              type: 'dept',
+              id: null,
+              name: deptName,
+              dept: deptName,
+              role: c.role
+            })
+          }
+        }
+      }
+
       const submitData = {
         collaborationMode: form.collaborationMode,
         projectName: form.projectName,
@@ -445,11 +475,7 @@ const submitForm = async () => {
         objectives: form.objectives,
         // 主发起人由后端按当前登录用户写入；此处仅传联合发起人
         applicants: extraApplicants.value.map((a) => ({ id: a.id, name: a.name, dept: a.dept })),
-        collaborators: collaborators.value.map((c) =>
-          c.type === 'user'
-            ? { type: 'user', id: c.empId, name: c.empName, dept: c.empDept, role: c.role }
-            : { type: 'dept', id: null, name: c.deptName, dept: c.deptName, role: c.role }
-        )
+        collaborators: flatCollaborators
       };
 
       const response = await createProjectApplication(submitData);
