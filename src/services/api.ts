@@ -323,6 +323,24 @@ export const getProjects = async (): Promise<ApiResponse<{ list: Project[] }>> =
   return response.data;
 };
 
+// 协同申请：当前用户作为协同对象（人员或部门成员）收到的事项
+export const getCollaboratedWithMe = async (): Promise<ApiResponse<{ list: any[] }>> => {
+  const response = await api.get('/projects/collaborated-with-me');
+  return response.data;
+};
+
+// 协同申请：通知模式「已知晓」
+export const ackCollaboration = async (id: number): Promise<ApiResponse> => {
+  const response = await api.post(`/projects/${id}/ack`);
+  return response.data;
+};
+
+// 协同申请：意见征集提交意见
+export const submitCollaborationOpinion = async (id: number, opinion: string): Promise<ApiResponse> => {
+  const response = await api.post(`/projects/${id}/opinion`, { opinion });
+  return response.data;
+};
+
 export const updateProject = async (id: number, data: any): Promise<ApiResponse> => {
   const userStr = localStorage.getItem('user');
   const approverId = userStr ? JSON.parse(userStr).id : null;

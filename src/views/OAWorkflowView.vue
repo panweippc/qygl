@@ -144,7 +144,7 @@
             </div>
 
             <div v-show="activeTab === 'project'" class="tab-panel">
-              <OfficeSuppliesPanel
+              <CollaborationPanel
                 ref="projectPanelRef"
                 @update:badge="(p) => onPanelBadge('project', p)"
                 :isAdmin="isAdminComputed"
@@ -793,7 +793,7 @@ import {
 import LeavePanel from '../components/LeavePanel.vue'
 import ReimbursementPanel from '../components/ReimbursementPanel.vue'
 import MeetingPanel from '../components/MeetingPanel.vue'
-import OfficeSuppliesPanel from '../components/OfficeSuppliesPanel.vue'
+import CollaborationPanel from '../components/CollaborationPanel.vue'
 import BusinessTripPanel from '../components/BusinessTripPanel.vue'
 import EntertainmentPanel from '../components/EntertainmentPanel.vue'
 

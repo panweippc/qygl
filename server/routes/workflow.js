@@ -158,6 +158,54 @@ router.get('/projects', async (req, res) => {
   }
 });
 
+// 协同给我的：当前用户作为协同对象（人员或部门成员）的事项
+router.get('/projects/collaborated-with-me', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const me = getRealName(req);
+    if (!me) return res.status(401).json({ success: false, message: '未登录' });
+    const [rows] = await pool.query(
+      `SELECT DISTINCT pa.* FROM project_applications pa
+       WHERE pa.collaboration_mode <> ''
+         AND pa.id IN (
+           SELECT application_id FROM project_collaborators WHERE target_type = 'user' AND target_name = ?
+           UNION
+           SELECT application_id FROM project_collaborators WHERE target_type = 'dept' AND target_name IN (SELECT department FROM employees WHERE name = ?)
+         )
+       ORDER BY pa.created_at DESC`,
+      [me, me]
+    );
+    const list = [];
+    for (const pa of rows) {
+      const [cols] = await pool.query(
+        'SELECT * FROM project_collaborators WHERE application_id = ? ORDER BY id ASC',
+        [pa.id]
+      );
+      list.push({
+        id: pa.id,
+        project_code: pa.project_code || ('PRJ' + String(pa.id).padStart(6, '0')),
+        project_name: pa.project_name || '',
+        project_type: pa.project_type || '',
+        description: pa.description || '',
+        applicant_name: pa.applicant_name || '',
+        priority: pa.priority || '中',
+        start_date: pa.start_date || '',
+        end_date: pa.end_date || '',
+        collaboration_mode: pa.collaboration_mode || '',
+        close_status: pa.close_status || 'open',
+        status: pa.status || '',
+        created_at: pa.created_at || new Date(),
+        expire_at: pa.expire_at || null,
+        collaborators: cols
+      });
+    }
+    res.json({ success: true, data: { list } });
+  } catch (error) {
+    console.error('获取协同给我的失败:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // 创建项目申请
 router.post("/projects", async (req, res) => {
   try {
