@@ -1337,13 +1337,16 @@ router.post('/projects/:id/ack', async (req, res) => {
     if (apps[0].close_status === 'closed') return res.status(400).json({ success: false, message: '该协同已结束，无法确认' });
     const authorized = await resolveCollaboratorAuth(pool, id, me);
     if (!authorized) return res.status(403).json({ success: false, message: '您不是该协同的协同对象，无法确认' });
+    // 先取当前用户所在部门，避免 UPDATE 中跨表字符串比较触发 collation 不一致 500
+    const [empRows] = await pool.query('SELECT department FROM employees WHERE name = ? LIMIT 1', [me]);
+    const myDept = empRows[0]?.department || '';
     const [result] = await pool.query(
       `UPDATE project_collaborators
        SET ack_status = 'acknowledged', ack_at = NOW()
        WHERE application_id = ?
          AND ((target_type = 'user' AND target_name = ?)
-              OR (target_type = 'dept' AND target_name IN (SELECT department FROM employees WHERE name = ?)))`,
-      [id, me, me]
+              OR (target_type = 'dept' AND target_name = ?))`,
+      [id, me, myDept]
     );
     await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: me, actorRole: '协同对象', action: 'ack', fromStatus: '', toStatus: 'acknowledged', targetUser: me });
     res.json({ success: true, data: { updated: result.affectedRows } });
@@ -1368,13 +1371,16 @@ router.post('/projects/:id/opinion', async (req, res) => {
     if (apps[0].close_status === 'closed') return res.status(400).json({ success: false, message: '该协同已结束，无法提交意见' });
     const authorized = await resolveCollaboratorAuth(pool, id, me);
     if (!authorized) return res.status(403).json({ success: false, message: '您不是该协同的协同对象，无法提交意见' });
+    // 先取当前用户所在部门，避免 UPDATE 中跨表字符串比较触发 collation 不一致 500
+    const [empRows] = await pool.query('SELECT department FROM employees WHERE name = ? LIMIT 1', [me]);
+    const myDept = empRows[0]?.department || '';
     const [result] = await pool.query(
       `UPDATE project_collaborators
        SET opinion_text = ?, opinion_at = NOW()
        WHERE application_id = ?
          AND ((target_type = 'user' AND target_name = ?)
-              OR (target_type = 'dept' AND target_name IN (SELECT department FROM employees WHERE name = ?)))`,
-      [opinion.toString().trim(), id, me, me]
+              OR (target_type = 'dept' AND target_name = ?))`,
+      [opinion.toString().trim(), id, me, myDept]
     );
     await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: me, actorRole: '协同对象', action: 'opinion', fromStatus: '', toStatus: '', targetUser: me, comment: opinion.toString().trim().slice(0, 200) });
     res.json({ success: true, data: { updated: result.affectedRows } });

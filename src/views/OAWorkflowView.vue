@@ -1186,7 +1186,8 @@ const printRow = async (row: any) => {
       const win = window.open('', '_blank'); if (win) { win.document.open(); win.document.write(html); win.document.close(); win.onload = () => win.print(); }
     },
     project:       (r, d) => {
-      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>协同申请详情</title><style>@page{margin:10mm}body{font-family:"SimSun","宋体",serif;padding:20px;color:#000}.info-row{margin:10px 0}.info-label{font-weight:bold;display:inline-block;width:100px}</style></head><body><h2 style="text-align:center">协同申请详情</h2><div class="info-row"><span class="info-label">项目名称：</span>${r.projectName || r.title || ''}</div><div class="info-row"><span class="info-label">申请人：</span>${r.applicant || ''}</div><div class="info-row"><span class="info-label">项目类型：</span>${r.projectType || ''}</div><div class="info-row"><span class="info-label">审批状态：</span>${r.status || ''}</div></body></html>`
+      const modeLabel = r.collaborationMode === 'opinion' || r.collaboration_mode === 'opinion' ? '意见征集' : (r.collaborationMode === 'notify' || r.collaboration_mode === 'notify' ? '通知' : '-')
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>协同申请详情</title><style>@page{margin:10mm}body{font-family:"SimSun","宋体",serif;padding:20px;color:#000}.info-row{margin:10px 0}.info-label{font-weight:bold;display:inline-block;width:100px}</style></head><body><h2 style="text-align:center">协同申请详情</h2><div class="info-row"><span class="info-label">发起人：</span>${r.applicant || ''}</div><div class="info-row"><span class="info-label">协同事项名称：</span>${r.projectName || r.title || ''}</div><div class="info-row"><span class="info-label">协作类型：</span>${r.projectType || ''}</div><div class="info-row"><span class="info-label">协同模式：</span>${modeLabel}</div><div class="info-row"><span class="info-label">优先级：</span>${r.priority || ''}</div><div class="info-row"><span class="info-label">状态：</span>${r.status || ''}</div></body></html>`
       const win = window.open('', '_blank'); if (win) { win.document.open(); win.document.write(html); win.document.close(); win.onload = () => win.print(); }
     }
   }
@@ -1773,8 +1774,11 @@ const getApplicationDetailRows = (row: any) => {
     push('报销类型', row.reimburseType || '-')
     push('合计金额', '¥' + (row.amount || 0))
   } else if (type === 'project') {
+    push('发起人', row.applicant || '-')
     push('协同事项名称', row.projectName || '-')
     push('协作类型', row.projectType || '-')
+    push('协同模式', row.collaborationMode === 'opinion' || row.collaboration_mode === 'opinion' ? '意见征集' : (row.collaborationMode === 'notify' || row.collaboration_mode === 'notify' ? '通知' : '-'))
+    push('优先级', row.priority || '-')
     const projDept = (() => {
       const v = row.participatingDepartments || row.participating_departments || ''
       if (!v) return ''

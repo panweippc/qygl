@@ -335,12 +335,15 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
       '创建时间': item.submitDate
     },
     project: {
-      '申请人': item.applicant || currentUsername,
-      '项目名称': item.projectName,
-      '项目类型': item.projectType,
-      '预算金额': '¥' + item.budget,
-      '优先级': item.priority,
-      '提交时间': item.submitDate
+      '发起人': item.applicant || currentUsername,
+      '协同事项名称': item.projectName || '-',
+      '协作类型': item.projectType || '-',
+      '协同模式': item.collaborationMode === 'opinion' || item.collaboration_mode === 'opinion' ? '意见征集' : (item.collaborationMode === 'notify' || item.collaboration_mode === 'notify' ? '通知' : '-'),
+      '协同说明': item.description || '-',
+      '协同目标': item.objectives || item.objective || '-',
+      '截止时间': item.expireAt || item.expire_at || '-',
+      '优先级': item.priority || '-',
+      '提交时间': item.submitDate || '-'
     },
     businessTrip: {
       '申请人': item.applicant || currentUsername,
