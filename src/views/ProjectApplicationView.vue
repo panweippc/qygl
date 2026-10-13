@@ -12,16 +12,15 @@
           </template>
 
           <el-alert
-            v-if="returnReason"
-            type="warning"
-            show-icon
+            type="info"
             :closable="false"
+            show-icon
             style="margin-bottom: 16px;"
-            title="审批人退回理由"
-            :description="returnReason"
+            title="协同说明"
+            description="协同申请无需审批：可选择『意见征集』（相关人填写一条意见）或『通知』（相关人点击已知晓）。请填写发起方与协同对象，支持一对一、一对多、多对一。"
           />
 
-<el-form
+          <el-form
             ref="formRef"
             :model="form"
             :rules="rules"
@@ -30,7 +29,7 @@
           >
             <!-- 基本信息 -->
             <el-divider content-position="left">基本信息</el-divider>
-            
+
             <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="协同事项名称" prop="projectName">
@@ -58,270 +57,251 @@
               <el-col :span="12">
                 <el-form-item label="优先级" prop="priority">
                   <el-select v-model="form.priority" placeholder="请选择优先级" style="width: 100%">
-                    <el-option label="高" value="高">
-                      <el-tag type="danger">高</el-tag>
-                    </el-option>
-                    <el-option label="中" value="中">
-                      <el-tag type="warning">中</el-tag>
-                    </el-option>
-                    <el-option label="低" value="低">
-                      <el-tag type="info">低</el-tag>
-                    </el-option>
+                    <el-option label="高" value="高"><el-tag type="danger">高</el-tag></el-option>
+                    <el-option label="中" value="中"><el-tag type="warning">中</el-tag></el-option>
+                    <el-option label="低" value="低"><el-tag type="info">低</el-tag></el-option>
                   </el-select>
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="预算金额" prop="budget">
-                  <el-input-number
-                    v-model="form.budget"
-                    :min="0"
-                    :precision="2"
-                    :step="1000"
-                    style="width: 100%"
-                    placeholder="请输入预算金额"
-                  />
+                <el-form-item label="协同模式" prop="collaborationMode">
+                  <el-radio-group v-model="form.collaborationMode">
+                    <el-radio-button value="opinion">意见征集</el-radio-button>
+                    <el-radio-button value="notify">通知</el-radio-button>
+                  </el-radio-group>
                 </el-form-item>
               </el-col>
             </el-row>
 
             <el-row :gutter="20">
               <el-col :span="12">
-                <el-form-item label="审批人" prop="approver">
-                  <el-select v-model="form.approver" placeholder="请选择审批人" style="width: 100%">
-                    <el-option
-                      v-for="emp in approverOptions"
-                      :key="emp.id"
-                      :label="emp.name"
-                      :value="String(emp.id)"
-                    />
-                  </el-select>
+                <el-form-item label="开始日期" prop="startDate">
+                  <el-date-picker
+                    v-model="form.startDate"
+                    type="date"
+                    placeholder="选择开始日期"
+                    style="width: 100%"
+                    value-format="YYYY-MM-DD"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="结束日期" prop="endDate">
+                  <el-date-picker
+                    v-model="form.endDate"
+                    type="date"
+                    placeholder="选择结束日期"
+                    style="width: 100%"
+                    value-format="YYYY-MM-DD"
+                    :disabled-date="disabledEndDate"
+                  />
                 </el-form-item>
               </el-col>
             </el-row>
 
-        <!-- 时间规划 -->
-        <el-divider content-position="left">时间规划</el-divider>
-        
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="开始日期" prop="startDate">
+            <el-form-item v-if="form.collaborationMode === 'notify'" label="截止确认时间" prop="expireAt">
               <el-date-picker
-                v-model="form.startDate"
-                type="date"
-                placeholder="选择开始日期"
+                v-model="form.expireAt"
+                type="datetime"
+                placeholder="（可选）超过此时间视为未确认"
                 style="width: 100%"
-                value-format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD HH:mm:ss"
               />
             </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="结束日期" prop="endDate">
-              <el-date-picker
-                v-model="form.endDate"
-                type="date"
-                placeholder="选择结束日期"
+
+            <!-- 发起方 -->
+            <el-divider content-position="left">发起方</el-divider>
+            <el-form-item label="主发起人" prop="primaryApplicant">
+              <el-tag type="success" size="large">{{ currentUser?.name || '当前用户' }}</el-tag>
+              <span class="hint">（当前登录人，自动作为主发起人）</span>
+            </el-form-item>
+            <el-form-item label="联合发起人">
+              <el-select
+                v-model="extraApplicantIds"
+                multiple
+                filterable
+                remote
+                :remote-method="searchEmployees"
+                placeholder="可添加多人联合发起（多对一场景）"
                 style="width: 100%"
-                value-format="YYYY-MM-DD"
-                :disabled-date="disabledEndDate"
+                @change="syncExtraApplicants"
+              >
+                <el-option
+                  v-for="emp in employeeOptions"
+                  :key="emp.id"
+                  :label="emp.name + ' (' + emp.department + ')'"
+                  :value="emp.id"
+                />
+              </el-select>
+              <div v-if="extraApplicants.length" class="chip-list">
+                <el-tag
+                  v-for="a in extraApplicants"
+                  :key="a.id"
+                  class="chip"
+                  closable
+                  @close="removeExtraApplicant(a.id)"
+                >{{ a.name }}（{{ a.dept }}）</el-tag>
+              </div>
+            </el-form-item>
+
+            <!-- 协同对象 -->
+            <el-divider content-position="left">协同对象</el-divider>
+            <el-form-item label="" label-width="0">
+              <div class="collaborator-list">
+                <div
+                  v-for="(c, idx) in collaborators"
+                  :key="idx"
+                  class="collaborator-row"
+                >
+                  <el-select v-model="c.type" style="width: 110px" @change="onCollaboratorTypeChange(c)">
+                    <el-option label="人员" value="user" />
+                    <el-option label="部门" value="dept" />
+                  </el-select>
+
+                  <el-select
+                    v-if="c.type === 'user'"
+                    v-model="c.empId"
+                    filterable
+                    remote
+                    :remote-method="searchEmployees"
+                    placeholder="选择人员"
+                    style="flex: 1"
+                    @change="onCollaboratorUserChange(c)"
+                  >
+                    <el-option
+                      v-for="emp in employeeOptions"
+                      :key="emp.id"
+                      :label="emp.name + ' (' + emp.department + ')'"
+                      :value="emp.id"
+                    />
+                  </el-select>
+
+                  <el-select
+                    v-else
+                    v-model="c.deptName"
+                    filterable
+                    allow-create
+                    default-first-option
+                    placeholder="选择或输入部门"
+                    style="flex: 1"
+                  >
+                    <el-option
+                      v-for="d in departmentOptions"
+                      :key="d"
+                      :label="d"
+                      :value="d"
+                    />
+                  </el-select>
+
+                  <el-input
+                    v-model="c.role"
+                    placeholder="配合职责/期望（可选）"
+                    style="flex: 1"
+                  />
+
+                  <el-button
+                    type="danger"
+                    :icon="Delete"
+                    circle
+                    @click="removeCollaborator(idx)"
+                  />
+                </div>
+
+                <div v-if="collaborators.length === 0" class="empty-hint">
+                  尚未添加协同对象，点击下方按钮添加（一对多可添加多个）
+                </div>
+
+                <el-button type="primary" plain :icon="Plus" @click="addCollaborator">
+                  添加协同对象
+                </el-button>
+              </div>
+            </el-form-item>
+
+            <!-- 协同详情 -->
+            <el-divider content-position="left">协同详情</el-divider>
+
+            <el-form-item label="协作说明" prop="description">
+              <el-input
+                v-model="form.description"
+                type="textarea"
+                :rows="4"
+                placeholder="请详细描述协同事项的内容、背景与目标"
+                maxlength="500"
+                show-word-limit
               />
             </el-form-item>
-          </el-col>
-        </el-row>
 
-        <!-- 协同详情 -->
-        <el-divider content-position="left">协同详情</el-divider>
+            <el-form-item label="期望产出" prop="objectives">
+              <el-input
+                v-model="form.objectives"
+                type="textarea"
+                :rows="3"
+                placeholder="请描述协同事项的预期成果和交付物"
+                maxlength="300"
+                show-word-limit
+              />
+            </el-form-item>
 
-        <el-form-item label="协作说明" prop="description">
-          <el-input
-            v-model="form.description"
-            type="textarea"
-            :rows="4"
-            placeholder="请详细描述协同事项的内容、背景与目标"
-            maxlength="500"
-            show-word-limit
-          />
-        </el-form-item>
-
-        <el-form-item label="期望产出" prop="objectives">
-          <el-input
-            v-model="form.objectives"
-            type="textarea"
-            :rows="3"
-            placeholder="请描述协同事项的预期成果和交付物"
-            maxlength="300"
-            show-word-limit
-          />
-        </el-form-item>
-
-        <el-form-item label="参与部门">
-          <el-select
-            v-model="form.participatingDepartments"
-            multiple
-            filterable
-            allow-create
-            default-first-option
-            placeholder="请选择或输入参与部门"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="dept in departmentOptions"
-              :key="dept"
-              :label="dept"
-              :value="dept"
-            />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="协同成员">
-          <el-select
-            v-model="form.teamMembers"
-            multiple
-            filterable
-            remote
-            :remote-method="searchEmployees"
-            placeholder="请选择协同成员"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="emp in employeeOptions"
-              :key="emp.id"
-              :label="emp.name + ' (' + emp.department + ')'"
-              :value="emp.id"
-            />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="所需资源" prop="resources">
-          <el-input
-            v-model="form.resources"
-            type="textarea"
-            :rows="2"
-            placeholder="请描述项目所需的设备、场地等资源"
-          />
-        </el-form-item>
-
-        <!-- 提交按钮 -->
-        <el-form-item>
-          <el-button type="primary" @click="submitForm" :loading="submitting">
-            提交申请
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+            <!-- 提交按钮 -->
+            <el-form-item>
+              <el-button type="primary" @click="submitForm" :loading="submitting">
+                提交申请
+              </el-button>
+            </el-form-item>
+          </el-form>
+        </el-card>
       </div>
 
-      <!-- 右侧滚动区域 -->
+      <!-- 右侧说明区域 -->
       <div class="scroll-container">
         <div class="scroll-content">
-          <el-card class="process-preview">
-            <template #header>
-              <span>审批流程预览</span>
-            </template>
-            <el-timeline>
-              <el-timeline-item type="primary" :hollow="true">
-                <template #dot>
-                  <el-icon><User /></el-icon>
-                </template>
-                <div class="timeline-content">
-                  <h4>提交申请</h4>
-                  <p class="text-gray">{{ currentUser?.name || '当前用户' }}</p>
-                </div>
-              </el-timeline-item>
-              
-              <el-timeline-item type="warning" :hollow="true">
-                <template #dot>
-                  <el-icon><UserFilled /></el-icon>
-                </template>
-                <div class="timeline-content">
-                  <h4>负责人审批</h4>
-                  <p class="text-gray">由所选审批人处理</p>
-                </div>
-              </el-timeline-item>
-
-              <el-timeline-item
-                v-if="form.budget >= 100000"
-                type="warning"
-                :hollow="true"
-              >
-                <template #dot>
-                  <el-icon><UserFilled /></el-icon>
-                </template>
-                <div class="timeline-content">
-                  <h4>财务审核</h4>
-                  <p class="text-gray">预算 ≥10万时触发</p>
-                </div>
-              </el-timeline-item>
-
-              <el-timeline-item type="success" :hollow="true">
-                <template #dot>
-                  <el-icon><CircleCheck /></el-icon>
-                </template>
-                <div class="timeline-content">
-                  <h4>终审</h4>
-                  <p class="text-gray">最终审批</p>
-                </div>
-              </el-timeline-item>
-            </el-timeline>
-          </el-card>
-
           <el-card class="info-card">
-            <template #header>
-              <span>审批人信息</span>
-            </template>
-            <div v-if="selectedApprover" class="approver-info">
-              <el-avatar :size="60" class="approver-avatar">
-                {{ selectedApprover.name?.charAt(0) || '?' }}
-              </el-avatar>
-              <div class="approver-details">
-                <h4>{{ selectedApprover.name }}</h4>
-                <p>职位: {{ selectedApprover.position }}</p>
-                <p>部门: {{ selectedApprover.department }}</p>
-              </div>
+            <template #header><span>模式说明</span></template>
+            <div v-if="form.collaborationMode === 'opinion'">
+              <h4>💬 意见征集</h4>
+              <p class="text-gray">相关人会收到通知并填写一条意见。您可在协同详情中随时查看汇集的意见，便于决策参考。</p>
             </div>
-            <div v-else class="empty-state">
-              <el-icon size="48" class="empty-icon"><UserFilled /></el-icon>
-              <p>请选择审批人</p>
+            <div v-else>
+              <h4>🔔 通知</h4>
+              <p class="text-gray">相关人会收到通知并点击「已知晓」。您可查看谁已确认、谁尚未确认，掌握通知触达结果。</p>
             </div>
           </el-card>
 
           <el-card class="tips-card">
-            <template #header>
-              <span>温馨提示</span>
-            </template>
+            <template #header><span>关系类型提示</span></template>
             <ul class="tips-list">
-              <li>可手动选择审批人，不再默认指定</li>
-              <li>提交后将发送通知给审批人</li>
-              <li>审批进度可在个人中心查看</li>
-              <li>预算超过10万需财务审核</li>
+              <li><b>一对一：</b>发起方 1 人 + 协同对象 1 人</li>
+              <li><b>一对多：</b>发起方 1 人 + 协同对象多人 / 多部门</li>
+              <li><b>多对一：</b>发起方多人（加联合发起人）+ 协同对象 1 人</li>
+              <li>协同对象支持选择「人员」或「部门」，部门将展开为该部门全部成员。</li>
             </ul>
           </el-card>
         </div>
       </div>
     </div>
-
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { User, UserFilled, CircleCheck } from '@element-plus/icons-vue';
+import { Plus, Delete } from '@element-plus/icons-vue';
 import { createProjectApplication } from '@/services/workflow';
-import { getEmployees, getProjects, resubmitProject } from '@/services/api';
+import { getEmployees } from '@/services/api';
 
-const router = useRouter()
-const route = useRoute();
+const router = useRouter();
 const formRef = ref();
 const submitting = ref(false);
-// 重新提交模式：携带 ?id= 进入时回填原数据，退回场景高亮退回理由
-const editId = route.query.id ? Number(route.query.id) : null
-const isResubmit = ref(false)
-const returnReason = ref('')
-const employeeOptions = ref([]);
-const approverOptions = ref([]);
+const employeeOptions = ref<any[]>([]);
 
-// 部门选项：从员工列表中抽取去重后的部门
+// 当前登录用户（主发起人）
+const currentUser = computed(() => {
+  const userStr = localStorage.getItem('user');
+  return userStr ? JSON.parse(userStr) : null;
+});
+
+// 部门选项：从员工列表去重
 const departmentOptions = computed(() => {
   const set = new Set<string>();
   for (const emp of employeeOptions.value || []) {
@@ -330,66 +310,78 @@ const departmentOptions = computed(() => {
   return Array.from(set);
 });
 
-// 获取当前用户信息（从localStorage）
-const currentUser = computed(() => {
-  const userStr = localStorage.getItem('user');
-  return userStr ? JSON.parse(userStr) : null;
-});
-
-// 当前选择的审批人信息（类型安全比较，避免 emp.id 与 form.approver 类型不一致导致不显示）
-const selectedApprover = computed(() => {
-  return approverOptions.value.find(emp => String(emp.id) === String(form.approver)) || null;
-});
-
 const form = reactive({
   projectName: '',
   projectType: '',
-  priority: '高',
-  budget: 0,
+  priority: '中',
+  collaborationMode: 'opinion',
   startDate: '',
   endDate: '',
+  expireAt: '',
   description: '',
-  objectives: '',
-  teamMembers: [],
-  participatingDepartments: [],
-  resources: '',
-  approver: ''
+  objectives: ''
 });
 
 const rules = {
   projectName: [
-      { required: true, message: '请输入协同事项名称', trigger: 'blur' },
-      { min: 2, max: 100, message: '长度在 2 到 100 个字符之间', trigger: 'blur' }
-    ],
-  projectType: [
-    { required: true, message: '请选择协作类型', trigger: 'change' }
+    { required: true, message: '请输入协同事项名称', trigger: 'blur' },
+    { min: 2, max: 100, message: '长度在 2 到 100 个字符之间', trigger: 'blur' }
   ],
-  priority: [
-    { required: true, message: '请选择优先级', trigger: 'change' }
-  ],
-  budget: [
-    { required: true, message: '请输入预算金额', trigger: 'blur' },
-    { type: 'number', min: 0, message: '预算不能为负数', trigger: 'blur' }
-  ],
-  approver: [
-    { required: true, message: '请选择审批人', trigger: 'change' }
-  ],
-  startDate: [
-    { required: true, message: '请选择开始日期', trigger: 'change' }
-  ],
-  endDate: [
-    { required: true, message: '请选择结束日期', trigger: 'change' }
-  ],
+  projectType: [{ required: true, message: '请选择协作类型', trigger: 'change' }],
+  priority: [{ required: true, message: '请选择优先级', trigger: 'change' }],
+  collaborationMode: [{ required: true, message: '请选择协同模式', trigger: 'change' }],
+  startDate: [{ required: true, message: '请选择开始日期', trigger: 'change' }],
+  endDate: [{ required: true, message: '请选择结束日期', trigger: 'change' }],
   description: [
     { required: true, message: '请输入协作说明', trigger: 'blur' },
     { min: 10, message: '说明至少10个字符', trigger: 'blur' }
-  ],
-  objectives: [
-    { required: true, message: '请输入期望产出', trigger: 'blur' }
-  ],
-  resources: [
-    { required: true, message: '请输入所需资源', trigger: 'blur' }
   ]
+};
+
+// 联合发起人（额外发起方）
+const extraApplicantIds = ref<(string | number)[]>([]);
+const extraApplicants = ref<{ id: any; name: string; dept: string }[]>([]);
+
+const syncExtraApplicants = () => {
+  extraApplicants.value = extraApplicantIds.value
+    .map((id) => employeeOptions.value.find((e) => String(e.id) === String(id)))
+    .filter((e): e is any => !!e)
+    .map((e) => ({ id: e.id, name: e.name, dept: e.department }));
+};
+const removeExtraApplicant = (id: any) => {
+  extraApplicantIds.value = extraApplicantIds.value.filter((x) => String(x) !== String(id));
+  syncExtraApplicants();
+};
+
+// 协同对象
+const collaborators = ref<{
+  type: 'user' | 'dept';
+  empId: any;
+  empName: string;
+  empDept: string;
+  deptName: string;
+  role: string;
+}[]>([]);
+
+const addCollaborator = () => {
+  collaborators.value.push({ type: 'user', empId: null, empName: '', empDept: '', deptName: '', role: '' });
+};
+const removeCollaborator = (idx: number) => {
+  collaborators.value.splice(idx, 1);
+};
+const onCollaboratorUserChange = (c: any) => {
+  const emp = employeeOptions.value.find((e) => String(e.id) === String(c.empId));
+  if (emp) {
+    c.empName = emp.name;
+    c.empDept = emp.department;
+  }
+};
+const onCollaboratorTypeChange = (c: any) => {
+  // 切换类型时清空已选目标，避免类型错配
+  c.empId = null;
+  c.empName = '';
+  c.empDept = '';
+  c.deptName = '';
 };
 
 // 禁用结束日期
@@ -398,7 +390,7 @@ const disabledEndDate = (time: Date) => {
   return time.getTime() < new Date(form.startDate).getTime();
 };
 
-// 搜索员工
+// 搜索员工（同时用于发起方与协同对象选择）
 const searchEmployees = async (query: string) => {
   try {
     const response = await getEmployees();
@@ -406,7 +398,7 @@ const searchEmployees = async (query: string) => {
       let employees = response.data;
       if (query) {
         employees = employees.filter((emp: any) =>
-          emp.name.includes(query) || emp.department.includes(query)
+          emp.name.includes(query) || (emp.department || '').includes(query)
         );
       }
       employeeOptions.value = employees;
@@ -416,123 +408,70 @@ const searchEmployees = async (query: string) => {
   }
 };
 
-// 获取审批人选项（总经理、部门经理等管理角色）
-const loadApprovers = async () => {
-  try {
-    const response = await getEmployees();
-    if (response.success) {
-      console.log('所有员工:', response.data);
-      // 筛选出管理角色的员工（总经理、总监、经理等）
-      const managers = response.data.filter((emp: any) => {
-        const position = emp.position || '';
-        return position.includes('总经理') || position.includes('总监') || position.includes('经理');
-      });
-      console.log('筛选后的审批人:', managers);
-      approverOptions.value = managers;
-      
-      // 默认选择陈东（存为字符串，与 el-select 的 :value="String(emp.id)" 一致）
-      const defaultManager = managers.find((emp: any) => emp.name === '陈东') || managers[0];
-      if (defaultManager) {
-        if (!editId) form.approver = String(defaultManager.id);
-        console.log('默认审批人:', defaultManager);
-      }
-    }
-  } catch (error) {
-    console.error('获取审批人失败:', error);
-  }
-};
-
-// 重新提交：回填原申请数据，并展示审批人退回理由
-const loadForEdit = async () => {
-  if (!editId) return
-  try {
-    const response = await getProjects()
-    if (response.success) {
-      const arr = Array.isArray(response.data) ? response.data : ((response.data && response.data.list) || [])
-      const rec = arr.find((r: any) => Number(r.id) === Number(editId))
-      if (rec) {
-        isResubmit.value = true
-        // 下划线列名转驼峰后与表单字段自动匹配
-        const camel: Record<string, any> = {}
-        for (const [k, v] of Object.entries(rec)) {
-          camel[k.replace(/_([a-z])/g, (_m, c) => c.toUpperCase())] = v
-        }
-        for (const key of Object.keys(form)) {
-          if (camel[key] !== undefined && camel[key] !== null) form[key] = camel[key]
-        }
-        // 审批人：接口返回姓名，需映射回员工 id（与 el-select 的 String(emp.id) 一致）
-        if (rec.approver) {
-          const opt = approverOptions.value.find((o: any) => o.name === rec.approver)
-          form.approver = opt ? String(opt.id) : ''
-        }
-        // 参与部门：DB 存 JSON 字符串，回填为数组
-        if (typeof form.participatingDepartments === 'string' && form.participatingDepartments) {
-          try { form.participatingDepartments = JSON.parse(form.participatingDepartments) } catch { form.participatingDepartments = [] }
-        } else if (typeof form.participatingDepartments === 'string') {
-          form.participatingDepartments = []
-        }
-        returnReason.value = rec.return_reason || ''
-      }
-    }
-  } catch (error) {
-    console.error('加载原申请数据失败:', error)
-  }
-}
-
 const submitForm = async () => {
   if (!formRef.value) return;
-
   await formRef.value.validate(async (valid: boolean) => {
-    if (valid) {
-      if (!currentUser.value?.id) {
-        ElMessage.error('请先登录');
+    if (!valid) return;
+    if (!currentUser.value?.id) {
+      ElMessage.error('请先登录');
+      return;
+    }
+    if (collaborators.value.length === 0) {
+      ElMessage.error('请至少添加一个协同对象');
+      return;
+    }
+    for (const c of collaborators.value) {
+      if (c.type === 'user' && !c.empId) {
+        ElMessage.error('存在未选择人员的协同对象，请补全');
         return;
       }
-
-      submitting.value = true;
-      try {
-        const submitData = {
-          ...form,
-          applicantId: currentUser.value.id,
-          applicantName: currentUser.value.name,
-          // 后端按 approver(姓名) 落库并写入 current_approvers，用于审批权限与「我收到的」可见性
-          approver: selectedApprover.value?.name || '',
-          approverId: form.approver,
-          participatingDepartments: form.participatingDepartments || []
-        };
-
-        const response = editId
-          ? await resubmitProject(editId, submitData)
-          : await createProjectApplication(submitData);
-
-        if (response.success) {
-          ElMessage.success(editId ? '重新提交成功' : '协同申请提交成功');
-          router.replace('/oa-office?tab=project');
-        } else {
-          ElMessage.error(response.message || '提交失败');
-        }
-      } catch (error: any) {
-        console.error('提交错误:', error);
-        ElMessage.error(error.message || '提交失败');
-      } finally {
-        submitting.value = false;
+      if (c.type === 'dept' && !c.deptName) {
+        ElMessage.error('存在未选择部门的协同对象，请补全');
+        return;
       }
+    }
+
+    submitting.value = true;
+    try {
+      const submitData = {
+        collaborationMode: form.collaborationMode,
+        projectName: form.projectName,
+        projectType: form.projectType,
+        priority: form.priority,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        expireAt: form.expireAt || null,
+        description: form.description,
+        objectives: form.objectives,
+        // 主发起人由后端按当前登录用户写入；此处仅传联合发起人
+        applicants: extraApplicants.value.map((a) => ({ id: a.id, name: a.name, dept: a.dept })),
+        collaborators: collaborators.value.map((c) =>
+          c.type === 'user'
+            ? { type: 'user', id: c.empId, name: c.empName, dept: c.empDept, role: c.role }
+            : { type: 'dept', id: null, name: c.deptName, dept: c.deptName, role: c.role }
+        )
+      };
+
+      const response = await createProjectApplication(submitData);
+      if (response.success) {
+        ElMessage.success('协同申请提交成功');
+        router.replace('/oa-office?tab=project');
+      } else {
+        ElMessage.error(response.message || '提交失败');
+      }
+    } catch (error: any) {
+      console.error('提交错误:', error);
+      ElMessage.error(error.message || '提交失败');
+    } finally {
+      submitting.value = false;
     }
   });
 };
 
-// 返回
-const goBack = () => {
-  router.back();
-};
+const goBack = () => router.back();
 
-// 初始化
+// 初始化：加载员工列表
 searchEmployees('');
-const initPage = async () => {
-  await loadApprovers()
-  await loadForEdit()
-}
-initPage()
 </script>
 
 <style scoped>
@@ -541,21 +480,17 @@ initPage()
   max-width: 1400px;
   margin: 0 auto;
 }
-
 .main-container {
   display: flex;
   gap: 20px;
 }
-
 .form-container {
   flex: 1;
 }
-
 .scroll-container {
   width: 360px;
   flex-shrink: 0;
 }
-
 .scroll-content {
   position: sticky;
   top: 20px;
@@ -566,113 +501,67 @@ initPage()
   scrollbar-width: thin;
   scrollbar-color: #d9d9d9 #f5f5f5;
 }
-
-.scroll-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.scroll-content::-webkit-scrollbar-track {
-  background: #f5f5f5;
-  border-radius: 3px;
-}
-
-.scroll-content::-webkit-scrollbar-thumb {
-  background: #d9d9d9;
-  border-radius: 3px;
-}
-
-.scroll-content::-webkit-scrollbar-thumb:hover {
-  background: #bfbfbf;
-}
-
 .project-application .form-card {
   margin-bottom: 20px;
 }
-
 .project-application .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .project-application .card-header .title {
   font-size: 18px;
   font-weight: bold;
 }
-
 .project-application .application-form .el-divider {
   margin: 30px 0 20px;
 }
-
-.project-application .process-preview .timeline-content h4 {
-  margin: 0 0 5px 0;
-  font-size: 14px;
-}
-
-.project-application .process-preview .timeline-content p {
-  margin: 0;
+.hint {
+  margin-left: 10px;
   font-size: 12px;
-}
-
-.project-application .process-preview .timeline-content .text-gray {
   color: #909399;
 }
-
-.info-card {
-  margin-top: 20px;
-}
-
-.approver-info {
+.chip-list {
+  margin-top: 10px;
   display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 10px 0;
+  flex-wrap: wrap;
+  gap: 8px;
 }
-
-.approver-avatar {
-  flex-shrink: 0;
+.collaborator-list {
+  width: 100%;
 }
-
-.approver-details h4 {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  font-weight: bold;
-}
-
-.approver-details p {
-  margin: 4px 0;
-  font-size: 13px;
-  color: #606266;
-}
-
-.empty-state {
+.collaborator-row {
   display: flex;
-  flex-direction: column;
+  gap: 10px;
   align-items: center;
-  justify-content: center;
-  padding: 20px;
-  color: #909399;
-}
-
-.empty-icon {
   margin-bottom: 10px;
-  opacity: 0.5;
 }
-
-.tips-card {
-  margin-top: 20px;
+.empty-hint {
+  color: #909399;
+  font-size: 13px;
+  margin-bottom: 10px;
 }
-
-.tips-list {
+.info-card {
+  margin-bottom: 20px;
+}
+.info-card h4 {
+  margin: 0 0 8px 0;
+  font-size: 15px;
+}
+.text-gray {
+  color: #909399;
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0;
+}
+.tips-card .tips-list {
   margin: 0;
   padding-left: 20px;
 }
-
-.tips-list li {
+.tips-card .tips-list li {
   margin: 8px 0;
   font-size: 13px;
   color: #606266;
   line-height: 1.6;
 }
-
 </style>
