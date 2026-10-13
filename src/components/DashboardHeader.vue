@@ -42,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowDown, User, Lock, SwitchButton } from '@element-plus/icons-vue'
 import { disconnectSocket } from '../services/socket'
@@ -53,6 +53,113 @@ const currentUsername = ref('')
 const avatarUrl = ref('')
 const unreadCount = ref(0)
 let refreshInterval: ReturnType<typeof setInterval> | null = null
+
+// ===== 浏览器后台提示：title 闪烁 + favicon 红点 + 系统通知 =====
+const originalTitle = ref<string>(document.title)
+let titleFlashTimer: ReturnType<typeof setInterval> | null = null
+let lastNotifiedCount = -1
+
+function startTitleFlash() {
+  if (titleFlashTimer) return
+  let flag = false
+  titleFlashTimer = setInterval(() => {
+    document.title = flag ? `【新消息 ${unreadCount.value} 条】${originalTitle.value}` : originalTitle.value
+    flag = !flag
+  }, 1000)
+}
+
+function stopTitleFlash() {
+  if (titleFlashTimer) {
+    clearInterval(titleFlashTimer)
+    titleFlashTimer = null
+  }
+  document.title = originalTitle.value
+}
+
+function drawRedDotFavicon() {
+  const link = document.querySelector("link[rel*='icon']") as HTMLLinkElement | null
+  const canvas = document.createElement('canvas')
+  canvas.width = 64
+  canvas.height = 64
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.fillStyle = '#f56c6c'
+  ctx.beginPath()
+  ctx.arc(32, 32, 28, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = '#fff'
+  ctx.font = 'bold 24px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  const text = unreadCount.value > 99 ? '99+' : String(unreadCount.value)
+  ctx.fillText(text, 32, 32)
+  const url = canvas.toDataURL('image/png')
+  if (!link) {
+    const newLink = document.createElement('link')
+    newLink.rel = 'icon'
+    newLink.type = 'image/png'
+    newLink.href = url
+    document.head.appendChild(newLink)
+  } else {
+    if (!link.dataset.originalHref) link.dataset.originalHref = link.href
+    link.href = url
+  }
+}
+
+function restoreFavicon() {
+  const link = document.querySelector("link[rel*='icon']") as HTMLLinkElement | null
+  if (link && link.dataset.originalHref) link.href = link.dataset.originalHref
+}
+
+function notifySystem() {
+  if (!('Notification' in window)) return
+  if (Notification.permission === 'granted') {
+    new Notification('您有新消息', {
+      body: `当前有 ${unreadCount.value} 条未读消息`,
+      icon: '/favicon.ico'
+    })
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then((p) => {
+      if (p === 'granted') {
+        new Notification('您有新消息', {
+          body: `当前有 ${unreadCount.value} 条未读消息`,
+          icon: '/favicon.ico'
+        })
+      }
+    })
+  }
+}
+
+function handleVisibilityChange() {
+  if (document.hidden) {
+    if (unreadCount.value > 0) {
+      startTitleFlash()
+      drawRedDotFavicon()
+      if (lastNotifiedCount !== unreadCount.value) {
+        notifySystem()
+        lastNotifiedCount = unreadCount.value
+      }
+    }
+  } else {
+    stopTitleFlash()
+    restoreFavicon()
+    lastNotifiedCount = -1
+  }
+}
+
+watch(unreadCount, (count) => {
+  if (document.hidden && count > 0) {
+    startTitleFlash()
+    drawRedDotFavicon()
+    if (lastNotifiedCount !== count) {
+      notifySystem()
+      lastNotifiedCount = count
+    }
+  } else if (count === 0) {
+    stopTitleFlash()
+    restoreFavicon()
+  }
+})
 
 const avatarText = computed(() => {
   return currentUser.value.charAt(0).toUpperCase()
@@ -139,6 +246,9 @@ onMounted(() => {
   loadAvatar()
   fetchUnreadCount()
   refreshInterval = setInterval(fetchUnreadCount, 30000)
+  const link = document.querySelector("link[rel*='icon']") as HTMLLinkElement | null
+  if (link && !link.dataset.originalHref) link.dataset.originalHref = link.href
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onUnmounted(() => {
@@ -146,6 +256,9 @@ onUnmounted(() => {
     clearInterval(refreshInterval)
     refreshInterval = null
   }
+  stopTitleFlash()
+  restoreFavicon()
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
 
