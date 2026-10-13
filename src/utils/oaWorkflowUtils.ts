@@ -335,7 +335,7 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
       '创建时间': item.submitDate
     },
     project: {
-      '发起人': item.applicant || currentUsername,
+      '发起人': item.applicant_name || item.applicant || currentUsername,
       '协同事项名称': item.projectName || '-',
       '协作类型': item.projectType || '-',
       '协同模式': item.collaborationMode === 'opinion' || item.collaboration_mode === 'opinion' ? '意见征集' : (item.collaborationMode === 'notify' || item.collaboration_mode === 'notify' ? '通知' : '-'),
