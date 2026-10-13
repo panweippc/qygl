@@ -7,6 +7,22 @@
 
       <main class="content">
         <div class="dashboard">
+          <!-- 首页更新内容（What's New）：所有用户可见，关闭后记录版本，下次发版再现 -->
+          <transition name="chg-fade">
+            <section v-if="showChangelog && latestChangelog" class="changelog-banner">
+              <div class="chg-icon">🆕</div>
+              <div class="chg-body">
+                <div class="chg-head">
+                  <span class="chg-title">{{ latestChangelog.title }}</span>
+                  <span class="chg-meta">v{{ latestChangelog.version }} · {{ latestChangelog.date }}</span>
+                </div>
+                <ul class="chg-items">
+                  <li v-for="(it, i) in latestChangelog.items" :key="i">{{ it }}</li>
+                </ul>
+              </div>
+              <button class="chg-close" type="button" @click="dismissChangelog" title="关闭（本次更新不再提示）">×</button>
+            </section>
+          </transition>
           <!-- 待办概览：按角色分流（员工无「待我审批/已审批」），等宽卡片网格 -->
           <section class="section-block">
             <div class="section-title">
@@ -142,6 +158,24 @@ import {
   getEmployeeDirectory,
   getHomeApprovalSummary
 } from '../services/api'
+import { changelog } from '../data/changelog'
+
+// ---------- 首页更新内容（What's New） ----------
+const CHANGELOG_DISMISS_KEY = 'qygl_changelog_dismissed'
+const latestChangelog = computed(() => (changelog && changelog.length ? changelog[0] : null))
+// 已关闭的版本（localStorage，按浏览器记忆）；初始化即读取，避免首屏闪烁
+const dismissedVersion = ref<string>(localStorage.getItem(CHANGELOG_DISMISS_KEY) || '')
+const showChangelog = computed(() => {
+  const latest = latestChangelog.value
+  if (!latest) return false
+  return latest.version !== dismissedVersion.value
+})
+function dismissChangelog() {
+  if (latestChangelog.value) {
+    localStorage.setItem(CHANGELOG_DISMISS_KEY, latestChangelog.value.version)
+    dismissedVersion.value = latestChangelog.value.version
+  }
+}
 
 const router = useRouter()
 const guard = useRoleGuard()
@@ -612,4 +646,55 @@ function progressTagType(p: number): 'info' | 'warning' | 'success' {
 .content::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); border-radius: 4px; }
 .content::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.5); border-radius: 4px; }
 .content::-webkit-scrollbar-thumb:hover { background: rgba(59, 130, 246, 0.7); }
+
+/* 首页更新内容横幅（What's New） */
+.changelog-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  background: linear-gradient(135deg, #eaf2ff 0%, #f3f8ff 100%);
+  border: 1px solid rgba(30, 90, 168, 0.25);
+  border-radius: 14px;
+  padding: 1rem 1.2rem;
+  position: relative;
+  box-shadow: 0 4px 18px rgba(30, 90, 168, 0.1);
+}
+.chg-icon {
+  flex: 0 0 auto;
+  font-size: 1.4rem;
+  line-height: 1.4;
+}
+.chg-body { flex: 1; min-width: 0; }
+.chg-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 0.4rem;
+}
+.chg-title { font-size: 1rem; font-weight: 700; color: #1E5AA8; }
+.chg-meta { font-size: 0.78rem; color: rgba(51, 51, 51, 0.55); }
+.chg-items {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.chg-items li { font-size: 0.88rem; color: #333; line-height: 1.5; }
+.chg-close {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(30, 90, 168, 0.08);
+  color: #1E5AA8;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.chg-close:hover { background: rgba(30, 90, 168, 0.2); transform: scale(1.08); }
+.chg-fade-enter-active, .chg-fade-leave-active { transition: opacity 0.35s ease, transform 0.35s ease; }
+.chg-fade-enter-from, .chg-fade-leave-to { opacity: 0; transform: translateY(-8px); }
 </style>
