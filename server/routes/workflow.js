@@ -164,17 +164,41 @@ router.get('/projects/collaborated-with-me', async (req, res) => {
     const { pool } = req.app.locals;
     const me = getRealName(req);
     if (!me) return res.status(401).json({ success: false, message: '未登录' });
-    const [rows] = await pool.query(
-      `SELECT DISTINCT pa.* FROM project_applications pa
-       WHERE pa.collaboration_mode <> ''
-         AND pa.id IN (
-           SELECT application_id FROM project_collaborators WHERE target_type = 'user' AND target_name = ?
-           UNION
-           SELECT application_id FROM project_collaborators WHERE target_type = 'dept' AND target_name IN (SELECT department FROM employees WHERE name = ?)
-         )
-       ORDER BY pa.created_at DESC`,
-      [me, me]
+
+    // 先查出当前用户在 employees 表中的部门（避免跨表 collation 不一致）
+    const [empRows] = await pool.query(
+      'SELECT department FROM employees WHERE name = ?',
+      [me]
     );
+    const departments = empRows.map((r) => r.department).filter(Boolean);
+
+    // 收集用户作为人员协同对象、以及所在部门作为部门协同对象的 application_id
+    const appIds = new Set();
+    const [userRows] = await pool.query(
+      "SELECT application_id FROM project_collaborators WHERE target_type = 'user' AND target_name = ?",
+      [me]
+    );
+    for (const r of userRows) appIds.add(r.application_id);
+
+    if (departments.length > 0) {
+      const placeholders = departments.map(() => '?').join(',');
+      const [deptRows] = await pool.query(
+        `SELECT application_id FROM project_collaborators WHERE target_type = 'dept' AND target_name IN (${placeholders})`,
+        departments
+      );
+      for (const r of deptRows) appIds.add(r.application_id);
+    }
+
+    const ids = Array.from(appIds);
+    let rows = [];
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => '?').join(',');
+      [rows] = await pool.query(
+        `SELECT * FROM project_applications WHERE collaboration_mode <> '' AND id IN (${placeholders}) ORDER BY created_at DESC`,
+        ids
+      );
+    }
+
     const list = [];
     for (const pa of rows) {
       const [cols] = await pool.query(
