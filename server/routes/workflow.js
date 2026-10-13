@@ -115,6 +115,8 @@ router.get('/projects', async (req, res) => {
       approver: project.approver || '',
       approver_id: project.approver_id || '',
       participating_departments: project.participating_departments || '',
+      collaboration_mode: project.collaboration_mode || '',
+      close_status: project.close_status || 'open',
       status: project.status || 'pending',
       current_step: project.current_step || 1,
       current_approvers: project.current_approvers || '',
@@ -160,6 +162,127 @@ router.get('/projects', async (req, res) => {
 router.post("/projects", async (req, res) => {
   try {
     const { pool } = req.app.locals;
+
+    // ===== 协同申请（无审批）模式：收到 collaborationMode 即走协作路径 =====
+    const collabMode = req.body.collaborationMode || req.body.collaboration_mode;
+    if (collabMode) {
+      const mode = collabMode === 'opinion' ? 'opinion' : 'notify'; // opinion=意见征集, notify=通知
+      const applicantNameVal = getRealName(req);
+      if (!applicantNameVal) {
+        return res.status(401).json({ success: false, message: '未登录，无法提交申请' });
+      }
+      const applicantEmpRow = await resolveApplicantByName(pool, applicantNameVal);
+      const applicantIdVal = req.user?.id || applicantEmpRow?.id || req.body.applicantId || req.body.applicant_id;
+
+      const title = (req.body.projectName || req.body.project_name || '').toString().trim();
+      const desc = req.body.description || '';
+      const prio = req.body.priority || '中';
+      const startDateVal = req.body.startDate || req.body.start_date || null;
+      const endDateVal = req.body.endDate || req.body.end_date || null;
+      const expireAt = req.body.expireAt || req.body.expire_at || null;
+      const projectCode = 'PRJ' + String(Date.now()).slice(-6);
+      const now = new Date();
+
+      // 主表：不再写 approver/审批字段；status 依模式而定
+      const [result] = await pool.query(
+        `INSERT INTO project_applications
+         (project_code, project_name, applicant_id, applicant_name, department, project_type, priority, start_date, end_date, description, collaboration_mode, status, close_status, expire_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
+        [
+          projectCode,
+          title,
+          applicantIdVal || '',
+          applicantNameVal || '未知发起人',
+          '',
+          req.body.projectType || req.body.project_type || '',
+          prio,
+          startDateVal,
+          endDateVal,
+          desc,
+          mode,
+          mode === 'opinion' ? 'collecting' : 'notifying',
+          expireAt,
+          now,
+          now
+        ]
+      );
+      const appId = result.insertId;
+
+      // 发起方子表：主发起人 + 联合发起（多人 → 多对一）
+      const extraApplicants = Array.isArray(req.body.applicants) ? req.body.applicants : [];
+      await pool.query(
+        'INSERT INTO project_applicants (application_id, employee_id, name, department, is_primary) VALUES (?, ?, ?, ?, 1)',
+        [appId, applicantIdVal || null, applicantNameVal || '未知发起人', applicantEmpRow?.department || null]
+      );
+      for (const a of extraApplicants) {
+        if (a && a.name && a.name !== applicantNameVal) {
+          await pool.query(
+            'INSERT INTO project_applicants (application_id, employee_id, name, department, is_primary) VALUES (?, ?, ?, ?, 0)',
+            [appId, a.id || null, a.name, a.dept || a.department || null]
+          );
+        }
+      }
+
+      // 协同对象子表：多条 → 一对多；user 或 dept
+      const collaborators = Array.isArray(req.body.collaborators) ? req.body.collaborators : [];
+      for (const c of collaborators) {
+        const ttype = c && c.type === 'user' ? 'user' : 'dept';
+        await pool.query(
+          'INSERT INTO project_collaborators (application_id, target_type, target_id, target_name, dept, expected_role) VALUES (?, ?, ?, ?, ?, ?)',
+          [appId, ttype, (c && c.id) || null, (c && c.name) || '', (c && (c.dept || c.department)) || null, (c && (c.role || c.expectedRole)) || null]
+        );
+      }
+
+      // 通知协同对象（user 直接通知；dept 展开部门成员通知）
+      const verb = mode === 'opinion' ? '邀请您填写协同意见' : '向您发送了协同通知';
+      const notifyOne = async (username) => {
+        if (!username) return;
+        try {
+          await createNotification(pool, {
+            userId: username,
+            title: '协同申请',
+            content: `${applicantNameVal} ${verb}：「${title}」`,
+            type: 'collaboration',
+            relatedId: appId,
+            relatedType: 'project'
+          });
+        } catch (e) { /* 通知失败不影响主流程 */ }
+      };
+      for (const c of collaborators) {
+        if (!c) continue;
+        if (c.type === 'user') {
+          await notifyOne(c.name);
+        } else {
+          const [members] = await pool.query('SELECT name FROM employees WHERE department = ?', [c.name]);
+          for (const m of members) await notifyOne(m.name);
+        }
+      }
+
+      // 审计
+      await createOperationLog(pool, {
+        username: applicantNameVal,
+        action: 'create',
+        module: 'project',
+        targetName: title || `协同申请(${projectCode})`,
+        detail: `协同(${mode === 'opinion' ? '意见征集' : '通知'})，发起方${extraApplicants.length + 1}人，协同对象${collaborators.length}个`
+      });
+      await appendApprovalLog(pool, {
+        applicationType: 'project',
+        applicationId: appId,
+        actor: applicantNameVal,
+        actorRole: '发起人',
+        action: 'submit',
+        fromStatus: '',
+        toStatus: mode === 'opinion' ? 'collecting' : 'notifying',
+        targetUser: collaborators.map((c) => (c && c.name) || '').filter(Boolean).join(',')
+      });
+
+      return res.json({
+        success: true,
+        data: { id: appId, status: mode === 'opinion' ? 'collecting' : 'notifying', mode }
+      });
+    }
+
     const {
       projectName,
       project_name,
@@ -290,7 +413,25 @@ router.get('/projects/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: '项目申请不存在' });
     }
 
-    res.json({ success: true, data: projects[0] });
+    const app = projects[0];
+    // 协同模型子表：发起方 / 协同对象（旧审批数据无子表，返回空数组，向后兼容）
+    const [applicants] = await pool.query(
+      'SELECT * FROM project_applicants WHERE application_id = ? ORDER BY is_primary DESC, id ASC',
+      [id]
+    ).catch(() => [[]]);
+    const [collaborators] = await pool.query(
+      'SELECT * FROM project_collaborators WHERE application_id = ? ORDER BY id ASC',
+      [id]
+    ).catch(() => [[]]);
+
+    res.json({
+      success: true,
+      data: {
+        ...app,
+        applicants: applicants || [],
+        collaborators: collaborators || []
+      }
+    });
   } catch (error) {
     console.error('获取项目申请失败:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -1086,6 +1227,86 @@ router.get('/approval-logs', async (req, res) => {
   } catch (error) {
     console.error('查询审批日志失败:', error);
     res.status(500).json({ success: false, message: '查询审批日志失败' });
+  }
+});
+
+// ===== 协同申请反馈端点（无审批：意见征集 / 通知） =====
+
+// 校验当前用户是否为某协同申请的协同对象（user 直接匹配 / dept 校验部门归属）
+async function resolveCollaboratorAuth(pool, appId, username) {
+  const [userCols] = await pool.query(
+    "SELECT id FROM project_collaborators WHERE application_id = ? AND target_type = 'user' AND target_name = ?",
+    [appId, username]
+  );
+  if (userCols.length > 0) return true;
+  const [deptCols] = await pool.query(
+    "SELECT DISTINCT target_name FROM project_collaborators WHERE application_id = ? AND target_type = 'dept'",
+    [appId]
+  );
+  for (const d of deptCols) {
+    const [ems] = await pool.query('SELECT 1 FROM employees WHERE name = ? AND department = ?', [username, d.target_name]);
+    if (ems.length > 0) return true;
+  }
+  return false;
+}
+
+// 通知模式：协同对象已知晓
+router.post('/projects/:id/ack', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const { id } = req.params;
+    const me = getRealName(req);
+    if (!me) return res.status(401).json({ success: false, message: '未登录' });
+    const [apps] = await pool.query('SELECT id, collaboration_mode, close_status FROM project_applications WHERE id = ?', [id]);
+    if (apps.length === 0) return res.status(404).json({ success: false, message: '协同申请不存在' });
+    if (apps[0].collaboration_mode !== 'notify') return res.status(400).json({ success: false, message: '该协同申请不是通知模式' });
+    if (apps[0].close_status === 'closed') return res.status(400).json({ success: false, message: '该协同已结束，无法确认' });
+    const authorized = await resolveCollaboratorAuth(pool, id, me);
+    if (!authorized) return res.status(403).json({ success: false, message: '您不是该协同的协同对象，无法确认' });
+    const [result] = await pool.query(
+      `UPDATE project_collaborators
+       SET ack_status = 'acknowledged', ack_at = NOW()
+       WHERE application_id = ?
+         AND ((target_type = 'user' AND target_name = ?)
+              OR (target_type = 'dept' AND target_name IN (SELECT department FROM employees WHERE name = ?)))`,
+      [id, me, me]
+    );
+    await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: me, actorRole: '协同对象', action: 'ack', fromStatus: '', toStatus: 'acknowledged', targetUser: me });
+    res.json({ success: true, data: { updated: result.affectedRows } });
+  } catch (error) {
+    console.error('协同已知晓失败:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 意见征集模式：协同对象提交意见
+router.post('/projects/:id/opinion', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const { id } = req.params;
+    const { opinion } = req.body;
+    const me = getRealName(req);
+    if (!me) return res.status(401).json({ success: false, message: '未登录' });
+    if (!opinion || !opinion.toString().trim()) return res.status(400).json({ success: false, message: '意见内容不能为空' });
+    const [apps] = await pool.query('SELECT id, collaboration_mode, close_status FROM project_applications WHERE id = ?', [id]);
+    if (apps.length === 0) return res.status(404).json({ success: false, message: '协同申请不存在' });
+    if (apps[0].collaboration_mode !== 'opinion') return res.status(400).json({ success: false, message: '该协同申请不是意见征集模式' });
+    if (apps[0].close_status === 'closed') return res.status(400).json({ success: false, message: '该协同已结束，无法提交意见' });
+    const authorized = await resolveCollaboratorAuth(pool, id, me);
+    if (!authorized) return res.status(403).json({ success: false, message: '您不是该协同的协同对象，无法提交意见' });
+    const [result] = await pool.query(
+      `UPDATE project_collaborators
+       SET opinion_text = ?, opinion_at = NOW()
+       WHERE application_id = ?
+         AND ((target_type = 'user' AND target_name = ?)
+              OR (target_type = 'dept' AND target_name IN (SELECT department FROM employees WHERE name = ?)))`,
+      [opinion.toString().trim(), id, me, me]
+    );
+    await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: me, actorRole: '协同对象', action: 'opinion', fromStatus: '', toStatus: '', targetUser: me, comment: opinion.toString().trim().slice(0, 200) });
+    res.json({ success: true, data: { updated: result.affectedRows } });
+  } catch (error) {
+    console.error('提交协同意见失败:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
