@@ -310,14 +310,15 @@ router.post("/projects", async (req, res) => {
       }
 
       // 通知协同对象（user 直接通知；dept 展开部门成员通知）
-      const verb = mode === 'opinion' ? '邀请您填写协同意见' : '向您发送了协同通知';
-      const notifyOne = async (username) => {
+      // 参与人收到"需响应"文案；抄送(cc)收到中性"知会"文案，避免误导其填写意见
+      const baseVerb = mode === 'opinion' ? '邀请您填写协同意见' : '向您发送了协同通知';
+      const notifyOne = async (username, roleVerb) => {
         if (!username) return;
         try {
           await createNotification(pool, {
             userId: username,
             title: '协同申请',
-            content: `${applicantNameVal} ${verb}：「${title}」`,
+            content: `${applicantNameVal} ${roleVerb}：「${title}」`,
             type: 'collaboration',
             relatedId: appId,
             relatedType: 'project'
@@ -326,11 +327,13 @@ router.post("/projects", async (req, res) => {
       };
       for (const c of collaborators) {
         if (!c) continue;
+        const role = (c && c.collabRole) === 'cc' ? 'cc' : 'participant';
+        const roleVerb = role === 'cc' ? '向您发送了协同知会' : baseVerb;
         if (c.type === 'user') {
-          await notifyOne(c.name);
+          await notifyOne(c.name, roleVerb);
         } else {
           const [members] = await pool.query('SELECT name FROM employees WHERE department = ?', [c.name]);
-          for (const m of members) await notifyOne(m.name);
+          for (const m of members) await notifyOne(m.name, roleVerb);
         }
       }
 
@@ -1349,6 +1352,34 @@ async function notifyProjectParties(pool, appId, excludeName, { title, content, 
   } catch (e) { /* 通知失败不影响主流程 */ }
 }
 
+// 协同自动关闭判定（方案A）：当全部"参与人"已响应时自动收口。
+// notify 模式：participant 全部 ack_status='acknowledged'；opinion 模式：participant 全部 opinion_text 非空。
+// 抄送(cc) 不计入、不阻塞（WHERE 已排除 cc）。已关闭不重复触发。
+async function checkAndCloseCollaboration(pool, id, appMeta) {
+  try {
+    const mode = appMeta.collaboration_mode;
+    const [parts] = await pool.query(
+      "SELECT ack_status, opinion_text FROM project_collaborators WHERE application_id = ? AND collab_role <> 'cc'",
+      [id]
+    );
+    if (parts.length === 0) return; // 无参与人则不自动关闭
+    const allDone = mode === 'notify'
+      ? parts.every((p) => p.ack_status === 'acknowledged')
+      : parts.every((p) => p.opinion_text && p.opinion_text.toString().trim());
+    if (!allDone) return;
+    const [cur] = await pool.query('SELECT close_status FROM project_applications WHERE id = ?', [id]);
+    if (cur.length === 0 || cur[0].close_status === 'closed') return;
+    await pool.query("UPDATE project_applications SET close_status = 'closed', updated_at = NOW() WHERE id = ?", [id]);
+    await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: '系统', actorRole: '系统', action: 'auto_close', fromStatus: 'open', toStatus: 'closed', targetUser: '' });
+    // 收尾通知：全员可见"协同已完成"
+    await notifyProjectParties(pool, id, '', {
+      title: '协同已完成',
+      content: `协同事项「${appMeta.project_name || ''}」的全部参与人已响应，已自动结束`,
+      relatedId: id
+    });
+  } catch (e) { /* 不影响主流程 */ }
+}
+
 // 通知模式：协同对象已知晓
 router.post('/projects/:id/ack', async (req, res) => {
   try {
@@ -1380,6 +1411,8 @@ router.post('/projects/:id/ack', async (req, res) => {
       content: `${me} 已知晓了协同事项「${apps[0].project_name || ''}」`,
       relatedId: id
     });
+    // 方案A：全部参与人响应后自动关闭并通知全员
+    await checkAndCloseCollaboration(pool, id, apps[0]);
     res.json({ success: true, data: { updated: result.affectedRows } });
   } catch (error) {
     console.error('协同已知晓失败:', error);
@@ -1420,6 +1453,8 @@ router.post('/projects/:id/opinion', async (req, res) => {
       content: `${me} 对协同事项「${apps[0].project_name || ''}」提交了意见${opinion ? '：' + opinion.toString().trim().slice(0, 50) : ''}`,
       relatedId: id
     });
+    // 方案A：全部参与人响应后自动关闭并通知全员
+    await checkAndCloseCollaboration(pool, id, apps[0]);
     res.json({ success: true, data: { updated: result.affectedRows } });
   } catch (error) {
     console.error('提交协同意见失败:', error);
@@ -1438,7 +1473,13 @@ router.post('/projects/:id/collaborators', async (req, res) => {
     if (!me) return res.status(401).json({ success: false, message: '未登录' });
     const [apps] = await pool.query('SELECT id, collaboration_mode, close_status, applicant_name, project_name FROM project_applications WHERE id = ?', [id]);
     if (apps.length === 0) return res.status(404).json({ success: false, message: '协同申请不存在' });
-    if (apps[0].close_status === 'closed') return res.status(400).json({ success: false, message: '该协同已结束，无法追加协同对象' });
+    // 链式转发兼容方案A：已自动结束的协同追加对象时回置为 open，允许链路继续生长
+    if (apps[0].close_status === 'closed') {
+      await pool.query(
+        'UPDATE project_applications SET close_status = ?, status = ?, updated_at = NOW() WHERE id = ?',
+        ['open', apps[0].collaboration_mode === 'opinion' ? 'collecting' : 'notifying', id]
+      );
+    }
 
     // 鉴权：发起人 或 已响应的参与人
     const isApplicant = (apps[0].applicant_name || '') === me;
