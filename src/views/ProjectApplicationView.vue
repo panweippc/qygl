@@ -6,19 +6,28 @@
         <el-card class="form-card">
           <template #header>
             <div class="card-header">
-              <span class="title">协同申请</span>
+              <span class="title">发起协同</span>
               <el-button @click="goBack">返回</el-button>
             </div>
           </template>
 
-          <el-alert
-            type="info"
-            :closable="false"
-            show-icon
-            style="margin-bottom: 16px;"
-            title="协同说明"
-            description="协同申请无需审批：可选择『意见征集』（相关人填写一条意见）或『通知』（相关人点击已知晓）。请填写发起方与协同对象，支持一对一、一对多、多对一。"
-          />
+          <!-- 协同说明：默认折叠，通过 ? 按钮展开（参考销售漏斗隐藏方式） -->
+          <div class="collab-info-bar">
+            <span>协同申请无需审批，填写后发送给相关人员</span>
+            <el-popover placement="bottom" trigger="click" width="360">
+              <template #reference>
+                <el-button size="small" circle title="协同说明">
+                  <el-icon><InfoFilled /></el-icon>
+                </el-button>
+              </template>
+              <p><strong>协同模式</strong></p>
+              <ul style="margin: 6px 0; padding-left: 16px;">
+                <li><strong>意见征集</strong>：相关人填写一条意见</li>
+                <li><strong>通知</strong>：相关人点击已知晓</li>
+              </ul>
+              <p>请填写发起方与协同对象，支持一对一、一对多、多对一。</p>
+            </el-popover>
+          </div>
 
           <el-form
             ref="formRef"
@@ -226,12 +235,12 @@
             <el-divider content-position="left">协同详情</el-divider>
 
             <el-collapse v-model="descCollapseActive" class="collab-desc-collapse">
-              <el-collapse-item name="desc" title="协作说明（可选，点击展开）">
+              <el-collapse-item name="desc" title="协同背景（可选，点击展开）">
                 <el-input
                   v-model="form.description"
                   type="textarea"
                   :rows="4"
-                  placeholder="请详细描述协同事项的内容、背景与目标（选填）"
+                  placeholder="请描述本次协同的背景、目标与需要大家配合的事项（选填）"
                   maxlength="500"
                   show-word-limit
                 />
@@ -308,7 +317,7 @@
 import { ref, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { Plus, Delete } from '@element-plus/icons-vue';
+import { Plus, Delete, InfoFilled } from '@element-plus/icons-vue';
 import { createProjectApplication } from '@/services/workflow';
 import { getEmployees, uploadAttachmentFiles } from '@/services/api';
 
@@ -413,10 +422,12 @@ const onCollaboratorTypeChange = (c: any) => {
   c.deptNames = [];
 };
 
-// 禁用结束日期
+// 禁用结束日期（允许与开始日期同一天）
 const disabledEndDate = (time: Date) => {
   if (!form.startDate) return false;
-  return time.getTime() < new Date(form.startDate).getTime();
+  const start = String(form.startDate).slice(0, 10);
+  const end = time.toISOString().slice(0, 10);
+  return end < start;
 };
 
 // 搜索员工（同时用于发起方与协同对象选择）
@@ -578,6 +589,17 @@ searchEmployees('');
 .project-application .card-header .title {
   font-size: 18px;
   font-weight: bold;
+}
+.project-application .collab-info-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  background: #f5f7fa;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #606266;
 }
 .project-application .application-form .el-divider {
   margin: 30px 0 20px;
