@@ -558,19 +558,41 @@
           </el-descriptions>
         </div>
         <div class="detail-footer">
-          <div class="detail-section" v-if="currentDetailType === 'project' && projectCollaborators.length">
-            <div class="detail-row">
+          <div class="detail-section collab-section" v-if="currentDetailType === 'project' && projectCollaborators.length">
+            <div class="detail-row collab-row">
               <span class="detail-label">协同对象</span>
-              <span class="detail-value collab-chips">
-                <span v-for="(c, i) in projectCollaborators" :key="i" class="collab-chip">
-                  <el-tag size="small" :type="c.collab_role === 'cc' ? 'info' : 'warning'">{{ c.collab_role === 'cc' ? '抄送' : '参与人' }}</el-tag>
-                  {{ c.target_type === 'dept' ? '【部门】' : '' }}{{ c.target_name }}
-                  <span class="collab-status" v-if="c.collab_role !== 'cc'">
-                    {{ currentDetailItem.collaboration_mode === 'notify' ? (c.ack_status === 'acknowledged' ? '✅ 已确认' : '⏳ 未确认') : (c.opinion_text ? '💬 已提交' : '⏳ 待提交') }}
-                  </span>
-                  <span class="collab-added" v-if="c.added_by"> · {{ c.added_by }} 追加</span>
-                </span>
-              </span>
+              <div class="detail-value collab-table-wrap">
+                <el-table :data="projectCollaborators" border size="small" style="width: 100%">
+                  <el-table-column label="对象" min-width="120">
+                    <template #default="{ row }">
+                      {{ row.target_type === 'dept' ? '【部门】' : '' }}{{ row.target_name }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="角色" width="90">
+                    <template #default="{ row }">
+                      <el-tag size="small" :type="row.collab_role === 'cc' ? 'info' : 'warning'">
+                        {{ row.collab_role === 'cc' ? '抄送' : '参与人' }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="状态/意见" min-width="160">
+                    <template #default="{ row }">
+                      <span v-if="row.collab_role === 'cc'">—</span>
+                      <span v-else-if="currentDetailItem.collaboration_mode === 'notify'">
+                        {{ row.ack_status === 'acknowledged' ? '✅ 已确认' : '⏳ 未确认' }}
+                      </span>
+                      <span v-else :title="row.opinion_text">
+                        {{ row.opinion_text ? '💬 ' + row.opinion_text : '⏳ 待提交' }}
+                      </span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="追加人" width="100">
+                    <template #default="{ row }">
+                      {{ row.added_by || '—' }}
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
             </div>
           </div>
           <div class="detail-section lifecycle-block" v-if="lifecycleTimeline.length > 0">
@@ -2987,6 +3009,12 @@ onUnmounted(() => {
   padding: 0.75rem;
   background: rgba(30, 90, 168, 0.03);
   border-radius: 8px;
+}
+.detail-row.collab-row {
+  align-items: flex-start;
+}
+.collab-table-wrap {
+  width: 100%;
 }
 .detail-label {
   width: 100px;
