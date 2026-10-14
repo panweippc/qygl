@@ -417,8 +417,10 @@ const participantProgress = (item: any) => {
   return { done, total: parts.length }
 }
 
-// 是否可追加协同对象：发起人，或已响应的参与人
+// 是否可追加协同对象：发起人，或已响应的参与人（抄送角色不展示追加）
 const canAddCollaborators = (item: any) => {
+  // 抄送角色仅知会，无需后续再发起新的追加协同
+  if (myRole(item) === 'cc') return false
   const me = currentUsername.value
   if (extractRealName(item.applicant_name) === me) return true
   const c = myCollaborator(item)

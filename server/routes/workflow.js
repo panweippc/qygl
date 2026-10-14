@@ -1422,10 +1422,19 @@ router.post('/projects/:id/ack', async (req, res) => {
     if (!me) return res.status(401).json({ success: false, message: '未登录' });
     const [apps] = await pool.query('SELECT id, collaboration_mode, close_status, applicant_name, project_name FROM project_applications WHERE id = ?', [id]);
     if (apps.length === 0) return res.status(404).json({ success: false, message: '协同申请不存在' });
-    if (apps[0].collaboration_mode !== 'notify') return res.status(400).json({ success: false, message: '该协同申请不是通知模式' });
     if (apps[0].close_status === 'closed') return res.status(400).json({ success: false, message: '该协同已结束，无法确认' });
     const authorized = await resolveCollaboratorAuth(pool, id, me);
     if (!authorized) return res.status(403).json({ success: false, message: '您不是该协同的协同对象，无法确认' });
+    // 意见征集模式：仅「抄送」角色可走「已知晓」；参与人需填写意见
+    if (apps[0].collaboration_mode === 'opinion') {
+      const [myRows] = await pool.query(
+        'SELECT collab_role FROM project_collaborators WHERE application_id = ? AND target_type = ? AND target_name = ?',
+        [id, 'user', me]
+      );
+      if (myRows[0]?.collab_role !== 'cc') {
+        return res.status(400).json({ success: false, message: '意见征集模式下请填写您的意见' });
+      }
+    }
     // 先取当前用户所在部门，避免 UPDATE 中跨表字符串比较触发 collation 不一致 500
     const [empRows] = await pool.query('SELECT department FROM employees WHERE name = ? LIMIT 1', [me]);
     const myDept = empRows[0]?.department || '';
