@@ -242,6 +242,21 @@
               />
             </el-form-item>
 
+            <el-form-item label="附件">
+              <el-upload
+                v-model:file-list="fileList"
+                :auto-upload="false"
+                :limit="5"
+                multiple
+                :on-exceed="onFileExceed"
+              >
+                <el-button type="primary" plain>选择文件</el-button>
+                <template #tip>
+                  <div class="el-upload__tip">支持上传相关证明材料，单个文件不超过 50MB，最多 5 个</div>
+                </template>
+              </el-upload>
+            </el-form-item>
+
             <!-- 提交按钮 -->
             <el-form-item>
               <el-button type="primary" @click="submitForm" :loading="submitting">
@@ -288,12 +303,16 @@ import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Plus, Delete } from '@element-plus/icons-vue';
 import { createProjectApplication } from '@/services/workflow';
-import { getEmployees } from '@/services/api';
+import { getEmployees, uploadAttachmentFiles } from '@/services/api';
 
 const router = useRouter();
 const formRef = ref();
 const submitting = ref(false);
 const employeeOptions = ref<any[]>([]);
+const fileList = ref<any[]>([]);
+const onFileExceed = () => {
+  ElMessage.warning('最多只能上传5个附件');
+};
 
 // 当前登录用户（主发起人）
 const currentUser = computed(() => {
@@ -463,6 +482,18 @@ const submitForm = async () => {
         }
       }
 
+      // 附件上传（复用统一 /api/upload 通道）
+      let attachments: any = null
+      if (fileList.value.length > 0) {
+        const files = fileList.value.map((item: any) => item.raw).filter(Boolean) as File[]
+        const uploadRes = await uploadAttachmentFiles(files, currentUser.value?.id)
+        if (!uploadRes.success) {
+          ElMessage.error(uploadRes.message || '附件上传失败')
+          return
+        }
+        attachments = JSON.stringify(uploadRes.data || [])
+      }
+
       const submitData = {
         collaborationMode: form.collaborationMode,
         projectName: form.projectName,
@@ -473,6 +504,7 @@ const submitForm = async () => {
         expireAt: form.expireAt || null,
         description: form.description,
         objectives: form.objectives,
+        attachments,
         // 主发起人由后端按当前登录用户写入；此处仅传联合发起人
         applicants: extraApplicants.value.map((a) => ({ id: a.id, name: a.name, dept: a.dept })),
         collaborators: flatCollaborators

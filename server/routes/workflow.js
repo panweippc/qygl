@@ -258,8 +258,8 @@ router.post("/projects", async (req, res) => {
       // 主表：不再写 approver/审批字段；status 依模式而定
       const [result] = await pool.query(
         `INSERT INTO project_applications
-         (project_code, project_name, applicant_id, applicant_name, department, project_type, priority, budget, start_date, end_date, description, objectives, collaboration_mode, status, close_status, expire_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
+         (project_code, project_name, applicant_id, applicant_name, department, project_type, priority, budget, start_date, end_date, description, objectives, collaboration_mode, status, close_status, expire_at, attachments, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)`,
         [
           projectCode,
           title,
@@ -276,6 +276,7 @@ router.post("/projects", async (req, res) => {
           mode,
           mode === 'opinion' ? 'collecting' : 'notifying',
           expireAt,
+          req.body.attachments || null,
           now,
           now
         ]
