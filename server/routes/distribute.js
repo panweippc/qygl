@@ -162,10 +162,9 @@ router.post('/distributed-records/:id/process', async (req, res) => {
       return res.status(403).json({ success: false, message: '只能处理下发给自己的记录' });
     }
     const processComment = String(req.body.processComment || '').slice(0, 500);
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await pool.execute(
-      'UPDATE distributed_records SET status = ?, processComment = ?, updatedAt = ? WHERE id = ?',
-      ['已处理', processComment, now, id]
+      'UPDATE distributed_records SET status = ?, processComment = ?, updatedAt = NOW() WHERE id = ?',
+      ['已处理', processComment, id]
     );
     // 通知下发人：接收人已处理
     try {
@@ -219,7 +218,7 @@ router.put('/distributed-records/:id/read', async (req, res) => {
     let readVal = (req.body.read === 0 || req.body.read === '0') ? 0 : 1;
     if (isRecipient) readVal = 1;
     // read 为 MySQL 保留字，必须加反引号
-    await pool.execute('UPDATE distributed_records SET `read` = ?, updatedAt = ? WHERE id = ?', [readVal, new Date().toISOString().slice(0, 19).replace('T', ' '), id]);
+    await pool.execute('UPDATE distributed_records SET `read` = ?, updatedAt = NOW() WHERE id = ?', [readVal, id]);
     // 接收人标记为已读时：1) 同步把接收人自己的下发通知置为已读；2) 给下发人插一条"已读回执"通知
     if (isRecipient && readVal === 1) {
       try {
@@ -292,11 +291,9 @@ router.post('/distributed-records', async (req, res) => {
       });
     }
 
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-
     const [result] = await pool.execute(
-      'INSERT INTO distributed_records (applicationId, applicationType, applicant, distributedBy, targetUser, comment, status, detail, approver, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [applicationId, applicationType, applicant, distributedBy, targetUser, comment || '', status || '待处理', detail || '', req.body.approver || '', now]
+      'INSERT INTO distributed_records (applicationId, applicationType, applicant, distributedBy, targetUser, comment, status, detail, approver, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+      [applicationId, applicationType, applicant, distributedBy, targetUser, comment || '', status || '待处理', detail || '', req.body.approver || '']
     );
 
     console.log('下发记录添加成功, ID:', result.insertId);
@@ -388,8 +385,6 @@ router.put('/distributed-records/:id', async (req, res) => {
     const { id } = req.params;
     const { status, comment, processComment } = req.body;
     const beforeValue = await getRecordBefore(pool, 'distributed_records', id, { status: 1, comment: 1, processComment: 1 });
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-
     const updates = [];
     const params = [];
 
@@ -406,8 +401,7 @@ router.put('/distributed-records/:id', async (req, res) => {
       params.push(processComment);
     }
 
-    updates.push('updatedAt = ?');
-    params.push(now);
+    updates.push('updatedAt = NOW()');
 
     params.push(id);
 
