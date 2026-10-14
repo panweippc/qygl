@@ -260,7 +260,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.meeting-application { padding: 20px; max-width: 1400px; margin: 0 auto; }
+.meeting-application { padding: 20px; width: 100%; box-sizing: border-box; }
 .main-container { display: flex; gap: 20px; }
 .form-container { flex: 1; }
 .scroll-container { width: 360px; flex-shrink: 0; }
