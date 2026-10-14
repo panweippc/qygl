@@ -249,8 +249,8 @@ router.post("/projects", async (req, res) => {
       const title = (req.body.projectName || req.body.project_name || '').toString().trim();
       const desc = req.body.description || '';
       const prio = req.body.priority || '中';
-      const startDateVal = req.body.startDate || req.body.start_date || null;
-      const endDateVal = req.body.endDate || req.body.end_date || null;
+      const startDateVal = req.body.startDate || req.body.start_date || new Date().toISOString().slice(0, 10);
+      const endDateVal = req.body.endDate || req.body.end_date || new Date().toISOString().slice(0, 10);
       const expireAt = req.body.expireAt || req.body.expire_at || null;
       const projectCode = 'PRJ' + String(Date.now()).slice(-6);
       const now = new Date();
@@ -299,17 +299,13 @@ router.post("/projects", async (req, res) => {
       }
 
       // 协同对象子表：多条 → 一对多；user 或 dept
+      // 部门协同对象在落库时直接展开为部门成员个人行（target_type='user' + dept 字段），
+      // 保证"部门内任意一人响应"≠"整个部门完成"，每人独立响应、独立计入自动关闭判定。
       // collab_role：participant=参与人(需响应) / cc=抄送(仅知会)；added_by 为 NULL 表示初始发起写入
       const collaborators = Array.isArray(req.body.collaborators) ? req.body.collaborators : [];
-      for (const c of collaborators) {
-        const ttype = c && c.type === 'user' ? 'user' : 'dept';
-        await pool.query(
-          'INSERT INTO project_collaborators (application_id, target_type, target_id, target_name, dept, expected_role, collab_role, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          [appId, ttype, (c && c.id) || null, (c && c.name) || '', (c && (c.dept || c.department)) || null, (c && (c.role || c.expectedRole)) || null, (c && c.collabRole) === 'cc' ? 'cc' : 'participant', null]
-        );
-      }
+      const insertedCols = await insertCollaboratorsExpanded(pool, appId, collaborators, { addedBy: null, applicantName: applicantNameVal, projectName: title, mode });
 
-      // 通知协同对象（user 直接通知；dept 展开部门成员通知）
+      // 通知协同对象（user 直接通知；部门已展开为成员个人行，逐人通知）
       // 参与人收到"需响应"文案；抄送(cc)收到中性"知会"文案，避免误导其填写意见
       const baseVerb = mode === 'opinion' ? '邀请您填写协同意见' : '向您发送了协同通知';
       const notifyOne = async (username, roleVerb) => {
@@ -325,16 +321,9 @@ router.post("/projects", async (req, res) => {
           });
         } catch (e) { /* 通知失败不影响主流程 */ }
       };
-      for (const c of collaborators) {
-        if (!c) continue;
-        const role = (c && c.collabRole) === 'cc' ? 'cc' : 'participant';
-        const roleVerb = role === 'cc' ? '向您发送了协同知会' : baseVerb;
-        if (c.type === 'user') {
-          await notifyOne(c.name, roleVerb);
-        } else {
-          const [members] = await pool.query('SELECT name FROM employees WHERE department = ?', [c.name]);
-          for (const m of members) await notifyOne(m.name, roleVerb);
-        }
+      for (const ic of insertedCols) {
+        const roleVerb = ic.collab_role === 'cc' ? '向您发送了协同知会' : baseVerb;
+        await notifyOne(ic.target_name, roleVerb);
       }
 
       // 审计
@@ -353,7 +342,7 @@ router.post("/projects", async (req, res) => {
         action: 'submit',
         fromStatus: '',
         toStatus: mode === 'opinion' ? 'collecting' : 'notifying',
-        targetUser: collaborators.map((c) => (c && c.name) || '').filter(Boolean).join(',')
+        targetUser: insertedCols.map((c) => c.target_name).filter(Boolean).join(',')
       });
 
       return res.json({
@@ -1329,6 +1318,49 @@ async function resolveCollaboratorAuth(pool, appId, username) {
   return false;
 }
 
+// 协同对象落库：部门自动展开为部门成员个人行
+// 设计要点：选部门作为协同对象时，在落库阶段即把部门成员逐个写入 project_collaborators
+//（target_type='user'、dept=部门名），而非写一条 dept 行。这样"部门内任意一人响应"不会
+// 误判为整个部门完成；每人独立响应、独立计入自动关闭判定，彻底消除"一人响应=整个部门已填写"的 bug。
+// 返回展开后的逐人明细，供调用方逐个发通知。
+async function insertCollaboratorsExpanded(pool, appId, collaborators, opts = {}) {
+  const { addedBy = null, applicantName = '', projectName = '', mode = 'notify' } = opts;
+  const inserted = [];
+  for (const c of (collaborators || [])) {
+    if (!c) continue;
+    const ttype = c && c.type === 'user' ? 'user' : 'dept';
+    const collabRole = (c && c.collabRole) === 'cc' ? 'cc' : 'participant';
+    const role = (c && (c.role || c.expectedRole)) || null;
+    if (ttype === 'user') {
+      const [r] = await pool.query(
+        'INSERT INTO project_collaborators (application_id, target_type, target_id, target_name, dept, expected_role, collab_role, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [appId, 'user', (c && c.id) || null, (c && c.name) || '', (c && (c.dept || c.department)) || null, role, collabRole, addedBy]
+      );
+      inserted.push({ id: r.insertId, target_type: 'user', target_name: (c && c.name) || '', dept: (c && (c.dept || c.department)) || null, collab_role: collabRole });
+    } else {
+      const deptName = (c && c.name) || '';
+      const [members] = await pool.query('SELECT id, name, department FROM employees WHERE department = ?', [deptName]);
+      if (members.length === 0) {
+        // 兜底：部门无成员时仍保留一条部门行，避免协同对象丢失（极端情况）
+        const [r] = await pool.query(
+          'INSERT INTO project_collaborators (application_id, target_type, target_name, dept, expected_role, collab_role, added_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [appId, 'dept', deptName, deptName, role, collabRole, addedBy]
+        );
+        inserted.push({ id: r.insertId, target_type: 'dept', target_name: deptName, dept: deptName, collab_role: collabRole });
+      } else {
+        for (const m of members) {
+          const [r] = await pool.query(
+            'INSERT INTO project_collaborators (application_id, target_type, target_id, target_name, dept, expected_role, collab_role, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [appId, 'user', m.id || null, m.name, m.department || deptName, role, collabRole, addedBy]
+          );
+          inserted.push({ id: r.insertId, target_type: 'user', target_name: m.name, dept: m.department || deptName, collab_role: collabRole });
+        }
+      }
+    }
+  }
+  return inserted;
+}
+
 // 协同动作实时同步：把某动作通知给"发起人 + 所有协同对象(部门展开为成员)"，排除操作者本人。
 // 用于"已知晓 / 提交意见 / 追加对象"等动作，确保其他人能在消息中心实时看到进度。
 async function notifyProjectParties(pool, appId, excludeName, { title, content, type = 'collaboration', relatedId, relatedType = 'project' }) {
@@ -1370,7 +1402,8 @@ async function checkAndCloseCollaboration(pool, id, appMeta) {
     const [cur] = await pool.query('SELECT close_status FROM project_applications WHERE id = ?', [id]);
     if (cur.length === 0 || cur[0].close_status === 'closed') return;
     await pool.query("UPDATE project_applications SET close_status = 'closed', updated_at = NOW() WHERE id = ?", [id]);
-    await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: '系统', actorRole: '系统', action: 'auto_close', fromStatus: 'open', toStatus: 'closed', targetUser: '' });
+    // 系统关闭节点时间晚 1 秒，确保倒序时间线中“自动关闭”始终排在最后用户动作之上
+    await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: '系统', actorRole: '系统', action: 'auto_close', fromStatus: 'open', toStatus: 'closed', targetUser: '', createdAt: 'DATE_ADD(NOW(), INTERVAL 1 SECOND)' });
     // 收尾通知：全员可见"协同已完成"
     await notifyProjectParties(pool, id, '', {
       title: '协同已完成',
@@ -1482,23 +1515,37 @@ router.post('/projects/:id/collaborators', async (req, res) => {
     }
 
     // 鉴权：发起人 或 已响应的参与人
+    // 部门协同对象已展开为成员个人行（target_type='user' + dept 字段），
+    // 故"我"的响应状态直接用 user 行匹配即可，避免跨表排序规则不匹配（原 LEFT JOIN 在
+    // employees.department 与 project_collaborators.target_name 排序规则不一致时会 500）。
     const isApplicant = (apps[0].applicant_name || '') === me;
     let canAdd = isApplicant;
     if (!canAdd) {
       const authorized = await resolveCollaboratorAuth(pool, id, me);
       if (authorized) {
-        // 判断"我"是否已响应：user 直接匹配；dept 通过 employees 部门归属
         const [myRows] = await pool.query(
-          `SELECT pc.ack_status, pc.opinion_text
-           FROM project_collaborators pc
-           LEFT JOIN employees e ON e.name = ? AND e.department = pc.target_name
-           WHERE pc.application_id = ? AND ((pc.target_type = 'user' AND pc.target_name = ?) OR (pc.target_type = 'dept' AND e.name IS NOT NULL))`,
-          [me, id, me]
+          `SELECT ack_status, opinion_text FROM project_collaborators WHERE application_id = ? AND target_type = 'user' AND target_name = ?`,
+          [id, me]
         );
-        if (apps[0].collaboration_mode === 'notify') {
-          canAdd = myRows.some((r) => r.ack_status === 'acknowledged');
+        if (myRows.length > 0) {
+          canAdd = apps[0].collaboration_mode === 'notify'
+            ? myRows.some((r) => r.ack_status === 'acknowledged')
+            : myRows.some((r) => r.opinion_text);
         } else {
-          canAdd = myRows.some((r) => r.opinion_text);
+          // 兼容旧数据：部门作为整体协同对象（target_type='dept'）时，部门成员按部门行状态判定
+          const [deptCols] = await pool.query(
+            `SELECT target_name, ack_status, opinion_text FROM project_collaborators WHERE application_id = ? AND target_type = 'dept'`,
+            [id]
+          );
+          for (const d of deptCols) {
+            const [ems] = await pool.query('SELECT 1 FROM employees WHERE name = ? AND department = ?', [me, d.target_name]);
+            if (ems.length > 0) {
+              canAdd = apps[0].collaboration_mode === 'notify'
+                ? d.ack_status === 'acknowledged'
+                : !!d.opinion_text;
+              break;
+            }
+          }
         }
       }
     }
@@ -1507,39 +1554,31 @@ router.post('/projects/:id/collaborators', async (req, res) => {
     const collaborators = Array.isArray(req.body.collaborators) ? req.body.collaborators : [];
     if (collaborators.length === 0) return res.status(400).json({ success: false, message: '请至少添加一个协同对象' });
 
-    const verb = apps[0].collaboration_mode === 'opinion' ? '提交意见' : '确认知晓';
-    const insertedIds = [];
-    for (const c of collaborators) {
-      const ttype = c && c.type === 'user' ? 'user' : 'dept';
-      const collabRole = (c && c.collabRole) === 'cc' ? 'cc' : 'participant';
-      const [r] = await pool.query(
-        'INSERT INTO project_collaborators (application_id, target_type, target_id, target_name, dept, expected_role, collab_role, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [id, ttype, (c && c.id) || null, (c && c.name) || '', (c && (c.dept || c.department)) || null, (c && (c.role || c.expectedRole)) || null, collabRole, me]
-      );
-      insertedIds.push(r.insertId);
+    // 部门协同对象展开为成员个人行（同提交逻辑），避免"一人响应代表整个部门完成"
+    const insertedCols = await insertCollaboratorsExpanded(pool, id, collaborators, {
+      addedBy: me,
+      applicantName: apps[0].applicant_name,
+      projectName: apps[0].project_name,
+      mode: apps[0].collaboration_mode
+    });
 
-      // 被追加对象（参与人）单独通知"请响应"
-      if (collabRole === 'participant') {
-        if (ttype === 'user') {
-          await createNotification(pool, { userId: c.name, title: '协同对象更新', content: `${me} 将您加入协同事项「${apps[0].project_name || ''}」，请${verb}`, type: 'collaboration', relatedId: Number(id), relatedType: 'project' });
-        } else {
-          const [members] = await pool.query('SELECT name FROM employees WHERE department = ?', [c.name]);
-          for (const m of members) {
-            await createNotification(pool, { userId: m.name, title: '协同对象更新', content: `${me} 将您所在部门加入协同事项「${apps[0].project_name || ''}」，请${verb}`, type: 'collaboration', relatedId: Number(id), relatedType: 'project' });
-          }
-        }
+    // 被追加对象（参与人）单独通知"请响应"
+    const verb = apps[0].collaboration_mode === 'opinion' ? '提交意见' : '确认知晓';
+    for (const ic of insertedCols) {
+      if (ic.collab_role === 'participant') {
+        await createNotification(pool, { userId: ic.target_name, title: '协同对象更新', content: `${me} 将您加入协同事项「${apps[0].project_name || ''}」，请${verb}`, type: 'collaboration', relatedId: Number(id), relatedType: 'project' });
       }
     }
 
     // 通知其余相关人：某人追加了协同对象
     await notifyProjectParties(pool, id, me, {
       title: '协同对象更新',
-      content: `${me} 在协同事项「${apps[0].project_name || ''}」中追加了 ${collaborators.length} 位协同对象`,
+      content: `${me} 在协同事项「${apps[0].project_name || ''}」中追加了 ${insertedCols.length} 位协同对象`,
       relatedId: id
     });
-    await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: me, actorRole: isApplicant ? '发起人' : '协同对象', action: 'add_collaborator', fromStatus: '', toStatus: '', targetUser: collaborators.map((c) => (c && c.name) || '').filter(Boolean).join(',') });
+    await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: me, actorRole: isApplicant ? '发起人' : '协同对象', action: 'add_collaborator', fromStatus: '', toStatus: '', targetUser: insertedCols.map((c) => c.target_name).filter(Boolean).join(',') });
 
-    res.json({ success: true, data: { inserted: insertedIds.length } });
+    res.json({ success: true, data: { inserted: insertedCols.length } });
   } catch (error) {
     console.error('追加协同对象失败:', error);
     res.status(500).json({ success: false, message: error.message });

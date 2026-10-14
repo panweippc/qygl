@@ -30,14 +30,16 @@
 export async function appendApprovalLog(pool, opts = {}) {
   const {
     applicationType, applicationId, actor, actorRole = '',
-    action, fromStatus = '', toStatus = '', comment = '', targetUser = ''
+    action, fromStatus = '', toStatus = '', comment = '', targetUser = '',
+    createdAt
   } = opts;
   if (!pool || !applicationType || !applicationId || !actor || !action) return;
   try {
+    const ts = createdAt ? String(createdAt) : 'NOW()';
     await pool.execute(
       `INSERT INTO approval_logs
         (application_type, application_id, actor, actor_role, action, from_status, to_status, comment, target_user, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${ts})`,
       [applicationType, applicationId, actor, actorRole, action, fromStatus || '', toStatus || '', comment || '', targetUser || '']
     );
   } catch (e) {

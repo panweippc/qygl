@@ -67,8 +67,8 @@
               <tr><th>对象</th><th>类型</th><th>角色</th><th>配合职责</th><th>追加人</th><th>状态/意见</th></tr>
             </thead>
             <tbody>
-              <tr v-for="(c, i) in expandedCollaborators" :key="i">
-                <td>{{ c.target_type === 'dept' ? '【部门】' : '' }}{{ c.target_name }}</td>
+                <tr v-for="(c, i) in expandedCollaborators" :key="i">
+                <td>{{ c.target_type === 'dept' ? '【部门】' : (c.dept ? '【' + c.dept + '】' : '') }}{{ c.target_name }}</td>
                 <td>{{ c.target_type === 'user' ? '人员' : '部门' }}</td>
                 <td>
                   <el-tag size="small" :type="c.collab_role === 'cc' ? 'info' : 'warning'">
@@ -129,7 +129,46 @@
             v-if="item.collaboration_mode === 'opinion' && !myCollaborator(item)?.opinion_text && item.close_status !== 'closed'"
             size="small" type="primary" @click="doOpinion(item)"
           >填写意见</el-button>
+          <el-button size="small" @click="toggleExpand(item)">
+            {{ expandedId === item.id ? '收起协同对象' : '查看协同对象' }}
+          </el-button>
           <el-button size="small" @click="$emit('view-detail', item, 'project')">详情</el-button>
+        </div>
+        <div v-if="expandedId === item.id" class="collab-detail">
+          <div v-if="expandedLoading" class="empty-block">加载中…</div>
+          <table v-else class="collab-table">
+            <thead>
+              <tr><th>对象</th><th>类型</th><th>角色</th><th>配合职责</th><th>追加人</th><th>状态/意见</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="(c, i) in expandedCollaborators" :key="i">
+                <td>{{ c.target_type === 'dept' ? '【部门】' : (c.dept ? '【' + c.dept + '】' : '') }}{{ c.target_name }}</td>
+                <td>{{ c.target_type === 'user' ? '人员' : '部门' }}</td>
+                <td>
+                  <el-tag size="small" :type="c.collab_role === 'cc' ? 'info' : 'warning'">
+                    {{ c.collab_role === 'cc' ? '抄送' : '参与人' }}
+                  </el-tag>
+                </td>
+                <td>{{ c.expected_role || '—' }}</td>
+                <td>{{ c.added_by || '初始' }}</td>
+                <td>
+                  <span v-if="c.collab_role === 'cc'">📢 抄送（仅知会）</span>
+                  <span v-else-if="item.collaboration_mode === 'notify'">
+                    {{ c.ack_status === 'acknowledged' ? '✅ 已知晓' : '⏳ 未确认' }}
+                  </span>
+                  <span v-else>
+                    {{ c.opinion_text ? ('💬 ' + c.opinion_text) : '⏳ 待填写' }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="collab-add-row" v-if="canAddCollaborators(item)">
+            <el-button size="small" type="primary" @click="openAddDialog(item)">+ 追加协同对象</el-button>
+            <span class="collab-progress" v-if="participantProgress(item).total > 0">
+              参与人进度 {{ participantProgress(item).done }}/{{ participantProgress(item).total }}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -273,6 +312,7 @@ const toggleExpand = async (item: any) => {
 }
 
 // 「协同给我的」：找到属于当前用户的协同对象行
+// 兼容两种数据：旧数据(部门为单独 target_type='dept' 行) / 新数据(部门已展开为 user 行并带 dept 字段)
 const myCollaborator = (item: any): any => {
   const list = (item.collaborators || []) as any[]
   const me = currentUsername.value
@@ -280,7 +320,10 @@ const myCollaborator = (item: any): any => {
   const u = list.find((c) => c.target_type === 'user' && (extractRealName(c.target_name) === me || extractRealName(c.target_name) === me2))
   if (u) return u
   if (myDept.value) {
-    const d = list.find((c) => c.target_type === 'dept' && c.target_name === myDept.value)
+    const d = list.find((c) =>
+      (c.target_type === 'dept' && c.target_name === myDept.value) ||
+      (c.target_type === 'user' && c.dept === myDept.value)
+    )
     if (d) return d
   }
   return null
