@@ -13,6 +13,49 @@ const APP_TYPE_CN = {
   entertainment: '业务招待'
 };
 
+// 各申请类型对应的业务表，用于下发生成通知时回查审批结果
+const APP_TABLE_MAP = {
+  leave: 'leave_applications',
+  reimbursement: 'reimbursement_applications',
+  meeting: 'meetings',
+  project: 'project_applications',
+  businessTrip: 'business_trips',
+  entertainment: 'entertainment_applications'
+};
+
+// 回查原申请的审批状态，拼到下发通知里，避免用户误以为是其他待办
+async function getApplicationStatus(pool, applicationType, applicationId) {
+  const table = APP_TABLE_MAP[applicationType];
+  if (!table || !applicationId) return null;
+  try {
+    const [[row]] = await pool.execute(`SELECT status FROM ${table} WHERE id = ?`, [applicationId]);
+    return row ? row.status : null;
+  } catch (e) {
+    console.error('[distribute] 回查申请状态失败:', e.message);
+    return null;
+  }
+}
+
+// 状态值映射为中文审批结果描述
+function mapStatusToCn(status) {
+  if (!status) return '';
+  const s = String(status);
+  const map = {
+    approved: '已批准',
+    rejected: '已拒绝',
+    returned: '已退回',
+    withdrawn: '已撤回',
+    pending: '审批中',
+    '已批准': '已批准',
+    '已拒绝': '已拒绝',
+    '已退回': '已退回',
+    '已撤回': '已撤回',
+    '审批中': '审批中',
+    '待审批': '待审批'
+  };
+  return map[s] || '';
+}
+
 // 幂等迁移：为 distributed_records 增加 read 字段（0=未读 1=已读），兼容已在运行的库
 let schemaReady = null
 const ensureSchema = (pool) => {
@@ -291,6 +334,14 @@ router.post('/distributed-records', async (req, res) => {
       });
     }
 
+    // 不允许将申请下发给申请人本人：审批结果已通过审批通知告知，无需重复下发，避免混淆
+    if (targetUser === applicant) {
+      return res.status(400).json({
+        success: false,
+        message: '不能将申请下发给申请人本人'
+      });
+    }
+
     const [result] = await pool.execute(
       'INSERT INTO distributed_records (applicationId, applicationType, applicant, distributedBy, targetUser, comment, status, detail, approver, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
       [applicationId, applicationType, applicant, distributedBy, targetUser, comment || '', status || '待处理', detail || '', req.body.approver || '']
@@ -333,11 +384,18 @@ router.post('/distributed-records', async (req, res) => {
         }
       }
 
-      let content = `${distributedBy} 给您下发了一条${appTypeCn}申请`;
-      if (detailObj.title || meetingExtra.title) {
-        content += `「${detailObj.title || meetingExtra.title}」`;
-      }
-      content += '，请查看处理';
+      // 回查原申请审批结果，让通知明确指向具体申请，避免用户误以为是其他待办
+      let approvalResultCn = '';
+      try {
+        approvalResultCn = mapStatusToCn(await getApplicationStatus(pool, applicationType, applicationId));
+      } catch (e) { /* 回查失败不影响通知 */ }
+
+      const titleText = detailObj.title || meetingExtra.title || '';
+      let content = `${distributedBy} 将${applicant}的${appTypeCn}申请`;
+      if (titleText) content += `「${titleText}」`;
+      content += `（#${applicationId}）`;
+      if (approvalResultCn) content += `（${approvalResultCn}）`;
+      content += `下发给您，请查看处理`;
       if (applicationType === 'meeting' && (meetingExtra.meetingDate || meetingExtra.location)) {
         const parts = [];
         if (meetingExtra.meetingDate) parts.push(`日期：${meetingExtra.meetingDate}`);
@@ -350,7 +408,7 @@ router.post('/distributed-records', async (req, res) => {
 
       await createNotification(pool, {
         userId: targetUser,
-        title: '新任务下发',
+        title: '申请已下发给您',
         content,
         type: 'approval',
         relatedId: result.insertId,

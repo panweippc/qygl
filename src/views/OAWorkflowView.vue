@@ -899,10 +899,14 @@ const isBusinessCenterManager = computed(() => {
 const canDistribute = computed(() => isAdminComputed.value || isCurrentUserGM.value || isBusinessCenterManager.value)
 
 const distributeTargetEmployees = computed(() => {
+  // 当前下发申请单的申请人本人不出现在候选列表，避免审批人误选下发回申请人
+  const applicantName = currentDistributeItem.value
+    ? extractRealName(currentDistributeItem.value.applicant || currentDistributeItem.value.organizer || '')
+    : ''
   return allEmployees.value.filter((emp: any) => {
     const pos = emp.position || ''
     const name = extractRealName(emp.name)
-    return !pos.includes('总经理') && !name.includes('李智鑫')
+    return !pos.includes('总经理') && !name.includes('李智鑫') && name !== applicantName
   })
 })
 
@@ -1340,8 +1344,8 @@ const getApplicantName = (row: any, type: string) => {
 
 const openApprovalDialog = (row: any, type: string) => {
   currentApprovalItem.value = { ...row, type }
-  // 下发对象默认值：张海琼 + 当前申请单的申请人（去重）
-  const defaultTargets = [...new Set(['张海琼', getApplicantName(row, type)])].filter(Boolean)
+  // 下发对象默认值：仅张海琼；不放申请人本人（审批结果已通过审批通知告知）
+  const defaultTargets = ['张海琼']
   approvalForm.value = { id: row.id, type, comment: '', result: '', forward: false, forwardTo: '', distributeTargets: defaultTargets }
   approvalDialogVisible.value = true
 }
@@ -1387,7 +1391,7 @@ const submitApproval = async () => {
       const targets = [...new Set(approvalForm.value.distributeTargets || [])]
       const effectiveTargets = targets.length > 0
         ? targets
-        : (approvalForm.value.result === '批准' ? [...new Set(['张海琼', getApplicantName(currentApprovalItem.value, approvalForm.value.type)])] : [])
+        : (approvalForm.value.result === '批准' ? ['张海琼'] : [])
       if (approvalForm.value.result === '批准' && !approvalForm.value.forward && effectiveTargets.length > 0) {
         const item = currentApprovalItem.value
         const type = approvalForm.value.type
@@ -1666,7 +1670,8 @@ const handleDistribute = async () => {
     const alreadyDistributed = allDistributedRecords.value
       .filter(r => r.applicationId === currentDistributeItem.value.id && r.applicationType === currentDistributeType.value)
       .map(r => r.targetUser)
-    const validTargets = uniqueTargets.filter(t => !alreadyDistributed.includes(t))
+    // 兜底：即便前端误选了申请人本人，也在此剔除（后端接口同样会拒绝）
+    const validTargets = uniqueTargets.filter(t => !alreadyDistributed.includes(t) && t !== applicantName)
 
     if (validTargets.length === 0) {
       ElMessage.warning('所选对象均已收到过该下发，不能重复下发')
@@ -1679,6 +1684,7 @@ const handleDistribute = async () => {
 
     const item = currentDistributeItem.value
     const type = currentDistributeType.value
+    const applicantName = extractRealName(item.applicant || item.organizer || '')
     let detailObj: any = {}
     if (type === 'meeting') {
       detailObj = { title: item.title, meetingDate: item.meetingDate, meetingTime: item.meetingTime, location: item.location, participants: item.participants, agenda: item.agenda }
