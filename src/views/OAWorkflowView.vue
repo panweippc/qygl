@@ -546,16 +546,33 @@
           <span :class="['detail-status', getStatusClass(currentDetailItem.status)]">{{ getStatusText(currentDetailItem.status) }}</span>
         </div>
         <div class="detail-body">
-          <el-table :data="detailFieldRows" border size="small" style="width: 100%" max-height="420">
-            <el-table-column prop="label" label="字段" width="140" />
-            <el-table-column prop="value" label="内容" min-width="220">
-              <template #default="{ row }">
-                <span :class="{ 'return-reason-text': row.highlight }">{{ row.value }}</span>
-              </template>
-            </el-table-column>
-          </el-table>
+          <el-descriptions :column="2" border size="small" class="detail-descriptions">
+            <el-descriptions-item
+              v-for="row in detailFieldRows"
+              :key="row.label"
+              :label="row.label"
+              :class="{ 'return-reason-item': row.highlight }"
+            >
+              <span :class="{ 'return-reason-text': row.highlight }">{{ row.value }}</span>
+            </el-descriptions-item>
+          </el-descriptions>
         </div>
         <div class="detail-footer">
+          <div class="detail-section" v-if="currentDetailType === 'project' && projectCollaborators.length">
+            <div class="detail-row">
+              <span class="detail-label">协同对象</span>
+              <span class="detail-value collab-chips">
+                <span v-for="(c, i) in projectCollaborators" :key="i" class="collab-chip">
+                  <el-tag size="small" :type="c.collab_role === 'cc' ? 'info' : 'warning'">{{ c.collab_role === 'cc' ? '抄送' : '参与人' }}</el-tag>
+                  {{ c.target_type === 'dept' ? '【部门】' : '' }}{{ c.target_name }}
+                  <span class="collab-status" v-if="c.collab_role !== 'cc'">
+                    {{ currentDetailItem.collaboration_mode === 'notify' ? (c.ack_status === 'acknowledged' ? '✅ 已确认' : '⏳ 未确认') : (c.opinion_text ? '💬 已提交' : '⏳ 待提交') }}
+                  </span>
+                  <span class="collab-added" v-if="c.added_by"> · {{ c.added_by }} 追加</span>
+                </span>
+              </span>
+            </div>
+          </div>
           <div class="detail-section lifecycle-block" v-if="lifecycleTimeline.length > 0">
             <div class="detail-row lifecycle-head">
               <span class="detail-label">审批生命周期</span>
@@ -771,6 +788,7 @@ import {
   parseAttachments
 } from '../services/api'
 import api from '../services/api'
+import { getProjectApplication } from '../services/workflow'
 import {
   extractRealName,
   formatDate,
@@ -1445,6 +1463,8 @@ const submitApproval = async () => {
 }
 
 const detailDialogVisible = ref(false)
+// 协同申请详情的协同对象列表（含角色/状态/追加人）
+const projectCollaborators = ref<any[]>([])
 const currentDetailItem = ref<any>(null)
 const currentDetailType = ref('')
 
@@ -1562,6 +1582,15 @@ const viewDetail = (row: any, type: string) => {
   currentDetailType.value = type
   detailDialogVisible.value = true
   loadLifecycle(type, row?.id)
+  // 协同申请：拉取协同对象（含角色/状态/追加人），用于详情页完整链路展示
+  if (type === 'project') {
+    projectCollaborators.value = []
+    getProjectApplication(row?.id)
+      .then((r: any) => { if (r && r.success) projectCollaborators.value = (r.data && r.data.collaborators) || [] })
+      .catch(() => {})
+  } else {
+    projectCollaborators.value = []
+  }
 }
 
 const getBusinessTripApprovalChain = (item: any) => {

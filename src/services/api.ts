@@ -341,6 +341,12 @@ export const submitCollaborationOpinion = async (id: number, opinion: string): P
   return response.data;
 };
 
+// 协同申请：链式转发，追加协同对象（发起人 / 已响应参与人 可调用）
+export const addProjectCollaborators = async (id: number, collaborators: any[]): Promise<ApiResponse> => {
+  const response = await api.post(`/projects/${id}/collaborators`, { collaborators });
+  return response.data;
+};
+
 export const updateProject = async (id: number, data: any): Promise<ApiResponse> => {
   const userStr = localStorage.getItem('user');
   const approverId = userStr ? JSON.parse(userStr).id : null;

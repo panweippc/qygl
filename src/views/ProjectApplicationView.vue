@@ -158,6 +158,11 @@
                     <el-option label="部门" value="dept" />
                   </el-select>
 
+                  <el-select v-model="c.collabRole" style="width: 110px" title="角色：参与人需响应（确认/意见），抄送仅知会">
+                    <el-option label="参与人" value="participant" />
+                    <el-option label="抄送" value="cc" />
+                  </el-select>
+
                   <el-select
                     v-if="c.type === 'user'"
                     v-model="c.empIds"
@@ -220,16 +225,18 @@
             <!-- 协同详情 -->
             <el-divider content-position="left">协同详情</el-divider>
 
-            <el-form-item label="协作说明" prop="description">
-              <el-input
-                v-model="form.description"
-                type="textarea"
-                :rows="4"
-                placeholder="请详细描述协同事项的内容、背景与目标"
-                maxlength="500"
-                show-word-limit
-              />
-            </el-form-item>
+            <el-collapse v-model="descCollapseActive" class="collab-desc-collapse">
+              <el-collapse-item name="desc" title="协作说明（可选，点击展开）">
+                <el-input
+                  v-model="form.description"
+                  type="textarea"
+                  :rows="4"
+                  placeholder="请详细描述协同事项的内容、背景与目标（选填）"
+                  maxlength="500"
+                  show-word-limit
+                />
+              </el-collapse-item>
+            </el-collapse>
 
             <el-form-item label="期望产出" prop="objectives">
               <el-input
@@ -313,6 +320,8 @@ const fileList = ref<any[]>([]);
 const onFileExceed = () => {
   ElMessage.warning('最多只能上传5个附件');
 };
+// 协作说明默认折叠隐藏（选填）
+const descCollapseActive = ref<string[]>([]);
 
 // 当前登录用户（主发起人）
 const currentUser = computed(() => {
@@ -350,11 +359,7 @@ const rules = {
   priority: [{ required: true, message: '请选择优先级', trigger: 'change' }],
   collaborationMode: [{ required: true, message: '请选择协同模式', trigger: 'change' }],
   startDate: [{ required: true, message: '请选择开始日期', trigger: 'change' }],
-  endDate: [{ required: true, message: '请选择结束日期', trigger: 'change' }],
-  description: [
-    { required: true, message: '请输入协作说明', trigger: 'blur' },
-    { min: 10, message: '说明至少10个字符', trigger: 'blur' }
-  ]
+  endDate: [{ required: true, message: '请选择结束日期', trigger: 'change' }]
 };
 
 // 联合发起人（额外发起方）
@@ -380,10 +385,11 @@ const collaborators = ref<{
   empDepts: string[];
   deptNames: string[];
   role: string;
+  collabRole: 'participant' | 'cc';
 }[]>([]);
 
 const addCollaborator = () => {
-  collaborators.value.push({ type: 'user', empIds: [], empNames: [], empDepts: [], deptNames: [], role: '' });
+  collaborators.value.push({ type: 'user', empIds: [], empNames: [], empDepts: [], deptNames: [], role: '', collabRole: 'participant' });
 };
 const removeCollaborator = (idx: number) => {
   collaborators.value.splice(idx, 1);
@@ -466,7 +472,8 @@ const submitForm = async () => {
               id: c.empIds[i],
               name: c.empNames[i] || '',
               dept: c.empDepts[i] || '',
-              role: c.role
+              role: c.role,
+              collabRole: c.collabRole || 'participant'
             })
           }
         } else {
@@ -476,7 +483,8 @@ const submitForm = async () => {
               id: null,
               name: deptName,
               dept: deptName,
-              role: c.role
+              role: c.role,
+              collabRole: c.collabRole || 'participant'
             })
           }
         }

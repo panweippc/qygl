@@ -51,6 +51,7 @@
           <span>类型：{{ item.project_type || '—' }}</span>
           <span>优先级：{{ item.priority }}</span>
           <span>发起：{{ item.applicant_name }}</span>
+          <span v-if="participantProgress(item).total > 0" class="progress-pill">参与人 {{ participantProgress(item).done }}/{{ participantProgress(item).total }}</span>
         </div>
         <div class="card-desc">{{ item.description }}</div>
         <div class="card-foot">
@@ -63,15 +64,22 @@
           <div v-if="expandedLoading" class="empty-block">加载中…</div>
           <table v-else class="collab-table">
             <thead>
-              <tr><th>对象</th><th>类型</th><th>配合职责</th><th>状态/意见</th></tr>
+              <tr><th>对象</th><th>类型</th><th>角色</th><th>配合职责</th><th>追加人</th><th>状态/意见</th></tr>
             </thead>
             <tbody>
               <tr v-for="(c, i) in expandedCollaborators" :key="i">
                 <td>{{ c.target_type === 'dept' ? '【部门】' : '' }}{{ c.target_name }}</td>
                 <td>{{ c.target_type === 'user' ? '人员' : '部门' }}</td>
-                <td>{{ c.expected_role || '—' }}</td>
                 <td>
-                  <span v-if="item.collaboration_mode === 'notify'">
+                  <el-tag size="small" :type="c.collab_role === 'cc' ? 'info' : 'warning'">
+                    {{ c.collab_role === 'cc' ? '抄送' : '参与人' }}
+                  </el-tag>
+                </td>
+                <td>{{ c.expected_role || '—' }}</td>
+                <td>{{ c.added_by || '初始' }}</td>
+                <td>
+                  <span v-if="c.collab_role === 'cc'">📢 抄送（仅知会）</span>
+                  <span v-else-if="item.collaboration_mode === 'notify'">
                     {{ c.ack_status === 'acknowledged' ? '✅ 已知晓' : '⏳ 未确认' }}
                   </span>
                   <span v-else>
@@ -81,6 +89,12 @@
               </tr>
             </tbody>
           </table>
+          <div class="collab-add-row" v-if="canAddCollaborators(item)">
+            <el-button size="small" type="primary" @click="openAddDialog(item)">+ 追加协同对象</el-button>
+            <span class="collab-progress" v-if="participantProgress(item).total > 0">
+              参与人进度 {{ participantProgress(item).done }}/{{ participantProgress(item).total }}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -102,6 +116,7 @@
         </div>
         <div class="card-meta">
           <span>发起：{{ item.applicant_name }}</span>
+          <span>我的角色：<el-tag size="small" :type="myRole(item) === 'cc' ? 'info' : 'warning'">{{ myRole(item) === 'cc' ? '抄送' : '参与人' }}</el-tag></span>
           <span>我的状态：{{ myStateLabel(item) }}</span>
         </div>
         <div class="card-desc">{{ item.description }}</div>
@@ -118,6 +133,43 @@
         </div>
       </div>
     </div>
+
+    <!-- 追加协同对象弹窗（链式转发：发起人 / 已响应参与人 可追加） -->
+    <el-dialog v-model="addDialogVisible" title="追加协同对象" width="520px" class="custom-dialog" :modal="false">
+      <div class="add-collab-form">
+        <el-form label-width="84px">
+          <el-form-item label="类型">
+            <el-radio-group v-model="addType">
+              <el-radio label="user">人员</el-radio>
+              <el-radio label="dept">部门</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item v-if="addType === 'user'" label="人员">
+            <el-select v-model="addEmpIds" multiple filterable placeholder="选择人员（可多选）" style="width:100%">
+              <el-option v-for="e in employeeOptions" :key="e.id" :label="e.name + ' (' + (e.department || '') + ')'" :value="e.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-else label="部门">
+            <el-select v-model="addDeptNames" multiple filterable allow-create default-first-option placeholder="选择部门（可多选）" style="width:100%">
+              <el-option v-for="d in deptOptions" :key="d" :label="d" :value="d" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="角色">
+            <el-select v-model="addCollabRole" style="width:140px">
+              <el-option label="参与人" value="participant" />
+              <el-option label="抄送" value="cc" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="配合职责">
+            <el-input v-model="addRole" placeholder="配合职责/期望（可选）" />
+          </el-form-item>
+        </el-form>
+      </div>
+      <template #footer>
+        <el-button @click="addDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="confirmAdd" :loading="addLoading">确认追加</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -125,7 +177,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getProjects, getCollaboratedWithMe, ackCollaboration, submitCollaborationOpinion } from '@/services/api'
+import { getProjects, getCollaboratedWithMe, ackCollaboration, submitCollaborationOpinion, addProjectCollaborators } from '@/services/api'
 import { getProjectApplication } from '@/services/workflow'
 import { extractRealName } from '@/utils/oaWorkflowUtils'
 
@@ -302,6 +354,101 @@ const loadData = async () => {
 
 const goToProjectApply = () => router.push('/oa/project-apply')
 
+// ===== 协同增强：角色 / 进度 / 链式转发 =====
+const employeeOptions = computed(() => props.allEmployees || [])
+const deptOptions = computed(() => {
+  const s = new Set<string>()
+  for (const e of (props.allEmployees || [])) if (e.department) s.add(e.department)
+  return Array.from(s)
+})
+
+// 参与人进度（仅统计 participant；cc 抄送不计入，且不阻塞）
+const participantProgress = (item: any) => {
+  const list = (item.collaborators || []) as any[]
+  const parts = list.filter((c) => c.collab_role !== 'cc')
+  if (parts.length === 0) return { done: 0, total: 0 }
+  const done = parts.filter((c) => {
+    if (item.collaboration_mode === 'notify') return c.ack_status === 'acknowledged'
+    return !!c.opinion_text
+  }).length
+  return { done, total: parts.length }
+}
+
+// 是否可追加协同对象：发起人，或已响应的参与人
+const canAddCollaborators = (item: any) => {
+  const me = currentUsername.value
+  if (extractRealName(item.applicant_name) === me) return true
+  const c = myCollaborator(item)
+  if (!c) return false
+  if (item.collaboration_mode === 'notify') return c.ack_status === 'acknowledged'
+  return !!c.opinion_text
+}
+
+// 我在某协同中的角色（参与人 / 抄送）
+const myRole = (item: any) => {
+  const c = myCollaborator(item)
+  if (!c) return ''
+  return c.collab_role === 'cc' ? 'cc' : 'participant'
+}
+
+// 追加弹窗状态
+const addDialogVisible = ref(false)
+const addCurrentItem = ref<any>(null)
+const addType = ref<'user' | 'dept'>('user')
+const addEmpIds = ref<any[]>([])
+const addDeptNames = ref<string[]>([])
+const addCollabRole = ref<'participant' | 'cc'>('participant')
+const addRole = ref('')
+const addLoading = ref(false)
+
+const openAddDialog = (item: any) => {
+  addCurrentItem.value = item
+  addType.value = 'user'
+  addEmpIds.value = []
+  addDeptNames.value = []
+  addCollabRole.value = 'participant'
+  addRole.value = ''
+  addDialogVisible.value = true
+}
+
+const confirmAdd = async () => {
+  const item = addCurrentItem.value
+  if (!item) return
+  const id = item.id
+  const list: any[] = []
+  if (addType.value === 'user') {
+    for (const eid of addEmpIds.value) {
+      const emp = (props.allEmployees || []).find((e: any) => String(e.id) === String(eid))
+      if (emp) list.push({ type: 'user', id: emp.id, name: emp.name, dept: emp.department, role: addRole.value, collabRole: addCollabRole.value })
+    }
+  } else {
+    for (const d of addDeptNames.value) list.push({ type: 'dept', id: null, name: d, dept: d, role: addRole.value, collabRole: addCollabRole.value })
+  }
+  if (list.length === 0) { ElMessage.warning('请至少选择一个协同对象'); return }
+  addLoading.value = true
+  try {
+    const res = await addProjectCollaborators(id, list)
+    if (res.success) {
+      ElMessage.success('已追加协同对象，已通知相关人员')
+      addDialogVisible.value = false
+      await loadData()
+      // 重新展开以展示新增对象
+      expandedId.value = id
+      expandedLoading.value = true
+      try {
+        const r = await getProjectApplication(id)
+        if (r.success) expandedCollaborators.value = (r.data && r.data.collaborators) || []
+      } catch (e) { /* ignore */ } finally { expandedLoading.value = false }
+    } else {
+      ElMessage.error(res.message || '追加失败')
+    }
+  } catch (e: any) {
+    ElMessage.error(e.message || '追加失败')
+  } finally {
+    addLoading.value = false
+  }
+}
+
 onMounted(async () => {
   await loadData()
   await tryAutoExpand()
@@ -338,4 +485,7 @@ defineExpose({ loadData, fetchData })
 .collab-table th, .collab-table td { border: 1px solid #ebeef5; padding: 0.4rem 0.6rem; text-align: left; }
 .collab-table th { background: #f5f7fa; color: #606266; }
 .empty-block { text-align: center; color: #909399; font-size: 0.9rem; padding: 2rem 0; }
+.progress-pill { background: rgba(30,90,168,0.1); color: #1E5AA8; padding: 0.1rem 0.5rem; border-radius: 10px; font-size: 0.78rem; }
+.collab-add-row { margin-top: 0.6rem; display: flex; align-items: center; gap: 0.8rem; }
+.collab-progress { font-size: 0.8rem; color: #1E5AA8; }
 </style>

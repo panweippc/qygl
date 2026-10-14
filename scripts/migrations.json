@@ -12,5 +12,6 @@
   "migrations/approval-center-optimize-v1.2.66.sql",
   "migrations/asset-optimize-v1.2.67.sql",
   "migrations/add-assets-frozen-v1.2.68.sql",
-  "migrations/collaboration-redesign-v1.2.69.sql"
+  "migrations/collaboration-redesign-v1.2.69.sql",
+  "migrations/collaboration-roles-chain-v1.2.70.sql"
 ]
