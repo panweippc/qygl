@@ -132,6 +132,13 @@ export const getStatusClass = (status: string) => {
       return 'status-pending-blue'
     case '已处理':
       return 'status-processed-green'
+    // 协同申请状态
+    case 'notifying':
+      return 'status-pending-blue'
+    case 'collecting':
+      return 'status-pending'
+    case 'closed':
+      return 'status-processed-green'
     default:
       return 'status-default'
   }
@@ -155,6 +162,13 @@ export const getStatusText = (status: string) => {
       return '已退回'
     case 'deleted':
       return '已删除'
+    // 协同申请状态
+    case 'notifying':
+      return '通知确认中'
+    case 'collecting':
+      return '意见收集中'
+    case 'closed':
+      return '已结束'
     default:
       return status
   }

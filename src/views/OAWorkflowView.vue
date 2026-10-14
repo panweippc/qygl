@@ -575,7 +575,7 @@
           </div>
           <div class="detail-section lifecycle-block" v-if="lifecycleTimeline.length > 0">
             <div class="detail-row lifecycle-head">
-              <span class="detail-label">审批生命周期</span>
+              <span class="detail-label">{{ currentDetailType === 'project' ? '协同生命周期' : '审批生命周期' }}</span>
               <span class="detail-value lifecycle-count">共 {{ lifecycleTimeline.length }} 个节点</span>
             </div>
             <div class="lifecycle-timeline">
@@ -674,7 +674,7 @@
         style="margin-top: 16px; border-top: 1px solid #ebeef5; padding-top: 12px;"
       >
         <div class="detail-row lifecycle-head">
-          <span class="detail-label">审批生命周期</span>
+          <span class="detail-label">{{ currentDetailType === 'project' ? '协同生命周期' : '审批生命周期' }}</span>
           <span class="detail-value lifecycle-count">共 {{ lifecycleTimeline.length }} 个节点</span>
         </div>
         <div class="lifecycle-timeline">
