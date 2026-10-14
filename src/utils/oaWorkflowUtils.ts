@@ -231,6 +231,10 @@ export const getProjectTypeClass = (type: string) => {
     '跨部门协作': 'type-research',
     '联合支持': 'type-operation',
     '资源协调': 'type-market',
+    '信息共享': 'type-operation',
+    '任务督办': 'type-research',
+    '方案评审': 'type-market',
+    '流程优化': 'type-construction',
     '其他': 'type-other'
   }
   return map[type] || 'type-other'
@@ -348,17 +352,24 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
       '审批人': item.approver || '-',
       '创建时间': item.submitDate
     },
-    project: {
-      '发起人': item.applicant_name || item.applicant || currentUsername,
-      '协同事项名称': item.projectName || item.project_name || '-',
-      '协作类型': item.projectType || item.project_type || '-',
-      '协同模式': item.collaborationMode === 'opinion' || item.collaboration_mode === 'opinion' ? '意见征集' : (item.collaborationMode === 'notify' || item.collaboration_mode === 'notify' ? '通知' : '-'),
-      '协同背景': item.description || '-',
-      '协同目标': item.objectives || item.objective || '-',
-      '截止时间': item.expireAt || item.expire_at || '-',
-      '优先级': item.priority || '-',
-      '提交时间': item.submitDate || item.created_at || '-'
-    },
+    project: (() => {
+      const mode = item.collaborationMode || item.collaboration_mode || ''
+      const fields: Record<string, string> = {
+        '发起人': item.applicant_name || item.applicant || currentUsername,
+        '协同事项名称': item.projectName || item.project_name || '-',
+        '协作类型': item.projectType || item.project_type || '-',
+        '协同模式': mode === 'opinion' ? '意见征集' : (mode === 'notify' ? '通知' : '-'),
+        '协同背景': item.description || '-',
+        '协同目标': item.objectives || item.objective || '-',
+        '优先级': item.priority || '-',
+        '提交时间': item.submitDate || item.created_at || '-'
+      }
+      // 仅通知模式显示截止时间；意见征集模式无截止时间字段
+      if (mode !== 'opinion') {
+        fields['截止时间'] = item.expireAt || item.expire_at || '-'
+      }
+      return fields
+    })(),
     businessTrip: {
       '申请人': item.applicant || currentUsername,
       '同行人员': item.companion || '',

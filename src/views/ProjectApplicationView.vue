@@ -6,28 +6,25 @@
         <el-card class="form-card">
           <template #header>
             <div class="card-header">
-              <span class="title">发起协同</span>
+              <div class="title-wrap">
+                <span class="title">协同申请</span>
+                <el-popover placement="bottom" trigger="click" width="360">
+                  <template #reference>
+                    <el-button size="small" circle title="协同说明" class="title-help-btn">
+                      <el-icon><InfoFilled /></el-icon>
+                    </el-button>
+                  </template>
+                  <p><strong>协同模式</strong></p>
+                  <ul style="margin: 6px 0; padding-left: 16px;">
+                    <li><strong>意见征集</strong>：相关人填写一条意见</li>
+                    <li><strong>通知</strong>：相关人点击已知晓</li>
+                  </ul>
+                  <p>请填写发起方与协同对象，支持一对一、一对多、多对一。</p>
+                </el-popover>
+              </div>
               <el-button @click="goBack">返回</el-button>
             </div>
           </template>
-
-          <!-- 协同说明：默认折叠，通过 ? 按钮展开（参考销售漏斗隐藏方式） -->
-          <div class="collab-info-bar">
-            <span>协同申请无需审批，填写后发送给相关人员</span>
-            <el-popover placement="bottom" trigger="click" width="360">
-              <template #reference>
-                <el-button size="small" circle title="协同说明">
-                  <el-icon><InfoFilled /></el-icon>
-                </el-button>
-              </template>
-              <p><strong>协同模式</strong></p>
-              <ul style="margin: 6px 0; padding-left: 16px;">
-                <li><strong>意见征集</strong>：相关人填写一条意见</li>
-                <li><strong>通知</strong>：相关人点击已知晓</li>
-              </ul>
-              <p>请填写发起方与协同对象，支持一对一、一对多、多对一。</p>
-            </el-popover>
-          </div>
 
           <el-form
             ref="formRef"
@@ -56,6 +53,10 @@
                     <el-option label="跨部门协作" value="跨部门协作" />
                     <el-option label="联合支持" value="联合支持" />
                     <el-option label="资源协调" value="资源协调" />
+                    <el-option label="信息共享" value="信息共享" />
+                    <el-option label="任务督办" value="任务督办" />
+                    <el-option label="方案评审" value="方案评审" />
+                    <el-option label="流程优化" value="流程优化" />
                     <el-option label="其他" value="其他" />
                   </el-select>
                 </el-form-item>
@@ -108,15 +109,19 @@
               </el-col>
             </el-row>
 
-            <el-form-item v-if="form.collaborationMode === 'notify'" label="截止确认时间" prop="expireAt">
-              <el-date-picker
-                v-model="form.expireAt"
-                type="datetime"
-                placeholder="（可选）超过此时间视为未确认"
-                style="width: 100%"
-                value-format="YYYY-MM-DD HH:mm:ss"
-              />
-            </el-form-item>
+            <el-row v-if="form.collaborationMode === 'notify'" :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="截止确认时间" prop="expireAt">
+                  <el-date-picker
+                    v-model="form.expireAt"
+                    type="datetime"
+                    placeholder="（可选）超过此时间视为未确认"
+                    style="width: 100%"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                  />
+                </el-form-item>
+              </el-col>
+            </el-row>
 
             <!-- 发起方 -->
             <el-divider content-position="left">发起方</el-divider>
@@ -167,11 +172,6 @@
                     <el-option label="部门" value="dept" />
                   </el-select>
 
-                  <el-select v-model="c.collabRole" style="width: 110px" title="角色：参与人需响应（确认/意见），抄送仅知会">
-                    <el-option label="参与人" value="participant" />
-                    <el-option label="抄送" value="cc" />
-                  </el-select>
-
                   <el-select
                     v-if="c.type === 'user'"
                     v-model="c.empIds"
@@ -207,6 +207,11 @@
                     />
                   </el-select>
 
+                  <el-select v-model="c.collabRole" style="width: 110px" title="角色：参与人需响应（确认/意见），抄送仅知会">
+                    <el-option label="参与人" value="participant" />
+                    <el-option label="抄送" value="cc" />
+                  </el-select>
+
                   <el-input
                     v-model="c.role"
                     placeholder="配合职责/期望（可选）"
@@ -234,18 +239,16 @@
             <!-- 协同详情 -->
             <el-divider content-position="left">协同详情</el-divider>
 
-            <el-collapse v-model="descCollapseActive" class="collab-desc-collapse">
-              <el-collapse-item name="desc" title="协同背景（可选，点击展开）">
-                <el-input
-                  v-model="form.description"
-                  type="textarea"
-                  :rows="4"
-                  placeholder="请描述本次协同的背景、目标与需要大家配合的事项（选填）"
-                  maxlength="500"
-                  show-word-limit
-                />
-              </el-collapse-item>
-            </el-collapse>
+            <el-form-item label="协同背景">
+              <el-input
+                v-model="form.description"
+                type="textarea"
+                :rows="4"
+                placeholder="请描述本次协同的背景、目标与需要大家配合的事项"
+                maxlength="500"
+                show-word-limit
+              />
+            </el-form-item>
 
             <el-form-item label="期望产出" prop="objectives">
               <el-input
@@ -276,7 +279,7 @@
             <!-- 提交按钮 -->
             <el-form-item>
               <el-button type="primary" @click="submitForm" :loading="submitting">
-                提交申请
+                发起协同
               </el-button>
             </el-form-item>
           </el-form>
@@ -329,9 +332,6 @@ const fileList = ref<any[]>([]);
 const onFileExceed = () => {
   ElMessage.warning('最多只能上传5个附件');
 };
-// 协作说明默认折叠隐藏（选填）
-const descCollapseActive = ref<string[]>([]);
-
 // 当前登录用户（主发起人）
 const currentUser = computed(() => {
   const userStr = localStorage.getItem('user');
@@ -422,11 +422,17 @@ const onCollaboratorTypeChange = (c: any) => {
   c.deptNames = [];
 };
 
-// 禁用结束日期（允许与开始日期同一天）
+// 禁用结束日期（允许与开始日期同一天，按本地日期比较避免时区差一天）
+const toLocalDateStr = (d: Date) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 const disabledEndDate = (time: Date) => {
   if (!form.startDate) return false;
   const start = String(form.startDate).slice(0, 10);
-  const end = time.toISOString().slice(0, 10);
+  const end = toLocalDateStr(time);
   return end < start;
 };
 
@@ -586,9 +592,18 @@ searchEmployees('');
   justify-content: space-between;
   align-items: center;
 }
+.project-application .card-header .title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .project-application .card-header .title {
   font-size: 18px;
   font-weight: bold;
+}
+.project-application .title-help-btn {
+  padding: 4px;
+  height: auto;
 }
 .project-application .collab-info-bar {
   display: flex;

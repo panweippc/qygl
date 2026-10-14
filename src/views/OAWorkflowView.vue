@@ -1538,9 +1538,11 @@ const lifecycleTimeline = computed(() => {
   for (const log of lifecycleLogs.value) {
     const action = String(log.action || '')
     if (action === 'distribute') continue // 下发展示由 distributes 单独渲染，避免重复
-    const label = ACTION_LABEL[action] || action
+    let label = ACTION_LABEL[action] || action
+    // 协同申请生命周期中，submit 统一显示为“发起协同”
+    if (currentDetailType.value === 'project' && action === 'submit') label = '发起协同'
     let desc = ''
-    if (action === 'submit') desc = log.targetUser ? `提交给 ${extractRealName(log.targetUser)} 审批` : '提交申请'
+    if (action === 'submit') desc = log.targetUser ? `提交给 ${extractRealName(log.targetUser)} 审批` : (currentDetailType.value === 'project' ? '发起协同' : '提交申请')
     else if (action === 'forward') desc = log.targetUser ? `转交给 ${extractRealName(log.targetUser)} 审批` : '转交'
     else if (action === 'return') desc = log.comment ? `退回理由：${log.comment}` : '退回申请'
     else if (action === 'withdraw') desc = '申请人撤回该申请'
