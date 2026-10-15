@@ -74,7 +74,15 @@
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-
+                <el-form-item label="截止确认时间" prop="expireAt">
+                  <el-date-picker
+                    v-model="form.expireAt"
+                    type="datetime"
+                    placeholder="（可选）超过此时间视为未确认"
+                    style="width: 100%"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                  />
+                </el-form-item>
               </el-col>
             </el-row>
 
@@ -99,20 +107,6 @@
                     style="width: 100%"
                     value-format="YYYY-MM-DD"
                     :disabled-date="disabledEndDate"
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="截止确认时间" prop="expireAt">
-                  <el-date-picker
-                    v-model="form.expireAt"
-                    type="datetime"
-                    placeholder="（可选）超过此时间视为未确认"
-                    style="width: 100%"
-                    value-format="YYYY-MM-DD HH:mm:ss"
                   />
                 </el-form-item>
               </el-col>

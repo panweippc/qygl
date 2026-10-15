@@ -406,11 +406,11 @@ const reloadExpandedIfNeeded = async (itemId: number) => {
 const loadData = async () => {
   try {
     const me = currentUsername.value
-    // 我发起的：过滤协作模式记录且发起人为本人的
-    const mineRes = await getProjects()
+    // 我发起的：包含主发起人 + 联合发起人（多对一场景）
+    const mineRes = await getProjects({ coApplicant: me })
     if (mineRes.success && mineRes.data && mineRes.data.list) {
       mineList.value = mineRes.data.list.filter(
-        (r: any) => r.collaboration_mode && extractRealName(r.applicant_name || r.applicant) === me
+        (r: any) => r.collaboration_mode
       )
     }
     // 协同给我的

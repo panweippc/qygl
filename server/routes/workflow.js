@@ -77,6 +77,16 @@ router.get('/projects', async (req, res) => {
       params.push(applicant);
     }
 
+    // 支持查询「我联合发起」的协同记录：主发起人匹配 或 在 project_applicants 中作为联合发起人
+    const coApplicant = req.query.coApplicant;
+    if (coApplicant) {
+      sql += ` AND (
+        applicant_name = ?
+        OR id IN (SELECT application_id FROM project_applicants WHERE name = ? AND is_primary = 0)
+      )`;
+      params.push(coApplicant, coApplicant);
+    }
+
     if (status) {
       sql += ' AND status = ?';
       params.push(status);
@@ -134,6 +144,14 @@ router.get('/projects', async (req, res) => {
       if (applicant) {
         countSql += ' AND applicant_name = ?';
         countParams.push(applicant);
+      }
+
+      if (coApplicant) {
+        countSql += ` AND (
+          applicant_name = ?
+          OR id IN (SELECT application_id FROM project_applicants WHERE name = ? AND is_primary = 0)
+        )`;
+        countParams.push(coApplicant, coApplicant);
       }
 
       if (status) {
@@ -327,6 +345,21 @@ router.post("/projects", async (req, res) => {
       for (const ic of insertedCols) {
         const roleVerb = ic.collab_role === 'cc' ? '向您发送了协同知会' : baseVerb;
         await notifyOne(ic.target_name, roleVerb);
+      }
+
+      // 通知联合发起人（多对一场景）：让联合发起人也收到消息中心提醒，并能在「我发起的」中查看
+      for (const a of extraApplicants) {
+        if (!a.name) continue;
+        try {
+          await createNotification(pool, {
+            userId: a.name,
+            title: '协同申请',
+            content: `${applicantNameVal} 将您设为协同「${title}」的联合发起人`,
+            type: 'collaboration',
+            relatedId: appId,
+            relatedType: 'project'
+          });
+        } catch (e) { /* 通知失败不影响主流程 */ }
       }
 
       // 审计
