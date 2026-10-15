@@ -121,6 +121,7 @@ router.get('/projects', async (req, res) => {
       current_step: project.current_step || 1,
       current_approvers: project.current_approvers || '',
       comment: project.comment || '',
+      attachments: project.attachments || null,
       created_at: project.created_at || new Date(),
       updated_at: project.updated_at || new Date()
     }));
@@ -221,6 +222,7 @@ router.get('/projects/collaborated-with-me', async (req, res) => {
         status: pa.status || '',
         created_at: pa.created_at || new Date(),
         expire_at: pa.expire_at || null,
+        attachments: pa.attachments || null,
         collaborators: cols
       });
     }
