@@ -585,7 +585,7 @@
                       </span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="追加人" width="100">
+                  <el-table-column v-if="hasAddedBy" label="追加人" width="100">
                     <template #default="{ row }">
                       {{ row.added_by || '—' }}
                     </template>
@@ -1486,6 +1486,8 @@ const submitApproval = async () => {
 const detailDialogVisible = ref(false)
 // 协同申请详情的协同对象列表（含角色/状态/追加人）
 const projectCollaborators = ref<any[]>([])
+// 是否存在「追加人」：仅当任一协同对象有追加人时才展示该列（与协同面板展开表一致，空时隐藏）
+const hasAddedBy = computed(() => projectCollaborators.value.some((c: any) => c.added_by && c.added_by.toString().trim()))
 const currentDetailItem = ref<any>(null)
 const currentDetailType = ref('')
 

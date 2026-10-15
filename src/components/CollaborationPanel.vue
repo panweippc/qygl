@@ -46,7 +46,7 @@
         </div>
         <div class="card-meta">
           <span>类型：{{ item.project_type || '—' }}</span>
-          <span>优先级：{{ item.priority }}</span>
+          <span>优先级：<el-tag size="small" :type="priorityType(item.priority)">{{ item.priority || '中' }}</el-tag></span>
           <span>发起：{{ item.applicant_name }}</span>
           <span v-if="participantProgress(item).total > 0" class="progress-pill">参与人 {{ participantProgress(item).done }}/{{ participantProgress(item).total }}</span>
         </div>
@@ -116,6 +116,7 @@
           </div>
         </div>
         <div class="card-meta">
+          <span>优先级：<el-tag size="small" :type="priorityType(item.priority)">{{ item.priority || '中' }}</el-tag></span>
           <span>发起：{{ item.applicant_name }}</span>
           <span>我的角色：<el-tag size="small" :type="myRole(item) === 'cc' ? 'info' : 'warning'">{{ myRole(item) === 'cc' ? '抄送' : '参与人' }}</el-tag></span>
           <span>我的状态：{{ myStateLabel(item) }}</span>
@@ -341,6 +342,14 @@ const myStateLabel = (item: any) => {
   if (!c) return '—'
   if (c.collab_role === 'cc') return c.ack_status === 'acknowledged' ? '已知悉' : '待知会'
   return c.opinion_text ? '已填写意见' : '待填写意见'
+}
+
+// 优先级标签配色：高=红(danger) / 中=橙(warning) / 低=灰(info)，与发起页选择器保持一致
+const priorityType = (p: string) => {
+  if (p === '高') return 'danger'
+  if (p === '中') return 'warning'
+  if (p === '低') return 'info'
+  return 'info'
 }
 
 const doAck = async (item: any) => {
