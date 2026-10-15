@@ -75,9 +75,19 @@
                 <td>{{ c.expected_role || '—' }}</td>
                 <td>{{ c.added_by || '初始' }}</td>
                 <td>
-                  <span v-if="c.collab_role === 'cc'">📢 抄送（仅知会）</span>
+                  <span v-if="c.collab_role === 'cc'">
+                    {{ c.ack_status === 'acknowledged' ? '✅ 已知悉' : '📢 待知会' }}
+                  </span>
                   <span v-else>
-                    {{ c.opinion_text ? ('💬 ' + c.opinion_text) : '⏳ 待填写' }}
+                    <template v-if="c.opinion_text && c.opinion_text.toString().trim()">
+                      💬 {{ c.opinion_text }}
+                    </template>
+                    <template v-else-if="c.ack_status === 'acknowledged'">
+                      ✅ 已知悉
+                    </template>
+                    <template v-else>
+                      ⏳ 待填写
+                    </template>
                   </span>
                 </td>
               </tr>
@@ -86,7 +96,7 @@
           <div class="collab-add-row" v-if="canAddCollaborators(item)">
             <el-button size="small" type="primary" @click="openAddDialog(item)">+ 追加协同对象</el-button>
             <span class="collab-progress" v-if="participantProgress(item).total > 0">
-              参与人进度 {{ participantProgress(item).done }}/{{ participantProgress(item).total }}
+              协同进度 {{ participantProgress(item).done }}/{{ participantProgress(item).total }}
             </span>
           </div>
         </div>
@@ -143,9 +153,19 @@
                 <td>{{ c.expected_role || '—' }}</td>
                 <td>{{ c.added_by || '初始' }}</td>
                 <td>
-                  <span v-if="c.collab_role === 'cc'">📢 抄送（仅知会）</span>
+                  <span v-if="c.collab_role === 'cc'">
+                    {{ c.ack_status === 'acknowledged' ? '✅ 已知悉' : '📢 待知会' }}
+                  </span>
                   <span v-else>
-                    {{ c.opinion_text ? ('💬 ' + c.opinion_text) : '⏳ 待填写' }}
+                    <template v-if="c.opinion_text && c.opinion_text.toString().trim()">
+                      💬 {{ c.opinion_text }}
+                    </template>
+                    <template v-else-if="c.ack_status === 'acknowledged'">
+                      ✅ 已知悉
+                    </template>
+                    <template v-else>
+                      ⏳ 待填写
+                    </template>
                   </span>
                 </td>
               </tr>
@@ -154,7 +174,7 @@
           <div class="collab-add-row" v-if="canAddCollaborators(item)">
             <el-button size="small" type="primary" @click="openAddDialog(item)">+ 追加协同对象</el-button>
             <span class="collab-progress" v-if="participantProgress(item).total > 0">
-              参与人进度 {{ participantProgress(item).done }}/{{ participantProgress(item).total }}
+              协同进度 {{ participantProgress(item).done }}/{{ participantProgress(item).total }}
             </span>
           </div>
         </div>
@@ -398,13 +418,16 @@ const deptOptions = computed(() => {
   return Array.from(s)
 })
 
-// 参与人进度（仅统计 participant；cc 抄送不计入，且不阻塞）
+// 协同进度：参与人 + 抄送全部响应后才视为完成（抄送也阻塞自动关闭）
 const participantProgress = (item: any) => {
   const list = (item.collaborators || []) as any[]
-  const parts = list.filter((c) => c.collab_role !== 'cc')
-  if (parts.length === 0) return { done: 0, total: 0 }
-  const done = parts.filter((c) => (c.opinion_text && c.opinion_text.toString().trim()) || c.ack_status === 'acknowledged').length
-  return { done, total: parts.length }
+  if (list.length === 0) return { done: 0, total: 0 }
+  const done = list.filter(
+    (c) =>
+      c.ack_status === 'acknowledged' ||
+      (c.opinion_text && c.opinion_text.toString().trim())
+  ).length
+  return { done, total: list.length }
 }
 
 // 是否可追加协同对象：发起人，或已响应的参与人（抄送角色不展示追加）

@@ -304,7 +304,8 @@ router.post("/projects", async (req, res) => {
       // 保证"部门内任意一人响应"≠"整个部门完成"，每人独立响应、独立计入自动关闭判定。
       // collab_role：participant=参与人(需响应) / cc=抄送(仅知会)；added_by 为 NULL 表示初始发起写入
       const collaborators = Array.isArray(req.body.collaborators) ? req.body.collaborators : [];
-      const insertedCols = await insertCollaboratorsExpanded(pool, appId, collaborators, { addedBy: null, applicantName: applicantNameVal, projectName: title });
+      const extraApplicantNames = extraApplicants.map((a) => a.name).filter(Boolean);
+      const insertedCols = await insertCollaboratorsExpanded(pool, appId, collaborators, { addedBy: null, applicantName: applicantNameVal, excludeNames: extraApplicantNames, projectName: title });
 
       // 通知协同对象（user 直接通知；部门已展开为成员个人行，逐人通知）
       // 参与人收到"需响应"文案；抄送(cc)收到中性"知会"文案，避免误导其填写意见
@@ -1325,14 +1326,21 @@ async function resolveCollaboratorAuth(pool, appId, username) {
 // 误判为整个部门完成；每人独立响应、独立计入自动关闭判定，彻底消除"一人响应=整个部门已填写"的 bug。
 // 返回展开后的逐人明细，供调用方逐个发通知。
 async function insertCollaboratorsExpanded(pool, appId, collaborators, opts = {}) {
-  const { addedBy = null, applicantName = '', projectName = '' } = opts;
+  const { addedBy = null, applicantName = '', projectName = '', excludeNames = [] } = opts;
   const inserted = [];
+  // 需要排除的人员姓名集合（发起人 + 额外指定），避免发起人把自己/联合发起人加为协同对象
+  const excludes = new Set([applicantName, ...(Array.isArray(excludeNames) ? excludeNames : [])].filter(Boolean));
   for (const c of (collaborators || [])) {
     if (!c) continue;
     const ttype = c && c.type === 'user' ? 'user' : 'dept';
     const collabRole = (c && c.collabRole) === 'cc' ? 'cc' : 'participant';
     const role = (c && (c.role || c.expectedRole)) || null;
     if (ttype === 'user') {
+      const targetName = (c && c.name) || '';
+      if (excludes.has(targetName)) {
+        console.log('insertCollaboratorsExpanded: skip applicant as collaborator (user):', targetName);
+        continue;
+      }
       const [r] = await pool.query(
         'INSERT INTO project_collaborators (application_id, target_type, target_id, target_name, dept, expected_role, collab_role, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [appId, 'user', (c && c.id) || null, (c && c.name) || '', (c && (c.dept || c.department)) || null, role, collabRole, addedBy]
@@ -1350,6 +1358,10 @@ async function insertCollaboratorsExpanded(pool, appId, collaborators, opts = {}
         inserted.push({ id: r.insertId, target_type: 'dept', target_name: deptName, dept: deptName, collab_role: collabRole });
       } else {
         for (const m of members) {
+          if (excludes.has(m.name)) {
+            console.log('insertCollaboratorsExpanded: skip applicant as collaborator (dept member):', m.name);
+            continue;
+          }
           const [r] = await pool.query(
             'INSERT INTO project_collaborators (application_id, target_type, target_id, target_name, dept, expected_role, collab_role, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [appId, 'user', m.id || null, m.name, m.department || deptName, role, collabRole, addedBy]
@@ -1385,17 +1397,19 @@ async function notifyProjectParties(pool, appId, excludeName, { title, content, 
   } catch (e) { /* 通知失败不影响主流程 */ }
 }
 
-// 协同自动关闭判定（方案A）：当全部"参与人"已响应时自动收口。
-// 参与人（participant）全部已填写意见（或旧 notify 数据已确认）即视为响应完毕。
-// 抄送(cc) 不计入、不阻塞（WHERE 已排除 cc）。已关闭不重复触发。
+// 协同自动关闭判定（方案B）：当全部协同对象（参与人 + 抄送）均已响应后自动收口。
+// participant 完成 = 已填写意见 或 已确认知晓；cc 完成 = 已确认知晓。
+// 已关闭不重复触发；无任何协同对象时不自动关闭。
 async function checkAndCloseCollaboration(pool, id, appMeta) {
   try {
     const [parts] = await pool.query(
-      "SELECT ack_status, opinion_text FROM project_collaborators WHERE application_id = ? AND collab_role <> 'cc'",
+      "SELECT ack_status, opinion_text FROM project_collaborators WHERE application_id = ?",
       [id]
     );
-    if (parts.length === 0) return; // 无参与人则不自动关闭
-    const allDone = parts.every((p) => (p.opinion_text && p.opinion_text.toString().trim()) || p.ack_status === 'acknowledged');
+    if (parts.length === 0) return; // 无协同对象则不自动关闭
+    const allDone = parts.every((p) =>
+      p.ack_status === 'acknowledged' || (p.opinion_text && p.opinion_text.toString().trim())
+    );
     if (!allDone) return;
     const [cur] = await pool.query('SELECT close_status FROM project_applications WHERE id = ?', [id]);
     if (cur.length === 0 || cur[0].close_status === 'closed') return;

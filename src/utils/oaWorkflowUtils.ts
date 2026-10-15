@@ -362,7 +362,7 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
         '协同事项名称': item.projectName || item.project_name || '-',
         '协作类型': item.projectType || item.project_type || '-',
         '协同背景': item.description || '-',
-        '协同目标': item.objectives || item.objective || '-',
+        '期望产出': item.objectives || item.objective || '-',
         '优先级': item.priority || '-',
         '提交时间': item.submitDate || item.created_at || '-'
       }
