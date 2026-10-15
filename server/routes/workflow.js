@@ -77,16 +77,6 @@ router.get('/projects', async (req, res) => {
       params.push(applicant);
     }
 
-    // 支持查询「我联合发起」的协同记录：主发起人匹配 或 在 project_applicants 中作为联合发起人
-    const coApplicant = req.query.coApplicant;
-    if (coApplicant) {
-      sql += ` AND (
-        applicant_name = ?
-        OR id IN (SELECT application_id FROM project_applicants WHERE name = ? AND is_primary = 0)
-      )`;
-      params.push(coApplicant, coApplicant);
-    }
-
     if (status) {
       sql += ' AND status = ?';
       params.push(status);
@@ -144,14 +134,6 @@ router.get('/projects', async (req, res) => {
       if (applicant) {
         countSql += ' AND applicant_name = ?';
         countParams.push(applicant);
-      }
-
-      if (coApplicant) {
-        countSql += ` AND (
-          applicant_name = ?
-          OR id IN (SELECT application_id FROM project_applicants WHERE name = ? AND is_primary = 0)
-        )`;
-        countParams.push(coApplicant, coApplicant);
       }
 
       if (status) {
@@ -303,28 +285,12 @@ router.post("/projects", async (req, res) => {
       );
       const appId = result.insertId;
 
-      // 发起方子表：主发起人 + 联合发起（多人 → 多对一）
-      const extraApplicants = Array.isArray(req.body.applicants) ? req.body.applicants : [];
-      await pool.query(
-        'INSERT INTO project_applicants (application_id, employee_id, name, department, is_primary) VALUES (?, ?, ?, ?, 1)',
-        [appId, applicantIdVal || null, applicantNameVal || '未知发起人', applicantEmpRow?.department || null]
-      );
-      for (const a of extraApplicants) {
-        if (a && a.name && a.name !== applicantNameVal) {
-          await pool.query(
-            'INSERT INTO project_applicants (application_id, employee_id, name, department, is_primary) VALUES (?, ?, ?, ?, 0)',
-            [appId, a.id || null, a.name, a.dept || a.department || null]
-          );
-        }
-      }
-
       // 协同对象子表：多条 → 一对多；user 或 dept
       // 部门协同对象在落库时直接展开为部门成员个人行（target_type='user' + dept 字段），
       // 保证"部门内任意一人响应"≠"整个部门完成"，每人独立响应、独立计入自动关闭判定。
       // collab_role：participant=参与人(需响应) / cc=抄送(仅知会)；added_by 为 NULL 表示初始发起写入
       const collaborators = Array.isArray(req.body.collaborators) ? req.body.collaborators : [];
-      const extraApplicantNames = extraApplicants.map((a) => a.name).filter(Boolean);
-      const insertedCols = await insertCollaboratorsExpanded(pool, appId, collaborators, { addedBy: null, applicantName: applicantNameVal, excludeNames: extraApplicantNames, projectName: title });
+      const insertedCols = await insertCollaboratorsExpanded(pool, appId, collaborators, { addedBy: null, applicantName: applicantNameVal, projectName: title });
 
       // 通知协同对象（user 直接通知；部门已展开为成员个人行，逐人通知）
       // 参与人收到"需响应"文案；抄送(cc)收到中性"知会"文案，避免误导其填写意见
@@ -347,28 +313,13 @@ router.post("/projects", async (req, res) => {
         await notifyOne(ic.target_name, roleVerb);
       }
 
-      // 通知联合发起人（多对一场景）：让联合发起人也收到消息中心提醒，并能在「我发起的」中查看
-      for (const a of extraApplicants) {
-        if (!a.name) continue;
-        try {
-          await createNotification(pool, {
-            userId: a.name,
-            title: '协同申请',
-            content: `${applicantNameVal} 将您设为协同「${title}」的联合发起人`,
-            type: 'collaboration',
-            relatedId: appId,
-            relatedType: 'project'
-          });
-        } catch (e) { /* 通知失败不影响主流程 */ }
-      }
-
       // 审计
       await createOperationLog(pool, {
         username: applicantNameVal,
         action: 'create',
         module: 'project',
         targetName: title || `协同申请(${projectCode})`,
-        detail: `协同，发起方${extraApplicants.length + 1}人，协同对象${collaborators.length}个`
+        detail: `协同，发起方1人，协同对象${collaborators.length}个`
       });
       await appendApprovalLog(pool, {
         applicationType: 'project',
@@ -518,11 +469,7 @@ router.get('/projects/:id', async (req, res) => {
     }
 
     const app = projects[0];
-    // 协同模型子表：发起方 / 协同对象（旧审批数据无子表，返回空数组，向后兼容）
-    const [applicants] = await pool.query(
-      'SELECT * FROM project_applicants WHERE application_id = ? ORDER BY is_primary DESC, id ASC',
-      [id]
-    ).catch(() => [[]]);
+    // 协同模型子表：协同对象（旧审批数据无子表，返回空数组，向后兼容）
     const [collaborators] = await pool.query(
       'SELECT * FROM project_collaborators WHERE application_id = ? ORDER BY id ASC',
       [id]
@@ -532,7 +479,6 @@ router.get('/projects/:id', async (req, res) => {
       success: true,
       data: {
         ...app,
-        applicants: applicants || [],
         collaborators: collaborators || []
       }
     });
@@ -1362,8 +1308,8 @@ async function resolveCollaboratorAuth(pool, appId, username) {
 async function insertCollaboratorsExpanded(pool, appId, collaborators, opts = {}) {
   const { addedBy = null, applicantName = '', projectName = '', excludeNames = [] } = opts;
   const inserted = [];
-  // 需要排除的人员姓名集合（发起人 + 额外指定），避免发起人把自己/联合发起人加为协同对象
-  const excludes = new Set([applicantName, ...(Array.isArray(excludeNames) ? excludeNames : [])].filter(Boolean));
+  // 需要排除的人员姓名集合（发起人），避免发起人把自己加为协同对象
+  const excludes = new Set([applicantName].filter(Boolean));
   for (const c of (collaborators || [])) {
     if (!c) continue;
     const ttype = c && c.type === 'user' ? 'user' : 'dept';

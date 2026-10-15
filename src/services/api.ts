@@ -318,8 +318,8 @@ export const deleteCategoryProject = async (id: number): Promise<ApiResponse> =>
 };
 
 // 协同申请管理
-export const getProjects = async (params?: { coApplicant?: string }): Promise<ApiResponse<{ list: Project[] }>> => {
-  const response = await api.get('/projects', { params });
+export const getProjects = async (): Promise<ApiResponse<{ list: Project[] }>> => {
+  const response = await api.get('/projects');
   return response.data;
 };
 

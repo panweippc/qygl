@@ -406,8 +406,8 @@ const reloadExpandedIfNeeded = async (itemId: number) => {
 const loadData = async () => {
   try {
     const me = currentUsername.value
-    // 我发起的：包含主发起人 + 联合发起人（多对一场景）
-    const mineRes = await getProjects({ coApplicant: me })
+    // 我发起的：仅主发起人
+    const mineRes = await getProjects()
     if (mineRes.success && mineRes.data && mineRes.data.list) {
       mineList.value = mineRes.data.list.filter(
         (r: any) => r.collaboration_mode

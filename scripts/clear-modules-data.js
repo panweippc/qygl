@@ -5,10 +5,10 @@
  *   审批中心 -> 7 张传统 OA 业务表 + 下发记录：
  *     leave_applications, reimbursements, meetings, business_trip_applications,
  *     office_supplies_applications, entertainment_expenses, distributed_records
- *   协同申请（project）四表（主表 + 子表，按依赖顺序级联清空）：
- *     project_collaborators（协同对象子表）、project_applicants（发起方子表）、
+ *   协同申请（project）三表（主表 + 子表，按依赖顺序级联清空）：
+ *     project_collaborators（协同对象子表）、
  *     approval_logs（审批生命周期日志，含协同记录）、project_applications（主表）
- *     注：三张子表必须先于主表清空，且主表清空后 AUTO_INCREMENT 复位，
+ *     注：子表必须先于主表清空，且主表清空后 AUTO_INCREMENT 复位，
  *         避免“只清主表、子表残留”导致新申请自增 ID 复用时把旧子表数据串号。
  *   月报      -> weeklyReports
  *   销售漏斗  -> 四表（意向/重点漏斗、成交用户）+ 大项目进展（分析/关键人/竞争对手/拜访）+ 版本快照：
@@ -39,9 +39,8 @@ const TABLES = [
   'business_trip_applications',
   'office_supplies_applications',
   'entertainment_expenses',
-  // —— 审批中心：协同申请四表（子表先于主表，级联清空避免自增 ID 复用串号） ——
+  // —— 审批中心：协同申请三表（子表先于主表，级联清空避免自增 ID 复用串号） ——
   'project_collaborators',
-  'project_applicants',
   'approval_logs',
   'project_applications',
   // —— 审批中心：下发记录 ——

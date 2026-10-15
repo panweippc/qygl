@@ -118,34 +118,6 @@
               <el-tag type="success" size="large">{{ currentUser?.name || '当前用户' }}</el-tag>
               <span class="hint">（当前登录人，自动作为主发起人）</span>
             </el-form-item>
-            <el-form-item label="联合发起人">
-              <el-select
-                v-model="extraApplicantIds"
-                multiple
-                filterable
-                remote
-                :remote-method="searchEmployees"
-                placeholder="可添加多人联合发起（多对一场景）"
-                style="width: 100%"
-                @change="syncExtraApplicants"
-              >
-                <el-option
-                  v-for="emp in employeeOptions"
-                  :key="emp.id"
-                  :label="emp.name + ' (' + emp.department + ')'"
-                  :value="emp.id"
-                />
-              </el-select>
-              <div v-if="extraApplicants.length" class="chip-list">
-                <el-tag
-                  v-for="a in extraApplicants"
-                  :key="a.id"
-                  class="chip"
-                  closable
-                  @close="removeExtraApplicant(a.id)"
-                >{{ a.name }}（{{ a.dept }}）</el-tag>
-              </div>
-            </el-form-item>
 
             <!-- 协同对象 -->
             <el-divider content-position="left">协同对象</el-divider>
@@ -291,7 +263,6 @@
             <ul class="tips-list">
               <li><b>一对一：</b>发起方 1 人 + 协同对象 1 人</li>
               <li><b>一对多：</b>发起方 1 人 + 协同对象多人 / 多部门</li>
-              <li><b>多对一：</b>发起方多人（加联合发起人）+ 协同对象 1 人</li>
               <li>协同对象支持选择「人员」或「部门」，部门将展开为该部门全部成员。</li>
             </ul>
           </el-card>
@@ -354,21 +325,6 @@ const rules = {
 
   startDate: [{ required: true, message: '请选择开始日期', trigger: 'change' }],
   endDate: [{ required: true, message: '请选择结束日期', trigger: 'change' }]
-};
-
-// 联合发起人（额外发起方）
-const extraApplicantIds = ref<(string | number)[]>([]);
-const extraApplicants = ref<{ id: any; name: string; dept: string }[]>([]);
-
-const syncExtraApplicants = () => {
-  extraApplicants.value = extraApplicantIds.value
-    .map((id) => employeeOptions.value.find((e) => String(e.id) === String(id)))
-    .filter((e): e is any => !!e)
-    .map((e) => ({ id: e.id, name: e.name, dept: e.department }));
-};
-const removeExtraApplicant = (id: any) => {
-  extraApplicantIds.value = extraApplicantIds.value.filter((x) => String(x) !== String(id));
-  syncExtraApplicants();
 };
 
 // 协同对象（每行支持多选：同职责下可选多人或多部门）
@@ -515,8 +471,6 @@ const submitForm = async () => {
         description: form.description,
         objectives: form.objectives,
         attachments,
-        // 主发起人由后端按当前登录用户写入；此处仅传联合发起人
-        applicants: extraApplicants.value.map((a) => ({ id: a.id, name: a.name, dept: a.dept })),
         collaborators: flatCollaborators
       };
 
