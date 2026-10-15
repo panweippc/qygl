@@ -61,7 +61,7 @@
           <div v-if="expandedLoading" class="empty-block">加载中…</div>
           <table v-else class="collab-table">
             <thead>
-              <tr><th>对象</th><th>类型</th><th>角色</th><th>配合职责</th><th>追加人</th><th>状态/意见</th></tr>
+              <tr><th>对象</th><th>类型</th><th>角色</th><th>配合职责</th><th v-if="expandedCollaborators.some((c) => c.added_by && c.added_by.toString().trim())">追加人</th><th>状态/意见</th></tr>
             </thead>
             <tbody>
                 <tr v-for="(c, i) in expandedCollaborators" :key="i">
@@ -73,7 +73,7 @@
                   </el-tag>
                 </td>
                 <td>{{ c.expected_role || '—' }}</td>
-                <td>{{ c.added_by || '初始' }}</td>
+                <td v-if="expandedCollaborators.some((c) => c.added_by && c.added_by.toString().trim())">{{ c.added_by || '初始' }}</td>
                 <td>
                   <span v-if="c.collab_role === 'cc'">
                     {{ c.ack_status === 'acknowledged' ? '✅ 已知悉' : '📢 待知会' }}
@@ -139,7 +139,7 @@
           <div v-if="expandedLoading" class="empty-block">加载中…</div>
           <table v-else class="collab-table">
             <thead>
-              <tr><th>对象</th><th>类型</th><th>角色</th><th>配合职责</th><th>追加人</th><th>状态/意见</th></tr>
+              <tr><th>对象</th><th>类型</th><th>角色</th><th>配合职责</th><th v-if="expandedCollaborators.some((c) => c.added_by && c.added_by.toString().trim())">追加人</th><th>状态/意见</th></tr>
             </thead>
             <tbody>
               <tr v-for="(c, i) in expandedCollaborators" :key="i">
@@ -151,7 +151,7 @@
                   </el-tag>
                 </td>
                 <td>{{ c.expected_role || '—' }}</td>
-                <td>{{ c.added_by || '初始' }}</td>
+                <td v-if="expandedCollaborators.some((c) => c.added_by && c.added_by.toString().trim())">{{ c.added_by || '初始' }}</td>
                 <td>
                   <span v-if="c.collab_role === 'cc'">
                     {{ c.ack_status === 'acknowledged' ? '✅ 已知悉' : '📢 待知会' }}
@@ -349,6 +349,7 @@ const doAck = async (item: any) => {
     if (res.success) {
       ElMessage.success('已确认知晓')
       await loadData()
+      await reloadExpandedIfNeeded(item.id)
     } else {
       ElMessage.error(res.message || '操作失败')
     }
@@ -368,11 +369,28 @@ const doOpinion = async (item: any) => {
     if (res.success) {
       ElMessage.success('意见已提交')
       await loadData()
+      await reloadExpandedIfNeeded(item.id)
     } else {
       ElMessage.error(res.message || '提交失败')
     }
   } catch (e: any) {
     if (e !== 'cancel' && e?.action !== 'cancel') ElMessage.error(e.message || '提交失败')
+  }
+}
+
+// 操作成功后刷新当前展开的协同对象表格，避免状态需手动刷新
+const reloadExpandedIfNeeded = async (itemId: number) => {
+  if (expandedId.value !== itemId) return
+  expandedLoading.value = true
+  try {
+    const res = await getProjectApplication(itemId)
+    if (res.success) {
+      expandedCollaborators.value = (res.data && (res.data.collaborators || [])) || []
+    }
+  } catch (e) {
+    console.error('刷新协同对象失败', e)
+  } finally {
+    expandedLoading.value = false
   }
 }
 

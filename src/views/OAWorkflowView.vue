@@ -1548,7 +1548,7 @@ const lifecycleTimeline = computed(() => {
     else if (action === 'resubmit') desc = '撤回/退回后重新提交，重新进入审批'
     else if (action === 'ack') desc = '协同对象已知晓'
     else if (action === 'opinion') desc = log.comment ? `意见：${log.comment}` : '提交了意见'
-    else if (action === 'auto_close') desc = '全部参与人已响应，协同自动结束'
+    else if (action === 'auto_close') desc = '全部协同对象已响应，协同自动结束'
     else if (log.comment) desc = log.comment
     nodes.push({
       time: log.created_at,

@@ -212,6 +212,7 @@ router.get('/projects/collaborated-with-me', async (req, res) => {
         project_type: pa.project_type || '',
         description: pa.description || '',
         applicant_name: pa.applicant_name || '',
+        objectives: pa.objectives || '',
         priority: pa.priority || '中',
         start_date: pa.start_date || '',
         end_date: pa.end_date || '',
@@ -1419,7 +1420,7 @@ async function checkAndCloseCollaboration(pool, id, appMeta) {
     // 收尾通知：全员可见"协同已完成"
     await notifyProjectParties(pool, id, '', {
       title: '协同已完成',
-      content: `协同事项「${appMeta.project_name || ''}」的全部参与人已响应，已自动结束`,
+      content: `协同事项「${appMeta.project_name || ''}」的全部协同对象已响应，协同自动结束`,
       relatedId: id
     });
   } catch (e) { /* 不影响主流程 */ }
