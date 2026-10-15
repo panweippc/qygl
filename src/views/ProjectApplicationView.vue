@@ -14,10 +14,10 @@
                       <el-icon><InfoFilled /></el-icon>
                     </el-button>
                   </template>
-                  <p><strong>协同模式</strong></p>
+                  <p><strong>协同对象角色</strong></p>
                   <ul style="margin: 6px 0; padding-left: 16px;">
-                    <li><strong>意见征集</strong>：相关人填写一条意见</li>
-                    <li><strong>通知</strong>：相关人点击已知晓</li>
+                    <li><strong>参与人</strong>：需填写意见，并可在响应后追加协同对象</li>
+                    <li><strong>抄送</strong>：仅需点击已知悉，回传发起人</li>
                   </ul>
                   <p>请填写发起方与协同对象，支持一对一、一对多、多对一。</p>
                 </el-popover>
@@ -74,12 +74,7 @@
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="协同模式" prop="collaborationMode">
-                  <el-radio-group v-model="form.collaborationMode">
-                  <el-radio-button label="opinion">意见征集</el-radio-button>
-                  <el-radio-button label="notify">通知</el-radio-button>
-                  </el-radio-group>
-                </el-form-item>
+
               </el-col>
             </el-row>
 
@@ -109,7 +104,7 @@
               </el-col>
             </el-row>
 
-            <el-row v-if="form.collaborationMode === 'notify'" :gutter="20">
+            <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="截止确认时间" prop="expireAt">
                   <el-date-picker
@@ -291,13 +286,9 @@
         <div class="scroll-content">
           <el-card class="info-card">
             <template #header><span>模式说明</span></template>
-            <div v-if="form.collaborationMode === 'opinion'">
-              <h4>💬 意见征集</h4>
-              <p class="text-gray">相关人会收到通知并填写一条意见。您可在协同详情中随时查看汇集的意见，便于决策参考。</p>
-            </div>
-            <div v-else>
-              <h4>🔔 通知</h4>
-              <p class="text-gray">相关人会收到通知并点击「已知晓」。您可查看谁已确认、谁尚未确认，掌握通知触达结果。</p>
+                        <div>
+              <h4>🤝 协同角色说明</h4>
+              <p class="text-gray">参与人需填写意见（可随后追加协同对象）；抄送仅需点击「已知悉」。</p>
             </div>
           </el-card>
 
@@ -351,7 +342,7 @@ const form = reactive({
   projectName: '',
   projectType: '',
   priority: '中',
-  collaborationMode: 'opinion',
+  isCollaboration: true,
   startDate: '',
   endDate: '',
   expireAt: '',
@@ -366,7 +357,7 @@ const rules = {
   ],
   projectType: [{ required: true, message: '请选择协作类型', trigger: 'change' }],
   priority: [{ required: true, message: '请选择优先级', trigger: 'change' }],
-  collaborationMode: [{ required: true, message: '请选择协同模式', trigger: 'change' }],
+
   startDate: [{ required: true, message: '请选择开始日期', trigger: 'change' }],
   endDate: [{ required: true, message: '请选择结束日期', trigger: 'change' }]
 };
@@ -520,7 +511,7 @@ const submitForm = async () => {
       }
 
       const submitData = {
-        collaborationMode: form.collaborationMode,
+        isCollaboration: true,
         projectName: form.projectName,
         projectType: form.projectType,
         priority: form.priority,

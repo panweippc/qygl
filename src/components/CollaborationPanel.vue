@@ -39,11 +39,8 @@
         <div class="card-head">
           <span class="card-title">{{ item.project_name }}</span>
           <div class="card-tags">
-            <el-tag size="small" :type="item.collaboration_mode === 'opinion' ? 'warning' : 'info'">
-              {{ item.collaboration_mode === 'opinion' ? '意见征集' : '通知' }}
-            </el-tag>
             <el-tag size="small" :type="item.close_status === 'closed' ? 'info' : 'success'">
-              {{ item.close_status === 'closed' ? '已结束' : (item.collaboration_mode === 'opinion' ? '意见收集中' : '通知中') }}
+              {{ item.close_status === 'closed' ? '已结束' : '协同中' }}
             </el-tag>
           </div>
         </div>
@@ -79,9 +76,6 @@
                 <td>{{ c.added_by || '初始' }}</td>
                 <td>
                   <span v-if="c.collab_role === 'cc'">📢 抄送（仅知会）</span>
-                  <span v-else-if="item.collaboration_mode === 'notify'">
-                    {{ c.ack_status === 'acknowledged' ? '✅ 已知晓' : '⏳ 未确认' }}
-                  </span>
                   <span v-else>
                     {{ c.opinion_text ? ('💬 ' + c.opinion_text) : '⏳ 待填写' }}
                   </span>
@@ -106,11 +100,8 @@
         <div class="card-head">
           <span class="card-title">{{ item.project_name }}</span>
           <div class="card-tags">
-            <el-tag size="small" :type="item.collaboration_mode === 'opinion' ? 'warning' : 'info'">
-              {{ item.collaboration_mode === 'opinion' ? '意见征集' : '通知' }}
-            </el-tag>
             <el-tag size="small" :type="item.close_status === 'closed' ? 'info' : 'success'">
-              {{ item.close_status === 'closed' ? '已结束' : (item.collaboration_mode === 'opinion' ? '意见收集中' : '通知中') }}
+              {{ item.close_status === 'closed' ? '已结束' : '协同中' }}
             </el-tag>
           </div>
         </div>
@@ -122,11 +113,11 @@
         <div class="card-desc">{{ item.description }}</div>
         <div class="card-foot">
           <el-button
-            v-if="item.collaboration_mode === 'notify' && myCollaborator(item)?.ack_status !== 'acknowledged' && item.close_status !== 'closed'"
+            v-if="myRole(item) === 'cc' && myCollaborator(item)?.ack_status !== 'acknowledged' && item.close_status !== 'closed'"
             size="small" type="primary" @click="doAck(item)"
-          >已知晓</el-button>
+          >已知悉</el-button>
           <el-button
-            v-if="item.collaboration_mode === 'opinion' && !myCollaborator(item)?.opinion_text && item.close_status !== 'closed'"
+            v-if="myRole(item) === 'participant' && !myCollaborator(item)?.opinion_text && item.close_status !== 'closed'"
             size="small" type="primary" @click="doOpinion(item)"
           >填写意见</el-button>
           <el-button size="small" @click="toggleExpand(item)">
@@ -153,9 +144,6 @@
                 <td>{{ c.added_by || '初始' }}</td>
                 <td>
                   <span v-if="c.collab_role === 'cc'">📢 抄送（仅知会）</span>
-                  <span v-else-if="item.collaboration_mode === 'notify'">
-                    {{ c.ack_status === 'acknowledged' ? '✅ 已知晓' : '⏳ 未确认' }}
-                  </span>
                   <span v-else>
                     {{ c.opinion_text ? ('💬 ' + c.opinion_text) : '⏳ 待填写' }}
                   </span>
@@ -331,8 +319,8 @@ const myCollaborator = (item: any): any => {
 const myStateLabel = (item: any) => {
   const c = myCollaborator(item)
   if (!c) return '—'
-  if (item.collaboration_mode === 'notify') return c.ack_status === 'acknowledged' ? '已确认' : '未确认'
-  return c.opinion_text ? '已填写意见' : '待填写'
+  if (c.collab_role === 'cc') return c.ack_status === 'acknowledged' ? '已知悉' : '待知会'
+  return c.opinion_text ? '已填写意见' : '待填写意见'
 }
 
 const doAck = async (item: any) => {
@@ -387,7 +375,12 @@ const loadData = async () => {
       appliedTotal: mineList.value.length,
       appliedReturned: 0,
       receivedTotal: tomeList.value.length,
-      receivedPendingUnread: tomeList.value.filter((i: any) => !myCollaborator(i)?.ack_status || !myCollaborator(i)?.opinion_text).length
+      receivedPendingUnread: tomeList.value.filter((i: any) => {
+        const c = myCollaborator(i)
+        if (!c) return false
+        if (c.collab_role === 'cc') return c.ack_status !== 'acknowledged'
+        return !(c.opinion_text && c.opinion_text.toString().trim())
+      }).length
     })
     emit('stat-update')
   } catch (e) {
@@ -410,10 +403,7 @@ const participantProgress = (item: any) => {
   const list = (item.collaborators || []) as any[]
   const parts = list.filter((c) => c.collab_role !== 'cc')
   if (parts.length === 0) return { done: 0, total: 0 }
-  const done = parts.filter((c) => {
-    if (item.collaboration_mode === 'notify') return c.ack_status === 'acknowledged'
-    return !!c.opinion_text
-  }).length
+  const done = parts.filter((c) => (c.opinion_text && c.opinion_text.toString().trim()) || c.ack_status === 'acknowledged').length
   return { done, total: parts.length }
 }
 
@@ -425,8 +415,8 @@ const canAddCollaborators = (item: any) => {
   if (extractRealName(item.applicant_name) === me) return true
   const c = myCollaborator(item)
   if (!c) return false
-  if (item.collaboration_mode === 'notify') return c.ack_status === 'acknowledged'
-  return !!c.opinion_text
+  // 参与人已响应（填写意见或旧 notify 已确认）即可追加
+  return (c.opinion_text && c.opinion_text.toString().trim()) || c.ack_status === 'acknowledged'
 }
 
 // 我在某协同中的角色（参与人 / 抄送）

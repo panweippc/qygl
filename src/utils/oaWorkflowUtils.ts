@@ -137,6 +137,8 @@ export const getStatusClass = (status: string) => {
       return 'status-pending-blue'
     case 'collecting':
       return 'status-pending'
+    case 'processing':
+      return 'status-pending-blue'
     case 'closed':
       return 'status-processed-green'
     default:
@@ -167,6 +169,8 @@ export const getStatusText = (status: string) => {
       return '通知确认中'
     case 'collecting':
       return '意见收集中'
+    case 'processing':
+      return '协同进行中'
     case 'closed':
       return '已结束'
     default:
@@ -353,19 +357,17 @@ export const getDetailFields = (item: any, type: string, currentUsername: string
       '创建时间': item.submitDate
     },
     project: (() => {
-      const mode = item.collaborationMode || item.collaboration_mode || ''
       const fields: Record<string, string> = {
         '发起人': item.applicant_name || item.applicant || currentUsername,
         '协同事项名称': item.projectName || item.project_name || '-',
         '协作类型': item.projectType || item.project_type || '-',
-        '协同模式': mode === 'opinion' ? '意见征集' : (mode === 'notify' ? '通知' : '-'),
         '协同背景': item.description || '-',
         '协同目标': item.objectives || item.objective || '-',
         '优先级': item.priority || '-',
         '提交时间': item.submitDate || item.created_at || '-'
       }
-      // 仅通知模式显示截止时间；意见征集模式无截止时间字段
-      if (mode !== 'opinion') {
+      // 截止时间（可选）：存在则展示
+      if (item.expireAt || item.expire_at) {
         fields['截止时间'] = item.expireAt || item.expire_at || '-'
       }
       return fields
