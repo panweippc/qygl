@@ -1507,7 +1507,8 @@ const ACTION_LABEL: Record<string, string> = {
   resubmit: '重新提交',
   ack: '已知晓',
   opinion: '提交意见',
-  auto_close: '自动关闭'
+  auto_close: '自动关闭',
+  reopen: '重开协同'
 }
 
 // 拉取某条申请的完整生命周期（审批动作 + 下发），供详情页时间线展示
@@ -1551,6 +1552,7 @@ const lifecycleTimeline = computed(() => {
     else if (action === 'ack') desc = '协同对象已知晓'
     else if (action === 'opinion') desc = log.comment ? `意见：${log.comment}` : '提交了意见'
     else if (action === 'auto_close') desc = '全部协同对象已响应，协同自动结束'
+    else if (action === 'reopen') desc = log.comment || '协同被重新打开'
     else if (log.comment) desc = log.comment
     nodes.push({
       time: log.created_at,

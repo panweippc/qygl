@@ -1504,6 +1504,18 @@ router.post('/projects/:id/collaborators', async (req, res) => {
         'UPDATE project_applications SET close_status = ?, status = ?, updated_at = NOW() WHERE id = ?',
         ['open', 'processing', id]
       );
+      // 记录重开节点，闭合证据链（追加对象导致已结束协同被重新打开）
+      await appendApprovalLog(pool, {
+        applicationType: 'project',
+        applicationId: id,
+        actor: me,
+        actorRole: (apps[0].applicant_name || '') === me ? '发起人' : '协同对象',
+        action: 'reopen',
+        fromStatus: 'closed',
+        toStatus: 'processing',
+        targetUser: '',
+        comment: '追加协同对象，协同已重开'
+      });
     }
 
     // 鉴权：发起人 或 已响应的参与人
