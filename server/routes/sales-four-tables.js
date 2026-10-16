@@ -129,9 +129,14 @@ const FUNNEL_FIELD_LABELS = {
   company_support: '公司级支持需求',
   remark: '备注',
   report_month: '申报月份',
+  contract_amount: '合同额',
+  actual_amount: '实际金额',
+  received_amount: '已回款金额',
+  unreceived_amount: '未回款金额',
   created_by: '提交人',
   created_at: '创建时间',
-  updated_at: '更新时间'
+  updated_at: '更新时间',
+  id: '记录ID'
 };
 
 // 大项目进展 DB 字段 → 中文标签
@@ -183,15 +188,32 @@ function fieldLabelOf(type, key) {
   return map[key] || key;
 }
 
+// 系统/审计字段不参与业务版本对比，避免把 id/提交人/创建时间/更新时间等噪声误判为"变更"
+const DIFF_IGNORE_FIELDS = new Set([
+  'id', 'created_by', 'created_at', 'updated_at',
+  'version', 'record_id', 'table_type', 'is_deleted', 'deleted_at'
+]);
+
+function normalizeDiffVal(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'number') return String(v);
+  return String(v).trim();
+}
+
 function buildDiff(oldData, newData, type) {
   const diffs = [];
   const keys = new Set([...Object.keys(oldData || {}), ...Object.keys(newData || {})]);
   for (const k of keys) {
-    const oldVal = oldData?.[k] ?? '';
-    const newVal = newData?.[k] ?? '';
-    if (String(oldVal) !== String(newVal)) {
-      diffs.push({ field: k, label: fieldLabelOf(type, k), old: oldVal, new: newVal });
-    }
+    if (DIFF_IGNORE_FIELDS.has(k)) continue;
+    const ov = normalizeDiffVal(oldData?.[k]);
+    const nv = normalizeDiffVal(newData?.[k]);
+    if (ov === nv) continue;
+    // 一方为空、另一方为数字默认值（0/-），视为未变更，避免新增/缺省字段误报
+    const isEmpty = (x) => x === '' || x === null || x === undefined;
+    const isZeroLike = (x) => x === '0' || x === '0.0' || x === '0.00' || x === '-';
+    if (isEmpty(ov) && isZeroLike(nv)) continue;
+    if (isEmpty(nv) && isZeroLike(ov)) continue;
+    diffs.push({ field: k, label: fieldLabelOf(type, k), old: ov || '(空)', new: nv || '(空)' });
   }
   return diffs;
 }
@@ -554,7 +576,38 @@ async function ensureSchema(pool) {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_type_record (table_type, record_id),
       INDEX idx_created_at (created_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS sales_deal_service_records (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      deal_id INT NOT NULL,
+      service_date VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+      service_type VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+      content TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+      handler VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_deal (deal_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS sales_deal_purchase_records (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      deal_id INT NOT NULL,
+      purchase_date VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+      product VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+      amount DECIMAL(14,2) DEFAULT 0,
+      remark TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_deal (deal_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS sales_deal_aftersales_records (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      deal_id INT NOT NULL,
+      title VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+      ticket_type VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+      status VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+      content TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+      handler VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_deal (deal_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci`
   ];
 
   for (const sql of tables) {
@@ -1191,7 +1244,7 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
     const sets = Object.keys(body).map(k => `${k} = ?`).join(', ');
     const params = [...Object.values(body), id];
     await pool.execute(`UPDATE ${table} SET ${sets} WHERE id = ?`, params);
-    await insertVersion(pool, type, id, { ...body, id: parseInt(id), created_by: check[0].created_by }, createdBy);
+    await insertVersion(pool, type, id, { ...body, created_by: check[0].created_by }, createdBy);
 
     if (type === 'project') {
       const { key_persons = [], competitors = [], visit_records = [] } = req.body;
@@ -1248,6 +1301,175 @@ router.delete('/sales-four-tables/:type/:id', requireSalesWriter, async (req, re
     res.json({ success: true, message: '删除成功' });
   } catch (error) {
     console.error('删除销售数据失败:', error);
+    res.status(500).json({ success: false, message: '删除失败' });
+  }
+});
+
+// 负责人转交（单条）：将某条销售记录的负责人变更为 newOwner，并写入操作日志（含原→新、原因）
+router.post('/sales-four-tables/:type/:id/transfer', requireSalesWriter, async (req, res) => {
+  const { pool } = req.app.locals;
+  const { type, id } = req.params;
+  const meta = TABLE_META[type];
+  if (!meta && type !== 'project') return res.status(400).json({ success: false, message: '未知表类型' });
+  const { newOwner, reason } = req.body || {};
+  if (!newOwner || !String(newOwner).trim()) return res.status(400).json({ success: false, message: '请填写新负责人' });
+  try {
+    await ensureSchema(pool);
+    const table = meta ? meta.table : 'sales_project_analysis';
+    const [rows] = await pool.execute(`SELECT id, owner, customer_name FROM ${table} WHERE id = ?`, [id]);
+    if (rows.length === 0) return res.status(404).json({ success: false, message: '记录不存在' });
+    const oldOwner = rows[0].owner || '';
+    const target = cleanOwner(newOwner);
+    if (oldOwner === target) return res.json({ success: true, message: '负责人未变化', data: { owner: oldOwner } });
+    await pool.execute(`UPDATE ${table} SET owner = ? WHERE id = ?`, [target, id]);
+    createOperationLog(pool, {
+      username: getOperator(req), action: 'transfer', module: 'sales-four-tables', targetId: parseInt(id),
+      targetName: `${type} ${rows[0].customer_name || ''}`,
+      detail: `负责人转交：${oldOwner || '(空)'} → ${target}；原因：${reason || '(未填写)'}`,
+      beforeValue: { owner: oldOwner }, afterValue: { owner: target }
+    });
+    res.json({ success: true, message: '已转交', data: { owner: target, oldOwner } });
+  } catch (error) {
+    console.error('负责人转交失败:', error);
+    res.status(500).json({ success: false, message: '转交失败' });
+  }
+});
+
+// 批量转交（离职交接）：将某负责人的全部销售记录（意向/重点/成交/大项目）统一转交给新负责人
+router.post('/sales-four-tables/batch-transfer', requireSalesWriter, async (req, res) => {
+  const { pool } = req.app.locals;
+  const { oldOwner, newOwner, reason } = req.body || {};
+  if (!oldOwner || !String(oldOwner).trim()) return res.status(400).json({ success: false, message: '请填写原负责人' });
+  if (!newOwner || !String(newOwner).trim()) return res.status(400).json({ success: false, message: '请填写新负责人' });
+  try {
+    await ensureSchema(pool);
+    const from = cleanOwner(oldOwner);
+    const to = cleanOwner(newOwner);
+    if (from === to) return res.json({ success: true, message: '原负责人与新负责人相同', data: { total: 0 } });
+    const tables = [
+      { type: 'intention', table: 'sales_intention_funnel' },
+      { type: 'key', table: 'sales_key_funnel' },
+      { type: 'deal', table: 'sales_deal_customers' },
+      { type: 'project', table: 'sales_project_analysis' }
+    ];
+    let total = 0;
+    const perTable = {};
+    for (const t of tables) {
+      const [r] = await pool.execute(`UPDATE ${t.table} SET owner = ? WHERE owner = ?`, [to, from]);
+      perTable[t.type] = r.affectedRows;
+      total += r.affectedRows;
+    }
+    createOperationLog(pool, {
+      username: getOperator(req), action: 'batch_transfer', module: 'sales-four-tables', targetId: null,
+      targetName: '离职/交接批量转交',
+      detail: `将 ${from} 的全部销售记录负责人转交给 ${to}；原因：${reason || '(未填写)'}；共 ${total} 条（意向${perTable.intention}/重点${perTable.key}/成交${perTable.deal}/大项目${perTable.project}）`,
+      beforeValue: { owner: from }, afterValue: { owner: to }
+    });
+    res.json({ success: true, message: `已转交 ${total} 条记录`, data: { total, perTable } });
+  } catch (error) {
+    console.error('批量转交失败:', error);
+    res.status(500).json({ success: false, message: '批量转交失败' });
+  }
+});
+
+// 负责人变更历史（单条记录）：返回该记录的 transfer 操作日志，供详情页时间线展示
+router.get('/sales-four-tables/:type/:id/owner-history', requireSalesView, async (req, res) => {
+  const { pool } = req.app.locals;
+  const { type, id } = req.params;
+  try {
+    await ensureSchema(pool);
+    const [rows] = await pool.execute(
+      `SELECT id, username, action, detail, createdAt FROM operation_logs
+       WHERE module = 'sales-four-tables' AND action = 'transfer'
+         AND targetId = ? AND targetName LIKE ?
+       ORDER BY createdAt DESC, id DESC`,
+      [parseInt(id), `${type}%`]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('查询负责人变更历史失败:', error);
+    res.status(500).json({ success: false, message: '查询失败' });
+  }
+});
+
+// 成交项目关联子记录类型配置（服务记录 / 后续购买记录 / 售后运维工单）
+const DEAL_SUB_KINDS = {
+  service: { table: 'sales_deal_service_records', label: '服务记录', fields: ['service_date', 'service_type', 'content', 'handler'] },
+  purchase: { table: 'sales_deal_purchase_records', label: '后续购买记录', fields: ['purchase_date', 'product', 'amount', 'remark'] },
+  aftersales: { table: 'sales_deal_aftersales_records', label: '售后运维工单', fields: ['title', 'ticket_type', 'status', 'content', 'handler'] }
+};
+
+// 子记录列表
+router.get('/sales-four-tables/deal/:id/sub-records', requireSalesView, async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id } = req.params;
+  const { kind } = req.query;
+  const conf = DEAL_SUB_KINDS[kind];
+  if (!conf) return res.status(400).json({ success: false, message: '未知子记录类型' });
+  try {
+    await ensureSchema(pool);
+    const [rows] = await pool.execute(`SELECT * FROM ${conf.table} WHERE deal_id = ? ORDER BY created_at DESC, id DESC`, [id]);
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('查询子记录失败:', error);
+    res.status(500).json({ success: false, message: '查询失败' });
+  }
+});
+
+// 新增子记录
+router.post('/sales-four-tables/deal/:id/sub-records', requireSalesWriter, async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id } = req.params;
+  const { kind } = req.body || {};
+  const conf = DEAL_SUB_KINDS[kind];
+  if (!conf) return res.status(400).json({ success: false, message: '未知子记录类型' });
+  try {
+    await ensureSchema(pool);
+    const vals = conf.fields.map((f) => req.body[f] ?? '');
+    const sql = `INSERT INTO ${conf.table} (${conf.fields.join(', ')}, deal_id, created_at) VALUES (${conf.fields.map(() => '?').join(', ')}, ?, NOW())`;
+    const [r] = await pool.execute(sql, [...vals, id]);
+    createOperationLog(pool, { username: getOperator(req), action: 'create', module: 'sales-deal-sub', targetId: r.insertId, targetName: conf.label, detail: `新增${conf.label}(deal=${id})` });
+    res.json({ success: true, message: '已添加', data: { id: r.insertId } });
+  } catch (error) {
+    console.error('新增子记录失败:', error);
+    res.status(500).json({ success: false, message: '新增失败' });
+  }
+});
+
+// 修改子记录
+router.put('/sales-four-tables/deal/:id/sub-records/:rid', requireSalesWriter, async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id, rid } = req.params;
+  const { kind } = req.body || {};
+  const conf = DEAL_SUB_KINDS[kind];
+  if (!conf) return res.status(400).json({ success: false, message: '未知子记录类型' });
+  try {
+    await ensureSchema(pool);
+    const sets = conf.fields.map((f) => `${f} = ?`).join(', ');
+    const vals = conf.fields.map((f) => req.body[f] ?? '');
+    await pool.execute(`UPDATE ${conf.table} SET ${sets} WHERE id = ? AND deal_id = ?`, [...vals, rid, id]);
+    createOperationLog(pool, { username: getOperator(req), action: 'update', module: 'sales-deal-sub', targetId: parseInt(rid), targetName: conf.label, detail: `更新${conf.label}(deal=${id})` });
+    res.json({ success: true, message: '已更新' });
+  } catch (error) {
+    console.error('更新子记录失败:', error);
+    res.status(500).json({ success: false, message: '更新失败' });
+  }
+});
+
+// 删除子记录
+router.delete('/sales-four-tables/deal/:id/sub-records/:rid', requireSalesWriter, async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id, rid } = req.params;
+  const { kind } = req.query;
+  const conf = DEAL_SUB_KINDS[kind];
+  if (!conf) return res.status(400).json({ success: false, message: '未知子记录类型' });
+  try {
+    await ensureSchema(pool);
+    await pool.execute(`DELETE FROM ${conf.table} WHERE id = ? AND deal_id = ?`, [rid, id]);
+    createOperationLog(pool, { username: getOperator(req), action: 'delete', module: 'sales-deal-sub', targetId: parseInt(rid), targetName: conf.label, detail: `删除${conf.label}(deal=${id})` });
+    res.json({ success: true, message: '已删除' });
+  } catch (error) {
+    console.error('删除子记录失败:', error);
     res.status(500).json({ success: false, message: '删除失败' });
   }
 });

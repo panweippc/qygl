@@ -35,6 +35,7 @@
             <div class="op-cell">
               <el-button v-if="perm.canWrite" text size="small" @click="openEdit(row)">编辑</el-button>
               <el-button text size="small" @click="openVersions(row)">版本</el-button>
+              <el-button v-if="perm.canWrite" text size="small" @click="openTransfer(row)">转交</el-button>
               <el-button v-if="perm.canWrite" text size="small" type="danger" @click="remove(row)">删除</el-button>
             </div>
           </template>
@@ -158,6 +159,7 @@
 
     <DiffDialog v-model="diffVisible" type="project" :record-id="diffRecordId" />
     <ImportDialog v-model="importVisible" type="project" @success="onImportSuccess" />
+    <TransferDialog v-model="transferVisible" mode="single" type="project" :id="transferRow?.id ?? null" :current-owner="transferRow?.owner || ''" @done="onTransferDone" />
   </div>
 </template>
 
@@ -167,6 +169,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesFetchJSON } from './salesApi'
 import DiffDialog from './DiffDialog.vue'
 import ImportDialog from './ImportDialog.vue'
+import TransferDialog from './TransferDialog.vue'
 
 const props = defineProps<{ perm: any }>()
 const emit = defineEmits(['customer-click', 'refresh-stats', 'open-visit-records'])
@@ -180,6 +183,8 @@ const filter = ref({ keyword: '', month: '' })
 const editVisible = ref(false)
 const diffVisible = ref(false)
 const diffRecordId = ref<number | null>(null)
+const transferVisible = ref(false)
+const transferRow = ref<any>(null)
 const saving = ref(false)
 const projectTab = ref('base')
 const importVisible = ref(false)
@@ -248,6 +253,8 @@ async function remove(row: any) {
   } catch {}
 }
 
+function openTransfer(row: any) { transferRow.value = row; transferVisible.value = true }
+function onTransferDone() { load() }
 function openVersions(row: any) { diffRecordId.value = row.id; diffVisible.value = true }
 function onImportSuccess() { load(); emit('refresh-stats') }
 function onSizeChange(s: number) { pageSize.value = s; page.value = 1; load() }

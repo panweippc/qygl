@@ -61,6 +61,16 @@
           <div v-else-if="expanded[item.version] && !item.changes.length" class="vc-empty">本版相对上一版无字段变更</div>
         </div>
       </div>
+
+      <el-divider>负责人变更记录</el-divider>
+      <div v-if="ownerHistory.length" class="owner-history">
+        <div v-for="h in ownerHistory" :key="h.id" class="oh-item">
+          <span class="oh-actor">{{ h.username }}</span>
+          <span class="oh-detail">{{ h.detail }}</span>
+          <span class="oh-time">{{ formatTime(h.createdAt) }}</span>
+        </div>
+      </div>
+      <div v-else class="oh-empty">暂无负责人变更记录</div>
     </div>
   </el-dialog>
 </template>
@@ -92,9 +102,10 @@ async function loadChain() {
   loading.value = true
   arbitrary.value = []
   try {
-    const [vJson, cJson] = await Promise.all([
+    const [vJson, cJson, hJson] = await Promise.all([
       salesFetchJSON(`/api/sales-four-tables/${props.type}/${props.recordId}/versions`),
-      salesFetchJSON(`/api/sales-four-tables/${props.type}/${props.recordId}/diff?mode=chain`)
+      salesFetchJSON(`/api/sales-four-tables/${props.type}/${props.recordId}/diff?mode=chain`),
+      salesFetchJSON(`/api/sales-four-tables/${props.type}/${props.recordId}/owner-history`)
     ])
     if (vJson.success) {
       versionList.value = vJson.data
@@ -108,6 +119,9 @@ async function loadChain() {
       // 默认展开最新版本的明细
       const newest = chain.value[chain.value.length - 1]
       expanded.value = newest ? { [newest.version]: true } : {}
+    }
+    if (hJson.success) {
+      ownerHistory.value = hJson.data || []
     }
   } catch (e: any) {
     ElMessage.error('加载版本对比失败: ' + (e?.message || ''))
@@ -154,6 +168,12 @@ watch(() => props.recordId, () => { if (visible.value) loadChain() })
 .vc-arrow { margin-left: auto; color: #c0c4cc; }
 .vc-body { padding: 0.5rem 0.75rem; }
 .vc-empty { padding: 0.5rem 0.75rem; color: #909399; font-size: 0.82rem; }
+.owner-history { display: flex; flex-direction: column; gap: 0.4rem; }
+.oh-item { display: flex; align-items: baseline; gap: 0.6rem; padding: 0.45rem 0.6rem; background: #f7f9fc; border-radius: 5px; flex-wrap: wrap; }
+.oh-actor { font-weight: 600; color: #303133; flex: 0 0 auto; }
+.oh-detail { flex: 1; color: #606266; font-size: 0.85rem; word-break: break-all; }
+.oh-time { color: #909399; font-size: 0.78rem; flex: 0 0 auto; }
+.oh-empty { color: #909399; font-size: 0.82rem; text-align: center; padding: 0.6rem; }
 .diff-old { color: #c0392b; background: #ffeaea; padding: 0.1rem 0.3rem; border-radius: 3px; word-break: break-all; white-space: pre-wrap; }
 .diff-new { color: #27ae60; background: #eafff2; padding: 0.1rem 0.3rem; border-radius: 3px; word-break: break-all; white-space: pre-wrap; }
 /* 差异值允许换行完整展示，避免单元格裁切导致旧值/新值看不全 */

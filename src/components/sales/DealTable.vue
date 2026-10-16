@@ -57,8 +57,10 @@
         <el-table-column label="操作" width="170" fixed="right">
           <template #default="{ row }">
             <div class="op-cell">
+              <el-button text size="small" @click="emit('view-detail', row)">详情</el-button>
               <el-button v-if="perm.canWrite" text size="small" @click="openEdit(row)">编辑</el-button>
               <el-button text size="small" @click="openVersions(row)">版本</el-button>
+              <el-button v-if="perm.canWrite" text size="small" @click="openTransfer(row)">转交</el-button>
               <el-button v-if="perm.canWrite" text size="small" type="danger" @click="remove(row)">删除</el-button>
             </div>
           </template>
@@ -119,6 +121,8 @@
 
     <ImportDialog v-model="importVisible" type="deal" @success="onImportSuccess" />
     <DiffDialog v-model="diffVisible" type="deal" :record-id="diffRecordId" />
+    <TransferDialog v-model="transferVisible" mode="single" type="deal" :id="transferRow?.id ?? null" :current-owner="transferRow?.owner || ''" @done="onTransferDone" />
+    <DealDetailDialog v-model="dealDetailVisible" :record-id="dealDetailRow?.id ?? null" :customer-name="dealDetailRow?.customer_name || ''" :perm="perm" />
   </div>
 </template>
 
@@ -128,10 +132,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesFetchJSON } from './salesApi'
 import ImportDialog from './ImportDialog.vue'
 import DiffDialog from './DiffDialog.vue'
+import TransferDialog from './TransferDialog.vue'
+import DealDetailDialog from './DealDetailDialog.vue'
 import { SALES_TYPE_OPTIONS, REVENUE_TYPE_OPTIONS, SALES_STATUS_BY_TYPE, DEST_TYPE_LABEL } from './salesConstants'
 
 const props = defineProps<{ perm: any }>()
-const emit = defineEmits(['customer-click', 'refresh-stats', 'open-visit-records'])
+const emit = defineEmits(['customer-click', 'refresh-stats', 'open-visit-records', 'view-detail'])
 const dealStatusOptions = computed(() => SALES_STATUS_BY_TYPE.deal || [])
 const list = ref<any[]>([])
 const loading = ref(false)
@@ -144,6 +150,8 @@ const editVisible = ref(false)
 const importVisible = ref(false)
 const diffVisible = ref(false)
 const diffRecordId = ref<number | null>(null)
+const transferVisible = ref(false)
+const transferRow = ref<any>(null)
 const saving = ref(false)
 const emptyForm = () => ({
   owner: '', sales_type: '', revenue_type: '', report_date: '', product_type: '',
@@ -213,6 +221,9 @@ async function remove(row: any) {
   } catch {}
 }
 function openVersions(row: any) { diffRecordId.value = row.id; diffVisible.value = true }
+function openTransfer(row: any) { transferRow.value = row; transferVisible.value = true }
+function onTransferDone() { load() }
+function openDetail(row: any) { dealDetailRow.value = row; dealDetailVisible.value = true }
 function onImportSuccess() { load(); emit('refresh-stats') }
 onMounted(load)
 defineExpose({ load })

@@ -49,6 +49,7 @@
             <div class="op-cell">
               <el-button v-if="perm.canWrite" text size="small" @click.stop="openEdit(row)">编辑</el-button>
               <el-button text size="small" @click.stop="openVersions(row)">版本</el-button>
+              <el-button v-if="perm.canWrite" text size="small" @click.stop="openTransfer(row)">转交</el-button>
               <el-button v-if="perm.canWrite" text size="small" type="danger" @click.stop="remove(row)">删除</el-button>
             </div>
           </template>
@@ -125,6 +126,7 @@
 
     <ImportDialog v-model="importVisible" :type="type" @success="onImportSuccess" />
     <DiffDialog v-model="diffVisible" :type="type" :record-id="diffRecordId" />
+    <TransferDialog v-model="transferVisible" mode="single" :type="type" :id="transferRow?.id ?? null" :current-owner="transferRow?.owner || ''" @done="onTransferDone" />
   </div>
 </template>
 
@@ -134,6 +136,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesFetch, salesFetchJSON } from './salesApi'
 import ImportDialog from './ImportDialog.vue'
 import DiffDialog from './DiffDialog.vue'
+import TransferDialog from './TransferDialog.vue'
 import { SALES_TYPE_OPTIONS, REVENUE_TYPE_OPTIONS, SALES_STATUS_BY_TYPE, destTypeByProgress, progressBandLabel, DEST_TYPE_LABEL } from './salesConstants'
 
 const props = defineProps<{ type: 'intention' | 'key', title: string, perm: any }>()
@@ -152,6 +155,8 @@ const editVisible = ref(false)
 const importVisible = ref(false)
 const diffVisible = ref(false)
 const diffRecordId = ref<number | null>(null)
+const transferVisible = ref(false)
+const transferRow = ref<any>(null)
 const saving = ref(false)
 const emptyForm = () => ({
   owner: '', sales_type: '', revenue_type: '', report_date: '', product_type: '', partner_name: '', competitor: '',
@@ -244,6 +249,8 @@ async function remove(row: any) {
   } catch {}
 }
 
+function openTransfer(row: any) { transferRow.value = row; transferVisible.value = true }
+function onTransferDone() { load() }
 function openVersions(row: any) {
   diffRecordId.value = row.id
   diffVisible.value = true

@@ -14,6 +14,7 @@
           </div>
         </el-popover>
         <el-button v-if="perm.canWrite" size="small" @click="openCleanup">清理版本快照</el-button>
+        <el-button v-if="perm.canWrite" size="small" type="warning" @click="batchTransferVisible = true">批量转交（离职交接）</el-button>
         <el-tag v-if="perm.canWrite" type="success">可写入</el-tag>
         <el-tag v-else type="info">仅查看</el-tag>
       </template>
@@ -38,6 +39,7 @@
 
     <CrossReferenceDialog v-model="crossVisible" :customer="crossCustomer" @jump="onCrossJump" />
     <VisitRecordsDialog v-model="visitRecordsVisible" :customer-name="visitCustomer" :can-write="perm.canWrite" />
+    <TransferDialog v-model="batchTransferVisible" mode="batch" @done="onBatchTransferDone" />
 
     <el-dialog v-model="cleanupVisible" title="清理版本快照" width="480px">
       <p class="cleanup-tip">
@@ -69,6 +71,7 @@ import FunnelTable from '../components/sales/FunnelTable.vue'
 import DealTable from '../components/sales/DealTable.vue'
 import ProjectTable from '../components/sales/ProjectTable.vue'
 import VisitRecordsDialog from '../components/sales/VisitRecordsDialog.vue'
+import TransferDialog from '../components/sales/TransferDialog.vue'
 
 const activeTab = ref('intention')
 const perm = ref({ canWrite: false, canView: false, isAdmin: false })
@@ -81,6 +84,7 @@ const dealRef = ref<any>(null)
 const projectRef = ref<any>(null)
 const visitRecordsVisible = ref(false)
 const visitCustomer = ref('')
+const batchTransferVisible = ref(false)
 
 // 版本快照清理
 const cleanupVisible = ref(false)
@@ -122,6 +126,11 @@ async function submitCleanup() {
 function openVisitRecords(name: string) {
   visitCustomer.value = name
   visitRecordsVisible.value = true
+}
+
+function onBatchTransferDone() {
+  // 离职交接影响多表多记录，刷新统计与全部四张表
+  onDataChanged()
 }
 
 const tableRefMap = () => ({
