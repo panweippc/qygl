@@ -659,8 +659,9 @@
                 <a
                   v-for="(file, i) in currentAttachments"
                   :key="i"
-                  :href="getAttachmentDownloadUrl(file)"
+                  href="javascript:void(0)"
                   class="attachment-link"
+                  @click.prevent="downloadAttachment(file)"
                 >
                   {{ file.name }}
                 </a>
@@ -680,9 +681,10 @@
               <a
                 v-for="(f, i) in row.attachments"
                 :key="i"
-                :href="getAttachmentDownloadUrl(f)"
+                href="javascript:void(0)"
                 class="attachment-link"
                 style="margin-right: 12px;"
+                @click.prevent="downloadAttachment(f)"
               >📎 {{ f.name }}</a>
             </span>
             <span v-else>{{ row.value }}</span>
@@ -1508,7 +1510,8 @@ const ACTION_LABEL: Record<string, string> = {
   ack: '已知晓',
   opinion: '提交意见',
   auto_close: '自动关闭',
-  reopen: '重开协同'
+  reopen: '重开协同',
+  add_collaborator: '追加协同对象'
 }
 
 // 拉取某条申请的完整生命周期（审批动作 + 下发），供详情页时间线展示
@@ -1553,11 +1556,12 @@ const lifecycleTimeline = computed(() => {
     else if (action === 'opinion') desc = log.comment ? `意见：${log.comment}` : '提交了意见'
     else if (action === 'auto_close') desc = '全部协同对象已响应，协同自动结束'
     else if (action === 'reopen') desc = log.comment || '协同被重新打开'
+    else if (action === 'add_collaborator') desc = log.comment || '追加协同对象'
     else if (log.comment) desc = log.comment
     nodes.push({
       time: log.created_at,
       actor: log.actor,
-      actorRole: log.actorRole || '',
+      actorRole: log.actor_role || log.actorRole || '',
       action,
       title: label,
       desc,
@@ -1590,6 +1594,26 @@ const currentAttachments = computed(() => {
 const getAttachmentDownloadUrl = (file: { name: string; url: string }) => {
   // token 由 axios 拦截器通过 Authorization header 携带，不在 URL 中传递
   return `/api/attachments/download?file=${encodeURIComponent(file.url)}&name=${encodeURIComponent(file.name)}`
+}
+
+// 附件下载：走 axios（自动携带 Authorization），以 blob 方式拉取后本地下载，
+// 避免浏览器直开 URL 不带 token 被全局 requireAuth 拦截返回「未登录」
+const downloadAttachment = async (file: { name: string; url: string }) => {
+  try {
+    const res = await api.get(getAttachmentDownloadUrl(file), { responseType: 'blob' })
+    const blob = new Blob([res.data])
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = file.name || '下载文件'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || e?.message || '未知错误'
+    ElMessage.error('附件下载失败：' + msg)
+  }
 }
 
 // 详情弹窗：字段以表格方式展示；存在退回理由时追加一行并高亮
@@ -3043,6 +3067,9 @@ onUnmounted(() => {
   font-weight: 500;
   text-decoration: underline;
   word-break: break-all;
+}
+.attachment-link {
+  cursor: pointer;
 }
 .attachment-link:hover {
   color: #3b82f6;

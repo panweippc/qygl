@@ -1575,7 +1575,22 @@ router.post('/projects/:id/collaborators', async (req, res) => {
       content: `${me} 在协同事项「${apps[0].project_name || ''}」中追加了 ${insertedCols.length} 位协同对象`,
       relatedId: id
     });
-    await appendApprovalLog(pool, { applicationType: 'project', applicationId: id, actor: me, actorRole: isApplicant ? '发起人' : '协同对象', action: 'add_collaborator', fromStatus: '', toStatus: '', targetUser: insertedCols.map((c) => c.target_name).filter(Boolean).join(',') });
+    const participants = insertedCols.filter((c) => c.collab_role !== 'cc').map((c) => c.target_name).filter(Boolean);
+    const ccs = insertedCols.filter((c) => c.collab_role === 'cc').map((c) => c.target_name).filter(Boolean);
+    const commentParts = [];
+    if (participants.length) commentParts.push(`追加参与人：${participants.join('、')}`);
+    if (ccs.length) commentParts.push(`追加抄送：${ccs.join('、')}`);
+    await appendApprovalLog(pool, {
+      applicationType: 'project',
+      applicationId: id,
+      actor: me,
+      actorRole: isApplicant ? '发起人' : '协同对象',
+      action: 'add_collaborator',
+      fromStatus: '',
+      toStatus: '',
+      comment: commentParts.join('；'),
+      targetUser: insertedCols.map((c) => c.target_name).filter(Boolean).join(',')
+    });
 
     res.json({ success: true, data: { inserted: insertedCols.length } });
   } catch (error) {
