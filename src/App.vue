@@ -2,6 +2,7 @@
   <div class="app-container">
     <router-view />
     <AiAssistant v-if="ENABLE_AI_ASSISTANT" />
+    <MessageBubbleAssistant />
   </div>
 </template>
 
@@ -9,6 +10,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AiAssistant from './components/AiAssistant.vue'
+import MessageBubbleAssistant from './components/MessageBubbleAssistant.vue'
 
 // 功能开关：当前暂无用户使用 AI 助手，先隐藏；后续上线改为 true 即可一键恢复
 const ENABLE_AI_ASSISTANT = false

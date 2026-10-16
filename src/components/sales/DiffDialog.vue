@@ -1,7 +1,7 @@
 <template>
   <el-dialog v-model="visible" title="版本对比" width="780px">
     <div v-if="loading" v-loading="true" element-loading-text="加载中…" style="min-height:120px" />
-    <div v-else-if="!chain.length" class="diff-empty">该记录暂无历史版本。</div>
+    <div v-else-if="!chain.length" class="diff-empty">该记录当前为初始版本，暂无后续变更。</div>
     <div v-else>
       <!-- 任意两版对比（非连续版本，如 v5 与 v1） -->
       <div class="diff-select">

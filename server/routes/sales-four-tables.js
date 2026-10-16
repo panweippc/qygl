@@ -675,6 +675,34 @@ function destTypeByProgress(p) {
   return 'intention'; // 0 或无效值默认归意向漏斗
 }
 
+// 导入时按行判定归属表：归属列 > 进展状态百分比 > 进展状态文本 > URL type
+// 漏斗模板（意向/重点）不含成交字段，故即便判定为成交也回落到重点漏斗，避免缺字段
+function importDestType(obj, urlType) {
+  const belong = String(obj['归属'] || obj['漏斗类型'] || obj['归属漏斗'] || '').trim();
+  if (belong) {
+    if (/成交|deal/i.test(belong)) return urlType === 'deal' ? 'deal' : 'key';
+    if (/重点|key/i.test(belong)) return 'key';
+    if (/意向|intention/i.test(belong)) return 'intention';
+  }
+  const p = parseNum(obj['进展状态百分比']);
+  if (p > 0) return destTypeByProgress(p);
+  const st = String(obj['进展状态'] || obj['销售状态'] || '').trim();
+  if (st) {
+    if (/成交|合同|实施|交付/.test(st)) return urlType === 'deal' ? 'deal' : 'key';
+    if (/提案|方案|商务|谈判|招标|重点|赢得认可/.test(st)) return 'key';
+    if (/意向|初步|需求|接触|确认|引导|立项/.test(st)) return 'intention';
+  }
+  return urlType;
+}
+
+// 导入枚举白名单（与前端 salesConstants 保持一致，可扩展）：用于拦截非法枚举值
+// 字段键为 DB 列名，值为允许集合；Excel 中文表头通过映射读取
+const SALES_ENUM_WHITELIST = {
+  sales_type: ['渠道', '直销', '服务'],
+  revenue_type: ['代理', '直销']
+}
+const ENUM_LABEL_MAP = { sales_type: '销售类型', revenue_type: '收入类型(代理类型)' }
+
 // 当前用户销售四表权限（供前端统一判断）
 router.get('/sales-four-tables/permission', requireSalesView, async (req, res) => {
   res.json({ success: true, data: req.salesPerm });
@@ -1480,10 +1508,24 @@ router.get('/sales-four-tables/:type/:id/versions', requireSalesView, async (req
   const { type, id } = req.params;
   try {
     await ensureSchema(pool);
-    const [rows] = await pool.execute(
+    let [rows] = await pool.execute(
       'SELECT id, version, created_by, created_at FROM sales_table_versions WHERE table_type = ? AND record_id = ? ORDER BY version DESC',
       [type, id]
     );
+    // 无版本快照时自动补一个初始版本（从当前记录行生成），保证「新增/上传都有版本信息」
+    if (rows.length === 0) {
+      const table = type === 'project' ? 'sales_project_analysis' : (TABLE_META[type] ? TABLE_META[type].table : null);
+      if (table) {
+        const [[rec]] = await pool.execute(`SELECT * FROM ${table} WHERE id = ?`, [id]);
+        if (rec) {
+          await insertVersion(pool, type, parseInt(id), rec, rec.created_by || '系统');
+          [rows] = await pool.execute(
+            'SELECT id, version, created_by, created_at FROM sales_table_versions WHERE table_type = ? AND record_id = ? ORDER BY version DESC',
+            [type, id]
+          );
+        }
+      }
+    }
     res.json({ success: true, data: rows });
   } catch (error) {
     console.error('获取版本失败:', error);
@@ -1567,6 +1609,7 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
     let projectCreated = 0;
     let projectSynced = 0;
     const errors = [];
+    const destTypeNote = [];
 
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
@@ -1588,11 +1631,23 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
       for (const row of dataRows) {
         const obj = {};
         headers.forEach((h, i) => { obj[h] = row[i]; });
+        const rowNo = headerIdx + 2 + dataRows.indexOf(row);
         const reportDate = parseDate(obj['申报日期']);
         const reportMonth = reportDate ? reportDate.slice(0, 7) : '';
         if (!reportDate) { skipped++; continue; }
+        // 枚举白名单校验：销售类型 / 代理类型(收入类型列) 拦截非法值，跳过该行并提示行号
+        const enumErrs = [];
+        for (const [field, allowed] of Object.entries(SALES_ENUM_WHITELIST)) {
+          const label = ENUM_LABEL_MAP[field];
+          const rawVal = String(obj[label === '销售类型' ? '销售类型' : '收入类型'] ?? '').trim();
+          if (rawVal && !allowed.includes(rawVal)) {
+            enumErrs.push(`第${rowNo}行 ${label}="${rawVal}" 不在允许值[${allowed.join('/')}]内`);
+          }
+        }
+        if (enumErrs.length) { enumErrs.forEach(e => errors.push(e)); skipped++; continue; }
         try {
           let sql, params;
+          let destType = type;
           if (type === 'deal') {
             sql = `INSERT INTO ${meta.table}
               (owner, sales_type, revenue_type, report_date, product_type, customer_name, contact, phone, site_count, contract_amount, actual_amount, received_amount, unreceived_amount, remark, report_month, created_by)
@@ -1621,7 +1676,10 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
             sql = `INSERT INTO sales_project_analysis (${pCols.join(', ')}, created_by) VALUES (${pCols.map(() => '?').join(', ')}, ?)`
             params = [...pParams, createdBy]
           } else {
-            sql = `INSERT INTO ${meta.table}
+            // 漏斗模板（意向/重点）按行归属自动分表：归属列/进展百分比/进展状态文本 → intention/key
+            destType = importDestType(obj, type);
+            const destTable = destType === 'deal' ? 'sales_deal_customers' : TABLE_META[destType].table;
+            sql = `INSERT INTO ${destTable}
               (owner, sales_type, revenue_type, report_date, product_type, partner_name, competitor, customer_name, contact, phone, site_count, monthly_repayment, monthly_confidence, estimated_total, progress_percent, sales_status, estimated_repay_month, opportunity_assessment, success_or_giveup, company_support, remark, report_month, created_by)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
             params = [
@@ -1631,9 +1689,13 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
               parseNum(obj['进展状态百分比']), obj['销售状态'] || '', obj['预计回款月份'] || '', obj['主观机会度判断'] || '',
               obj['成功/放弃'] || '', obj['公司级支持需求'] || '', obj['备注'] || '', reportMonth, createdBy
             ];
+            // 记录实际归属，供响应回显
+            if (destType !== type) destTypeNote.push({ customer: obj['客户名单'] || '', from: type, to: destType });
           }
           const [result] = await pool.execute(sql, params);
-          await insertVersion(pool, type, result.insertId, { ...obj, created_by: createdBy }, createdBy);
+          // 漏斗导入可能按行归属落到与 url type 不同的表（如从 intention 导入却归到 key），
+          // 版本快照的 table_type 必须与记录实际所在表一致，否则详情页按 :type 查不到该版本
+          await insertVersion(pool, destType, result.insertId, { ...obj, created_by: createdBy }, createdBy);
           imported++;
 
           // 大项目进展导入后，把该客户已有的全局拜访记录带出到项目子表
@@ -1659,8 +1721,8 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
                 customerName,
                 contact: String(obj['联系人'] || '').trim(),
                 phone: String(obj['电话'] || '').trim(),
-                stage: type,
-                isDeal: type === 'deal',
+                stage: destType,
+                isDeal: destType === 'deal',
                 operator: createdBy
               });
             } catch (e) {
@@ -1678,7 +1740,7 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
     const isFunnel = type === 'intention' || type === 'key' || type === 'deal';
     const projTip = isFunnel ? `，带出大项目进展 ${projectCreated} 条（同步 ${projectSynced} 条）` : '';
     createOperationLog(pool, { username: getOperator(req), action: 'import', module: 'sales-four-tables', targetName: `${type} Excel导入`, detail: `导入${type}，成功${imported}条，跳过${skipped}条${projTip}` });
-    res.json({ success: true, message: `导入完成：成功 ${imported} 条，跳过 ${skipped} 条${projTip}`, data: { imported, skipped, projectCreated, projectSynced, errors: errors.slice(0, 10) } });
+    res.json({ success: true, message: `导入完成：成功 ${imported} 条，跳过 ${skipped} 条${projTip}`, data: { imported, skipped, projectCreated, projectSynced, destTypeNote, errors: errors.slice(0, 10) } });
   } catch (error) {
     console.error('导入失败:', error);
     res.status(500).json({ success: false, message: '导入失败' });
