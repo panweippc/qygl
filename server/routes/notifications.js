@@ -9,19 +9,20 @@ function escapeId(val) {
 // 获取用户通知列表（分页）
 router.get('/notifications', async (req, res) => {
   const { pool } = req.app.locals;
-  const { userId, page = 1, pageSize = 20 } = req.query;
+  const { userId, page = 1, pageSize = 20, unreadOnly } = req.query;
   if (!userId) return res.fail('缺少用户ID');
   try {
     const offset = escapeId((parseInt(page) - 1) * parseInt(pageSize));
     const limit = escapeId(parseInt(pageSize));
+    const unreadFilter = unreadOnly === '1' ? 'AND n.isRead = 0' : '';
     const [list] = await pool.query(
-      `SELECT n.*, dr.applicationType AS applicationType FROM notifications n LEFT JOIN distributed_records dr ON n.relatedType = 'distributed' AND dr.id = n.relatedId WHERE n.userId = ? ORDER BY n.createdAt DESC LIMIT ${limit} OFFSET ${offset}`,
+      `SELECT n.*, dr.applicationType AS applicationType FROM notifications n LEFT JOIN distributed_records dr ON n.relatedType = 'distributed' AND dr.id = n.relatedId WHERE n.userId = ? ${unreadFilter} ORDER BY n.createdAt DESC LIMIT ${limit} OFFSET ${offset}`,
       [userId]
     );
-    const [[{ total }]] = await pool.query(
-      'SELECT COUNT(*) as total FROM notifications WHERE userId = ?',
-      [userId]
-    );
+    const totalSql = unreadOnly === '1'
+      ? 'SELECT COUNT(*) as total FROM notifications WHERE userId = ? AND isRead = 0'
+      : 'SELECT COUNT(*) as total FROM notifications WHERE userId = ?';
+    const [[{ total }]] = await pool.query(totalSql, [userId]);
     res.success({ list, total, page: parseInt(page), pageSize: limit });
   } catch (error) {
     console.error('获取通知失败:', error);

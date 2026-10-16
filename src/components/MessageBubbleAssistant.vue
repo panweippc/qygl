@@ -92,7 +92,7 @@ function resolveJumpRoute(item: any): string {
 async function load() {
   if (!userId) return
   try {
-    const r = await fetch(`/api/notifications?userId=${encodeURIComponent(userId)}&page=1&pageSize=5`)
+    const r = await fetch(`/api/notifications?userId=${encodeURIComponent(userId)}&page=1&pageSize=5&unreadOnly=1`)
     const j = await r.json()
     if (j.success) list.value = j.data.list || []
   } catch { /* ignore */ }
