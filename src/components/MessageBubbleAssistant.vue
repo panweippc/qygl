@@ -11,6 +11,7 @@
             <span v-if="!item.isRead" class="mba-dot" />
             <div class="mba-main">
               <div class="mba-title">{{ item.title }}</div>
+              <div v-if="item.content" class="mba-content">{{ item.content }}</div>
               <div class="mba-time">{{ fmt(item.createdAt) }}</div>
             </div>
           </div>
@@ -160,7 +161,8 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 .mba-dot { position: absolute; left: 10px; top: 16px; width: 6px; height: 6px; border-radius: 50%; background: #409eff; }
 .mba-main { min-width: 0; flex: 1; }
 .mba-title { font-size: 13px; color: #303133; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mba-time { font-size: 12px; color: #bbb; margin-top: 4px; }
+.mba-content { font-size: 12px; color: #666; line-height: 1.5; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mba-time { font-size: 11px; color: #aaa; margin-top: 4px; }
 .mba-empty { padding: 30px; text-align: center; color: #999; font-size: 13px; }
 .mba-foot { padding: 10px 14px; text-align: right; font-size: 12px; color: #409eff; cursor: pointer; }
 .mba-foot:hover { text-decoration: underline; }

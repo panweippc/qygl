@@ -145,7 +145,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeaderBar from '../components/PageHeaderBar.vue'
@@ -254,6 +254,13 @@ function openEdit(row?: any) {
     : emptyForm()
   editVisible.value = true
 }
+
+// 紧急程度切换为「紧急」时自动开启置顶；切换为非紧急时不自动关闭，保留用户选择
+watch(() => form.value.priority, (newVal, oldVal) => {
+  if (newVal === '紧急' && oldVal !== '紧急') {
+    form.value.is_top = true
+  }
+})
 
 async function save() {
   if (!form.value.title.trim()) {
