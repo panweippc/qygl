@@ -1592,8 +1592,9 @@ const currentAttachments = computed(() => {
 })
 
 const getAttachmentDownloadUrl = (file: { name: string; url: string }) => {
-  // token 由 axios 拦截器通过 Authorization header 携带，不在 URL 中传递
-  return `/api/attachments/download?file=${encodeURIComponent(file.url)}&name=${encodeURIComponent(file.name)}`
+  // api 实例 baseURL 为 /api，这里用相对路径 /attachments/download，实际请求 /api/attachments/download
+  // token 由 axios 拦截器通过 Authorization 头携带，不在 URL 中传递
+  return `/attachments/download?file=${encodeURIComponent(file.url)}&name=${encodeURIComponent(file.name)}`
 }
 
 // 附件下载：走 axios（自动携带 Authorization），以 blob 方式拉取后本地下载，
