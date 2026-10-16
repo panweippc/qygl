@@ -21,7 +21,7 @@
       </div>
     </transition>
 
-    <div class="mba-ball" @click="toggle" title="消息助手">
+    <div class="mba-ball" :class="ballClass" @click="toggle" title="消息助手">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
       </svg>
@@ -31,7 +31,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -40,6 +40,9 @@ const list = ref<any[]>([])
 const unreadCount = ref(0)
 const userId = localStorage.getItem('username') || ''
 let timer: any = null
+let prevUnread: number | null = null
+let hasAutoOpened = false
+const nudge = ref(false)
 
 function fmt(dateStr: string) {
   if (!dateStr) return ''
@@ -92,17 +95,45 @@ function resolveJumpRoute(item: any): string {
 
 async function load() {
   if (!userId) return
+  let newList = list.value
+  let newCount = unreadCount.value
   try {
     const r = await fetch(`/api/notifications?userId=${encodeURIComponent(userId)}&page=1&pageSize=5&unreadOnly=1`)
     const j = await r.json()
-    if (j.success) list.value = j.data.list || []
+    if (j.success) newList = j.data.list || []
   } catch { /* ignore */ }
   try {
     const r2 = await fetch(`/api/notifications/unread-count?userId=${encodeURIComponent(userId)}`)
     const j2 = await r2.json()
-    if (j2.success) unreadCount.value = j2.data.count || 0
+    if (j2.success) newCount = j2.data.count || 0
   } catch { /* ignore */ }
+  list.value = newList
+  const prev = prevUnread
+  unreadCount.value = newCount
+
+  // 方案C：首次加载若有未读，自动展开一次；之后不再强制打开
+  if (!hasAutoOpened && newCount > 0 && newList.length > 0) {
+    open.value = true
+    hasAutoOpened = true
+  } else if (prev !== null && prev !== undefined && newCount > prev && hasAutoOpened) {
+    // 新消息到达：仅抖动提醒，不展开
+    triggerNudge()
+  }
+  prevUnread = newCount
 }
+
+function triggerNudge() {
+  nudge.value = false
+  requestAnimationFrame(() => {
+    nudge.value = true
+    setTimeout(() => { nudge.value = false }, 700)
+  })
+}
+
+const ballClass = computed(() => ({
+  'mba-ball--unread': unreadCount.value > 0 && !open.value,
+  'mba-ball--nudge': nudge.value,
+}))
 
 async function onClick(item: any) {
   try {
@@ -138,6 +169,19 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2); transition: transform 0.15s;
 }
 .mba-ball:hover { transform: scale(1.06); }
+@keyframes mba-breathe {
+  0%, 100% { box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2); }
+  50% { box-shadow: 0 2px 20px rgba(64, 158, 255, 0.7); }
+}
+.mba-ball--unread { animation: mba-breathe 1.8s ease-in-out infinite; }
+@keyframes mba-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+.mba-ball--nudge { animation: mba-breathe 1.8s ease-in-out infinite, mba-shake 0.6s ease-in-out; }
 .mba-badge {
   position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 4px;
   border-radius: 9px; background: #f56c6c; color: #fff; font-size: 12px; line-height: 18px; text-align: center;
