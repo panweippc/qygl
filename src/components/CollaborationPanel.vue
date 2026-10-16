@@ -243,7 +243,8 @@ const tryAutoExpand = async () => {
   }
   const item = [...mineList.value, ...tomeList.value].find((i) => Number(i.id) === targetId)
   if (!item) return
-  scope.value = 'mine'
+  // 根据记录实际所属列表决定展示页签，避免「协同给我的」被强制切到「我发起的」
+  scope.value = tomeList.value.some((i) => Number(i.id) === targetId) ? 'tome' : 'mine'
   expandedId.value = targetId
   expandedLoading.value = true
   expandedCollaborators.value = []
@@ -281,6 +282,10 @@ const emit = defineEmits<{
 }>()
 
 const scope = ref<'mine' | 'tome'>(props.subTab === 'tome' ? 'tome' : 'mine')
+watch(() => props.subTab, (val) => {
+  if (val === 'tome') scope.value = 'tome'
+  else if (val === 'mine' || val === 'applied') scope.value = 'mine'
+})
 const mineList = ref<any[]>([])
 const tomeList = ref<any[]>([])
 
