@@ -31,14 +31,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const open = ref(false)
 const list = ref<any[]>([])
 const unreadCount = ref(0)
-const userId = localStorage.getItem('username') || ''
+const userId = computed(() => localStorage.getItem('username') || '')
 let timer: any = null
 let prevUnread: number | null = null
 let hasAutoOpened = false
@@ -94,16 +94,16 @@ function resolveJumpRoute(item: any): string {
 }
 
 async function load() {
-  if (!userId) return
+  if (!userId.value) return
   let newList = list.value
   let newCount = unreadCount.value
   try {
-    const r = await fetch(`/api/notifications?userId=${encodeURIComponent(userId)}&page=1&pageSize=5&unreadOnly=1`)
+    const r = await fetch(`/api/notifications?userId=${encodeURIComponent(userId.value)}&page=1&pageSize=5&unreadOnly=1`)
     const j = await r.json()
     if (j.success) newList = j.data.list || []
   } catch { /* ignore */ }
   try {
-    const r2 = await fetch(`/api/notifications/unread-count?userId=${encodeURIComponent(userId)}`)
+    const r2 = await fetch(`/api/notifications/unread-count?userId=${encodeURIComponent(userId.value)}`)
     const j2 = await r2.json()
     if (j2.success) newCount = j2.data.count || 0
   } catch { /* ignore */ }
@@ -153,6 +153,12 @@ function toggle() {
   open.value = !open.value
   if (open.value) load()
 }
+
+// 用户名从空变为有效（登录成功写入 localStorage）时，立即刷新一次，
+// 避免依赖 30s 轮询延迟才显示未读消息
+watch(() => userId.value, (v) => {
+  if (v) load()
+})
 
 onMounted(() => {
   load()
