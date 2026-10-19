@@ -93,6 +93,7 @@ const expanded = ref<Record<number, boolean>>({})
 const oldV = ref<number | null>(null)
 const newV = ref<number | null>(null)
 const arbitrary = ref<any[]>([])
+const ownerHistory = ref<any[]>([])
 
 // 最新版本在最上方
 const chainDesc = computed(() => [...chain.value].reverse())

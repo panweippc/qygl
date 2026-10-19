@@ -57,7 +57,7 @@
         <el-table-column label="操作" width="170" fixed="right">
           <template #default="{ row }">
             <div class="op-cell">
-              <el-button text size="small" @click="emit('view-detail', row)">详情</el-button>
+              <el-button text size="small" @click="openDetail(row)">详情</el-button>
               <el-button v-if="perm.canWrite" text size="small" @click="openEdit(row)">编辑</el-button>
               <el-button text size="small" @click="openVersions(row)">版本</el-button>
               <el-button v-if="perm.canWrite" text size="small" @click="openTransfer(row)">转交</el-button>
