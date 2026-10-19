@@ -152,6 +152,8 @@ const diffVisible = ref(false)
 const diffRecordId = ref<number | null>(null)
 const transferVisible = ref(false)
 const transferRow = ref<any>(null)
+const dealDetailVisible = ref(false)
+const dealDetailRow = ref<any>(null)
 const saving = ref(false)
 const emptyForm = () => ({
   owner: '', sales_type: '', revenue_type: '', report_date: '', product_type: '',
