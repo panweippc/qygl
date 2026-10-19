@@ -243,18 +243,15 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
 
     const io = req.app.get('io');
-    // 按设备类型维度互踢：仅踢同类型（pc/mobile）的旧会话，跨类型（PC 与手机）共存
-    const deviceType = req.body && req.body.deviceType === 'mobile' ? 'mobile' : 'pc';
-    const sessionKey = `${user.username}|${deviceType}`;
+    // 单会话互踢：同一账号全局仅允许一处在线（PC 与手机也互踢，不再按设备类型区分）
+    const sessionKey = String(user.username);
     if (userSessions.has(sessionKey)) {
       const oldSocketId = userSessions.get(sessionKey);
       if (oldSocketId) {
         io.to(oldSocketId).emit('kickedOut', { message: '您的账号在其他设备登录，已被强制退出' });
       }
     }
-    // 同设备类型旧会话由 socket 连接时的 setUserLogin 自然覆盖；
-    // 这里不再把 key 设为 null，避免空值窗口期导致第二个同类型登录无法踢人。
-    userSessions.delete(sessionKey);
+    // 旧会话的 socket.id 由 setUserLogin 自然覆盖，无需在此删除，避免空值窗口期。
 
     let permissions = [];
     let department = '';
@@ -399,6 +396,16 @@ router.post('/login', loginLimiter, async (req, res) => {
           buttonPermissions[bp.menuId].push(bp.buttonKey);
         });
       } catch (e) { /* ignore */ }
+    }
+
+    // 单会话兜底：登录即让该账号所有旧 token 失效（tokenVersion+1）。
+    // 旧设备即使没收到 kickedOut（如断网），其下次请求经 requireAuth 校验 ver 不符而 401。
+    try {
+      await pool.execute('UPDATE users SET tokenVersion = tokenVersion + 1 WHERE id = ?', [user.id]);
+      const [[tvRow]] = await pool.execute('SELECT tokenVersion FROM users WHERE id = ?', [user.id]);
+      user.tokenVersion = tvRow.tokenVersion;
+    } catch (e) {
+      console.log('tokenVersion 自增失败:', e.message);
     }
 
     // 用真实姓名（纯姓名，不带 emp_ 前缀）签发 token，token 内 username 恒为姓名

@@ -2454,6 +2454,24 @@ const io = new Server(server, {
 });
 app.set('io', io);
 
+// ============ 单会话互踢：同一账号全局仅允许一处在线（含 PC+手机+多浏览器互踢） ============
+// 维护 userSessions：键=username，值=socket.id。前端连接后通过 setUserLogin 上报当前登录用户。
+// 登录接口（auth.js）发现该用户已有活跃 socket 时，向旧 socket 推送 kickedOut 实现"瞬间踢下线"；
+// 同时登录自增 tokenVersion 作为兜底：旧设备即使未收到 kickedOut（如断网），其下次请求经
+// requireAuth 校验 ver 不符而 401。同一浏览器多标签页共享 localStorage(token 相同)且各自独立
+// socket，"后开标签页"覆盖映射但不会主动踢前序标签页（符合预期）。
+io.on('connection', (socket) => {
+  socket.on('setUserLogin', ({ username } = {}) => {
+    if (username) userSessions.set(String(username), socket.id);
+  });
+  socket.on('disconnect', () => {
+    // 仅当当前记录仍指向本 socket 时才清理，避免误删竞态下已写入的新会话
+    for (const [k, v] of userSessions) {
+      if (v === socket.id) userSessions.delete(k);
+    }
+  });
+});
+
 
 
 

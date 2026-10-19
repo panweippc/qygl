@@ -4,10 +4,10 @@ import { io, Socket } from 'socket.io-client'
 let socket: Socket | null = null
 
 /**
- * 建立 Socket.IO 连接（多端共存：按设备类型维度）
+ * 建立 Socket.IO 连接（单会话维度：同一账号全局仅一处在线）
  * - 携带当前 token 连接，后端校验 token 后建立
- * - 监听 kickedOut 事件：同类型设备（pc/pc 或 mobile/mobile）在其他地方登录时，本设备被强制下线
- * 说明：socket 仅用于实时通知与在线状态；PC 与手机为不同设备类型，可同时在线。
+ * - 监听 kickedOut 事件：同一账号在其他设备/浏览器/PC+手机登录时，本设备被强制下线
+ * 说明：socket 仅用于实时通知与在线状态；后端按 username 单会话互踢，PC 与手机亦互斥。
  * 连接地址使用页面同源（window.location.origin），由前端 nginx 反代 /socket.io，
  * 避免 HTTPS 页面下直连 http://:3005 产生的混合内容（mixed content）拦截。
  */
