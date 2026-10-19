@@ -1,5 +1,9 @@
 // 解析当前登录用户的真实姓名与角色名
 // 角色一律以数据库为准，不信任 token 内的角色声明（与 requireRole 保持同一安全口径）
+// 系统内置超级管理员账号白名单：仅保留「管理员」及 admin 别名，不再把「总经理」作为硬编码超级账号。
+// 总经理权限统一通过 roles 表「总经理」角色授予（如李智鑫）。
+export const isBuiltinAdmin = (username) => typeof username === 'string' && (username === '管理员' || /^admin$/i.test(username));
+
 async function resolveIdentity(pool, req) {
   let username = req.user?.username || req.user?.name || null;
   if (username && /^emp_/.test(username)) {
@@ -19,7 +23,7 @@ async function resolveIdentity(pool, req) {
   return {
     username,
     roleName: '',
-    isBuiltinAdmin: username === '管理员' || username === '总经理' || /^admin$/i.test(username)
+    isBuiltinAdmin: isBuiltinAdmin(username)
   };
 }
 
@@ -80,10 +84,10 @@ export const requireRole = (...allowedRoles) => {
         if (users.length === 0) {
           return res.status(403).json({ success: false, message: '无权限' });
         }
-        // users 表用户：若请求管理接口，仅"管理员"/"总经理"这类系统管理角色放行；否则按 allowedRoles 判定
+        // users 表用户：若请求管理接口，仅系统内置超级管理员放行；否则按 allowedRoles 判定
         if (allowedRoles.length === 0) return next();
-        // 系统内置管理账号（"管理员"、"总经理"、admin 等）默认拥有管理权限
-        if (username === '管理员' || username === '总经理' || /^admin$/i.test(username)) return next();
+        // 系统内置超级管理员账号默认拥有管理权限
+        if (isBuiltinAdmin(username)) return next();
         return res.status(403).json({ success: false, message: '无权限' });
       }
       const roleName = employees[0].roleName || '';

@@ -6,6 +6,7 @@ import express from 'express';
 const router = express.Router();
 
 import { getRealName } from '../utils/identity.js';
+import { isBuiltinAdmin } from '../middleware/auth.js';
 
 // 各 OA 申请表：表名 / 类型标识 / 申请人字段（会议用 organizer，出差与项目用 applicant_name）
 const DEFS = [
@@ -24,7 +25,7 @@ const isManagerUser = async (req) => {
     const { pool } = req.app.locals;
     const name = getRealName(req);
     if (!name) return false;
-    if (name === '管理员' || name === '总经理' || /^admin$/i.test(name)) return true;
+    if (isBuiltinAdmin(name)) return true;
     const [emp] = await pool.execute(
       'SELECT e.position, r.name AS roleName FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
       [name]

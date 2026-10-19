@@ -2,7 +2,7 @@ import express from 'express';
 import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 import { hashPassword, validatePassword, generateRandomPassword, verifyPassword } from '../utils/security.js';
 import { check, firstError } from '../utils/validate.js';
-import { requireRole } from '../middleware/auth.js';
+import { requireRole, isBuiltinAdmin } from '../middleware/auth.js';
 import { checkManagePermission, getRealName } from '../utils/identity.js';
 import xlsx from 'xlsx';
 const router = express.Router();
@@ -49,7 +49,7 @@ const isSensitiveAllowed = (req) => {
   // token 中的角色字段名为 role
   const role = (req.user?.role || req.user?.roleName || '').toString();
   // 系统管理员账号直接放行
-  if (name === '管理员' || name === '总经理' || /^admin$/i.test(name)) return true;
+  if (isBuiltinAdmin(name)) return true;
   // 按角色名判断（含财务等管理岗位）
   if (SENSITIVE_ROLES.includes(role)) return true;
   return false;

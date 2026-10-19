@@ -138,7 +138,7 @@
       append-to-body
     >
       <div class="forgot-body">
-        <p class="forgot-lead">请联系本系统管理员 <b>李智鑫</b> 进行改密并获取新密码，获取新密码后请第一时间进行改密并妥善保存。</p>
+        <p class="forgot-lead">请联系本系统管理员 <b>{{ adminContactName }}</b> 进行改密并获取新密码，获取新密码后请第一时间进行改密并妥善保存。</p>
       </div>
       <template #footer>
         <el-button @click="forgotVisible = false">知道了</el-button>
@@ -273,6 +273,15 @@ const appStatus = ref({ cls: 'unknown', text: '服务状态未知', version: '' 
 const weather = ref<{ temp: number; code: number; text: string } | null>(null)
 // 忘记密码对话框
 const forgotVisible = ref(false)
+// 系统管理员联系人（从后端读取，避免硬编码）
+const adminContactName = ref('管理员')
+async function loadAdminContact() {
+  try {
+    const resp = await fetch('/api/public/admin-contact', { cache: 'no-store' })
+    const json = await resp.json()
+    if (json.success && json.data?.name) adminContactName.value = json.data.name
+  } catch (e) { /* 失败时保持默认「管理员」 */ }
+}
 // 天气定位：默认呼和浩特，如需其他城市请改经纬度
 const WEATHER_LOCATION = { lat: 40.8424, lon: 111.7490 }
 
@@ -740,6 +749,7 @@ onMounted(() => {
   // 真实健康状态 + 天气（免鉴权公开接口）
   loadHealth();
   loadWeather();
+  loadAdminContact();
   // E8: 若是因空闲超时被登出，提示用户
   const urlParams = new URLSearchParams(window.location.search)
   if (urlParams.get('reason') === 'idle') {

@@ -4,6 +4,7 @@
  * 防止伪造他人身份进行审批、提交、删除等操作。
  */
 import { hashPassword } from './security.js';
+import { isBuiltinAdmin } from '../middleware/auth.js';
 
 // 从 req.user 获取真实姓名（处理 emp_姓名_id 前缀，如 emp_张三_1 -> 张三）
 export function getRealName(req) {
@@ -45,12 +46,9 @@ export async function getUserPrivilege(pool, name) {
     [clean]
   );
   if (emp.length === 0) {
-    // users 表内置账号
-    if (clean === '管理员' || /^admin$/i.test(clean)) {
+    // users 表内置账号：仅「管理员」/admin 视为系统管理员；不再把独立「总经理」账号当作总经理。
+    if (isBuiltinAdmin(clean)) {
       return { level: 100, roleName: '系统管理员', position: '管理员', isSystemAdmin: true };
-    }
-    if (clean === '总经理') {
-      return { level: 90, roleName: '总经理', position: '总经理', isSystemAdmin: false };
     }
     return { level: 0, roleName: '', position: '', isSystemAdmin: false };
   }
@@ -65,7 +63,7 @@ export async function getUserPrivilege(pool, name) {
     level,
     roleName,
     position,
-    isSystemAdmin: roleName === '系统管理员' || clean === '管理员' || /^admin$/i.test(clean),
+    isSystemAdmin: roleName === '系统管理员' || isBuiltinAdmin(clean),
   };
 }
 

@@ -135,7 +135,7 @@
       append-to-body
     >
       <div class="forgot-body">
-        <p class="forgot-lead">请联系本系统管理员 <b>李智鑫</b> 进行改密并获取新密码，获取新密码后请第一时间进行改密并妥善保存。</p>
+        <p class="forgot-lead">请联系本系统管理员 <b>{{ adminContactName }}</b> 进行改密并获取新密码，获取新密码后请第一时间进行改密并妥善保存。</p>
       </div>
       <template #footer>
         <el-button @click="forgotVisible = false">知道了</el-button>
@@ -266,6 +266,9 @@ const announcements = ref<any[]>([])
 const announceVisible = ref(false)
 const announceDetail = ref('')
 const activeAnnounce = ref<any>({})
+
+// 忘记密码提示：动态系统管理员联系人（免登录公开接口，避免硬编码姓名）
+const adminContactName = ref('管理员')
 
 // 忘记密码对话框
 const forgotVisible = ref(false)
@@ -578,6 +581,15 @@ async function loadPublicData() {
   } catch (e) { /* 公开接口异常不影响登录 */ }
 }
 
+// 忘记密码联系人：从公开接口读取（环境变量配置，避免前端硬编码姓名）
+async function loadAdminContact() {
+  try {
+    const resp = await fetch('/api/public/admin-contact', { cache: 'no-store' })
+    const json = await resp.json()
+    if (json.success && json.data?.name) adminContactName.value = json.data.name
+  } catch (e) { /* 接口异常则保留默认「管理员」 */ }
+}
+
 async function openAnnouncement(a: any) {
   activeAnnounce.value = a
   announceDetail.value = ''
@@ -720,6 +732,7 @@ onMounted(() => {
   loadPublicData()
   loadWeather()
   loadHealth()
+  loadAdminContact()
   const token = localStorage.getItem('token')
   if (token) {
     router.replace('/')

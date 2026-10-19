@@ -1,6 +1,7 @@
 import express from 'express';
 import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 import { check, firstError } from '../utils/validate.js';
+import { isBuiltinAdmin } from '../middleware/auth.js';
 const router = express.Router();
 
 const localNow = () => {
@@ -14,9 +15,7 @@ router.get('/monthly-reports', async (req, res) => {
     const { pool } = req.app.locals;
     // 权限规则：李智鑫(总经理/系统管理员)可查看全部月报；其余用户仅看自己填写的
     const roleName = String(req.user?.roleName || '').toLowerCase();
-    const isGM = req.user?.name === '李智鑫'
-      || req.user?.username === '李智鑫'
-      || req.user?.username === '管理员'
+    const isGM = isBuiltinAdmin(req.user?.username)
       || ['总经理', '系统管理员', 'admin', 'gm'].includes(roleName);
     let reports;
     if (isGM) {

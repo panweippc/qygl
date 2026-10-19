@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireRole } from '../middleware/auth.js';
+import { requireRole, isBuiltinAdmin } from '../middleware/auth.js';
 import { createOperationLog, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
@@ -65,8 +65,7 @@ router.get('/operation-logs', async (req, res) => {
   const { page = 1, pageSize = 30, module: mod, action, userId: uid, startDate, endDate } = req.query;
   const me = req.user || {};
   const roleName = me.roleName || '';
-  const isGM = ['系统管理员', '总经理'].includes(roleName) ||
-    /^admin$/i.test(me.username || '') || me.username === '管理员' || me.username === '总经理';
+  const isGM = ['系统管理员', '总经理'].includes(roleName) || isBuiltinAdmin(me.username);
   try {
     const conditions = [];
     const params = [];

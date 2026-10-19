@@ -6,6 +6,7 @@ import { resubmitApplication } from '../utils/resubmitHelper.js';
 import { getRealName } from '../utils/identity.js';
 import { appendReturnHistory } from '../utils/returnHistory.js';
 import { appendApprovalLog } from '../utils/approvalLog.js';
+import { isBuiltinAdmin } from '../middleware/auth.js';
 
 // 请假审批：仅当前审批人或管理角色可操作
 const isManagerUser = async (req) => {
@@ -13,7 +14,7 @@ const isManagerUser = async (req) => {
     const { pool } = req.app.locals;
     const name = getRealName(req);
     if (!name) return false;
-    if (name === '管理员' || name === '总经理' || /^admin$/i.test(name)) return true;
+    if (isBuiltinAdmin(name)) return true;
     const [emp] = await pool.execute(
       'SELECT e.position, r.name AS roleName FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
       [name]

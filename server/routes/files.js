@@ -1,6 +1,6 @@
 import express from 'express';
 import { createOperationLog } from '../utils/audit.js';
-import { requireRole } from '../middleware/auth.js';
+import { requireRole, isBuiltinAdmin } from '../middleware/auth.js';
 const router = express.Router();
 
 // 判断当前登录用户是否为文件上传者本人
@@ -159,7 +159,7 @@ router.put('/files/batch/category', async (req, res) => {
   }
   const username = req.user?.name || req.user?.username || '系统';
   const roleName = req.user?.roleName || '';
-  const isGM = roleName === '总经理' || roleName === '系统管理员' || username === '管理员' || username === '总经理' || /^admin$/i.test(username) || username === '李智鑫';
+  const isGM = roleName === '总经理' || roleName === '系统管理员' || isBuiltinAdmin(username);
   const nextCategoryId = categoryId === null || categoryId === '' || categoryId === undefined ? null : Number(categoryId);
   try {
     const placeholders = list.map(() => '?').join(',');
@@ -203,7 +203,7 @@ router.put('/files/:id/category', async (req, res) => {
     }
     const file = fileRows[0];
     const roleName = req.user?.roleName || '';
-    const isGM = roleName === '总经理' || roleName === '系统管理员' || username === '管理员' || username === '总经理' || /^admin$/i.test(username) || username === '李智鑫';
+    const isGM = roleName === '总经理' || roleName === '系统管理员' || isBuiltinAdmin(username);
     if (!isGM && !isOwner(req, file.uploaderId, file.uploaderName)) {
       return res.status(403).json({ success: false, message: '无权调整该文件的分类' });
     }
@@ -232,7 +232,7 @@ router.put('/files/:id/uploader', async (req, res) => {
   const { uploaderName } = req.body || {};
   const username = req.user?.name || req.user?.username || '系统';
   const roleName = req.user?.roleName || '';
-  const isGM = roleName === '总经理' || roleName === '系统管理员' || username === '管理员' || username === '总经理' || /^admin$/i.test(username) || username === '李智鑫';
+  const isGM = roleName === '总经理' || roleName === '系统管理员' || isBuiltinAdmin(username);
   if (!isGM) {
     return res.status(403).json({ success: false, message: '无权限修改上传人' });
   }
@@ -272,8 +272,8 @@ router.post('/files/batch-delete', async (req, res) => {
   }
   const username = req.user?.name || req.user?.username || '系统';
   const roleName = req.user?.roleName || '';
-  const isGM = roleName === '总经理' || roleName === '系统管理员' || username === '管理员' || username === '总经理' || /^admin$/i.test(username);
-  if (!isGM && username !== '李智鑫') {
+  const isGM = roleName === '总经理' || roleName === '系统管理员' || isBuiltinAdmin(username);
+  if (!isGM) {
     return res.status(403).json({ success: false, message: '无权删除文件' });
   }
   try {
@@ -309,9 +309,9 @@ router.delete('/files/:id', async (req, res) => {
     // 总经理/系统管理员（取 token 中的 roleName，而非用户名）可删除任意文件；
     // 其余用户仅能删除自己上传的文件。
     const roleName = req.user?.roleName || '';
-    const isGM = roleName === '总经理' || roleName === '系统管理员' || username === '管理员' || username === '总经理' || /^admin$/i.test(username);
+    const isGM = roleName === '总经理' || roleName === '系统管理员' || isBuiltinAdmin(username);
     // 权限优化（#260）：除李智鑫(GM)外所有用户都不能删除文件，移除"上传者本人可删"逻辑
-    if (!isGM && username !== '李智鑫') {
+    if (!isGM) {
       return res.status(403).json({ success: false, message: '无权删除该文件' });
     }
     await pool.execute('DELETE FROM files WHERE id = ?', [id]);

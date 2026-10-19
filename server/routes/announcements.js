@@ -378,4 +378,15 @@ router.delete('/announcements/:id', requireAnnounceAdmin, async (req, res) => {
   }
 });
 
+// 公开接口：登录页「忘记密码」提示用系统管理员联系人（从环境变量读取，避免硬编码姓名）
+router.get('/public/admin-contact', async (req, res) => {
+  try {
+    const name = process.env.ADMIN_CONTACT_NAME || '管理员';
+    res.json({ success: true, data: { name } });
+  } catch (error) {
+    console.error('读取管理员联系人失败:', error);
+    res.json({ success: true, data: { name: '管理员' } });
+  }
+});
+
 export default router;

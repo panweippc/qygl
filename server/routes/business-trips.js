@@ -6,6 +6,7 @@ import { resubmitApplication } from '../utils/resubmitHelper.js';
 import { getRealName } from '../utils/identity.js';
 import { appendReturnHistory } from '../utils/returnHistory.js';
 import { appendApprovalLog } from '../utils/approvalLog.js';
+import { isBuiltinAdmin } from '../middleware/auth.js';
 
 // 仅当前审批人或管理角色可操作（退回/软删判断用）
 const isManagerUser = async (req) => {
@@ -13,7 +14,7 @@ const isManagerUser = async (req) => {
     const { pool } = req.app.locals;
     const name = getRealName(req);
     if (!name) return false;
-    if (name === '管理员' || name === '总经理' || /^admin$/i.test(name)) return true;
+    if (isBuiltinAdmin(name)) return true;
     const [emp] = await pool.execute('SELECT e.position, r.name AS roleName FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?', [name]);
     if (emp.length === 0) return false;
     const roleName = emp[0].roleName || '';
@@ -142,7 +143,7 @@ router.delete('/business-trips/:id', async (req, res) => {
       'SELECT r.name AS roleName, e.position FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
       [operatorName]
     );
-    const isManager = operatorName === '管理员' || operatorName === '总经理' || /^admin$/i.test(operatorName)
+    const isManager = isBuiltinAdmin(operatorName)
       || /总经理/.test(String(selfRoles[0]?.position || ''))
       || ['系统管理员', '总经理', '业务中心经理', '技术部经理'].includes(String(selfRoles[0]?.roleName || ''));
     const isOwner = trips[0].applicant_name === operatorName;

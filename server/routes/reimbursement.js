@@ -5,6 +5,7 @@ import { createNotification, createOperationLog, getOperator } from '../utils/au
 import { resubmitApplication } from '../utils/resubmitHelper.js';
 import { appendReturnHistory } from '../utils/returnHistory.js';
 import { appendApprovalLog } from '../utils/approvalLog.js';
+import { isBuiltinAdmin } from '../middleware/auth.js';
 
 // ---- 报销/招待费数据访问控制：申请人本人 + 财务/总经理 可见 ----
 const FINANCE_ROLES = ['财务总监', '财务经理', '总经理', '系统管理员'];
@@ -25,7 +26,7 @@ const isFinanceManager = async (req) => {
     const { pool } = req.app.locals;
     const name = getRealName(req);
     if (!name) return false;
-    if (name === '管理员' || name === '总经理' || /^admin$/i.test(name)) return true;
+    if (isBuiltinAdmin(name)) return true;
     const [emp] = await pool.execute(
       'SELECT e.position, r.name AS roleName FROM employees e LEFT JOIN roles r ON e.roleId = r.id WHERE e.name = ?',
       [name]

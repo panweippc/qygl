@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { createOperationLog, getOperator } from '../utils/audit.js';
 import { ensureCustomerColumns } from './customers.js';
+import { isBuiltinAdmin } from '../middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,11 +20,7 @@ const VIEW_ROLES = ['系统管理员', '总经理', '销售部经理', '业务�
 // 判断是否是销售数据写入者（总经理仅查看）
 async function getSalesPermission(pool, username) {
   if (!username) return { canWrite: false, canView: false };
-  // 李智鑫（总经理）在销售漏斗仅查看、不写入
-  if (username === '李智鑫') {
-    return { canWrite: false, canView: true, isAdmin: true };
-  }
-  if (username === '管理员' || /^admin$/i.test(username)) {
+  if (isBuiltinAdmin(username)) {
     return { canWrite: true, canView: true, isAdmin: true };
   }
   const [employees] = await pool.execute(
