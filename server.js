@@ -129,7 +129,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "blob:"],
       fontSrc: ["'self'", "data:"],
-      connectSrc: ["'self'", "ws:", "wss:", "https://cdn.jsdelivr.net"],
+      connectSrc: ["'self'", "ws:", "wss:", "https://cdn.jsdelivr.net", "https://api.open-meteo.com"],
       frameAncestors: ["'self'"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],

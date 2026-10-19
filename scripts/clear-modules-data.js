@@ -58,6 +58,8 @@ const TABLES = [
   'sales_table_versions',
   // —— 成交项目 ——
   'closing_projects',
+  // —— 消息中心：系统通知表，弹窗助手（未读消息气泡）的数据源 ——
+  'notifications',
   // —— 操作日志 ——
   'operation_logs'
 ]
