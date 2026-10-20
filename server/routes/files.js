@@ -1,7 +1,16 @@
 import express from 'express';
 import { createOperationLog } from '../utils/audit.js';
-import { requireRole, isBuiltinAdmin } from '../middleware/auth.js';
+import { requireRole, requireOwnerOrRole, isBuiltinAdmin } from '../middleware/auth.js';
 const router = express.Router();
+
+// 分类删除权限白名单：与知识库/资料中心保持一致（创建人本人或以下角色可删）
+const CATEGORY_MANAGER_ROLES = ['系统管理员', '总经理', '技术部经理', '销售部经理', '财务总监'];
+
+// 取分类创建人（供 requireOwnerOrRole 比对）
+const getCategoryOwner = async (pool, req) => {
+  const [rows] = await pool.execute('SELECT createdBy FROM file_categories WHERE id = ?', [req.params.id]);
+  return rows.length > 0 ? rows[0].createdBy : null;
+};
 
 // 判断当前登录用户是否为文件上传者本人
 const isOwner = (req, uploaderId, uploaderName) => {
@@ -25,10 +34,11 @@ router.post('/file-categories', requireRole(), async (req, res) => {
   const { pool } = req.app.locals;
   const { name, description } = req.body;
   const username = req.user?.name || req.user?.username || '系统';
+  const createdBy = req.user?.name || req.user?.username || '';
   try {
     const [result] = await pool.execute(
-      'INSERT INTO file_categories (name, description, createdAt) VALUES (?, ?, ?)',
-      [name, description || '', new Date().toISOString().replace('T', ' ').replace('Z', '')]
+      'INSERT INTO file_categories (name, description, createdBy, createdAt) VALUES (?, ?, ?, ?)',
+      [name, description || '', createdBy, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
     await createOperationLog(pool, {
       username,
@@ -45,8 +55,8 @@ router.post('/file-categories', requireRole(), async (req, res) => {
   }
 });
 
-// 删除文件分类（所有登录用户均可管理分类；会连带删除该分类下的文件，前端已加输入分类名二次确认）
-router.delete('/file-categories/:id', requireRole(), async (req, res) => {
+// 删除文件分类（仅创建人本人或管理员可删；会连带删除该分类下的文件，前端已加输入分类名二次确认）
+router.delete('/file-categories/:id', requireOwnerOrRole(getCategoryOwner, ...CATEGORY_MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   const username = req.user?.name || req.user?.username || '系统';

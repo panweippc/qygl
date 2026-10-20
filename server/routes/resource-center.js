@@ -10,7 +10,7 @@ const MANAGER_ROLES = ['系统管理员', '总经理', '技术部经理', '销�
 router.get('/resource-center/categories', async (req, res) => {
   const { pool } = req.app.locals;
   try {
-    const [categories] = await pool.execute('SELECT id, name, description FROM file_categories ORDER BY id');
+    const [categories] = await pool.execute('SELECT id, name, description, createdBy FROM file_categories ORDER BY id');
 
     const [fileRows] = await pool.execute('SELECT categoryId, COUNT(*) AS cnt FROM files GROUP BY categoryId');
 
@@ -53,6 +53,7 @@ router.get('/resource-center/categories', async (req, res) => {
       id: c.id,
       name: c.name,
       description: c.description || '',
+      createdBy: c.createdBy || '',
       fileCount: fileMap.get(String(c.id)) || 0,
       articleCount: articleMap.get(String(c.id)) || 0,
       projectCount: projectMap.get(c.name) || 0

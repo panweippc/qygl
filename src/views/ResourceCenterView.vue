@@ -60,7 +60,7 @@
               <el-button text size="small" class="cat-edit-btn" title="编辑分类" @click.stop="editCategory(cat)">
                 <el-icon><Edit /></el-icon>
               </el-button>
-              <el-button text size="small" class="cat-del-btn" title="删除分类" @click.stop="removeCategory(cat)">
+              <el-button v-if="canDeleteCategory(cat)" text size="small" class="cat-del-btn" title="删除分类" @click.stop="removeCategory(cat)">
                 <el-icon><Delete /></el-icon>
               </el-button>
             </div>
@@ -194,6 +194,7 @@ interface CategoryStat {
   id: number
   name: string
   description: string
+  createdBy?: string
   fileCount: number
   articleCount: number
   projectCount: number
@@ -240,6 +241,12 @@ const uncategorizedCount = computed(() => {
   return Number((stats.value.uncategorized as unknown as Record<string, unknown>)[meta.key] || 0)
 })
 
+// 分类删除权限：仅创建人或管理员（与后端 requireOwnerOrRole 口径一致）可见删除按钮
+const currentUser = (localStorage.getItem('username') || '').trim()
+const categoryRole = (localStorage.getItem('role') || localStorage.getItem('roleName') || '').trim()
+const isCategoryManager = ['系统管理员', '总经理', '技术部经理', '销售部经理', '财务总监'].includes(categoryRole)
+const canDeleteCategory = (cat: CategoryStat): boolean => isCategoryManager || (cat.createdBy || '') === currentUser
+
 const showAddCatDialog = ref(false)
 const newCat = ref({ name: '', description: '' })
 
@@ -272,8 +279,8 @@ const createCategory = async () => {
 
 const removeCategory = async (cat: CategoryStat) => {
   try {
-    // 删除分类会连带删除该分类下的全部文件，且不可恢复；当前所有用户都可管理分类，
-    // 因此这里强制「输入分类名」二次确认，避免误点。
+    // 删除分类会连带删除该分类下的全部文件，且不可恢复；仅创建人或管理员可删（按钮已按权限隐藏），
+    // 这里仍强制「输入分类名」二次确认，避免误点。
     await ElMessageBox.prompt(
       `分类「${cat.name}」下的 ${cat.fileCount} 个文件会被一并删除且无法恢复；该分类下的文章会转入「未分类」，项目信息会变为未归属。请输入分类名称以确认：`,
       '删除分类（不可恢复）',

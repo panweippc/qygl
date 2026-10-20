@@ -66,7 +66,7 @@ function inferTypeFromText(item: any): string | null {
  * 规则：
  *   - 审批提醒/撤回/退回通知 → /oa-office?tab=<类型>&subTab=received
  *   - 下发已读回执 → /oa-office?tab=distributedByMe&expandKey=<类型>-<申请ID>
- *   - 普通下发 → /oa-office?tab=distributed&subType=<类型>
+ *   - 普通下发（接收方） → 对应申请的「我收到的」/ 协同的「协同给我的」
  *   - 默认 /（首页）
  */
 function resolveJumpRoute(item: any): string {
@@ -82,12 +82,14 @@ function resolveJumpRoute(item: any): string {
     return `/oa-office?tab=project&subTab=tome&expandKey=project-${item.relatedId}`
   }
 
-  // 普通下发通知：跳「下发管理」并选中对应申请类型
+  // 普通下发通知（接收方视角）：跳对应申请的「我收到的」；协同类跳「协同给我的」。
+  // 注意：「下发申请管理」(tab=distributed) 仅财务总监可见，不能作为接收方的落地页。
   if (item?.relatedType === 'distributed' && item?.relatedId) {
-    if (['leave', 'reimbursement', 'meeting', 'project', 'businessTrip', 'entertainment'].includes(t)) {
-      return `/oa-office?tab=distributed&subType=${t}`
+    if (t === 'project') return '/oa-office?tab=project&subTab=tome'
+    if (['leave', 'reimbursement', 'meeting', 'businessTrip', 'entertainment'].includes(t)) {
+      return `/oa-office?tab=${t}&subTab=received`
     }
-    return '/oa-office?tab=distributed'
+    return '/oa-office'
   }
 
   // 审批类通知统一进入对应类型的「我收到的」子页签
@@ -101,7 +103,7 @@ function resolveJumpRoute(item: any): string {
   // 关键词兜底
   const dt = inferTypeFromText(item)
   if (dt && dt !== 'distributed') return `/oa-office?tab=${dt}&subTab=received`
-  if (dt === 'distributed') return '/oa-office?tab=distributedByMe'
+  if (dt === 'distributed') return '/oa-office'
 
   if (item?.type === 'mention' || item?.type === 'task') return '/'
   return '/'

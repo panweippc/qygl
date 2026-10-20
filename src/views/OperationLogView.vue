@@ -4,13 +4,13 @@
 
     <div class="ol-body">
     <div class="filter-bar">
-      <div class="filter-group">
+      <div class="filter-group" v-if="isGM">
         <label>模块</label>
         <el-select v-model="filters.module" placeholder="全部模块" clearable size="small" style="width:140px">
           <el-option v-for="m in modules" :key="m.value" :label="m.label" :value="m.value" />
         </el-select>
       </div>
-      <div class="filter-group">
+      <div class="filter-group" v-if="isGM">
         <label>操作</label>
         <el-select v-model="filters.action" placeholder="全部操作" clearable size="small" style="width:120px">
           <el-option v-for="a in actions" :key="a.value" :label="a.label" :value="a.value" />
@@ -96,6 +96,10 @@ const pageSize = 30
 const exporting = ref(false)
 // 仅李智鑫（管理员/总经理）可见导出按钮，其余用户无导出权限
 const isLiZhixin = computed(() => extractRealName(localStorage.getItem('username') || '') === '李智鑫')
+// 系统管理员/总经理（及内置管理员）可看到模块/操作筛选；其余用户隐藏（无权限请求下拉数据）
+const userRole = (localStorage.getItem('role') || localStorage.getItem('roleName') || '').trim()
+const isBuiltinAdminAcct = (localStorage.getItem('username') || '') === '管理员'
+const isGM = computed(() => ['系统管理员', '总经理'].includes(userRole) || isBuiltinAdminAcct)
 
 const filters = ref({ module: '', action: '', startDate: '', endDate: '' })
 
@@ -224,8 +228,7 @@ async function exportLogs() {
 }
 
 onMounted(() => {
-  fetchModules()
-  fetchActions()
+  if (isGM.value) { fetchModules(); fetchActions() }
   fetchLogs()
 })
 </script>

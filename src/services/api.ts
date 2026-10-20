@@ -212,6 +212,7 @@ export interface ResourceCategoryStat {
   id: number;
   name: string;
   description?: string;
+  createdBy?: string;
   fileCount: number;
   articleCount: number;
   projectCount: number;
