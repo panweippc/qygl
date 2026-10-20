@@ -2,7 +2,7 @@
  * 公告模块
  *
  * 用途：
- *   1) 管理端（公告管理菜单）：公告的增删改查、发布/置顶 —— 需「系统管理员 / 总经理」角色；
+ *   1) 管理端（公告管理菜单）：公告的增删改查、发布/置顶 —— 除「普通员工」外所有角色均可（内置账号 管理员/admin 另放行）；
  *   2) 公开端（登录页左侧面板）：免鉴权读取「已发布」公告列表/详情 + 平台概览指标。
  *
  * 公开接口挂在 /api/public/* 下，requireAuth 的 PUBLIC_PATHS 对其放行（见 middleware/requireAuth.js）。
@@ -15,8 +15,8 @@ import { createOperationLog, getOperator, getRecordBefore, logDataChange } from 
 
 const router = express.Router();
 
-// 公告管理权限：仅系统管理员与总经理（内置账号 管理员/admin 另在中间件内放行）
-const ANNOUNCE_ADMIN_ROLES = ['系统管理员', '总经理'];
+// 公告管理权限：除「普通员工」外所有角色均可发起/管理公告（内置账号 管理员/admin 另在中间件内放行）
+const ANNOUNCE_DENY_ROLES = ['普通员工'];
 // 公告分类（管理页下拉与此保持一致）
 const CATEGORIES = ['公司公告', '人事通知', '行政通知', '制度规范', '活动资讯'];
 const STATUSES = ['草稿', '已发布'];
@@ -96,8 +96,9 @@ async function requireAnnounceAdmin(req, res, next) {
       return res.status(403).json({ success: false, message: '无公告管理权限' });
     }
     const roleName = employees[0].roleName || '';
-    if (!ANNOUNCE_ADMIN_ROLES.includes(roleName)) {
-      return res.status(403).json({ success: false, message: '无公告管理权限' });
+    // 仅「普通员工」角色被禁止发起/管理公告；其余角色（系统管理员、总经理、各业务经理、财务总监等）均放行
+    if (ANNOUNCE_DENY_ROLES.includes(roleName)) {
+      return res.status(403).json({ success: false, message: '无公告管理权限（普通员工不可发起公告）' });
     }
     next();
   } catch (e) {

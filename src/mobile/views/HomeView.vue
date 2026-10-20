@@ -214,8 +214,20 @@ const ROLE_OPERATIONS: Record<string, HomeOperation[]> = {
   ]
 }
 
+// 除「普通员工」外所有角色均可发起公告（与后端 requireAnnounceAdmin 口径一致）
+const ANNOUNCE_OP: HomeOperation = {
+  label: '公告管理',
+  path: '/announcement-management',
+  icon: opIcon('M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 9H6V9h12v2zm0-4H6V5h12v2z')
+}
+
 const quickActions = computed<HomeOperation[]>(() => {
-  return ROLE_OPERATIONS[guard.roleTier.value] || ROLE_OPERATIONS.employee
+  const base = ROLE_OPERATIONS[guard.roleTier.value] || ROLE_OPERATIONS.employee
+  const role = (localStorage.getItem('role') || localStorage.getItem('roleName') || '').trim()
+  if (role && role !== '普通员工' && !base.some(a => a.path.startsWith('/announcement-management'))) {
+    return [...base, ANNOUNCE_OP]
+  }
+  return base
 })
 
 // ---------- 通讯录 ----------

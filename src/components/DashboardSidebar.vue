@@ -219,21 +219,37 @@ const isAdmin = computed(() => {
   return username === '管理员'
 })
 
+// 公告管理：除「普通员工」外所有角色均可发起（与后端 requireAnnounceAdmin 口径一致）
+// 角色为空时无法确认，交由 role_permissions 既有逻辑决定
+const announceOverride = (): boolean | null => {
+  const role = (localStorage.getItem('role') || localStorage.getItem('roleName') || '').trim()
+  if (!role) return null
+  return role !== '普通员工'
+}
+
+// 菜单可见性判定：内置管理员放行；公告管理对「非普通员工」强制放行；其余按 role_permissions
+const permFor = (menuPath: string): boolean => {
+  if (menuPath === '/announcement-management') {
+    const ov = announceOverride()
+    if (ov !== null) return ov
+  }
+  return permissions.value.some(p => p.path === menuPath)
+}
+
 const hasPermission = (menuPath: string) => {
   if (isAdmin.value) return true
-  return permissions.value.some(p => p.path === menuPath)
+  return permFor(menuPath)
 }
 
 const groupVisible = computed(() => {
   if (isAdmin.value) return { office: true, business: true, system: true }
-  const hasPerm = (path: string) => permissions.value.some(r => r.path === path)
   const officePerm = ['/oa-office', '/monthly-report', '/asset-management', '/resource-center', '/message-center']
   const businessPerm = ['/closing-project', '/sales-funnel', '/sales-target', '/customer-management']
   const systemPerm = ['/employee-management', '/system', '/operation-log', '/security-alerts', '/monitor', '/announcement-management']
   return {
-    office: officePerm.some(hasPerm),
-    business: businessPerm.some(hasPerm),
-    system: systemPerm.some(hasPerm)
+    office: officePerm.some(permFor),
+    business: businessPerm.some(permFor),
+    system: systemPerm.some(permFor)
   }
 })
 
