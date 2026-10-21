@@ -1,6 +1,7 @@
 import express from 'express';
 import { createOperationLog } from '../utils/audit.js';
 import { requireRole, requireOwnerOrRole, isBuiltinAdmin } from '../middleware/auth.js';
+import { getResourceIdentity, getCategoryCreator, canManageCategoryContent } from '../utils/resourcePerm.js';
 const router = express.Router();
 
 // 分类删除权限白名单：与知识库/资料中心保持一致（创建人本人或以下角色可删）
@@ -136,6 +137,10 @@ router.post('/files', async (req, res) => {
   const username = req.user?.name || req.user?.username || '系统';
   const uploaderId = req.user?.id || null;
   try {
+    // 资料中心权限收紧：非管理员仅可上传到自己创建的分类，未分类仅管理员可传
+    if (!(await canManageCategoryContent(pool, req, categoryId || null))) {
+      return res.status(403).json({ success: false, message: !categoryId ? '仅分类创建人或管理员可上传文件（请先选择自己创建的资料分类）' : '仅分类创建人或管理员可向该分类上传文件' });
+    }
     const [result] = await pool.execute(
       'INSERT INTO files (name, size, type, url, uploaderId, categoryId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [name, size, type, url, uploaderId, categoryId || null, new Date().toISOString().replace('T', ' ').replace('Z', '')]
@@ -159,7 +164,7 @@ router.post('/files', async (req, res) => {
 // 批量把多个文件归入/移出某个资料分类
 // ⚠️ 必须注册在 /files/:id/category 之前：Express 按注册顺序匹配路由，
 //    否则 /files/batch/category 会被 /files/:id/category 抢先捕获（id='batch'），返回 404「文件不存在」。
-// 逐条按「上传者本人或管理员」校验，无权限的条目跳过而不是整批失败，返回成功/跳过数量供前端提示
+// 权限收紧：目标分类的创建人或管理员才可归入；移出到「未分类」仅管理员（未分类内容无归属人）
 router.put('/files/batch/category', async (req, res) => {
   const { pool } = req.app.locals;
   const { ids, categoryId } = req.body || {};
@@ -168,31 +173,27 @@ router.put('/files/batch/category', async (req, res) => {
     return res.status(400).json({ success: false, message: '未选择任何文件' });
   }
   const username = req.user?.name || req.user?.username || '系统';
-  const roleName = req.user?.roleName || '';
-  const isGM = roleName === '总经理' || roleName === '系统管理员' || isBuiltinAdmin(username);
   const nextCategoryId = categoryId === null || categoryId === '' || categoryId === undefined ? null : Number(categoryId);
+  // 统一按目标分类校验：管理员放行；非管理员必须是目标分类创建人（移出分类仅管理员）
+  if (!(await canManageCategoryContent(pool, req, nextCategoryId))) {
+    return res.status(403).json({ success: false, message: nextCategoryId === null ? '仅管理员可将文件移出分类' : '仅分类创建人或管理员可将文件归入该分类' });
+  }
   try {
-    const placeholders = list.map(() => '?').join(',');
-    const [rows] = await pool.execute(`SELECT * FROM files WHERE id IN (${placeholders})`, list);
-    const allowed = rows.filter((f) => isGM || isOwner(req, f.uploaderId, f.uploaderName));
-    if (allowed.length === 0) {
-      return res.status(403).json({ success: false, message: '所选文件均无权调整分类' });
-    }
-    for (const f of allowed) {
-      await pool.execute('UPDATE files SET categoryId = ? WHERE id = ?', [nextCategoryId, f.id]);
+    for (const id of list) {
+      await pool.execute('UPDATE files SET categoryId = ? WHERE id = ?', [nextCategoryId, id]);
     }
     await createOperationLog(pool, {
       username,
       action: 'update',
       module: 'file',
-      targetName: `${allowed.length} 个文件`,
-      detail: `批量调整文件分类 -> ${nextCategoryId === null ? '未分类' : '分类ID ' + nextCategoryId}（成功 ${allowed.length}，跳过 ${list.length - allowed.length}）`,
+      targetName: `${list.length} 个文件`,
+      detail: `批量调整文件分类 -> ${nextCategoryId === null ? '未分类' : '分类ID ' + nextCategoryId}（成功 ${list.length}）`,
       ipAddress: req.ip
     });
     res.json({
       success: true,
-      message: `已归入分类 ${allowed.length} 个${list.length - allowed.length > 0 ? `，跳过 ${list.length - allowed.length} 个（无权限）` : ''}`,
-      data: { updated: allowed.length, skipped: list.length - allowed.length }
+      message: `已归入分类 ${list.length} 个`,
+      data: { updated: list.length, skipped: 0 }
     });
   } catch (error) {
     console.error('批量调整文件分类失败:', error);
@@ -200,7 +201,7 @@ router.put('/files/batch/category', async (req, res) => {
   }
 });
 
-// 把文件归入/移出某个资料分类（用于「未分类」文件的整理；非破坏性，上传者本人或管理员可操作）
+// 把文件归入/移出某个资料分类（用于「未分类」文件的整理；权限收紧：目标分类创建人或管理员，移出分类仅管理员）
 router.put('/files/:id/category', async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
@@ -212,12 +213,10 @@ router.put('/files/:id/category', async (req, res) => {
       return res.status(404).json({ success: false, message: '文件不存在' });
     }
     const file = fileRows[0];
-    const roleName = req.user?.roleName || '';
-    const isGM = roleName === '总经理' || roleName === '系统管理员' || isBuiltinAdmin(username);
-    if (!isGM && !isOwner(req, file.uploaderId, file.uploaderName)) {
-      return res.status(403).json({ success: false, message: '无权调整该文件的分类' });
-    }
     const nextCategoryId = categoryId === null || categoryId === '' || categoryId === undefined ? null : Number(categoryId);
+    if (!(await canManageCategoryContent(pool, req, nextCategoryId))) {
+      return res.status(403).json({ success: false, message: nextCategoryId === null ? '仅管理员可将文件移出分类' : '仅分类创建人或管理员可将文件归入该分类' });
+    }
     await pool.execute('UPDATE files SET categoryId = ? WHERE id = ?', [nextCategoryId, id]);
     await createOperationLog(pool, {
       username,
@@ -272,7 +271,7 @@ router.put('/files/:id/uploader', async (req, res) => {
   }
 });
 
-// 批量删除文件（权限与单条删除一致：仅总经理/系统管理员/李智鑫）
+// 批量删除文件（权限与单条删除一致：管理员白名单，或各文件所属资料分类的创建人；无权限条目跳过）
 router.post('/files/batch-delete', async (req, res) => {
   const { pool } = req.app.locals;
   const { ids } = req.body || {};
@@ -281,24 +280,30 @@ router.post('/files/batch-delete', async (req, res) => {
     return res.status(400).json({ success: false, message: '未选择任何文件' });
   }
   const username = req.user?.name || req.user?.username || '系统';
-  const roleName = req.user?.roleName || '';
-  const isGM = roleName === '总经理' || roleName === '系统管理员' || isBuiltinAdmin(username);
-  if (!isGM) {
-    return res.status(403).json({ success: false, message: '无权删除文件' });
-  }
   try {
     const placeholders = list.map(() => '?').join(',');
-    const [result] = await pool.execute(`DELETE FROM files WHERE id IN (${placeholders})`, list);
+    const [rows] = await pool.execute(`SELECT * FROM files WHERE id IN (${placeholders})`, list);
+    // 逐条校验：管理员放行全部；非管理员仅可删除自己创建分类下的文件
+    const allowed = [];
+    for (const f of rows) {
+      if (await canManageCategoryContent(pool, req, f.categoryId)) allowed.push(f);
+    }
+    if (allowed.length === 0) {
+      return res.status(403).json({ success: false, message: '仅分类创建人或管理员可删除所选文件' });
+    }
+    const allowedIds = allowed.map(f => f.id);
+    const ph2 = allowedIds.map(() => '?').join(',');
+    const [result] = await pool.execute(`DELETE FROM files WHERE id IN (${ph2})`, allowedIds);
     await createOperationLog(pool, {
       userId: req.user?.id || null,
       username,
       action: 'delete',
       module: 'file',
       targetName: `${result.affectedRows} 个文件`,
-      detail: `批量删除文件 ID: ${list.join(',')}`,
+      detail: `批量删除文件 ID: ${allowedIds.join(',')}${rows.length - allowed.length > 0 ? `（跳过无权限 ${rows.length - allowed.length} 个）` : ''}`,
       ipAddress: req.ip
     });
-    res.json({ success: true, message: `已删除 ${result.affectedRows} 个文件`, data: { deleted: result.affectedRows } });
+    res.json({ success: true, message: `已删除 ${result.affectedRows} 个文件${rows.length - allowed.length > 0 ? `，跳过 ${rows.length - allowed.length} 个（无权限）` : ''}`, data: { deleted: result.affectedRows } });
   } catch (error) {
     console.error('批量删除文件失败:', error);
     res.status(500).json({ success: false, message: '批量删除文件失败' });
@@ -316,13 +321,9 @@ router.delete('/files/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: '文件不存在' });
     }
     const file = fileRows[0];
-    // 总经理/系统管理员（取 token 中的 roleName，而非用户名）可删除任意文件；
-    // 其余用户仅能删除自己上传的文件。
-    const roleName = req.user?.roleName || '';
-    const isGM = roleName === '总经理' || roleName === '系统管理员' || isBuiltinAdmin(username);
-    // 权限优化（#260）：除李智鑫(GM)外所有用户都不能删除文件，移除"上传者本人可删"逻辑
-    if (!isGM) {
-      return res.status(403).json({ success: false, message: '无权删除该文件' });
+    // 权限收紧：仅管理员白名单，或文件所属资料分类的创建人可删除
+    if (!(await canManageCategoryContent(pool, req, file.categoryId))) {
+      return res.status(403).json({ success: false, message: '仅分类创建人或管理员可删除该文件' });
     }
     await pool.execute('DELETE FROM files WHERE id = ?', [id]);
     await createOperationLog(pool, {

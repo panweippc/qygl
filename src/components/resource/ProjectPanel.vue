@@ -19,7 +19,7 @@
       <div v-if="visibleProjects.length === 0" class="empty-state">
         <span class="empty-icon">📦</span>
         <p>{{ all ? '暂无项目信息' : '该分类下暂无项目信息' }}</p>
-        <el-button type="primary" size="small" class="empty-cta" @click="openAddProject">在这里新增第一条项目信息</el-button>
+        <el-button v-if="canAddHere" type="primary" size="small" class="empty-cta" @click="openAddProject">在这里新增第一条项目信息</el-button>
       </div>
 
       <div v-for="project in visibleProjects" :key="project.id" class="project-item">
@@ -50,20 +50,20 @@
           </div>
         </div>
         <div class="project-actions">
-          <el-dropdown v-if="all || categoryId === null" trigger="click" @command="(name) => assignProject(project, name)">
+          <el-dropdown v-if="(all || categoryId === null) && assignableCategories.length > 0" trigger="click" @command="(name) => assignProject(project, name)">
             <el-button size="small" class="action-btn assign">
               <el-icon><FolderOpened /></el-icon>归入分类
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item v-for="c in categoryOptions" :key="c.id" :command="c.name">{{ c.name }}</el-dropdown-item>
+                <el-dropdown-item v-for="c in assignableCategories" :key="c.id" :command="c.name">{{ c.name }}</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <el-button v-if="isOwnerOrManager(project.applicant_name)" size="small" @click="editProject(project)" class="action-btn">
+          <el-button v-if="canManageProject(project)" size="small" @click="editProject(project)" class="action-btn">
             <el-icon><Edit /></el-icon>
           </el-button>
-          <el-button v-if="isOwnerOrManager(project.applicant_name)" size="small" @click="handleDeleteProject(project)" class="action-btn delete">
+          <el-button v-if="canManageProject(project)" size="small" @click="handleDeleteProject(project)" class="action-btn delete">
             <el-icon><Delete /></el-icon>
           </el-button>
         </div>
@@ -75,7 +75,7 @@
       <el-form :model="addForm" label-position="top">
         <el-form-item label="所属分类" v-if="categoryId === null">
           <el-select v-model="addForm.categoryName" placeholder="选择资料分类" style="width:100%">
-            <el-option v-for="c in categoryOptions" :key="c.id" :label="c.name" :value="c.name" />
+            <el-option v-for="c in assignableCategories" :key="c.id" :label="c.name" :value="c.name" />
           </el-select>
         </el-form-item>
         <el-form-item label="项目名称">
@@ -185,6 +185,8 @@ const props = defineProps<{
   categoryName: string
   /** true = 跨分类「全部」视图（忽略 categoryId，展示所有项目） */
   all?: boolean
+  /** 当前用户可管理的资料分类：'all'=管理员全权；否则为分类 id 列表（分类创建人） */
+  managed?: number[] | 'all'
 }>()
 
 const loading = ref(false)
@@ -192,9 +194,32 @@ const projects = ref<any[]>([])
 const categoryOptions = ref<{ id: number; name: string }[]>([])
 const userList = ref<{ id: number; name: string }[]>([])
 
-const { userName, isOwnerOrManager, refresh: refreshRole } = useRoleGuard()
+const { userName, refresh: refreshRole } = useRoleGuard()
 
 const currentUsername = computed(() => userName.value || '当前用户')
+
+// ===== 内容管理权限：分类创建人拥有该分类下项目信息的增删改权，管理员全权，其他成员只读 =====
+const isAdminAll = computed(() => props.managed === 'all')
+const managedList = computed<number[]>(() => (props.managed === 'all' ? [] : (props.managed || [])))
+// 项目按 category_name 字符串关联分类，经 categoryOptions 映射到 id 再比对权限
+const canManageProject = (project: any): boolean => {
+  if (isAdminAll.value) return true
+  const catId = categoryOptions.value.find(c => c.name === (project?.category_name || ''))?.id
+  if (catId === undefined) return false
+  return managedList.value.includes(catId)
+}
+// 新增项目入口：管理员恒可见；非管理员仅在自己管理的分类视图或「全部视图且有可管理分类」时可见
+const canAddHere = computed(() => {
+  if (isAdminAll.value) return true
+  if (props.all) return managedList.value.length > 0
+  if (props.categoryId === null) return false
+  return managedList.value.includes(props.categoryId)
+})
+// 归入分类下拉：非管理员仅可选自己创建的分类（移入未分类仅管理员）
+const assignableCategories = computed(() => {
+  if (isAdminAll.value) return categoryOptions.value
+  return categoryOptions.value.filter(c => managedList.value.includes(c.id))
+})
 
 const STATUS_OPTIONS = ['未开始', '进行中', '已完成', '已暂停', '已取消']
 

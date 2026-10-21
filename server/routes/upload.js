@@ -5,6 +5,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { createOperationLog, getOperator } from '../utils/audit.js';
+import { getResourceIdentity, getCategoryCreator } from '../utils/resourcePerm.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -198,8 +199,19 @@ router.post('/upload', upload.array('file', 10), async (req, res) => {
       return res.status(400).json({ success: false, message: '请选择文件' });
     }
     const { pool } = req.app.locals;
-    await ensureUploadSchema(pool);
+
+    // 资料中心权限收紧：非管理员仅可上传到自己创建的分类，未分类仅管理员可传
     const categoryId = req.body.categoryId || null;
+    const { admin, name: meName } = await getResourceIdentity(pool, req);
+    if (!admin) {
+      const creator = categoryId ? await getCategoryCreator(pool, categoryId) : '';
+      if (!creator || creator !== meName) {
+        files.forEach(f => { try { fs.unlinkSync(path.join(__dirname, '../../uploads', f.filename)); } catch (e) {} });
+        return res.status(403).json({ success: false, message: !categoryId ? '仅分类创建人或管理员可上传文件（请先选择自己创建的资料分类）' : '仅分类创建人或管理员可向该分类上传文件' });
+      }
+    }
+
+    await ensureUploadSchema(pool);
     const uploaderId = req.body.uploaderId ? parseInt(req.body.uploaderId) : null;
     // 上传人姓名：前端随当前登录用户自动带出（用户不手动选择），缺省回退到操作人
     const uploaderName = req.body.uploaderName || getOperator(req) || null;

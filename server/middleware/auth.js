@@ -4,7 +4,7 @@
 // 总经理权限统一通过 roles 表「总经理」角色授予（如李智鑫）。
 export const isBuiltinAdmin = (username) => typeof username === 'string' && (username === '管理员' || /^admin$/i.test(username));
 
-async function resolveIdentity(pool, req) {
+export async function resolveIdentity(pool, req) {
   let username = req.user?.username || req.user?.name || null;
   if (username && /^emp_/.test(username)) {
     const parts = String(username).split('_');

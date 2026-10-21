@@ -1,7 +1,7 @@
 <template>
   <div class="file-panel">
-    <!-- 上传区域 -->
-    <div class="upload-section">
+    <!-- 上传区域：仅分类创建人/管理员可见 -->
+    <div v-if="uploadVisible" class="upload-section">
       <div class="section-title">
         <span class="title-icon">
           <svg viewBox="0 0 24 24" fill="currentColor">
@@ -125,14 +125,14 @@
           <el-button size="small" type="primary">批量归入分类</el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item :command="-1">移出分类（未分类）</el-dropdown-item>
-              <el-dropdown-item v-for="c in categoryOptions" :key="c.id" :command="c.id">{{ c.name }}</el-dropdown-item>
+              <el-dropdown-item v-if="isAdminAll" :command="-1">移出分类（未分类）</el-dropdown-item>
+              <el-dropdown-item v-for="c in uploadableCategories" :key="c.id" :command="c.id">{{ c.name }}</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
         <el-button size="small" @click="selectAllInView">全选当前 {{ filteredFiles.length }} 项</el-button>
         <el-button size="small" @click="selectedIds = []">取消选择</el-button>
-        <el-button v-if="canDelete" size="small" type="danger" @click="handleBatchDelete">批量删除</el-button>
+        <el-button v-if="canBatchDelete" size="small" type="danger" @click="handleBatchDelete">批量删除</el-button>
       </div>
 
       <div v-loading="loading">
@@ -185,7 +185,7 @@
                   <el-button size="small" @click="downloadFile(file)" class="action-btn">
                     <el-icon><Download /></el-icon>下载
                   </el-button>
-                  <el-button v-if="canDelete" size="small" @click="deleteFile(file.id)" class="action-btn delete">
+                  <el-button v-if="canManageCatId(file.categoryId)" size="small" @click="deleteFile(file.id)" class="action-btn delete">
                     <el-icon><Delete /></el-icon>删除
                   </el-button>
                 </div>
@@ -253,6 +253,8 @@ const props = defineProps<{
   categoryName: string
   /** true = 跨分类「全部」视图（忽略 categoryId） */
   all?: boolean
+  /** 当前用户可管理的资料分类：'all'=管理员全权；否则为分类 id 列表（分类创建人） */
+  managed?: number[] | 'all'
 }>()
 
 // 上传人字段：仅管理员/审批权限用户可见（普通用户不上传人信息）
@@ -395,12 +397,14 @@ const currentUserName = (): string => {
     return u.name || u.username || localStorage.getItem('username') || ''
   } catch { return localStorage.getItem('username') || '' }
 }
-// 与后端 DELETE /files 口径保持一致（总经理/系统管理员/管理员/李智鑫）
-const canDelete = computed<boolean>(() => {
-  const name = currentUserName()
-  const role = localStorage.getItem('roleName') || localStorage.getItem('role') || ''
-  return name === '李智鑫' || name === '管理员' || name === '总经理' || role === '总经理' || role === '系统管理员'
-})
+// 与后端 DELETE /files 口径保持一致：管理员全权；分类创建人可管理自己分类下的文件；其他成员只读 + 下载
+const isAdminAll = computed(() => props.managed === 'all')
+const managedList = computed<number[]>(() => (props.managed === 'all' ? [] : (props.managed || [])))
+const canManageCatId = (catId: number | null): boolean => {
+  if (isAdminAll.value) return true
+  if (catId === null || catId === undefined) return false
+  return managedList.value.includes(Number(catId))
+}
 const uploadHeaders = computed(() => {
   const token = localStorage.getItem('token') || ''
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -408,6 +412,23 @@ const uploadHeaders = computed(() => {
 
 // ===== 上传目标分类 =====
 const uploadCategoryId = ref<number | null>(props.categoryId)
+// 上传区可见性：管理员恒可见；非管理员仅在有可管理分类时可见（目标分类下拉同样仅列自己创建的分类）
+const uploadVisible = computed(() => {
+  if (isAdminAll.value) return true
+  if (scope.value === 'category') return canManageCatId(props.categoryId)
+  return managedList.value.length > 0
+})
+// 上传/归入分类的目标下拉：非管理员仅列自己创建的分类
+const uploadableCategories = computed(() => {
+  if (isAdminAll.value) return categoryOptions.value
+  return categoryOptions.value.filter(c => managedList.value.includes(c.id))
+})
+// 批量删除仅当所有选中文件均在可管理分类下时展示（后端仍逐条校验，无权限条目跳过）
+const canBatchDelete = computed(() => {
+  if (selectedIds.value.length === 0) return false
+  const byId = new Map(files.value.map(f => f.id))
+  return selectedIds.value.every(id => canManageCatId(byId.get(id)?.categoryId ?? null))
+})
 const needPickUploadCategory = computed(() => scope.value !== 'category')
 const effectiveUploadCategoryId = computed(() => scope.value === 'category' ? props.categoryId : uploadCategoryId.value)
 const uploadTitle = computed(() =>
@@ -452,9 +473,10 @@ const loadCategories = async () => {
     const res = await getFileCategories()
     if (res.success) {
       categoryOptions.value = res.data
-      // 全部/未分类视图下默认选中第一个分类，避免用户上传时忘记选目标
-      if (scope.value !== 'category' && uploadCategoryId.value === null && res.data.length > 0) {
-        uploadCategoryId.value = res.data[0].id
+      // 全部/未分类视图下默认选中第一个「可管理」的分类，避免非管理员默认选到无权分类被 403
+      if (scope.value !== 'category' && uploadCategoryId.value === null) {
+        const first = uploadableCategories.value[0]
+        if (first) uploadCategoryId.value = first.id
       }
     }
   } catch { /* ignore */ }

@@ -12,7 +12,7 @@
       <div v-if="articles.length === 0" class="empty-state">
         <span class="empty-icon">📭</span>
         <p>{{ props.all ? '暂无文章' : '该分类下暂无文章' }}</p>
-        <el-button type="primary" size="small" class="empty-cta" @click="openNewArticle">在这里写第一篇文章</el-button>
+        <el-button v-if="canWriteHere" type="primary" size="small" class="empty-cta" @click="openNewArticle">在这里写第一篇文章</el-button>
       </div>
       <div v-for="article in articles" :key="article.id" class="article-card" @click="openArticle(article)">
         <div class="article-header">
@@ -22,8 +22,8 @@
           </div>
           <div class="article-actions" @click.stop>
             <el-tag size="small" class="cat-tag">{{ article.categoryName || '未分类' }}</el-tag>
-            <el-button v-if="isOwnerOrManager(article.author)" text size="small" @click.stop="editArticle(article)">✏️</el-button>
-            <el-popconfirm v-if="isOwnerOrManager(article.author)" title="确定删除此文章？" confirm-button-text="删除" @confirm="deleteArticle(article.id)">
+            <el-button v-if="canManageArticle(article)" text size="small" @click.stop="editArticle(article)">✏️</el-button>
+            <el-popconfirm v-if="canManageArticle(article)" title="确定删除此文章？" confirm-button-text="删除" @confirm="deleteArticle(article.id)">
               <template #reference>
                 <el-button text size="small" type="danger">🗑️</el-button>
               </template>
@@ -203,9 +203,29 @@ const props = defineProps<{
   categoryName: string
   /** true = 跨分类「全部」视图（忽略 categoryId，展示所有文章） */
   all?: boolean
+  /** 当前用户可管理的资料分类：'all'=管理员全权；否则为分类 id 列表（分类创建人） */
+  managed?: number[] | 'all'
 }>()
 
-const { isOwnerOrManager, isManager, refresh: refreshRole } = useRoleGuard()
+const { isManager, refresh: refreshRole } = useRoleGuard()
+
+// ===== 内容管理权限：分类创建人拥有该分类下文章的增删改权，管理员全权，其他成员只读 + 下载 =====
+const isAdminAll = computed(() => props.managed === 'all')
+const managedList = computed<number[]>(() => (props.managed === 'all' ? [] : (props.managed || [])))
+const canManageCatId = (catId: number | null): boolean => {
+  if (isAdminAll.value) return true
+  if (catId === null || catId === undefined) return false
+  return managedList.value.includes(Number(catId))
+}
+// 文章编辑/删除：按文章所属资料分类判断（后端同口径），不再按作者判断
+const canManageArticle = (article: any): boolean => canManageCatId(article?.resourceCategoryId ?? null)
+// 写文章入口：管理员恒可见；非管理员仅在「自己创建的分类视图」或「全部视图且有可管理分类」时可见
+const canWriteHere = computed(() => {
+  if (isAdminAll.value) return true
+  if (props.all) return managedList.value.length > 0
+  if (props.categoryId === null) return false
+  return canManageCatId(props.categoryId)
+})
 const loading = ref(false)
 const saving = ref(false)
 
@@ -280,6 +300,12 @@ const fetchCategories = async () => {
 const fetchUnifiedCategories = async () => {
   try { const res = await getFileCategories(); if (res.success) unifiedCategories.value = res.data } catch { /* ignore */ }
 }
+
+// 写文章弹窗的分类下拉：非管理员仅可选自己创建的分类
+const selectableUnifiedCategories = computed(() => {
+  if (isAdminAll.value) return unifiedCategories.value
+  return unifiedCategories.value.filter(c => managedList.value.includes(c.id))
+})
 
 const fetchArticles = async () => {
   loading.value = true

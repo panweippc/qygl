@@ -1,14 +1,18 @@
 import express from 'express';
 import { requireRole, requireOwnerOrRole } from '../middleware/auth.js';
+import { getResourceIdentity, getCategoryCreator, canManageCategoryContent } from '../utils/resourcePerm.js';
 import { getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
 const MANAGER_ROLES = ['系统管理员', '总经理', '技术部经理', '销售部经理', '财务总监'];
 
-// 供「创建人本人或管理员」校验使用：取文章的 author 字段
-const getArticleAuthor = async (pool, req) => {
-  const [rows] = await pool.execute('SELECT author FROM knowledge_articles WHERE id = ?', [req.params.id]);
-  return rows.length > 0 ? rows[0].author : null;
+// 供「分类创建人本人或管理员」校验使用：取文章所属资料分类的创建人（createdBy）
+const getArticleCategoryCreator = async (pool, req) => {
+  const [rows] = await pool.execute(
+    'SELECT fc.createdBy AS creator FROM knowledge_articles ka LEFT JOIN file_categories fc ON fc.id = ka.resourceCategoryId WHERE ka.id = ?',
+    [req.params.id]
+  );
+  return rows.length > 0 ? (rows[0].creator || null) : null;
 };
 
 async function getUserRole(pool, username) {
@@ -184,16 +188,22 @@ router.get('/knowledge/articles/:id', async (req, res) => {
   }
 });
 
-// 创建文章（所有可登录用户均可投稿，权限由全局 requireAuth 保证）
+// 创建文章（权限收紧：非管理员仅可在自己创建的资料分类下写文章，未分类仅管理员；上传人强制为当前用户，防伪造）
 router.post('/knowledge/articles', async (req, res) => {
   const { pool } = req.app.locals;
   const { categoryId, resourceCategoryId, title, content, summary, author, tags, sort, files, permission_type, permission_targets } = req.body;
   if (!title) return res.status(400).json({ success: false, message: '文章标题不能为空' });
   try {
+    if (!(await canManageCategoryContent(pool, req, resourceCategoryId || null))) {
+      return res.status(403).json({ success: false, message: !resourceCategoryId ? '仅分类创建人或管理员可发布文章（请选择自己创建的资料分类）' : '仅分类创建人或管理员可在该分类下发布文章' });
+    }
+    const { admin, name: meName } = await getResourceIdentity(pool, req);
+    // 上传人取登录态真实姓名，非管理员不可代填他人
+    const safeAuthor = admin ? (author || meName || '') : (meName || '');
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const [result] = await pool.execute(
       'INSERT INTO knowledge_articles (categoryId, resourceCategoryId, title, content, files, permission_type, permission_targets, summary, author, tags, sort, status, views, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [categoryId || null, resourceCategoryId || null, title, content || '', JSON.stringify(files || []), permission_type || 'public', permission_targets || null, summary || '', author || '', tags || '', sort || 0, 'published', 0, now, now]
+      [categoryId || null, resourceCategoryId || null, title, content || '', JSON.stringify(files || []), permission_type || 'public', permission_targets || null, summary || '', safeAuthor, tags || '', sort || 0, 'published', 0, now, now]
     );
     res.json({ success: true, message: '文章创建成功', data: { id: result.insertId } });
   } catch (error) {
@@ -202,12 +212,16 @@ router.post('/knowledge/articles', async (req, res) => {
   }
 });
 
-// 更新文章（创建人本人或管理员）
-router.put('/knowledge/articles/:id', requireOwnerOrRole(getArticleAuthor, ...MANAGER_ROLES), async (req, res) => {
+// 更新文章（权限收紧：文章所属资料分类的创建人本人或管理员）
+router.put('/knowledge/articles/:id', requireOwnerOrRole(getArticleCategoryCreator, ...MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   const { categoryId, resourceCategoryId, title, content, summary, author, tags, sort, files, permission_type, permission_targets } = req.body;
   try {
+    // 目标分类也需有管理权（防止把文章挪进无权分类 / 从有权分类挪出后失控）
+    if (!(await canManageCategoryContent(pool, req, resourceCategoryId || null))) {
+      return res.status(403).json({ success: false, message: '仅分类创建人或管理员可将文章归入该分类' });
+    }
     const beforeValue = await getRecordBefore(pool, 'knowledge_articles', id, { categoryId: 1, resourceCategoryId: 1, title: 1, content: 1, permission_type: 1, summary: 1, author: 1, tags: 1, sort: 1 });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await pool.execute(
@@ -225,8 +239,8 @@ router.put('/knowledge/articles/:id', requireOwnerOrRole(getArticleAuthor, ...MA
   }
 });
 
-// 删除文章（创建人本人或管理员）
-router.delete('/knowledge/articles/:id', requireOwnerOrRole(getArticleAuthor, ...MANAGER_ROLES), async (req, res) => {
+// 删除文章（权限收紧：文章所属资料分类的创建人本人或管理员）
+router.delete('/knowledge/articles/:id', requireOwnerOrRole(getArticleCategoryCreator, ...MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   try {

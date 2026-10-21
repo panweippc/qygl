@@ -69,20 +69,7 @@
             </div>
           </div>
 
-          <!-- 未分类桶 -->
-          <div
-            class="cat-node uncat"
-            :class="{ active: selected.id === null, dim: uncategorizedCount === 0 }"
-            @click="selectCategory(null, '未分类')"
-          >
-            <div class="cat-node-main">
-              <span class="cat-dot uncat-dot"></span>
-              <span class="cat-node-name">未分类</span>
-            </div>
-            <div class="cat-node-counts">
-              <span :class="{ zero: uncategorizedCount === 0 }">{{ countIcon }} {{ uncategorizedCount }}</span>
-            </div>
-          </div>
+          <!-- 未分类桶已按需求移除：内容统一归入资料分类，「全部」视图仍可见未归属数据 -->
         </div>
         <div v-if="stats.categories.length === 0" class="cat-empty">
           暂无分类，点击右上角「管理分类」创建
@@ -146,9 +133,9 @@
           </nav>
 
           <div class="rc-content">
-            <FilePanel v-if="activeSegment === 'files'" :all="scope === 'all'" :categoryId="scope === 'category' ? (selected.id as number) : null" :categoryName="selected.name" />
-            <ArticlePanel v-else-if="activeSegment === 'articles'" :all="scope === 'all'" :categoryId="scope === 'category' ? (selected.id as number) : null" :categoryName="selected.name" />
-            <ProjectPanel v-else-if="activeSegment === 'projects'" :all="scope === 'all'" :categoryId="scope === 'category' ? (selected.id as number) : null" :categoryName="selected.name" />
+            <FilePanel v-if="activeSegment === 'files'" :all="scope === 'all'" :categoryId="scope === 'category' ? (selected.id as number) : null" :categoryName="selected.name" :managed="managedCats" />
+            <ArticlePanel v-else-if="activeSegment === 'articles'" :all="scope === 'all'" :categoryId="scope === 'category' ? (selected.id as number) : null" :categoryName="selected.name" :managed="managedCats" />
+            <ProjectPanel v-else-if="activeSegment === 'projects'" :all="scope === 'all'" :categoryId="scope === 'category' ? (selected.id as number) : null" :categoryName="selected.name" :managed="managedCats" />
             <div v-else class="rc-no-segment">当前账号无资料中心访问权限</div>
           </div>
         </template>
@@ -244,8 +231,15 @@ const uncategorizedCount = computed(() => {
 // 分类管理权限：仅创建人或管理员（与后端 requireOwnerOrRole 口径一致）可见编辑/删除按钮
 const currentUser = (localStorage.getItem('username') || '').trim()
 const categoryRole = (localStorage.getItem('role') || localStorage.getItem('roleName') || '').trim()
-const isCategoryManager = ['系统管理员', '总经理', '技术部经理', '销售部经理', '财务总监'].includes(categoryRole)
+const isCategoryManager = ['系统管理员', '总经理', '技术部经理', '销售部经理', '财务总监', 'admin'].includes(categoryRole)
 const canManageCategory = (cat: CategoryStat): boolean => isCategoryManager || (cat.createdBy || '') === currentUser
+
+// 内容管理权限：分类创建人拥有该分类下文件/文章/项目信息的增删改权，管理员全权，其他成员只读
+// 下发 'all'（管理员）或可管理分类 id 列表给三个面板
+const managedCats = computed<number[] | 'all'>(() => {
+  if (isCategoryManager) return 'all'
+  return stats.value.categories.filter(c => (c.createdBy || '') === currentUser).map(c => c.id)
+})
 
 const showAddCatDialog = ref(false)
 const newCat = ref({ name: '', description: '' })
@@ -258,9 +252,9 @@ const loadCategories = async () => {
     const res = await getResourceCenterCategories()
     if (res.success && res.data) stats.value = res.data
   } catch (e) { console.error('加载资料分类失败:', e) }
-  // 若当前选中分类已不存在，回退到 未分类
+  // 若当前选中分类已不存在，回退到 全部
   if (typeof selected.value.id === 'number' && !stats.value.categories.some(c => c.id === selected.value.id)) {
-    selected.value = { id: null, name: '未分类' }
+    selectAll()
   }
 }
 
@@ -295,7 +289,7 @@ const removeCategory = async (cat: CategoryStat) => {
     const res = await deleteFileCategory(cat.id)
     if (res.success) {
       await loadCategories()
-      if (selected.value.id === cat.id) selected.value = { id: null, name: '未分类' }
+      if (selected.value.id === cat.id) selectAll()
       ElMessage.success('分类已删除')
     } else ElMessage.error(res.message || '删除分类失败')
   } catch (e: any) {
@@ -368,7 +362,7 @@ const openSearchArticle = (a: any) => {
     const cat = stats.value.categories.find(c => c.name === name)!
     selectCategory(cat.id, cat.name)
   } else {
-    selectCategory(null, '未分类')
+    selectAll()
   }
   activeSegment.value = 'articles'
 }

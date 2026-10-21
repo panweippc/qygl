@@ -2,15 +2,19 @@ import express from 'express';
 import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 import { getRealName } from '../utils/identity.js';
 import { requireOwnerOrRole } from '../middleware/auth.js';
+import { canManageCategoryContentByName } from '../utils/resourcePerm.js';
 const router = express.Router();
 
 // 与 knowledge.js 保持同一套管理员白名单口径
 const MANAGER_ROLES = ['系统管理员', '总经理', '技术部经理', '销售部经理', '财务总监'];
 
-// 供「创建人本人或管理员」校验使用：取分类项目的 applicant_name 字段
-const getCategoryProjectOwner = async (pool, req) => {
-  const [rows] = await pool.execute('SELECT applicant_name FROM category_projects WHERE id = ?', [req.params.id]);
-  return rows.length > 0 ? rows[0].applicant_name : null;
+// 供「分类创建人本人或管理员」校验使用：项目按 category_name 关联资料分类，取该分类的创建人
+const getCategoryProjectCategoryCreator = async (pool, req) => {
+  const [rows] = await pool.execute(
+    'SELECT fc.createdBy AS creator FROM category_projects cp LEFT JOIN file_categories fc ON fc.name = cp.category_name WHERE cp.id = ?',
+    [req.params.id]
+  );
+  return rows.length > 0 ? (rows[0].creator || null) : null;
 };
 
 router.get('/project-categories', async (req, res) => {
@@ -249,7 +253,7 @@ router.get('/project-categories/projects', async (req, res) => {
   }
 });
 
-// 新增分类下的项目（不写 project_applications，不进 OA 审批流）
+// 新增分类下的项目（不写 project_applications，不进 OA 审批流；权限收紧：非管理员仅可在自己创建的分类下新增）
 router.post('/project-categories/projects', async (req, res) => {
   const { pool } = req.app.locals;
   const { categoryId, categoryName, projectName, description, link, manager, status, progress, startDate, endDate } = req.body;
@@ -257,6 +261,10 @@ router.post('/project-categories/projects', async (req, res) => {
     await ensureCategoryProjectsTable(pool);
     if (!projectName || !categoryName) {
       return res.status(400).json({ success: false, message: '缺少项目名或分类名' });
+    }
+    // 权限收紧：目标分类的创建人或管理员才可新增项目（未分类不允许）
+    if (!(await canManageCategoryContentByName(pool, req, categoryName))) {
+      return res.status(403).json({ success: false, message: '仅分类创建人或管理员可在该分类下新增项目' });
     }
     const applicant = getRealName(req) || '';
     // 负责人：支持多选（数组），逗号拼接存储；未选时默认当前登录用户（保持历史行为）
@@ -281,8 +289,8 @@ router.post('/project-categories/projects', async (req, res) => {
   }
 });
 
-// 编辑分类下的项目（创建人本人或管理员）
-router.put('/project-categories/projects/:id', requireOwnerOrRole(getCategoryProjectOwner, ...MANAGER_ROLES), async (req, res) => {
+// 编辑分类下的项目（权限收紧：项目所属资料分类的创建人本人或管理员）
+router.put('/project-categories/projects/:id', requireOwnerOrRole(getCategoryProjectCategoryCreator, ...MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   const { projectName, description, link, manager, status, progress, startDate, endDate } = req.body;
@@ -320,7 +328,7 @@ router.put('/project-categories/projects/:id', requireOwnerOrRole(getCategoryPro
   }
 });
 
-// 将项目重新归入其它资料分类（用于「未分类」项目整理）
+// 将项目重新归入其它资料分类（用于「未分类」项目整理；权限收紧：目标分类创建人或管理员）
 router.put('/project-categories/projects/:id/category', async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
@@ -328,6 +336,9 @@ router.put('/project-categories/projects/:id/category', async (req, res) => {
   try {
     await ensureCategoryProjectsTable(pool);
     if (!categoryName) return res.status(400).json({ success: false, message: '缺少分类名' });
+    if (!(await canManageCategoryContentByName(pool, req, categoryName))) {
+      return res.status(403).json({ success: false, message: '仅分类创建人或管理员可将项目归入该分类' });
+    }
     await pool.execute('UPDATE category_projects SET category_id = ?, category_name = ? WHERE id = ?', [categoryId || 0, categoryName, id]);
     res.json({ success: true, message: '已归入分类' });
   } catch (error) {
@@ -336,8 +347,8 @@ router.put('/project-categories/projects/:id/category', async (req, res) => {
   }
 });
 
-// 删除分类下的项目（创建人本人或管理员）
-router.delete('/project-categories/projects/:id', requireOwnerOrRole(getCategoryProjectOwner, ...MANAGER_ROLES), async (req, res) => {
+// 删除分类下的项目（权限收紧：项目所属资料分类的创建人本人或管理员）
+router.delete('/project-categories/projects/:id', requireOwnerOrRole(getCategoryProjectCategoryCreator, ...MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   try {
