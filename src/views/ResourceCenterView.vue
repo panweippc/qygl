@@ -57,10 +57,10 @@
             <div class="cat-node-main">
               <span class="cat-dot"></span>
               <span class="cat-node-name">{{ cat.name }}</span>
-              <el-button text size="small" class="cat-edit-btn" title="编辑分类" @click.stop="editCategory(cat)">
+              <el-button v-if="canManageCategory(cat)" text size="small" class="cat-edit-btn" title="编辑分类" @click.stop="editCategory(cat)">
                 <el-icon><Edit /></el-icon>
               </el-button>
-              <el-button v-if="canDeleteCategory(cat)" text size="small" class="cat-del-btn" title="删除分类" @click.stop="removeCategory(cat)">
+              <el-button v-if="canManageCategory(cat)" text size="small" class="cat-del-btn" title="删除分类" @click.stop="removeCategory(cat)">
                 <el-icon><Delete /></el-icon>
               </el-button>
             </div>
@@ -241,11 +241,11 @@ const uncategorizedCount = computed(() => {
   return Number((stats.value.uncategorized as unknown as Record<string, unknown>)[meta.key] || 0)
 })
 
-// 分类删除权限：仅创建人或管理员（与后端 requireOwnerOrRole 口径一致）可见删除按钮
+// 分类管理权限：仅创建人或管理员（与后端 requireOwnerOrRole 口径一致）可见编辑/删除按钮
 const currentUser = (localStorage.getItem('username') || '').trim()
 const categoryRole = (localStorage.getItem('role') || localStorage.getItem('roleName') || '').trim()
 const isCategoryManager = ['系统管理员', '总经理', '技术部经理', '销售部经理', '财务总监'].includes(categoryRole)
-const canDeleteCategory = (cat: CategoryStat): boolean => isCategoryManager || (cat.createdBy || '') === currentUser
+const canManageCategory = (cat: CategoryStat): boolean => isCategoryManager || (cat.createdBy || '') === currentUser
 
 const showAddCatDialog = ref(false)
 const newCat = ref({ name: '', description: '' })

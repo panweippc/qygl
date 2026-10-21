@@ -81,8 +81,8 @@ router.delete('/file-categories/:id', requireOwnerOrRole(getCategoryOwner, ...CA
   }
 });
 
-// 编辑文件分类（所有登录用户均可管理分类；改名时同步更新项目信息按分类名关联的行，避免项目掉入「未分类」）
-router.put('/file-categories/:id', requireRole(), async (req, res) => {
+// 编辑文件分类（仅创建人本人或管理员可编辑；改名时同步更新项目信息按分类名关联的行，避免项目掉入「未分类」）
+router.put('/file-categories/:id', requireOwnerOrRole(getCategoryOwner, ...CATEGORY_MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   const { name, description } = req.body;
