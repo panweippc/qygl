@@ -61,7 +61,7 @@
                 <el-button text size="small" @click="openEdit(row)">编辑</el-button>
                 <el-button text size="small" @click="toggleTop(row)">{{ row.is_top ? '取消置顶' : '置顶' }}</el-button>
                 <el-button text size="small" @click="toggleStatus(row)">{{ row.status === '已发布' ? '转为草稿' : '发布' }}</el-button>
-                <el-button text size="small" type="danger" @click="remove(row)">删除</el-button>
+                <el-button v-if="row.publisher === currentUserRealName" text size="small" type="danger" @click="remove(row)">删除</el-button>
               </div>
             </template>
           </el-table-column>
@@ -81,8 +81,8 @@
 
       <el-dialog v-model="editVisible" :title="form.id ? '编辑公告' : '新增公告'" width="640px" align-center destroy-on-close>
         <div class="am-dialog-body">
-          <el-form :model="form" label-width="90px">
-            <el-form-item label="标题" required>
+          <el-form :model="form" :rules="formRules" label-width="90px">
+            <el-form-item label="标题" prop="title">
               <el-input v-model="form.title" maxlength="200" show-word-limit placeholder="如：关于2026年国庆节放假安排的通知" />
             </el-form-item>
             <el-form-item label="分类">
@@ -148,10 +148,14 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { extractRealName } from '../utils/oaWorkflowUtils'
 import PageHeaderBar from '../components/PageHeaderBar.vue'
 
 const route = useRoute()
 const CATEGORIES = ['公司公告', '人事通知', '行政通知', '制度规范', '活动资讯']
+
+// 当前登录用户真实姓名（登录态 username 恒为姓名）：仅发布人可见「删除」按钮，与后端口径一致
+const currentUserRealName = extractRealName(localStorage.getItem('username') || '')
 
 const list = ref<any[]>([])
 const total = ref(0)
@@ -164,6 +168,8 @@ const filter = ref({ keyword: '', status: '', category: '' })
 
 const emptyForm = () => ({ id: null as number | null, title: '', content: '', category: '公司公告', priority: '普通', status: '已发布', is_top: false, publish_at: '', attachments: [] as any[] })
 const form = ref<any>(emptyForm())
+// 标题校验规则（中文提示，失焦触发；避免 el-form-item 裸 required 产生英文「is required」报错）
+const formRules = { title: [{ required: true, message: '请填写公告标题', trigger: 'blur' }] }
 
 /** 级别 → el-tag 类型（el-tag 无 primary，普通用默认蓝色） */
 function levelTag(p?: string) {
@@ -177,7 +183,8 @@ const headers = () => ({ 'Content-Type': 'application/json', Authorization: `Bea
 
 // ===== 附件上传（复用项目统一 /api/upload 通道） =====
 const uploadUrl = '/api/upload'
-const uploadHeaders = () => ({ Authorization: `Bearer ${token()}` })
+// el-upload 的 headers 期望对象而非函数：函数会被忽略导致请求不带 Authorization 而 401，故用计算属性
+const uploadHeaders = computed(() => ({ Authorization: `Bearer ${token()}` }))
 // el-upload 的 file-list 仅需 name/url；存储结构用 form.attachments（{name,url,size,ext,mime,group}）
 const attachFileList = computed(() => (form.value.attachments || []).map((a: any) => ({ name: a.name, url: a.url })))
 function onUploadSuccess(response: any) {

@@ -359,14 +359,19 @@ router.put('/announcements/:id', requireAnnounceAdmin, async (req, res) => {
   }
 });
 
-// 删除（软删，与 OA 模块一致的 is_deleted 口径）
+// 删除（软删，与 OA 模块一致的 is_deleted 口径）；仅发布人本人可删，其余（含管理员）返回 403
 router.delete('/announcements/:id', requireAnnounceAdmin, async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
   try {
     await ensureAnnouncementsSchema(pool);
-    const [rows] = await pool.execute('SELECT title FROM announcements WHERE id = ? AND is_deleted = 0 LIMIT 1', [id]);
+    const [rows] = await pool.execute('SELECT title, publisher FROM announcements WHERE id = ? AND is_deleted = 0 LIMIT 1', [id]);
     if (rows.length === 0) return res.status(404).json({ success: false, message: '公告不存在' });
+    const publisher = cleanText(rows[0].publisher).trim();
+    const operator = cleanText(getOperator(req)).trim();
+    if (!publisher || publisher !== operator) {
+      return res.status(403).json({ success: false, message: '仅发布人本人可删除该公告' });
+    }
     await pool.execute('UPDATE announcements SET is_deleted = 1, updated_at = ? WHERE id = ?', [now(), id]);
     createOperationLog(pool, {
       username: getOperator(req), action: 'delete', module: 'announcement',
