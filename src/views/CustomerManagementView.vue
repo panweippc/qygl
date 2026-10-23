@@ -3,20 +3,54 @@
     <header class="page-header">
       <h2>客户管理</h2>
       <div class="header-actions">
-        <el-input v-model="searchQuery" placeholder="搜索客户名称/联系人/电话" clearable style="width:260px" @clear="loadCustomers" @keyup.enter="loadCustomers" />
+        <el-input v-model="searchQuery" placeholder="搜索客户名称/联系人/电话" clearable style="width:240px" @clear="loadCustomers" @keyup.enter="loadCustomers" />
+        <el-select v-model="tagFilter" placeholder="标签筛选" clearable style="width:140px" @change="loadCustomers">
+          <el-option label="全部标签" value="" />
+          <el-option v-for="t in tagOptions" :key="t" :label="t" :value="t" />
+        </el-select>
+        <el-select v-model="poolFilter" placeholder="公海/私海" style="width:140px" @change="loadCustomers">
+          <el-option label="全部" value="" />
+          <el-option label="公海" value="public" />
+          <el-option label="私海" value="private" />
+          <el-option label="我的私海" value="mine" />
+        </el-select>
+        <el-button @click="downloadTemplate">下载模板</el-button>
+        <el-button @click="triggerImport">导入 Excel</el-button>
+        <input ref="fileInput" type="file" accept=".xlsx,.xls" style="display:none" @change="onImportFile" />
+        <el-button type="success" @click="exportCustomers">导出 Excel</el-button>
         <el-button type="primary" v-if="hasPerm('btn_add')" @click="openAddDialog">+ 新增客户</el-button>
       </div>
     </header>
 
+    <el-alert v-if="reminders.length" type="warning" :closable="true" class="reminder-banner" show-icon>
+      <template #title>
+        有 {{ reminders.length }} 个客户跟进{{ reminders.some(r => r.overdue) ? '已超期' : '即将到期' }}：
+        <span v-for="r in reminders.slice(0,5)" :key="r.id" class="reminder-item" @click="openByName(r.name)">{{ r.name }}({{ r.overdue ? '超期' : '临近' }})</span>
+        <span v-if="reminders.length > 5"> 等</span>
+      </template>
+    </el-alert>
+
     <el-table :data="customers" v-loading="loading" stripe style="width:100%" @row-click="openDetail">
       <el-table-column prop="name" label="客户名称" min-width="160" />
-      <el-table-column prop="contact" label="联系人" width="120" />
+      <el-table-column prop="contact" label="联系人" width="110" />
       <el-table-column prop="phone" label="联系电话" width="140" />
       <el-table-column prop="email" label="邮箱" width="180" />
-      <el-table-column prop="address" label="地址" min-width="200" show-overflow-tooltip />
-      <el-table-column prop="tags" label="标签" width="140">
+      <el-table-column prop="address" label="地址" min-width="180" show-overflow-tooltip />
+      <el-table-column prop="tags" label="标签" width="150">
         <template #default="{ row }">
           <el-tag v-for="t in (row.tags || '').split(',').filter(Boolean)" :key="t" size="small" style="margin:1px">{{ t }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="owner" label="负责人" width="100" />
+      <el-table-column prop="pool_status" label="公海/私海" width="90">
+        <template #default="{ row }">
+          <el-tag :type="row.pool_status === 'public' ? 'info' : 'success'" size="small">{{ row.pool_status === 'public' ? '公海' : '私海' }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="next_followup_at" label="下次跟进" width="170">
+        <template #default="{ row }">
+          <span v-if="row.next_followup_at" :class="{ 'overdue-text': isOverdue(row.next_followup_at) }">{{ formatDate(row.next_followup_at) }}</span>
+          <span v-else class="muted">—</span>
         </template>
       </el-table-column>
       <el-table-column prop="status" label="状态" width="90">
@@ -27,8 +61,11 @@
       <el-table-column prop="createdAt" label="创建时间" width="160">
         <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="120" fixed="right">
+      <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
+          <el-button text size="small" v-if="row.pool_status === 'public'" @click.stop="claim(row)">认领</el-button>
+          <el-button text size="small" v-if="row.pool_status === 'private' && (row.owner === currentUser || isManager)" @click.stop="release(row)">释放</el-button>
+          <el-button text size="small" v-if="isManager" @click.stop="assign(row)">分配</el-button>
           <el-button text size="small" v-if="hasPerm('btn_edit')" @click.stop="openEdit(row)">编辑</el-button>
           <el-popconfirm v-if="hasPerm('btn_delete')" title="确定删除此客户？" @confirm.stop="deleteCustomer(row.id)">
             <template #reference>
@@ -43,7 +80,7 @@
       <el-pagination v-model:current-page="currentPage" :page-size="pageSize" :total="total" layout="prev, pager, next" @current-change="loadCustomers" />
     </div>
 
-    <el-dialog v-model="showForm" :title="editingId ? '编辑客户' : '新增客户'" width="520px" :close-on-click-modal="false">
+    <el-dialog v-model="showForm" :title="editingId ? '编辑客户' : '新增客户'" width="540px" :close-on-click-modal="false">
       <el-form ref="formRef" :model="form" label-width="100px" :rules="rules">
         <el-form-item label="客户名称" prop="name"><el-input v-model="form.name" /></el-form-item>
         <el-form-item label="联系人" prop="contact"><el-input v-model="form.contact" /></el-form-item>
@@ -59,6 +96,18 @@
             <el-option label="流失" value="流失" />
           </el-select>
         </el-form-item>
+        <el-form-item label="公海/私海">
+          <el-select v-model="form.pool_status">
+            <el-option label="私海" value="private" />
+            <el-option label="公海" value="public" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="负责人" v-if="form.pool_status === 'private'">
+          <el-input v-model="form.owner" :placeholder="editingId ? '留空则保持原负责人' : '留空则默认当前用户'" />
+        </el-form-item>
+        <el-form-item label="下次跟进">
+          <el-date-picker v-model="form.next_followup_at" type="datetime" placeholder="设置跟进时间" value-format="YYYY-MM-DD HH:mm:ss" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showForm = false">取消</el-button>
@@ -66,7 +115,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showDetail" title="客户详情" width="700px" :close-on-click-modal="false">
+    <el-dialog v-model="showDetail" title="客户详情" width="720px" :close-on-click-modal="false">
       <template v-if="detail">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="客户名称" span="2">{{ detail.name }}</el-descriptions-item>
@@ -80,14 +129,26 @@
           <el-descriptions-item label="状态">
             <el-tag :type="detail.status === '活跃' ? 'success' : detail.status === '意向' ? 'warning' : 'info'" size="small">{{ detail.status }}</el-tag>
           </el-descriptions-item>
+          <el-descriptions-item label="负责人">{{ detail.owner || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="公海/私海">
+            <el-tag :type="detail.pool_status === 'public' ? 'info' : 'success'" size="small">{{ detail.pool_status === 'public' ? '公海' : '私海' }}</el-tag>
+          </el-descriptions-item>
           <el-descriptions-item label="来源">
             <el-tag v-if="detail.source === '销售漏斗'" type="primary" size="small">销售漏斗</el-tag>
+            <el-tag v-else-if="detail.source === '导入'" type="warning" size="small">导入</el-tag>
             <el-tag v-else type="info" size="small">手动录入</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ formatDate(detail.createdAt) }}</el-descriptions-item>
         </el-descriptions>
 
-        <!-- 关联销售漏斗（双向关联）：展示该客户在销售漏斗中的意向/重点/成交记录 -->
+        <div class="followup-box">
+          <span class="followup-label">下次跟进时间：</span>
+          <span v-if="detail.next_followup_at" :class="{ 'overdue-text': isOverdue(detail.next_followup_at) }">{{ formatDate(detail.next_followup_at) }}</span>
+          <span v-else class="muted">未设置</span>
+          <el-date-picker v-model="followupInput" type="datetime" size="small" placeholder="设置/修改" value-format="YYYY-MM-DD HH:mm:ss" style="margin-left:8px" />
+          <el-button size="small" type="primary" @click="saveFollowup">保存</el-button>
+        </div>
+
         <div v-if="linkedFunnel.length" class="linked-funnel">
           <h3 style="margin:16px 0 12px">关联销售漏斗（{{ linkedFunnel.length }}）</h3>
           <el-table :data="linkedFunnel" border size="small" style="margin-bottom:8px">
@@ -139,7 +200,7 @@
             </el-select>
           </el-form-item>
           <el-form-item label="跟进时间">
-            <el-date-picker v-model="activityForm.followUpTime" type="datetime" placeholder="选择跟进时间" />
+            <el-date-picker v-model="activityForm.followUpTime" type="datetime" placeholder="选择跟进时间" value-format="YYYY-MM-DD HH:mm:ss" />
           </el-form-item>
           <el-form-item label="跟进内容">
             <el-input v-model="activityForm.content" type="textarea" :rows="3" />
@@ -154,7 +215,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useButtonPermission } from '@/composables/usePermission'
@@ -169,6 +230,9 @@ const currentPage = ref(1)
 const pageSize = 20
 const route = useRoute()
 const searchQuery = ref('')
+const tagFilter = ref('')
+const poolFilter = ref('')
+const tagOptions = ref<string[]>([])
 const showForm = ref(false)
 const editingId = ref<number | null>(null)
 const showDetail = ref(false)
@@ -176,8 +240,14 @@ const detail = ref<any>(null)
 const activities = ref<any[]>([])
 const activitiesLoading = ref(false)
 const linkedFunnel = ref<any[]>([])
+const followupInput = ref('')
+const reminders = ref<any[]>([])
+const fileInput = ref<HTMLInputElement | null>(null)
 
-const form = ref({ name: '', contact: '', phone: '', email: '', address: '', tags: '', status: '活跃' })
+const currentUser = (localStorage.getItem('username') || '') as string
+const isManager = /经理|管理员|GM|admin/i.test(localStorage.getItem('role') || '')
+
+const form = ref({ name: '', contact: '', phone: '', email: '', address: '', tags: '', status: '活跃', pool_status: 'private', owner: '', next_followup_at: '' })
 
 const rules = {
   name: [{ required: true, message: '请输入客户名称' }],
@@ -194,12 +264,24 @@ const formatDate = (d: string) => {
   return date.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
+const isOverdue = (d: string) => {
+  if (!d) return false
+  return new Date(d).getTime() < Date.now()
+}
+
+const buildParams = () => {
+  const params = new URLSearchParams({ page: String(currentPage.value), pageSize: String(pageSize) })
+  if (searchQuery.value.trim()) params.set('keyword', searchQuery.value.trim())
+  if (tagFilter.value) params.set('tag', tagFilter.value)
+  if (poolFilter.value === 'mine') { params.set('pool', 'private'); params.set('owner', currentUser) }
+  else if (poolFilter.value) params.set('pool', poolFilter.value)
+  return params.toString()
+}
+
 const loadCustomers = async () => {
   loading.value = true
   try {
-    const params = new URLSearchParams({ page: String(currentPage.value), pageSize: String(pageSize) })
-    if (searchQuery.value.trim()) params.set('keyword', searchQuery.value.trim())
-    const res = await fetch('/api/customers?' + params.toString()).then(r => r.json())
+    const res = await fetch('/api/customers?' + buildParams()).then(r => r.json())
     if (res.success) {
       if (Array.isArray(res.data)) {
         customers.value = res.data
@@ -213,26 +295,42 @@ const loadCustomers = async () => {
   loading.value = false
 }
 
+const loadTags = async () => {
+  try {
+    const res = await fetch('/api/customers/tags').then(r => r.json())
+    if (res.success) tagOptions.value = res.data || []
+  } catch { /* ignore */ }
+}
+
+const loadReminders = async () => {
+  try {
+    const res = await fetch('/api/customers/followup-reminders').then(r => r.json())
+    if (res.success) reminders.value = res.data || []
+  } catch { /* ignore */ }
+}
+
 const openAddDialog = () => {
   editingId.value = null
-  form.value = { name: '', contact: '', phone: '', email: '', address: '', tags: '', status: '活跃' }
+  form.value = { name: '', contact: '', phone: '', email: '', address: '', tags: '', status: '活跃', pool_status: 'private', owner: '', next_followup_at: '' }
   showForm.value = true
 }
 
 const openEdit = (row: any) => {
   editingId.value = row.id
-  form.value = { name: row.name, contact: row.contact, phone: row.phone, email: row.email || '', address: row.address || '', tags: row.tags || '', status: row.status }
+  form.value = { name: row.name, contact: row.contact, phone: row.phone, email: row.email || '', address: row.address || '', tags: row.tags || '', status: row.status, pool_status: row.pool_status || 'private', owner: row.owner || '', next_followup_at: row.next_followup_at || '' }
   showForm.value = true
 }
 
 const saveCustomer = async () => {
   saving.value = true
   try {
+    const payload: any = { ...form.value }
+    if (!editingId.value && !payload.owner) payload.owner = currentUser
     const url = editingId.value ? '/api/customers/' + editingId.value : '/api/customers'
     const method = editingId.value ? 'PUT' : 'POST'
     const res = await fetch(url, {
       method, headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form.value)
+      body: JSON.stringify(payload)
     }).then(r => r.json())
     if (res.success) {
       ElMessage.success(editingId.value ? '客户更新成功' : '客户添加成功')
@@ -258,13 +356,37 @@ const deleteCustomer = async (id: number) => {
   } catch { /* ignore */ }
 }
 
+const claim = async (row: any) => {
+  const res = await fetch('/api/customers/' + row.id + '/claim', { method: 'POST' }).then(r => r.json())
+  if (res.success) { ElMessage.success('认领成功'); await loadCustomers() }
+  else ElMessage.error(res.message || '认领失败')
+}
+
+const release = async (row: any) => {
+  const res = await fetch('/api/customers/' + row.id + '/release', { method: 'POST' }).then(r => r.json())
+  if (res.success) { ElMessage.success('已释放到公海'); await loadCustomers() }
+  else ElMessage.error(res.message || '释放失败')
+}
+
+const assign = async (row: any) => {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入负责人姓名', '分配客户', { inputValue: row.owner || '' })
+    if (!value || !value.trim()) return
+    const res = await fetch('/api/customers/' + row.id + '/assign', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ owner: value.trim() })
+    }).then(r => r.json())
+    if (res.success) { ElMessage.success('分配成功'); await loadCustomers() }
+    else ElMessage.error(res.message || '分配失败')
+  } catch { /* ignore */ }
+}
+
 const openDetail = async (row: any) => {
   detail.value = row
   showDetail.value = true
   linkedFunnel.value = []
+  followupInput.value = row.next_followup_at || ''
   activityForm.value.customerId = row.id
   await loadActivities(row.id)
-  // 双向关联：按客户名称反查其在销售漏斗中的记录
   if (row.name) {
     try {
       const res = await fetch('/api/customers/funnel-link?name=' + encodeURIComponent(row.name)).then(r => r.json())
@@ -273,9 +395,19 @@ const openDetail = async (row: any) => {
   }
 }
 
-const goFunnel = () => {
-  window.open('/sales-funnel', '_blank')
+const saveFollowup = async () => {
+  if (!detail.value) return
+  const res = await fetch('/api/customers/' + detail.value.id + '/followup', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ next_followup_at: followupInput.value || null })
+  }).then(r => r.json())
+  if (res.success) {
+    ElMessage.success('已更新跟进时间')
+    detail.value.next_followup_at = followupInput.value || ''
+    await loadReminders()
+  } else ElMessage.error(res.message || '更新失败')
 }
+
+const goFunnel = () => { window.open('/sales-funnel', '_blank') }
 
 const fmtMoney = (v: any) => {
   const n = Number(v)
@@ -308,6 +440,48 @@ const addActivity = async () => {
   savingActivity.value = false
 }
 
+const openByName = (name: string) => {
+  searchQuery.value = name
+  loadCustomers()
+}
+
+const downloadTemplate = () => {
+  const a = document.createElement('a')
+  a.href = '/api/customers/template'
+  a.download = 'customers_import_template.xlsx'
+  a.click()
+}
+
+const triggerImport = () => { fileInput.value?.click() }
+
+const onImportFile = async (e: Event) => {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+  const fd = new FormData()
+  fd.append('file', file)
+  try {
+    const res = await fetch('/api/customers/import', { method: 'POST', body: fd }).then(r => r.json())
+    if (res.success) { ElMessage.success(res.message || '导入成功'); await loadCustomers(); await loadTags() }
+    else ElMessage.error(res.message || '导入失败')
+  } catch { ElMessage.error('导入失败') }
+  target.value = ''
+}
+
+const exportCustomers = async () => {
+  try {
+    const res = await fetch('/api/customers/export?' + buildParams())
+    if (!res.ok) { ElMessage.error('导出失败'); return }
+    const blob = await res.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'customers_export.xlsx'
+    a.click()
+    window.URL.revokeObjectURL(url)
+  } catch { ElMessage.error('导出失败') }
+}
+
 onMounted(async () => {
   if (route.query.name) {
     searchQuery.value = String(route.query.name)
@@ -317,14 +491,16 @@ onMounted(async () => {
   } else {
     await loadCustomers()
   }
+  await loadTags()
+  await loadReminders()
 })
 </script>
 
 <style scoped>
 .customer-page { padding: 20px; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
 .page-header h2 { font-size: 18px; color: #333; }
-.header-actions { display: flex; gap: 10px; }
+.header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .pagination-wrap { display: flex; justify-content: center; margin-top: 16px; }
 .activity-list { max-height: 300px; overflow-y: auto; }
 .activity-item { padding: 10px 12px; background: #f8f9fa; border-radius: 6px; margin-bottom: 8px; }
@@ -333,4 +509,10 @@ onMounted(async () => {
 .act-time { color: #999; }
 .act-content { font-size: 13px; color: #333; line-height: 1.5; }
 .empty-activities { text-align: center; padding: 20px; color: #999; font-size: 13px; }
+.reminder-banner { margin-bottom: 12px; }
+.reminder-item { display: inline-block; margin: 0 6px; color: #c62828; cursor: pointer; text-decoration: underline; }
+.muted { color: #909399; }
+.overdue-text { color: #c62828; font-weight: 600; }
+.followup-box { margin: 14px 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.followup-label { font-size: 13px; color: #666; }
 </style>

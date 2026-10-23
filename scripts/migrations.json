@@ -15,5 +15,6 @@
   "migrations/collaboration-redesign-v1.2.69.sql",
   "migrations/collaboration-roles-chain-v1.2.70.sql",
   "migrations/drop-project-applicants-v1.2.75.sql",
-  "migrations/file-categories-createdby-v1.2.76.sql"
+  "migrations/file-categories-createdby-v1.2.76.sql",
+  "customer-pool-followup-v1.2.72.sql"
 ]
