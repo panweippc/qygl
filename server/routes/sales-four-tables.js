@@ -795,6 +795,45 @@ router.post('/sales-four-tables/cleanup-versions', requireSalesWriter, async (re
 });
 
 // 通用列表查询
+// 导出当前表为 Excel（销售漏斗四表导出增强）
+router.get('/sales-four-tables/:type/export', requireSalesView, async (req, res) => {
+  try {
+    const { type } = req.params
+    const isProject = type === 'project'
+    const meta = TABLE_META[type]
+    if (!meta && !isProject) return res.status(400).json({ success: false, message: '未知表类型' })
+    const table = isProject ? 'sales_project_analysis' : meta.table
+    const labels = isProject ? PROJECT_FIELD_LABELS : FUNNEL_FIELD_LABELS
+    const { pool } = req.app.locals
+    const { month, owner, keyword } = req.query
+    const where = []
+    const params = []
+    if (month) { where.push('report_month = ?'); params.push(month) }
+    if (owner) { where.push('owner = ?'); params.push(owner) }
+    if (keyword) {
+      if (isProject) { where.push('(customer_name LIKE ? OR project_owner LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
+      else { where.push('(customer_name LIKE ? OR owner LIKE ? OR partner_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`) }
+    }
+    const sql = `SELECT * FROM ${table}${where.length ? ' WHERE ' + where.join(' AND ') : ''} ORDER BY updated_at DESC`
+    const [rows] = await pool.execute(sql, params)
+    const cols = rows.length ? Object.keys(rows[0]) : Object.keys(labels)
+    const header = cols.map(c => labels[c] || c)
+    const data = rows.map(r => cols.map(c => (r[c] === null || r[c] === undefined) ? '' : r[c]))
+    const ws = xlsx.utils.aoa_to_sheet([header, ...data])
+    const wb = xlsx.utils.book_new()
+    xlsx.utils.book_append_sheet(wb, ws, isProject ? '大项目进展' : meta.label)
+    const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' })
+    const fname = encodeURIComponent((isProject ? '大项目进展' : meta.label) + '-' + new Date().toISOString().slice(0, 10) + '.xlsx')
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${fname}`)
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    return res.send(buf)
+  } catch (e) {
+    console.error('销售四表导出失败', e)
+    return res.status(500).json({ success: false, message: '导出失败: ' + e.message })
+  }
+})
+
+
 router.get('/sales-four-tables/:type', requireSalesView, async (req, res) => {
   const { pool } = req.app.locals;
   const { type } = req.params;

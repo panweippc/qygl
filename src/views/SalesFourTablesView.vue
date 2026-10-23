@@ -13,6 +13,7 @@
             <p>本模块包含「意向漏斗、重点漏斗、成交用户、大项目进展」四张表。销售部成员和业务中心经理可在线填写或 Excel 导入；李智鑫（总经理/管理员）可查看全部数据。每次保存自动生成版本快照，支持字段级差异对比。</p>
           </div>
         </el-popover>
+        <el-button size="small" type="primary" @click="exportCurrent">导出 Excel</el-button>
         <el-button v-if="perm.canWrite" size="small" @click="openCleanup">清理版本快照</el-button>
         <el-button v-if="perm.canWrite" size="small" type="warning" @click="batchTransferVisible = true">批量转交（离职交接）</el-button>
         <el-tag v-if="perm.canWrite" type="success">可写入</el-tag>
@@ -193,6 +194,33 @@ function onCrossJump({ type, id }: { type: string, id: number }) {
   activeTab.value = type
   reloadActiveTab()
   // 子表格加载后通过事件或 provide 滚动到对应行较复杂，先切换标签页让用户定位
+}
+
+async function exportCurrent() {
+  const type = activeTab.value
+  const token = localStorage.getItem('token') || ''
+  try {
+    const res = await fetch(`/api/sales-four-tables/${type}/export`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store'
+    })
+    if (!res.ok) {
+      ElMessage.error('导出失败')
+      return
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${type}-export.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (e: any) {
+    ElMessage.error('导出失败: ' + e.message)
+  }
 }
 
 onMounted(loadPerm)
