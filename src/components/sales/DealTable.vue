@@ -2,20 +2,34 @@
   <div class="ft-panel">
     <div class="ft-toolbar">
       <div class="ft-filters">
-        <el-input v-model="filter.keyword" placeholder="客户/owner" clearable style="width:200px" @keyup.enter="load" />
-        <el-input v-model="filter.month" placeholder="申报月份 如 2024-07" clearable style="width:160px" @keyup.enter="load" />
+        <el-input v-model="filter.keyword" placeholder="客户/owner" clearable style="width:160px" @keyup.enter="load" />
+        <el-input v-model="filter.month" placeholder="申报月份 如 2024-07" clearable style="width:150px" @keyup.enter="load" />
+        <el-select v-model="filter.sales_type" placeholder="销售类型" clearable style="width:120px">
+          <el-option v-for="s in SALES_TYPE_OPTIONS" :key="s" :label="s" :value="s" />
+        </el-select>
+        <el-select v-model="filter.revenue_type" placeholder="代理类型" clearable style="width:120px">
+          <el-option v-for="s in REVENUE_TYPE_OPTIONS" :key="s" :label="s" :value="s" />
+        </el-select>
+        <el-select v-model="filter.sales_status" placeholder="销售状态" clearable style="width:120px">
+          <el-option v-for="s in dealStatusOptions" :key="s" :label="s" :value="s" />
+        </el-select>
+        <el-select v-model="filter.payment_status" placeholder="回款状态" clearable style="width:130px">
+          <el-option v-for="s in PAYMENT_STATUS_OPTIONS" :key="s.value" :label="s.label" :value="s.value" />
+        </el-select>
         <el-button type="primary" @click="load">查询</el-button>
+        <el-button @click="resetFilter">重置</el-button>
       </div>
       <div class="ft-actions">
         <el-button v-if="perm.canWrite" type="primary" @click="openEdit()">+ 新增</el-button>
         <el-button v-if="perm.canWrite" @click="importVisible = true">导入 Excel</el-button>
+        <el-button type="success" @click="exportExcel">导出 Excel</el-button>
       </div>
     </div>
 
     <div class="ft-table-wrapper">
-      <el-table :data="list" v-loading="loading" stripe style="width:100%">
+      <el-table :data="list" v-loading="loading" stripe style="width:100%" :row-class-name="rowCls">
         <el-table-column type="index" label="序号" width="60" :index="indexMethod" align="center" />
-        <el-table-column prop="owner" label="owner" width="100" />
+        <el-table-column prop="owner" label="负责人" width="100" />
         <el-table-column prop="customer_name" label="客户名单" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">
             <el-button link size="small" @click.stop="emit('customer-click', row.customer_name)">{{ row.customer_name }}</el-button>
@@ -36,12 +50,21 @@
           <template #default="{ row }">{{ Number(row.received_amount || 0).toLocaleString() }}</template>
         </el-table-column>
         <el-table-column prop="unreceived_amount" label="未回款" width="110">
-          <template #default="{ row }">{{ Number(row.unreceived_amount || 0).toLocaleString() }}</template>
+          <template #default="{ row }">
+            <span :class="{ 'overdue-amt': row.is_overdue }">{{ Number(row.unreceived_amount || 0).toLocaleString() }}</span>
+          </template>
         </el-table-column>
         <el-table-column label="回款进度" width="150">
           <template #default="{ row }">
             <span v-if="Number(row.contract_amount || 0) <= 0" class="muted-cell">—</span>
             <el-progress v-else :percentage="pct(row)" :stroke-width="10" :color="progColor(pct(row))" :format="(p: number) => p + '%'" />
+          </template>
+        </el-table-column>
+        <el-table-column prop="expected_payment_date" label="约定回款" width="120" />
+        <el-table-column label="回款状态" width="130">
+          <template #default="{ row }">
+            <el-tag :type="payTag(row.payment_status)" size="small">{{ payLabel(row.payment_status) }}</el-tag>
+            <el-tag v-if="row.is_overdue" type="danger" size="small" effect="dark" style="margin-left:4px">超期</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="report_month" label="申报月份" width="100" />
@@ -103,6 +126,7 @@
           <el-form-item label="实际金额"><el-input-number v-model="editForm.actual_amount" :min="0" style="width:100%" /></el-form-item>
           <el-form-item label="回款金额"><el-input-number v-model="editForm.received_amount" :min="0" style="width:100%" /></el-form-item>
           <el-form-item label="未回款金额"><el-input-number v-model="editForm.unreceived_amount" :min="0" style="width:100%" /></el-form-item>
+          <el-form-item label="约定回款日期"><el-date-picker v-model="editForm.expected_payment_date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item>
           <el-form-item label="销售状态">
             <el-select v-model="editForm.sales_status" placeholder="请选择" style="width:100%">
               <el-option v-for="s in dealStatusOptions" :key="s" :label="s" :value="s" />
@@ -129,23 +153,28 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { salesFetchJSON } from './salesApi'
+import { salesFetch, salesFetchJSON } from './salesApi'
 import ImportDialog from './ImportDialog.vue'
 import DiffDialog from './DiffDialog.vue'
 import TransferDialog from './TransferDialog.vue'
 import DealDetailDialog from './DealDetailDialog.vue'
-import { SALES_TYPE_OPTIONS, REVENUE_TYPE_OPTIONS, SALES_STATUS_BY_TYPE, DEST_TYPE_LABEL } from './salesConstants'
+import { SALES_TYPE_OPTIONS, REVENUE_TYPE_OPTIONS, SALES_STATUS_BY_TYPE } from './salesConstants'
 
 const props = defineProps<{ perm: any }>()
 const emit = defineEmits(['customer-click', 'refresh-stats', 'open-visit-records', 'view-detail'])
 const dealStatusOptions = computed(() => SALES_STATUS_BY_TYPE.deal || [])
+const PAYMENT_STATUS_OPTIONS = [
+  { label: '未回款', value: 'unreceived' },
+  { label: '部分回款', value: 'partial' },
+  { label: '已全额回款', value: 'full' }
+]
 const list = ref<any[]>([])
 const loading = ref(false)
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
 const indexMethod = (index: number) => (page.value - 1) * pageSize.value + index + 1
-const filter = ref({ keyword: '', month: '' })
+const filter = ref({ keyword: '', month: '', sales_type: '', revenue_type: '', sales_status: '', payment_status: '' })
 const editVisible = ref(false)
 const importVisible = ref(false)
 const diffVisible = ref(false)
@@ -158,9 +187,19 @@ const saving = ref(false)
 const emptyForm = () => ({
   owner: '', sales_type: '', revenue_type: '', report_date: '', product_type: '',
   customer_name: '', contact: '', phone: '', site_count: 0, contract_amount: 0,
-  actual_amount: 0, received_amount: 0, unreceived_amount: 0, sales_status: '', remark: ''
+  actual_amount: 0, received_amount: 0, unreceived_amount: 0, expected_payment_date: '', sales_status: '', remark: ''
 })
 const editForm = ref<any>(emptyForm())
+
+function payLabel(s: string): string {
+  return ({ norevenue: '无合同额', full: '已全额回款', partial: '部分回款', unreceived: '未回款' } as Record<string, string>)[s] || '—'
+}
+function payTag(s: string): string {
+  return ({ norevenue: 'info', full: 'success', partial: 'warning', unreceived: 'danger' } as Record<string, string>)[s] || 'info'
+}
+function rowCls({ row }: any): string {
+  return row.is_overdue ? 'overdue-row' : ''
+}
 
 function pct(row: any): number {
   const c = Number(row.contract_amount || 0)
@@ -171,20 +210,47 @@ function progColor(p: number): string {
   return p >= 100 ? '#67c23a' : '#1E5AA8'
 }
 
+function buildQuery(): string {
+  const qs = new URLSearchParams()
+  if (filter.value.keyword) qs.set('keyword', filter.value.keyword)
+  if (filter.value.month) qs.set('month', filter.value.month)
+  if (filter.value.sales_type) qs.set('sales_type', filter.value.sales_type)
+  if (filter.value.revenue_type) qs.set('revenue_type', filter.value.revenue_type)
+  if (filter.value.sales_status) qs.set('sales_status', filter.value.sales_status)
+  if (filter.value.payment_status) qs.set('payment_status', filter.value.payment_status)
+  qs.set('page', String(page.value))
+  qs.set('pageSize', String(pageSize.value))
+  return qs.toString()
+}
+
 async function load() {
   loading.value = true
   try {
-    const qs = new URLSearchParams()
-    if (filter.value.keyword) qs.set('keyword', filter.value.keyword)
-    if (filter.value.month) qs.set('month', filter.value.month)
-    qs.set('page', String(page.value))
-    qs.set('pageSize', String(pageSize.value))
-    const json = await salesFetchJSON(`/api/sales-four-tables/deal?${qs.toString()}`)
+    const json = await salesFetchJSON(`/api/sales-four-tables/deal?${buildQuery()}`)
     if (json.success) { list.value = json.data.list; total.value = json.data.total }
   } catch (e: any) { ElMessage.error('加载失败: ' + e.message) }
   finally { loading.value = false }
 }
-function openEdit(row?: any) { editForm.value = row ? { ...row } : emptyForm(); editVisible.value = true }
+function resetFilter() {
+  filter.value = { keyword: '', month: '', sales_type: '', revenue_type: '', sales_status: '', payment_status: '' }
+  page.value = 1
+  load()
+}
+async function exportExcel() {
+  try {
+    const res = await salesFetch(`/api/sales-four-tables/deal/export?${buildQuery().replace(/&page=.*|&pageSize=.*/g, '')}`)
+    if (!res.ok) { ElMessage.error('导出失败: HTTP ' + res.status); return }
+    const blob = await res.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = '成交项目-' + new Date().toISOString().slice(0, 10) + '.xlsx'
+    document.body.appendChild(a); a.click(); a.remove()
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (e: any) { ElMessage.error('导出失败: ' + e.message) }
+}
+function openEdit(row?: any) { editForm.value = row ? { ...emptyForm(), ...row } : emptyForm(); editVisible.value = true }
 async function save() {
   saving.value = true
   try {
@@ -192,7 +258,6 @@ async function save() {
     const method = editForm.value.id ? 'PUT' : 'POST'
     const json = await salesFetchJSON(url, { method, body: JSON.stringify(editForm.value) })
     if (json.success) {
-      // 同步结果回显（保存成交用户会触发大项目进展/客户档案同步）
       const sync = json.data?.sync
       let msg = '保存成功'
       if (sync) {
@@ -234,14 +299,17 @@ defineExpose({ load })
 <style scoped>
 .ft-panel { background: #fff; border-radius: 8px; padding: 1rem; }
 .ft-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap; }
-.ft-filters { display: flex; gap: 0.5rem; }
+.ft-filters { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .ft-actions { display: flex; gap: 0.5rem; }
 .ft-pagination { margin-top: 1rem; justify-content: flex-end; }
 .dialog-body { max-height: 60vh; overflow-y: auto; padding-right: 0.5rem; }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 0.5rem; }
 .muted-cell { color: #909399; font-size: 0.85rem; }
+.overdue-amt { color: #c62828; font-weight: 700; }
 .ft-table-wrapper { width: 100%; overflow-x: auto; border: 1px solid #ebeef5; border-radius: 4px; }
 .ft-table-wrapper :deep(.el-table) { min-width: max-content; }
+.ft-table-wrapper :deep(.overdue-row) { background: #fef0f0 !important; }
+.ft-table-wrapper :deep(.overdue-row:hover > td) { background: #fde2e2 !important; }
 .op-cell { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; white-space: nowrap; }
 .op-cell :deep(.el-button) { padding: 0 4px; margin-left: 0 !important; margin-right: 0; }
 </style>

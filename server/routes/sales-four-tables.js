@@ -14,7 +14,7 @@ const __dirname = path.dirname(__filename);
 const router = express.Router();
 const upload = multer({ dest: path.join(__dirname, '../../uploads/temp') });
 
-const SALES_ROLES = ['系统管理员', '销售部经理', '业务中心经理'];
+const SALES_ROLES = ['系统管理员', '总经理', '销售部经理', '业务中心经理'];
 const VIEW_ROLES = ['系统管理员', '总经理', '销售部经理', '业务中心经理'];
 
 // 判断是否是销售数据写入者（总经理仅查看）
@@ -88,7 +88,7 @@ const TABLE_META = {
   deal: {
     table: 'sales_deal_customers',
     label: '成交用户',
-    headers: ['owner', '销售类型', '收入类型', '申报日期', '产品类型', '客户名单', '联系人', '电话', '站点数', '合同额', '实际金额', '回款金额', '未回款金额', '备注']
+    headers: ['owner', '销售类型', '收入类型', '申报日期', '产品类型', '客户名单', '联系人', '电话', '站点数', '合同额', '实际金额', '回款金额', '未回款金额', '约定回款日期', '备注']
   }
 };
 
@@ -130,6 +130,9 @@ const FUNNEL_FIELD_LABELS = {
   actual_amount: '实际金额',
   received_amount: '已回款金额',
   unreceived_amount: '未回款金额',
+  expected_payment_date: '约定回款日期',
+  payment_status: '回款状态',
+  is_overdue: '是否超期',
   created_by: '提交人',
   created_at: '创建时间',
   updated_at: '更新时间',
@@ -275,6 +278,7 @@ const DEAL_COLS = [
   col('actual_amount', `DECIMAL(18,2) DEFAULT 0`),
   col('received_amount', `DECIMAL(18,2) DEFAULT 0`),
   col('unreceived_amount', `DECIMAL(18,2) DEFAULT 0`),
+  col('expected_payment_date', `DATE`),
   col('remark', `TEXT${CS}`),
   col('report_month', `VARCHAR(20)${CS} DEFAULT ''`),
   col('created_by', `VARCHAR(255)${CS} DEFAULT ''`),
@@ -473,6 +477,7 @@ async function ensureSchema(pool) {
       actual_amount DECIMAL(18,2) DEFAULT 0,
       received_amount DECIMAL(18,2) DEFAULT 0,
       unreceived_amount DECIMAL(18,2) DEFAULT 0,
+      expected_payment_date DATE,
       remark TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
       report_month VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
       created_by VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
@@ -794,6 +799,76 @@ router.post('/sales-four-tables/cleanup-versions', requireSalesWriter, async (re
   }
 });
 
+// 回款状态派生（合同额/已回款/未回款）：未回款/部分回款/已全额回款/无合同额
+const PAYMENT_STATUS_CASE = `(CASE WHEN contract_amount <= 0 THEN 'norevenue' WHEN received_amount >= contract_amount THEN 'full' WHEN received_amount > 0 THEN 'partial' ELSE 'unreceived' END)`;
+// 回款超期判定：有未回款金额 且 约定回款日期早于今天
+const IS_OVERDUE_CASE = `(CASE WHEN unreceived_amount > 0 AND expected_payment_date IS NOT NULL AND expected_payment_date < CURDATE() THEN 1 ELSE 0 END)`;
+
+// 回款超期预警：未回款且约定回款日期早于今天
+router.get('/sales-four-tables/deal/overdue', requireSalesView, async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    await ensureSchema(pool);
+    const ownerFilter = req.salesPerm.isOwnerFilter ? 'AND owner = ?' : '';
+    const ownerParam = req.salesPerm.isOwnerFilter ? [req.salesPerm.username] : [];
+    const [rows] = await pool.execute(
+      `SELECT id, owner, customer_name, contract_amount, received_amount, unreceived_amount, expected_payment_date, report_month, DATEDIFF(CURDATE(), expected_payment_date) AS overdue_days
+       FROM sales_deal_customers
+       WHERE unreceived_amount > 0 AND expected_payment_date IS NOT NULL AND expected_payment_date < CURDATE()
+       ${ownerFilter}
+       ORDER BY expected_payment_date ASC`,
+      ownerParam
+    );
+    const totalUnreceived = rows.reduce((sum, r) => sum + Number(r.unreceived_amount || 0), 0);
+    res.json({ success: true, data: { list: rows, count: rows.length, totalUnreceived } });
+  } catch (e) {
+    console.error('回款超期查询失败:', e);
+    res.status(500).json({ success: false, message: '查询失败: ' + e.message });
+  }
+});
+
+// 跨模块：成交(实际) ↔ 销售目标(目标) 按负责人+月份达成对比
+router.get('/sales-four-tables/achievement', requireSalesView, async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    await ensureSchema(pool);
+    const year = Number(req.query.year) || new Date().getFullYear();
+    const month = Number(req.query.month) || (new Date().getMonth() + 1);
+    const ym = `${year}-${String(month).padStart(2, '0')}`;
+    const ownerFilter = req.salesPerm.isOwnerFilter ? 'AND created_by = ?' : '';
+    const ownerParam = req.salesPerm.isOwnerFilter ? [req.salesPerm.username] : [];
+    const [deals] = await pool.execute(
+      `SELECT owner, COALESCE(SUM(contract_amount),0) AS contract, COALESCE(SUM(received_amount),0) AS received, COALESCE(SUM(unreceived_amount),0) AS unreceived, COUNT(*) AS cnt
+       FROM sales_deal_customers WHERE report_month = ? ${ownerFilter} GROUP BY owner ORDER BY contract DESC`,
+      [ym, ...ownerParam]
+    );
+    const [targets] = await pool.execute(
+      'SELECT managerId, managerName, targetAmount FROM sales_targets WHERE year = ? AND month = ?',
+      [year, month]
+    );
+    const targetMap = new Map(targets.map(t => [String(t.managerId), t]));
+    const owners = new Set([...deals.map(d => String(d.owner || '未分配')), ...targets.map(t => String(t.managerId))]);
+    const list = [...owners].map(o => {
+      const d = deals.find(x => String(x.owner || '未分配') === o);
+      const t = targetMap.get(o);
+      const contract = d ? Number(d.contract) : 0;
+      const received = d ? Number(d.received) : 0;
+      const target = t ? Number(t.targetAmount || 0) : 0;
+      const rate = target > 0 ? Math.round(contract / target * 100) : (contract > 0 ? null : 0);
+      return { owner: o, managerName: (t && t.managerName) || o, target, contract, received, unreceived: d ? Number(d.unreceived) : 0, count: d ? Number(d.cnt) : 0, achievementRate: rate };
+    });
+    const totals = list.reduce((acc, r) => {
+      acc.target += r.target; acc.contract += r.contract; acc.received += r.received; acc.unreceived += r.unreceived; acc.count += r.count;
+      return acc;
+    }, { target: 0, contract: 0, received: 0, unreceived: 0, count: 0 });
+    totals.achievementRate = totals.target > 0 ? Math.round(totals.contract / totals.target * 100) : (totals.contract > 0 ? null : 0);
+    res.json({ success: true, data: { year, month, ym, list, totals } });
+  } catch (e) {
+    console.error('目标达成查询失败:', e);
+    res.status(500).json({ success: false, message: '查询失败: ' + e.message });
+  }
+});
+
 // 通用列表查询
 // 导出当前表为 Excel（销售漏斗四表导出增强）
 router.get('/sales-four-tables/:type/export', requireSalesView, async (req, res) => {
@@ -805,16 +880,21 @@ router.get('/sales-four-tables/:type/export', requireSalesView, async (req, res)
     const table = isProject ? 'sales_project_analysis' : meta.table
     const labels = isProject ? PROJECT_FIELD_LABELS : FUNNEL_FIELD_LABELS
     const { pool } = req.app.locals
-    const { month, owner, keyword } = req.query
+    const { month, owner, keyword, sales_type, revenue_type, sales_status, payment_status } = req.query
     const where = []
     const params = []
     if (month) { where.push('report_month = ?'); params.push(month) }
     if (owner) { where.push('owner = ?'); params.push(owner) }
+    if (sales_type) { where.push('sales_type = ?'); params.push(sales_type) }
+    if (revenue_type) { where.push('revenue_type = ?'); params.push(revenue_type) }
+    if (sales_status) { where.push('sales_status = ?'); params.push(sales_status) }
+    if (payment_status && !isProject) { where.push(`${PAYMENT_STATUS_CASE} = ?`); params.push(payment_status) }
     if (keyword) {
       if (isProject) { where.push('(customer_name LIKE ? OR project_owner LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
       else { where.push('(customer_name LIKE ? OR owner LIKE ? OR partner_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`) }
     }
-    const sql = `SELECT * FROM ${table}${where.length ? ' WHERE ' + where.join(' AND ') : ''} ORDER BY updated_at DESC`
+    const dealCols = !isProject ? `, ${PAYMENT_STATUS_CASE} AS payment_status, ${IS_OVERDUE_CASE} AS is_overdue` : ''
+    const sql = `SELECT *${dealCols} FROM ${table}${where.length ? ' WHERE ' + where.join(' AND ') : ''} ORDER BY updated_at DESC`
     const [rows] = await pool.execute(sql, params)
     const cols = rows.length ? Object.keys(rows[0]) : Object.keys(labels)
     const header = cols.map(c => labels[c] || c)
@@ -841,12 +921,16 @@ router.get('/sales-four-tables/:type', requireSalesView, async (req, res) => {
   if (!meta && type !== 'project') return res.status(400).json({ success: false, message: '未知表类型' });
   try {
     await ensureSchema(pool);
-    const { month, owner, keyword, page = 1, pageSize = 20 } = req.query;
+    const { month, owner, keyword, sales_type, revenue_type, sales_status, payment_status, page = 1, pageSize = 20 } = req.query;
     const table = meta ? meta.table : 'sales_project_analysis';
     const conditions = [];
     const params = [];
     if (month) { conditions.push('report_month = ?'); params.push(month); }
     if (owner) { conditions.push('owner = ?'); params.push(owner); }
+    if (sales_type) { conditions.push('sales_type = ?'); params.push(sales_type); }
+    if (revenue_type) { conditions.push('revenue_type = ?'); params.push(revenue_type); }
+    if (sales_status) { conditions.push('sales_status = ?'); params.push(sales_status); }
+    if (payment_status && type === 'deal') { conditions.push(`${PAYMENT_STATUS_CASE} = ?`); params.push(payment_status); }
     if (keyword) {
       if (type === 'project') {
         conditions.push('(customer_name LIKE ? OR filler LIKE ?)');
@@ -868,8 +952,9 @@ router.get('/sales-four-tables/:type', requireSalesView, async (req, res) => {
     const sizeNum = parseInt(pageSize);
     const offset = (pageNum - 1) * sizeNum;
     // MySQL 5.7 在 prepared statement 中对 LIMIT/OFFSET 占位符校验严格，这里直接拼接整数
+    const dealCols = type === 'deal' ? `, ${PAYMENT_STATUS_CASE} AS payment_status, ${IS_OVERDUE_CASE} AS is_overdue` : '';
     const [rows] = await pool.execute(
-      `SELECT *, (SELECT COUNT(*) FROM visit_records WHERE customerName = ${table}.customer_name) AS visit_count FROM ${table} ${where} ORDER BY updated_at DESC LIMIT ${sizeNum} OFFSET ${offset}`,
+      `SELECT *, (SELECT COUNT(*) FROM visit_records WHERE customerName = ${table}.customer_name) AS visit_count${dealCols} FROM ${table} ${where} ORDER BY updated_at DESC LIMIT ${sizeNum} OFFSET ${offset}`,
       params
     );
     res.json({ success: true, data: { list: rows, total, page: parseInt(page), pageSize: parseInt(pageSize) } });
@@ -901,6 +986,13 @@ router.get('/sales-four-tables/:type/:id', requireSalesView, async (req, res) =>
       record.key_persons = persons;
       record.competitors = competitors;
       record.visit_records = visits;
+    }
+    if (type === 'deal' && meta && meta.table === 'sales_deal_customers') {
+      const contract = Number(record.contract_amount || 0);
+      const received = Number(record.received_amount || 0);
+      record.payment_status = contract <= 0 ? 'norevenue' : received >= contract ? 'full' : received > 0 ? 'partial' : 'unreceived';
+      const exp = record.expected_payment_date ? String(record.expected_payment_date) : null;
+      record.is_overdue = (Number(record.unreceived_amount || 0) > 0 && exp && exp < new Date().toISOString().slice(0, 10)) ? 1 : 0;
     }
     res.json({ success: true, data: record });
   } catch (error) {
@@ -953,6 +1045,7 @@ function extractDealBody(req) {
     actual_amount: parseNum(b.actual_amount),
     received_amount: parseNum(b.received_amount),
     unreceived_amount: parseNum(b.unreceived_amount),
+    expected_payment_date: parseDate(b.expected_payment_date),
     remark: b.remark || '',
     report_month: getReportMonth(b.report_date) || b.report_month || '',
   };
@@ -1686,13 +1779,13 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
           let destType = type;
           if (type === 'deal') {
             sql = `INSERT INTO ${meta.table}
-              (owner, sales_type, revenue_type, report_date, product_type, customer_name, contact, phone, site_count, contract_amount, actual_amount, received_amount, unreceived_amount, remark, report_month, created_by)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+              (owner, sales_type, revenue_type, report_date, product_type, customer_name, contact, phone, site_count, contract_amount, actual_amount, received_amount, unreceived_amount, expected_payment_date, remark, report_month, created_by)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
             params = [
               obj['owner'] || createdBy, obj['销售类型'] || '', obj['收入类型'] || '', reportDate, obj['产品类型'] || '',
               obj['客户名单'] || '', obj['联系人'] || '', obj['电话'] || '', parseNum(obj['站点数']),
               parseNum(obj['合同额']), parseNum(obj['实际金额']), parseNum(obj['回款金额']), parseNum(obj['未回款金额']),
-              obj['备注'] || '', reportMonth, createdBy
+              parseDate(obj['约定回款日期']), obj['备注'] || '', reportMonth, createdBy
             ];
           } else if (type === 'project') {
             // 大项目进展导入：仅主表字段（关键人物/竞争对手/拜访记录仍走手动录入）
