@@ -4,7 +4,7 @@
       <template #actions>
         <div class="header-actions">
           <el-button size="small" @click="markAllRead" :disabled="unreadCount === 0">全部标记已读</el-button>
-          <el-button size="small" @click="fetchNotifications">刷新</el-button>
+          <el-button size="small" @click="refresh">刷新</el-button>
         </div>
       </template>
     </PageHeaderBar>
@@ -33,7 +33,7 @@
         <button class="notif-close" @click.stop="deleteNotif(item.id)">✕</button>
       </div>
       <div class="pagination-bar" v-if="total > pageSize">
-        <el-pagination layout="prev, pager, next" :total="total" :page-size="pageSize" v-model:current-page="currentPage" @current-change="fetchNotifications" background small />
+        <el-pagination layout="prev, pager, next" :total="total" :page-size="pageSize" v-model:current-page="currentPage" background small />
       </div>
     </div>
     </div>
@@ -41,16 +41,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeaderBar from '../components/PageHeaderBar.vue'
+import { useNotificationStore } from '../stores/notifications'
 
 const router = useRouter()
+const ns = useNotificationStore()
 
 // 从标题/内容推断审批类型
-function inferTypeFromText(item: any): string | null {
-  const hay = `${item?.title || ''} ${item?.content || ''}`.toLowerCase()
+function inferTypeFromText(item) {
+  const hay = (item?.title || '') + ' ' + (item?.content || '')
   if (/请假/.test(hay)) return 'leave'
   if (/报销/.test(hay)) return 'reimbursement'
   if (/会议/.test(hay)) return 'meeting'
@@ -61,75 +63,56 @@ function inferTypeFromText(item: any): string | null {
   return null
 }
 
-/**
- * 根据消息类型/内容计算跳转目标路由
- * 规则：
- *   - 审批提醒/撤回/退回通知 → /oa-office?tab=<类型>&subTab=received
- *   - 下发已读回执 → /oa-office?tab=distributedByMe&expandKey=<类型>-<申请ID>
- *   - 普通下发（接收方） → 对应申请的「我收到的」/ 协同的「协同给我的」
- *   - 默认 /（首页）
- */
-function resolveJumpRoute(item: any): string {
+function resolveJumpRoute(item) {
   const t = item?.applicationType || inferTypeFromText(item)
-
-  // 下发已读回执：跳「我下发的」页签并自动展开对应（申请类型-原申请编号）分组
   if (item?.type === 'distributed_read' && item?.relatedType && item?.relatedId) {
-    return `/oa-office?tab=distributedByMe&expandKey=${item.relatedType}-${item.relatedId}`
+    return '/oa-office?tab=distributedByMe&expandKey=' + item.relatedType + '-' + item.relatedId
   }
-
-  // 协同已知晓/意见回传：跳「协同给我的」协同 tab 并自动展开对应记录
   if (item?.type === 'collaboration' && item?.relatedType === 'project' && item?.relatedId) {
-    return `/oa-office?tab=project&subTab=tome&expandKey=project-${item.relatedId}`
+    return '/oa-office?tab=project&subTab=tome&expandKey=project-' + item.relatedId
   }
-
-  // 普通下发通知（接收方视角）：跳对应申请的「我收到的」；协同类跳「协同给我的」。
-  // 注意：「下发申请管理」(tab=distributed) 仅财务总监可见，不能作为接收方的落地页。
   if (item?.relatedType === 'distributed' && item?.relatedId) {
     if (t === 'project') return '/oa-office?tab=project&subTab=tome'
     if (['leave', 'reimbursement', 'meeting', 'businessTrip', 'entertainment'].includes(t)) {
-      return `/oa-office?tab=${t}&subTab=received`
+      return '/oa-office?tab=' + t + '&subTab=received'
     }
     return '/oa-office'
   }
-
-  // 审批类通知统一进入对应类型的「我收到的」子页签
   if (item?.type === 'approval' || item?.type === 'notify') {
     if (['leave', 'reimbursement', 'meeting', 'project', 'businessTrip', 'entertainment'].includes(t)) {
-      return `/oa-office?tab=${t}&subTab=received`
+      return '/oa-office?tab=' + t + '&subTab=received'
     }
     return '/oa-office'
   }
-
-  // 关键词兜底
   const dt = inferTypeFromText(item)
-  if (dt && dt !== 'distributed') return `/oa-office?tab=${dt}&subTab=received`
-  if (dt === 'distributed') return '/oa-office'
-
+  if (dt && dt !== 'distributed') return '/oa-office?tab=' + dt + '&subTab=received'
+  if (dt === 'distributed') return '/oa-office?tab=distributedByMe'
   if (item?.type === 'mention' || item?.type === 'task') return '/'
   return '/'
 }
 
-const loading = ref(false)
-const notifications = ref<any[]>([])
-const total = ref(0)
-const unreadCount = ref(0)
+const loading = computed(() => ns.loading)
 const currentPage = ref(1)
 const pageSize = 20
 const activeTab = ref('all')
-
-const userId = computed(() => localStorage.getItem('username') || '')
+const unreadCount = computed(() => ns.unreadCount)
+const total = computed(() => activeTab.value === 'unread' ? ns.unreadCount : ns.list.length)
 
 const filteredList = computed(() => {
-  if (activeTab.value === 'unread') return notifications.value.filter(n => !n.isRead)
-  return notifications.value
+  const base = activeTab.value === 'unread' ? ns.list.filter((n: any) => !n.isRead) : ns.list
+  const start = (currentPage.value - 1) * pageSize
+  return base.slice(start, start + pageSize)
 })
 
-function typeIcon(type: string) {
-  const map: Record<string, string> = { approval: '📋', task: '✅', mention: '💬', system: '🔔' }
+// 切换标签时回到第一页，避免停留在越界页
+watch(activeTab, () => { currentPage.value = 1 })
+
+function typeIcon(type) {
+  const map = { approval: '📋', task: '✅', mention: '💬', system: '🔔' }
   return map[type] || '🔔'
 }
 
-function formatTime(dateStr: string) {
+function formatTime(dateStr) {
   if (!dateStr) return ''
   const d = new Date(dateStr)
   const now = new Date()
@@ -141,45 +124,18 @@ function formatTime(dateStr: string) {
   return d.toLocaleDateString('zh-CN') + ' ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
-async function fetchNotifications() {
-  if (!userId.value) return
-  loading.value = true
-  try {
-    const res = await fetch(`/api/notifications?userId=${userId.value}&page=${currentPage.value}&pageSize=${pageSize}`)
-    const json = await res.json()
-    if (json.success) {
-      notifications.value = json.data.list
-      total.value = json.data.total
-      // 同步未读数（后端返回列表时可能未带 count，这里兜底刷新）
-      fetchUnreadCount()
-    }
-  } catch { /* ignore */ } finally {
-    loading.value = false
-  }
+async function refresh() {
+  await ns.load()
 }
 
-async function fetchUnreadCount() {
-  if (!userId.value) return
-  try {
-    const res = await fetch(`/api/notifications/unread-count?userId=${userId.value}`)
-    const json = await res.json()
-    if (json.success) unreadCount.value = json.data.count
-  } catch { /* ignore */ }
-}
-
-async function markRead(item: any) {
+async function markRead(item) {
   if (item.isRead) return
-  try {
-    await fetch(`/api/notifications/${item.id}/read`, { method: 'PUT' })
-    item.isRead = 1
-    unreadCount.value = Math.max(0, unreadCount.value - 1)
-  } catch { /* ignore */ }
+  await ns.markRead(item.id)
 }
 
 // 移动端补充：PC 端 /oa-office 路由在移动端对应 /todo（两路由复用同一组件 OAWorkflowView）
-// PC 端 __APP_DEVICE__ 未设置，此映射不生效，保持原有跳转逻辑不变
-function mapToMobileRoute(route: string): string {
-  if (typeof window !== 'undefined' && (window as any).__APP_DEVICE__ === 'mobile') {
+function mapToMobileRoute(route) {
+  if (typeof window !== 'undefined' && window.__APP_DEVICE__ === 'mobile') {
     if (route.startsWith('/oa-office')) {
       return route.replace('/oa-office', '/todo')
     }
@@ -187,51 +143,40 @@ function mapToMobileRoute(route: string): string {
   return route
 }
 
-// 点击消息：标记已读 + 跳转对应模块
-async function handleItemClick(item: any) {
+async function handleItemClick(item) {
   try {
-    // 未读先标记已读
     if (!item.isRead) {
       await markRead(item)
     }
-    // 跳转到对应模块
     const targetRoute = mapToMobileRoute(resolveJumpRoute(item))
     if (targetRoute) {
-      // 标记来自消息中心：目标页点击"返回"时应回到首页而非消息中心
       const sep = targetRoute.includes('?') ? '&' : '?'
-      router.push(`${targetRoute}${sep}fromNotification=1`)
+      router.push(targetRoute + sep + 'fromNotification=1')
     }
-  } catch (e: any) {
+  } catch (e) {
     console.error('点击消息跳转失败:', e)
   }
 }
 
 async function markAllRead() {
-  if (!userId.value) return
-  try {
-    await fetch('/api/notifications/read-all', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: userId.value }) })
-    notifications.value.forEach(n => n.isRead = 1)
-    unreadCount.value = 0
-    ElMessage.success('全部标记为已读')
-  } catch { /* ignore */ }
+  await ns.markAllRead()
+  ElMessage.success('全部标记为已读')
 }
 
-async function deleteNotif(id: number) {
+async function deleteNotif(id) {
   try {
     await ElMessageBox.confirm('确定要删除这条消息吗？', '删除消息', {
       confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
     })
-    const item = notifications.value.find(n => n.id === id)
-    await fetch(`/api/notifications/${id}`, { method: 'DELETE' })
-    if (item && !item.isRead) unreadCount.value = Math.max(0, unreadCount.value - 1)
-    notifications.value = notifications.value.filter(n => n.id !== id)
-    total.value--
-  } catch { /* ignore */ }
+    const item = ns.list.find((n: any) => n.id === id)
+    await fetch('/api/notifications/' + id, { method: 'DELETE' })
+    if (item && !item.isRead) ns.unreadCount = Math.max(0, ns.unreadCount - 1)
+    ns.list = ns.list.filter((n: any) => n.id !== id)
+  } catch (e) {}
 }
 
 onMounted(() => {
-  fetchNotifications()
-  fetchUnreadCount()
+  ns.startPolling()
 })
 </script>
 

@@ -31,20 +31,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useNotificationStore } from '../stores/notifications'
 
 const router = useRouter()
+const ns = useNotificationStore()
 const open = ref(false)
-const list = ref<any[]>([])
-const unreadCount = ref(0)
-const userId = computed(() => localStorage.getItem('username') || '')
-let timer: any = null
-let prevUnread: number | null = null
+const list = computed(() => ns.unreadPreview)
+const unreadCount = computed(() => ns.unreadCount)
+let prevUnread = null
 let hasAutoOpened = false
 const nudge = ref(false)
 
-function fmt(dateStr: string) {
+function fmt(dateStr) {
   if (!dateStr) return ''
   const d = new Date(dateStr)
   const now = new Date()
@@ -55,8 +55,8 @@ function fmt(dateStr: string) {
   return d.toLocaleDateString('zh-CN')
 }
 
-function inferTypeFromText(item: any): string | null {
-  const hay = `${item?.title || ''} ${item?.content || ''}`.toLowerCase()
+function inferTypeFromText(item) {
+  const hay = (item?.title || '') + ' ' + (item?.content || '')
   if (/请假/.test(hay)) return 'leave'
   if (/报销/.test(hay)) return 'reimbursement'
   if (/会议/.test(hay)) return 'meeting'
@@ -67,59 +67,31 @@ function inferTypeFromText(item: any): string | null {
   return null
 }
 
-function resolveJumpRoute(item: any): string {
+function resolveJumpRoute(item) {
   const t = item?.applicationType || inferTypeFromText(item)
   if (item?.type === 'distributed_read' && item?.relatedType && item?.relatedId) {
-    return `/oa-office?tab=distributedByMe&expandKey=${item.relatedType}-${item.relatedId}`
+    return '/oa-office?tab=distributedByMe&expandKey=' + item.relatedType + '-' + item.relatedId
   }
   if (item?.type === 'collaboration' && item?.relatedType === 'project' && item?.relatedId) {
-    return `/oa-office?tab=project&subTab=tome&expandKey=project-${item.relatedId}`
+    return '/oa-office?tab=project&subTab=tome&expandKey=project-' + item.relatedId
   }
   if (item?.relatedType === 'distributed' && item?.relatedId) {
-    if (['leave', 'reimbursement', 'meeting', 'project', 'businessTrip', 'entertainment'].includes(t)) {
-      return `/oa-office?tab=distributed&subType=${t}`
+    if (t === 'project') return '/oa-office?tab=project&subTab=tome'
+    if (['leave', 'reimbursement', 'meeting', 'businessTrip', 'entertainment'].includes(t)) {
+      return '/oa-office?tab=' + t + '&subTab=received'
     }
-    return '/oa-office?tab=distributed'
+    return '/oa-office'
   }
   if (item?.type === 'approval' || item?.type === 'notify') {
     if (['leave', 'reimbursement', 'meeting', 'project', 'businessTrip', 'entertainment'].includes(t)) {
-      return `/oa-office?tab=${t}&subTab=received`
+      return '/oa-office?tab=' + t + '&subTab=received'
     }
     return '/oa-office'
   }
   const dt = inferTypeFromText(item)
-  if (dt && dt !== 'distributed') return `/oa-office?tab=${dt}&subTab=received`
+  if (dt && dt !== 'distributed') return '/oa-office?tab=' + dt + '&subTab=received'
   if (dt === 'distributed') return '/oa-office?tab=distributedByMe'
   return '/'
-}
-
-async function load() {
-  if (!userId.value) return
-  let newList = list.value
-  let newCount = unreadCount.value
-  try {
-    const r = await fetch(`/api/notifications?userId=${encodeURIComponent(userId.value)}&page=1&pageSize=5&unreadOnly=1`)
-    const j = await r.json()
-    if (j.success) newList = j.data.list || []
-  } catch { /* ignore */ }
-  try {
-    const r2 = await fetch(`/api/notifications/unread-count?userId=${encodeURIComponent(userId.value)}`)
-    const j2 = await r2.json()
-    if (j2.success) newCount = j2.data.count || 0
-  } catch { /* ignore */ }
-  list.value = newList
-  const prev = prevUnread
-  unreadCount.value = newCount
-
-  // 方案C：首次加载若有未读，自动展开一次；之后不再强制打开
-  if (!hasAutoOpened && newCount > 0 && newList.length > 0) {
-    open.value = true
-    hasAutoOpened = true
-  } else if (prev !== null && prev !== undefined && newCount > prev && hasAutoOpened) {
-    // 新消息到达：仅抖动提醒，不展开
-    triggerNudge()
-  }
-  prevUnread = newCount
 }
 
 function triggerNudge() {
@@ -135,12 +107,12 @@ const ballClass = computed(() => ({
   'mba-ball--nudge': nudge.value,
 }))
 
-async function onClick(item: any) {
+async function onClick(item) {
   try {
-    if (!item.isRead) await fetch(`/api/notifications/${item.id}/read`, { method: 'PUT' })
+    if (!item.isRead) await ns.markRead(item.id)
     const route = resolveJumpRoute(item)
-    if (route) router.push(`${route}${route.includes('?') ? '&' : '?'}fromNotification=1`)
-  } catch { /* ignore */ }
+    if (route) router.push(route + (route.includes('?') ? '&' : '?') + 'fromNotification=1')
+  } catch (e) {}
   open.value = false
 }
 
@@ -151,20 +123,24 @@ function goAll() {
 
 function toggle() {
   open.value = !open.value
-  if (open.value) load()
+  if (open.value) ns.load()
 }
 
-// 用户名从空变为有效（登录成功写入 localStorage）时，立即刷新一次，
-// 避免依赖 30s 轮询延迟才显示未读消息
-watch(() => userId.value, (v) => {
-  if (v) load()
+// 共享 store 的未读数变化时：首次有未读自动展开一次；之后新消息仅抖动提醒
+watch(() => ns.unreadCount, (v) => {
+  if (!hasAutoOpened && v > 0 && ns.unreadPreview.length > 0) {
+    open.value = true
+    hasAutoOpened = true
+  } else if (prevUnread !== null && prevUnread !== undefined && v > prevUnread && hasAutoOpened) {
+    triggerNudge()
+  }
+  prevUnread = v
 })
 
 onMounted(() => {
-  load()
-  timer = setInterval(load, 30000)
+  // 启动统一轮询（幂等，store 内只起一个定时器，消息中心也会复用）
+  ns.startPolling()
 })
-onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
 
 <style scoped>

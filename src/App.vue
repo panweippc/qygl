@@ -2,13 +2,13 @@
   <div class="app-container">
     <router-view />
     <AiAssistant v-if="ENABLE_AI_ASSISTANT" />
-    <MessageBubbleAssistant />
+    <MessageBubbleAssistant v-if="route.name !== 'login'" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import AiAssistant from './components/AiAssistant.vue'
 import MessageBubbleAssistant from './components/MessageBubbleAssistant.vue'
 
@@ -16,6 +16,7 @@ import MessageBubbleAssistant from './components/MessageBubbleAssistant.vue'
 const ENABLE_AI_ASSISTANT = false
 
 const router = useRouter()
+const route = useRoute()
 
 onMounted(() => {})
 
