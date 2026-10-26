@@ -11,6 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { startScheduler } from './scheduler.js';
+import { zipDir } from './backup-archive.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -122,6 +123,17 @@ async function main() {
     }
     console.log(`[auto-backup] 备份成功并通过完整性校验: ${filename} (${tables} 张表, ${rows} 行, ${(stat.size / 1024 / 1024).toFixed(2)} MB)`);
 
+    // 附件备份：把 uploads/ 一并打包为同名 _files.zip（排除临时目录 temp），形成"数据库+附件"完整备份包
+    const filesBase = filename.replace(/\.sql$/, '');
+    const filesZip = path.join(BACKUP_DIR, filesBase + '_files.zip');
+    try {
+      const uploadsDir = path.join(__dirname, '..', 'uploads');
+      const r = await zipDir(uploadsDir, filesZip, { exclude: ['temp'] });
+      console.log(`[auto-backup] 附件打包完成: ${filesZip} (${r.fileCount} 个文件, ${(r.bytes / 1024 / 1024).toFixed(2)} MB)`);
+    } catch (ze) {
+      console.error(`[auto-backup] 附件打包失败(不影响数据库备份): ${ze.message}`);
+    }
+
     // 备份加密（可选）：若配置了 BACKUP_ENCRYPT_KEY，则对备份进行 AES 加密
     // 加密后的文件为 <filename>.enc，本地保留原始 SQL 与 .enc，异地复制 .enc
     let backupForRemote = full; // 异地复制的文件（默认原始 SQL）
@@ -148,9 +160,10 @@ async function main() {
     }
 
     // 异地备份：复制到另一台电脑的共享目录（若已配置 BACKUP_REMOTE_PATH）
-    // 若启用了加密，则复制加密后的 .enc 文件
+    // 若启用了加密，则复制加密后的 .enc 文件；附件包始终以原始 zip 复制
     if (REMOTE_PATH) {
       copyToRemote(backupForRemote, REMOTE_PATH);
+      if (fs.existsSync(filesZip)) copyToRemote(filesZip, REMOTE_PATH);
     }
 
     // 清理超出保留数量的旧备份（只清理 auto_ 前缀的，不动手动备份）
@@ -161,6 +174,10 @@ async function main() {
     const toDelete = autoFiles.slice(KEEP);
     for (const f of toDelete) {
       fs.unlinkSync(path.join(BACKUP_DIR, f.name));
+      const zipName = f.name.replace(/\.sql$/, '') + '_files.zip';
+      if (fs.existsSync(path.join(BACKUP_DIR, zipName))) {
+        fs.unlinkSync(path.join(BACKUP_DIR, zipName));
+      }
       console.log(`[auto-backup] 清理旧备份: ${f.name}`);
     }
     console.log(`[auto-backup] 当前保留 ${Math.min(autoFiles.length, KEEP)} 份自动备份`);

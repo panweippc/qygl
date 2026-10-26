@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { createConnection } from 'mysql2/promise';
 import { createOperationLog } from '../utils/audit.js';
 import { verifyPassword } from '../utils/security.js';
+import { zipDir, unzipTo, clearDir, copyDir, rmDir } from '../../scripts/backup-archive.js';
 
 const router = express.Router();
 
@@ -112,6 +113,8 @@ router.post('/backups', adminOnly, async (req, res) => {
   const full = path.join(BACKUP_DIR, filename);
   let tables = 0;
   let rows = 0;
+  let fileCount = 0;
+  let filesZip = null;
   try {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
     await conn.query('SET SESSION group_concat_max_len = 1073741824');
@@ -156,6 +159,18 @@ router.post('/backups', adminOnly, async (req, res) => {
     const content = fs.readFileSync(full, 'utf8').replace('-- 数据行数: 0', `-- 数据行数: ${rows}`);
     fs.writeFileSync(full, content, 'utf8');
 
+    // 附件备份：把 uploads/ 一并打包为同名 _files.zip（排除临时目录 temp），形成"数据库+附件"完整备份包
+    const baseName = filename.replace(/\.sql$/, '');
+    filesZip = path.join(BACKUP_DIR, baseName + '_files.zip');
+    try {
+      const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
+      const r = await zipDir(uploadsDir, filesZip, { exclude: ['temp'] });
+      fileCount = r.fileCount;
+    } catch (ze) {
+      console.error('附件打包失败(不影响数据库备份):', ze);
+      filesZip = null;
+    }
+
     const stat = fs.statSync(full);
     await createOperationLog(req.app.locals.pool, {
       userId: String(req.user.id || ''),
@@ -163,18 +178,19 @@ router.post('/backups', adminOnly, async (req, res) => {
       action: 'backup_create',
       module: 'system',
       targetName: filename,
-      detail: `创建数据库备份，共 ${tables} 张表、${rows} 行数据`,
+      detail: `创建数据库备份，共 ${tables} 张表、${rows} 行数据` + (fileCount > 0 ? `，附件 ${fileCount} 个已打包至 ${baseName}_files.zip` : ''),
       ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''
     });
 
     res.json({
       success: true,
-      message: `备份成功：${tables} 张表、${rows} 行数据`,
+      message: `备份成功：${tables} 张表、${rows} 行数据` + (fileCount > 0 ? `，附件已打包 ${fileCount} 个` : ''),
       data: { name: filename, size: stat.size, sizeText: `${(stat.size / 1024).toFixed(1)} KB`, createdAt: stat.mtime }
     });
   } catch (error) {
     console.error('创建备份失败:', error);
     try { fs.unlinkSync(full); } catch (e) { /* ignore */ }
+    if (filesZip) { try { fs.unlinkSync(filesZip); } catch (e) { /* ignore */ } }
     res.status(500).json({ success: false, message: '创建备份失败: ' + error.message });
   } finally {
     conn.release();
@@ -209,6 +225,10 @@ router.delete('/backups/:file', adminOnly, verifyAdminPassword, async (req, res)
   }
   try {
     fs.unlinkSync(full);
+    // 一并删除同名附件包
+    const baseName = path.basename(req.params.file).replace(/\.sql$/, '');
+    const filesZip = path.join(BACKUP_DIR, baseName + '_files.zip');
+    if (fs.existsSync(filesZip)) { try { fs.unlinkSync(filesZip); } catch (e) { /* ignore */ } }
     await createOperationLog(req.app.locals.pool, {
       userId: String(req.user.id || ''),
       username: req.user.username || '',
@@ -246,17 +266,37 @@ router.post('/backups/:file/restore', adminOnly, async (req, res) => {
     await restoreConn.query(sql);
     await restoreConn.query('SET FOREIGN_KEY_CHECKS = 1');
 
+    // 附件恢复：若备份包含同名 _files.zip，则一并还原 uploads/
+    let filesRestored = false;
+    const baseName = path.basename(req.params.file).replace(/\.sql$/, '');
+    const filesZip = path.join(BACKUP_DIR, baseName + '_files.zip');
+    if (fs.existsSync(filesZip)) {
+      const tmpDir = path.join(BACKUP_DIR, '_restore_files_' + Date.now());
+      try {
+        unzipTo(filesZip, tmpDir);
+        const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
+        fs.mkdirSync(uploadsDir, { recursive: true });
+        clearDir(uploadsDir);
+        copyDir(tmpDir, uploadsDir);
+        rmDir(tmpDir);
+        filesRestored = true;
+      } catch (fe) {
+        rmDir(tmpDir);
+        throw new Error('附件恢复失败: ' + fe.message);
+      }
+    }
+
     await createOperationLog(req.app.locals.pool, {
       userId: String(req.user.id || ''),
       username: req.user.username || '',
       action: 'backup_restore',
       module: 'system',
       targetName: req.params.file,
-      detail: `从备份恢复数据库，恢复前快照：${snapName}`,
+      detail: `从备份恢复数据库，恢复前快照：${snapName}` + (filesRestored ? '，附件已一并恢复' : ''),
       ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''
     });
 
-    res.json({ success: true, message: '恢复成功', data: { snapshot: snapName } });
+    res.json({ success: true, message: filesRestored ? '恢复成功（含附件）' : '恢复成功', data: { snapshot: snapName } });
   } catch (error) {
     console.error('恢复备份失败:', error);
     res.status(500).json({ success: false, message: '恢复备份失败: ' + error.message });
