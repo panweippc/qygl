@@ -76,6 +76,7 @@ const backupHeader = (dbName, tables, rows) => {
     `-- 数据行数: ${rows}`,
     `-- 恢复时请通过"数据备份"页面执行，恢复前系统会自动生成恢复前快照`,
     `SET NAMES utf8mb4;`,
+    `SET SESSION sql_mode = '';`,
     `SET FOREIGN_KEY_CHECKS = 0;`
   ];
   return lines.join('\n') + '\n\n';
@@ -261,6 +262,8 @@ router.post('/backups/:file/restore', adminOnly, async (req, res) => {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
     fs.copyFileSync(full, snapFull);
 
+    // 兼容零日期等历史数据：重放前放开严格模式（NO_ZERO_DATE/STRICT），否则恢复会报 Incorrect datetime value
+    await restoreConn.query("SET SESSION sql_mode = ''");
     const sql = fs.readFileSync(full, 'utf8');
     await restoreConn.query('SET FOREIGN_KEY_CHECKS = 0');
     await restoreConn.query(sql);
