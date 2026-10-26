@@ -1,6 +1,6 @@
-﻿-- Add createdBy column to file_categories to record category creator name
+-- Add createdBy column to file_categories to record category creator name
 -- Used for resource-center permission control by category creator
--- Idempotent: skip if column already exists (compatible with all MySQL 8.x)
+-- Idempotent: skip if column already exists (compatible with all MySQL 5.7/8.x)
 
 SET @db_name = DATABASE();
 SELECT COUNT(*) INTO @col_exists

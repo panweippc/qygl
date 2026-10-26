@@ -40,7 +40,7 @@ CREATE TABLE chat_messages (
   sender_id INT DEFAULT NULL COMMENT 'employees.id',
   sender_name VARCHAR(100) DEFAULT NULL,
   msg_type ENUM('text', 'image', 'file', 'system') NOT NULL DEFAULT 'text',
-  content TEXT DEFAULT NULL COMMENT '文本内容 / 图片说明',
+  content TEXT COMMENT '文本内容 / 图片说明',
   attachment_url VARCHAR(512) DEFAULT NULL,
   attachment_name VARCHAR(255) DEFAULT NULL,
   attachment_size INT DEFAULT NULL,

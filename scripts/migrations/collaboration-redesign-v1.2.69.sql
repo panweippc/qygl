@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS project_collaborators (
   expected_role VARCHAR(200) DEFAULT NULL COMMENT '配合职责说明',
   ack_status ENUM('pending','acknowledged') NOT NULL DEFAULT 'pending' COMMENT '通知模式: 已知晓状态',
   ack_at DATETIME DEFAULT NULL,
-  opinion_text TEXT DEFAULT NULL COMMENT '意见征集模式: 填写的意见',
+  opinion_text TEXT COMMENT '意见征集模式: 填写的意见',
   opinion_at DATETIME DEFAULT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_pc_app (application_id)
