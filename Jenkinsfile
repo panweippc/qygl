@@ -119,11 +119,15 @@ pipeline {
     }
 
     // 阶段4：前端构建
+    // 修复：vite build 偶发 esbuild 原生进程崩溃(退出码 0xC0000409，Windows 上常被 Defender 扫描强杀)，
+    // 属环境偶发而非代码错误。包 retry(2) 自动重试一次，命中偶发时即可通过，避免整条流水线跳过后续部署阶段。
     stage('Build') {
       when { expression { return !skipDeploy } }
       steps {
-        echo '=== 阶段4: 前端构建 (npm run build) ==='
-        dir("${PROJECT_DIR}") { bat 'npm run build' }
+        echo '=== 阶段4: 前端构建 (npm run build，偶发崩溃自动重试1次) ==='
+        retry(2) {
+          dir("${PROJECT_DIR}") { bat 'npm run build' }
+        }
       }
     }
 
