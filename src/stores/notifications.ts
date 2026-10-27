@@ -15,36 +15,46 @@ export const useNotificationStore = defineStore('notifications', () => {
 
   // 当前已加载的账号：用于检测登出/切换账号，立即清空上一账号的残留数据
   let loadedUserId = ''
+  // 请求序号：防止旧账号的迟到响应覆盖新账号数据（切号竞态）
+  let loadSeq = 0
+
+  // 立即清空列表与角标（登出/切换账号时调用）
+  function clearAll() {
+    loadSeq++ // 使在途的旧请求响应全部作废
+    list.value = []
+    unreadCount.value = 0
+    loading.value = false
+    loadedUserId = ''
+  }
 
   async function load() {
     const userId = getUserId()
     if (!userId) {
       // 已登出：清空列表与未读角标，避免残留上一账号的未读数
       if (loadedUserId) {
-        list.value = []
-        unreadCount.value = 0
-        loadedUserId = ''
+        clearAll()
       }
       return
     }
     if (userId !== loadedUserId) {
       // 切换账号：先清空上一账号的列表与角标，再加载新账号数据
-      list.value = []
-      unreadCount.value = 0
+      clearAll()
       loadedUserId = userId
     }
+    const seq = ++loadSeq
     loading.value = true
     try {
       const r = await fetch('/api/notifications?userId=' + encodeURIComponent(userId) + '&page=1&pageSize=500')
       const j = await r.json()
-      if (j.success) list.value = j.data.list || []
+      // 响应到达时账号已变化则丢弃（防旧账号迟到响应覆盖新账号数据）
+      if (seq === loadSeq && getUserId() === userId && j.success) list.value = j.data.list || []
     } catch (e) {}
     try {
       const r2 = await fetch('/api/notifications/unread-count?userId=' + encodeURIComponent(userId))
       const j2 = await r2.json()
-      if (j2.success) unreadCount.value = j2.data.count || 0
+      if (seq === loadSeq && getUserId() === userId && j2.success) unreadCount.value = j2.data.count || 0
     } catch (e) {}
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 
   async function markRead(id) {
@@ -87,5 +97,5 @@ export const useNotificationStore = defineStore('notifications', () => {
   // 弹窗预览：最新未读 5 条
   const unreadPreview = computed(() => list.value.filter((n: any) => !n.isRead).slice(0, 5))
 
-  return { list, unreadCount, loading, unreadPreview, load, markRead, markAllRead, startPolling, stopPolling }
+  return { list, unreadCount, loading, unreadPreview, load, clearAll, markRead, markAllRead, startPolling, stopPolling }
 })

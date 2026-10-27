@@ -46,6 +46,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowDown, User, Lock, SwitchButton } from '@element-plus/icons-vue'
 import { disconnectSocket } from '../services/socket'
+import { useNotificationStore } from '../stores/notifications'
 
 const router = useRouter()
 const currentUser = ref('用户')
@@ -227,6 +228,10 @@ const handleCommand = (command: string) => {
 const handleLogout = () => {
   // 断开 Socket 连接，释放单设备登录
   disconnectSocket()
+  // 立即清空通知/弹窗助手数据并停止轮询，避免残留上一账号的未读角标
+  const ns = useNotificationStore()
+  ns.clearAll()
+  ns.stopPolling()
   localStorage.removeItem('token')
   localStorage.removeItem('userId')
   localStorage.removeItem('username')

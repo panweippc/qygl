@@ -54,24 +54,6 @@
       </div>
     </div>
 
-    <div class="cl-trend">
-      <div class="trend-card">
-        <h3 class="cl-card-title">成交趋势（按申报月份）</h3>
-        <div ref="chartRef" class="trend-chart"></div>
-      </div>
-      <div class="rank-card">
-        <h3 class="cl-card-title">负责人成交 TOP5（按合同额）</h3>
-        <ul class="rank-list">
-          <li v-for="(o, i) in topOwners" :key="o.owner">
-            <span class="rank-no" :class="'rank-' + (i + 1)">{{ i + 1 }}</span>
-            <span class="rank-name">{{ o.owner }}</span>
-            <span class="rank-amt">¥{{ fmt(o.amount) }}</span>
-          </li>
-          <li v-if="!topOwners.length" class="rank-empty">暂无数据</li>
-        </ul>
-      </div>
-    </div>
-
     <div class="cl-achievement">
       <div class="ach-head">
         <h3 class="cl-card-title">目标达成对比（成交实际 ↔ 销售目标）</h3>
@@ -115,6 +97,24 @@
         </span>
       </div>
       <p class="ach-tip">说明：实际数取自「成交用户」表按负责人与申报月份汇总；目标数取自「销售目标」表（按负责人 + 年/月）。负责人名称需与销售目标中的 managerId 一致方可匹配。</p>
+    </div>
+
+    <div class="cl-trend">
+      <div class="trend-card">
+        <h3 class="cl-card-title">成交趋势（按申报月份）</h3>
+        <div ref="chartRef" class="trend-chart"></div>
+      </div>
+      <div class="rank-card">
+        <h3 class="cl-card-title">负责人成交 TOP5（按合同额）</h3>
+        <ul class="rank-list">
+          <li v-for="(o, i) in topOwners" :key="o.owner">
+            <span class="rank-no" :class="'rank-' + (i + 1)">{{ i + 1 }}</span>
+            <span class="rank-name">{{ o.owner }}</span>
+            <span class="rank-amt">¥{{ fmt(o.amount) }}</span>
+          </li>
+          <li v-if="!topOwners.length" class="rank-empty">暂无数据</li>
+        </ul>
+      </div>
     </div>
 
     <DealTable :perm="perm" />

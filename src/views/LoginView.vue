@@ -694,6 +694,7 @@ const handleLogin = async () => {
 
       // 立即按新账号刷新通知（弹窗助手/消息中心角标），避免残留上一账号的未读数
       notificationStore.load()
+      notificationStore.startPolling()
 
       // 存储用户角色信息
       let role = 'employee'
