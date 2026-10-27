@@ -1,7 +1,8 @@
 <template>
   <div class="customer-page">
-    <header class="page-header">
-      <h2>客户管理</h2>
+    <PageHeaderBar title="客户管理" />
+    <div class="customer-body">
+    <div class="page-header">
       <div class="header-actions">
         <el-input v-model="searchQuery" placeholder="搜索客户名称/联系人/电话" clearable style="width:240px" @clear="loadCustomers" @keyup.enter="loadCustomers" />
         <el-select v-model="tagFilter" placeholder="标签筛选" clearable style="width:140px" @change="loadCustomers">
@@ -20,7 +21,7 @@
         <el-button type="success" @click="exportCustomers">导出 Excel</el-button>
         <el-button type="primary" v-if="hasPerm('btn_add')" @click="openAddDialog">+ 新增客户</el-button>
       </div>
-    </header>
+    </div>
 
     <el-alert v-if="reminders.length" type="warning" :closable="true" class="reminder-banner" show-icon>
       <template #title>
@@ -61,7 +62,7 @@
       <el-table-column prop="createdAt" label="创建时间" width="160">
         <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column label="操作" width="250" fixed="right" class-name="op-col">
         <template #default="{ row }">
           <el-button text size="small" v-if="row.pool_status === 'public'" @click.stop="claim(row)">认领</el-button>
           <el-button text size="small" v-if="row.pool_status === 'private' && (row.owner === currentUser || isManager)" @click.stop="release(row)">释放</el-button>
@@ -211,6 +212,7 @@
         </el-form>
       </template>
     </el-dialog>
+    </div>
   </div>
 </template>
 
@@ -219,6 +221,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useButtonPermission } from '@/composables/usePermission'
+import PageHeaderBar from '../components/PageHeaderBar.vue'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -497,10 +500,12 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.customer-page { padding: 20px; }
+.customer-page { background: #E4EDF2; min-height: 100vh; }
+.customer-body { padding: 20px; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
-.page-header h2 { font-size: 18px; color: #333; }
 .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+/* 操作列按钮保持一行，不换行 */
+:deep(.op-col .cell) { white-space: nowrap; }
 .pagination-wrap { display: flex; justify-content: center; margin-top: 16px; }
 .activity-list { max-height: 300px; overflow-y: auto; }
 .activity-item { padding: 10px 12px; background: #f8f9fa; border-radius: 6px; margin-bottom: 8px; }

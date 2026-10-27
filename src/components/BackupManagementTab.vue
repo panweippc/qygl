@@ -3,7 +3,7 @@
     <div class="section-header">
       <h3 class="subsection-title">数据备份</h3>
       <div class="backup-actions">
-        <span class="backup-tip">备份包含全部表结构与数据，兼容 MySQL 5.7</span>
+        <span class="backup-tip">备份包含全部表结构、数据与上传附件（数据库 .sql + 附件 .zip 成对生成），兼容 MySQL 5.7</span>
         <el-button type="primary" @click="handleCreateBackup" :loading="creating">立即备份</el-button>
       </div>
     </div>
@@ -13,6 +13,7 @@
         <el-table-column prop="name" label="备份文件" min-width="260" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="file-name">{{ row.name }}</span>
+            <el-tag v-if="row.hasFiles" size="small" type="success" style="margin-left: 8px">含附件包</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="sizeText" label="大小" width="110" />
@@ -138,7 +139,7 @@ function handleDelete(row: BackupItem) {
 
 function handleRestore(row: BackupItem) {
   ElMessageBox.prompt(
-    `将使用备份"${row.name}"覆盖恢复当前数据库，恢复前系统会自动生成恢复前快照。\n此操作不可撤销，请输入 RESTORE 确认：`,
+    `将使用备份"${row.name}"覆盖恢复当前数据库；若该备份含附件包，上传附件会一并还原（以备份时点覆盖当前 uploads 目录）。恢复前系统会自动生成恢复前快照。\n此操作不可撤销，请输入 RESTORE 确认：`,
     '恢复确认',
     {
       confirmButtonText: '确认恢复',

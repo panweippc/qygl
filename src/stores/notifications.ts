@@ -13,9 +13,26 @@ export const useNotificationStore = defineStore('notifications', () => {
     return localStorage.getItem('username') || ''
   }
 
+  // 当前已加载的账号：用于检测登出/切换账号，立即清空上一账号的残留数据
+  let loadedUserId = ''
+
   async function load() {
     const userId = getUserId()
-    if (!userId) return
+    if (!userId) {
+      // 已登出：清空列表与未读角标，避免残留上一账号的未读数
+      if (loadedUserId) {
+        list.value = []
+        unreadCount.value = 0
+        loadedUserId = ''
+      }
+      return
+    }
+    if (userId !== loadedUserId) {
+      // 切换账号：先清空上一账号的列表与角标，再加载新账号数据
+      list.value = []
+      unreadCount.value = 0
+      loadedUserId = userId
+    }
     loading.value = true
     try {
       const r = await fetch('/api/notifications?userId=' + encodeURIComponent(userId) + '&page=1&pageSize=500')

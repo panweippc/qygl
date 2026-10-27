@@ -96,7 +96,9 @@ router.get('/backups', adminOnly, async (req, res) => {
           sizeText: stat.size < 1024 * 1024
             ? `${(stat.size / 1024).toFixed(1)} KB`
             : `${(stat.size / 1024 / 1024).toFixed(2)} MB`,
-          createdAt: stat.mtime
+          createdAt: stat.mtime,
+          // 是否伴随附件包（同名 _files.zip），前端据此显示"含附件"标识
+          hasFiles: fs.existsSync(path.join(BACKUP_DIR, name.replace(/\.sql$/, '_files.zip')))
         };
       })
       .sort((a, b) => b.createdAt - a.createdAt);
@@ -186,7 +188,7 @@ router.post('/backups', adminOnly, async (req, res) => {
     res.json({
       success: true,
       message: `备份成功：${tables} 张表、${rows} 行数据` + (fileCount > 0 ? `，附件已打包 ${fileCount} 个` : ''),
-      data: { name: filename, size: stat.size, sizeText: `${(stat.size / 1024).toFixed(1)} KB`, createdAt: stat.mtime }
+      data: { name: filename, size: stat.size, sizeText: `${(stat.size / 1024).toFixed(1)} KB`, createdAt: stat.mtime, hasFiles: !!filesZip }
     });
   } catch (error) {
     console.error('创建备份失败:', error);

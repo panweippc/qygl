@@ -259,8 +259,10 @@ import { login } from '../services/api'
 import { io, Socket } from 'socket.io-client'
 import { reinitSocket } from '../services/socket'
 import { startIdleDetector } from '../utils/idle-detector'
+import { useNotificationStore } from '../stores/notifications'
 
 const router = useRouter()
+const notificationStore = useNotificationStore()
 const loginFormRef = ref()
 const loading = ref(false)
 const activeInput = ref('')
@@ -689,6 +691,9 @@ const handleLogin = async () => {
       localStorage.setItem('token', response.token || `session-${user.id}-${Date.now()}`)
       localStorage.setItem('userId', user.id.toString())
       localStorage.setItem('username', user.username)
+
+      // 立即按新账号刷新通知（弹窗助手/消息中心角标），避免残留上一账号的未读数
+      notificationStore.load()
 
       // 存储用户角色信息
       let role = 'employee'
