@@ -226,12 +226,9 @@ const handleCommand = (command: string) => {
 }
 
 const handleLogout = () => {
-  // 断开 Socket 连接，释放单设备登录
+  // 1) 核心动作：先断开 Socket、清理登录态、跳转登录页。
+  //    这些步骤绝不能被后续的通知清理中断，否则会卡在"已登录"状态。
   disconnectSocket()
-  // 立即清空通知/弹窗助手数据并停止轮询，避免残留上一账号的未读角标
-  const ns = useNotificationStore()
-  ns.clearAll()
-  ns.stopPolling()
   localStorage.removeItem('token')
   localStorage.removeItem('userId')
   localStorage.removeItem('username')
@@ -244,6 +241,15 @@ const handleLogout = () => {
     refreshInterval = null
   }
   router.push('/login')
+  // 2) 清空通知/弹窗助手数据并停止轮询（容错处理，失败不影响退出登录）
+  try {
+    const ns = useNotificationStore()
+    ns.clearAll()
+    ns.stopPolling()
+  } catch (e) {
+    // 退出登录优先：通知清理失败可忽略，下一账号登录时会重新加载
+    console.warn('[logout] 通知数据清理失败（已忽略）:', e)
+  }
 }
 
 onMounted(() => {

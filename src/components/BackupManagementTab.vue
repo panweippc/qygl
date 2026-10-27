@@ -22,11 +22,14 @@
             {{ formatTime(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column v-if="isAdmin" label="操作" width="220" align="center">
+        <el-table-column v-if="isAdmin" label="操作" width="320" align="center">
           <template #default="{ row }">
-            <el-button size="small" @click="handleDownload(row)">下载</el-button>
-            <el-button size="small" type="danger" plain @click="handleRestore(row)">恢复</el-button>
-            <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
+            <div class="op-btns">
+              <el-button size="small" @click="handleDownload(row)">下载SQL</el-button>
+              <el-button v-if="row.hasFiles" size="small" type="warning" plain @click="handleDownloadFiles(row)">下载附件包</el-button>
+              <el-button size="small" type="danger" plain @click="handleRestore(row)">恢复</el-button>
+              <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -106,6 +109,14 @@ function handleDownload(row: BackupItem) {
   window.open(`/api/backups/${encodeURIComponent(row.name)}/download?token=${token()}`, '_blank')
 }
 
+function handleDownloadFiles(row: BackupItem) {
+  if (!row.hasFiles) {
+    ElMessage.info('该备份未包含附件包')
+    return
+  }
+  window.open(`/api/backups/${encodeURIComponent(row.name)}/files?token=${token()}`, '_blank')
+}
+
 function handleDelete(row: BackupItem) {
   // 高危操作二次验证：弹出密码输入框，需输入当前登录密码确认
   ElMessageBox.prompt(
@@ -181,5 +192,6 @@ onMounted(() => {
 .backup-actions { display: flex; align-items: center; gap: 12px; }
 .backup-tip { font-size: 12px; color: #999; }
 .backup-container { min-height: 240px; }
+.op-btns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .file-name { font-family: Consolas, Monaco, monospace; font-size: 13px; color: #333; }
 </style>

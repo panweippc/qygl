@@ -220,6 +220,37 @@ router.get('/backups/:file/download', adminOnly, async (req, res) => {
   res.download(full, req.params.file);
 });
 
+// 安全解析"附件包"路径：仅允许由合法 .sql 名推导出同名 _files.zip，且必须落在备份目录内（防路径穿越）
+const safeResolveFiles = (filename) => {
+  if (!SAFE_NAME.test(filename)) return null;
+  const baseName = filename.replace(/\.sql$/, '');
+  const zipName = baseName + '_files.zip';
+  if (!/^[A-Za-z0-9_\-]+_files\.zip$/.test(zipName)) return null;
+  const full = path.join(BACKUP_DIR, zipName);
+  if (!full.startsWith(path.resolve(BACKUP_DIR) + path.sep)) return null;
+  return full;
+};
+
+// 下载附件包（与 .sql 成对生成的 _files.zip，含全部上传附件）
+router.get('/backups/:file/files', adminOnly, async (req, res) => {
+  const full = safeResolveFiles(req.params.file);
+  if (!full || !fs.existsSync(full)) {
+    return res.status(404).json({ success: false, message: '附件包不存在（该备份未包含附件）' });
+  }
+  // 审计：附件包下载
+  try {
+    await createOperationLog(req.app.locals.pool, {
+      userId: String(req.user.id || ''),
+      username: req.user.username || '',
+      action: 'backup_download_files',
+      module: 'system',
+      targetName: path.basename(full),
+      detail: '下载备份附件包（上传文件）'
+    });
+  } catch (e) { /* 日志失败不影响下载 */ }
+  res.download(full, path.basename(full));
+});
+
 // 删除备份文件（需管理员 + 当前登录密码二次验证）
 router.delete('/backups/:file', adminOnly, verifyAdminPassword, async (req, res) => {
   const full = safeResolve(req.params.file);
