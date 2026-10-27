@@ -133,6 +133,7 @@ router.put('/customers/:id', async (req, res) => {
   if (vErr) return res.status(400).json({ success: false, message: vErr });
   try {
     await ensureCustomerColumns(pool);
+    const user = currentUser(req);
     const beforeValue = await getRecordBefore(pool, 'customers', id, { name: 1, contact: 1, phone: 1, email: 1, address: 1, tags: 1, status: 1, owner: 1, pool_status: 1, next_followup_at: 1 });
     const ps = pool_status ? (pool_status === 'public' ? 'public' : 'private') : undefined;
     const sets = ['name = ?', 'contact = ?', 'phone = ?', 'email = ?', 'address = ?', 'tags = ?', 'status = ?'];
@@ -140,8 +141,12 @@ router.put('/customers/:id', async (req, res) => {
     if (ps) {
       sets.push('pool_status = ?');
       values.push(ps);
+      const newOwner = ps === 'public' ? '' : (owner || currentUser(req));
+      if (owner && String(owner).trim() && beforeValue && beforeValue.owner && String(owner).trim() !== beforeValue.owner && beforeValue.owner !== user) {
+        return res.status(403).json({ success: false, message: '无权修改该客户负责人' });
+      }
       sets.push('owner = ?');
-      values.push(ps === 'public' ? '' : (owner || currentUser(req)));
+      values.push(newOwner);
     }
     if ('source' in req.body) { sets.push('source = ?'); values.push(req.body.source ?? null); }
     if (next_followup_at !== undefined) { sets.push('next_followup_at = ?'); values.push(next_followup_at || null); sets.push('followup_reminded = 0'); }
@@ -212,7 +217,7 @@ router.post('/customers/:id/release', async (req, res) => {
     const [rows] = await pool.execute('SELECT id, name, pool_status, owner FROM customers WHERE id = ?', [id]);
     if (rows.length === 0) return res.status(404).json({ success: false, message: '客户不存在' });
     if (rows[0].pool_status !== 'private') return res.status(400).json({ success: false, message: '该客户已在公海' });
-    if (rows[0].owner !== user && !isManager(req)) return res.status(403).json({ success: false, message: '无权释放该客户' });
+    if (rows[0].owner !== user) return res.status(403).json({ success: false, message: '你没有该权限' });
     await pool.execute("UPDATE customers SET pool_status = 'public', owner = '' WHERE id = ?", [id]);
     await createOperationLog(pool, { username: getOperator(req), action: 'release', module: 'customer', targetName: `客户: ${rows[0].name}`, detail: `${user} 释放客户 ${rows[0].name} 到公海` });
     res.json({ success: true, message: '已释放到公海' });
@@ -229,8 +234,9 @@ router.post('/customers/:id/assign', async (req, res) => {
   if (!isManager(req)) return res.status(403).json({ success: false, message: '无权限' });
   if (!owner || !String(owner).trim()) return res.status(400).json({ success: false, message: '请指定负责人' });
   try {
-    const [rows] = await pool.execute('SELECT id, name FROM customers WHERE id = ?', [id]);
+    const [rows] = await pool.execute('SELECT id, name, pool_status FROM customers WHERE id = ?', [id]);
     if (rows.length === 0) return res.status(404).json({ success: false, message: '客户不存在' });
+    if (rows[0].pool_status !== 'public') return res.status(400).json({ success: false, message: '请先由负责人释放到公海' });
     await pool.execute("UPDATE customers SET owner = ?, pool_status = 'private', followup_reminded = 0 WHERE id = ?", [String(owner).trim(), id]);
     await createOperationLog(pool, { username: getOperator(req), action: 'assign', module: 'customer', targetName: `客户: ${rows[0].name}`, detail: `分配给 ${owner}` });
     res.json({ success: true, message: '分配成功' });

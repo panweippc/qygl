@@ -65,9 +65,9 @@
       <el-table-column label="操作" width="250" fixed="right" class-name="op-col">
         <template #default="{ row }">
           <el-button text size="small" v-if="row.pool_status === 'public'" @click.stop="claim(row)">认领</el-button>
-          <el-button text size="small" v-if="row.pool_status === 'private' && (row.owner === currentUser || isManager)" @click.stop="release(row)">释放</el-button>
-          <el-button text size="small" v-if="isManager" @click.stop="assign(row)">分配</el-button>
-          <el-button text size="small" v-if="hasPerm('btn_edit')" @click.stop="openEdit(row)">编辑</el-button>
+          <el-button text size="small" v-if="row.pool_status === 'private' && row.owner === currentUser" @click.stop="release(row)">释放</el-button>
+          <el-button text size="small" v-if="isManager && row.pool_status === 'public'" @click.stop="assign(row)">分配</el-button>
+          <el-button text size="small" v-if="hasPerm('btn_edit') && (row.pool_status === 'public' || row.owner === currentUser)" @click.stop="openEdit(row)">编辑</el-button>
           <el-popconfirm v-if="hasPerm('btn_delete')" title="确定删除此客户？" @confirm.stop="deleteCustomer(row.id)">
             <template #reference>
               <el-button text size="small" type="danger" @click.stop>删除</el-button>
@@ -103,8 +103,8 @@
             <el-option label="公海" value="public" />
           </el-select>
         </el-form-item>
-        <el-form-item label="负责人" v-if="form.pool_status === 'private'">
-          <el-input v-model="form.owner" :placeholder="editingId ? '留空则保持原负责人' : '留空则默认当前用户'" />
+        <el-form-item label="负责人" v-if="form.pool_status === 'private' && form.owner === currentUser">
+          <el-input v-model="form.owner" :placeholder="`转交给（留空则保持 ${form.owner || '当前用户'}）`" />
         </el-form-item>
         <el-form-item label="下次跟进">
           <el-date-picker v-model="form.next_followup_at" type="datetime" placeholder="设置跟进时间" value-format="YYYY-MM-DD HH:mm:ss" />
@@ -450,7 +450,7 @@ const openByName = (name: string) => {
 
 const downloadTemplate = () => {
   const a = document.createElement('a')
-  a.href = '/api/customers/template'
+  a.href = '/api/customers/template?token=' + encodeURIComponent(localStorage.getItem('token') || '')
   a.download = 'customers_import_template.xlsx'
   a.click()
 }
