@@ -23,7 +23,8 @@ async function ensureCustomerColumns(pool) {
       owner: "ALTER TABLE customers ADD COLUMN `owner` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '' COMMENT '负责人（私海归属，空表示公海）'",
       pool_status: "ALTER TABLE customers ADD COLUMN `pool_status` VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'private' COMMENT '公海/私海：public/private'",
       next_followup_at: "ALTER TABLE customers ADD COLUMN `next_followup_at` DATETIME DEFAULT NULL COMMENT '下次跟进时间'",
-      followup_reminded: "ALTER TABLE customers ADD COLUMN `followup_reminded` TINYINT(1) DEFAULT 0 COMMENT '是否已生成跟进提醒，避免重复提醒'"
+      followup_reminded: "ALTER TABLE customers ADD COLUMN `followup_reminded` TINYINT(1) DEFAULT 0 COMMENT '是否已生成跟进提醒，避免重复提醒'",
+      is_deleted: "ALTER TABLE customers ADD COLUMN `is_deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除标记（0=未删，1=已删）'"
     };
     for (const [col, ddl] of Object.entries(need)) {
       if (!existing.has(col)) {
@@ -61,6 +62,7 @@ router.get('/customers', async (req, res) => {
 
     const where = [];
     const params = [];
+    where.push('is_deleted = 0'); // 软删除过滤：已删客户不出现在列表
     if (keyword) {
       where.push('(name LIKE ? OR contact LIKE ? OR phone LIKE ?)');
       params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
@@ -172,16 +174,21 @@ router.put('/customers/:id', async (req, res) => {
 router.delete('/customers/:id', async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
+  const user = currentUser(req);
   try {
-    const [rows] = await pool.execute('SELECT name FROM customers WHERE id = ?', [id]);
-    const customerName = rows.length > 0 ? rows[0].name : `ID: ${id}`;
-    await pool.execute('DELETE FROM customers WHERE id = ?', [id]);
+    const [rows] = await pool.execute('SELECT name, owner, is_deleted FROM customers WHERE id = ?', [id]);
+    if (rows.length === 0) return res.status(404).json({ success: false, message: '客户不存在' });
+    if (rows[0].is_deleted) return res.status(400).json({ success: false, message: '该客户已删除' });
+    // 仅客户对应的负责人可以删除
+    if (rows[0].owner !== user) return res.status(403).json({ success: false, message: '你没有该权限' });
+    // 软删除：仅打标记，不做物理删除
+    await pool.execute('UPDATE customers SET is_deleted = 1 WHERE id = ?', [id]);
     await createOperationLog(pool, {
       username: getOperator(req),
       action: 'delete',
       module: 'customer',
-      targetName: `客户: ${customerName}`,
-      detail: `删除客户: ${customerName} (ID: ${id})`
+      targetName: `客户: ${rows[0].name}`,
+      detail: `软删除客户: ${rows[0].name} (ID: ${id})`
     });
     res.json({ success: true, message: '客户删除成功' });
   } catch (error) {
@@ -196,7 +203,7 @@ router.post('/customers/:id/claim', async (req, res) => {
   const user = currentUser(req);
   if (!user) return res.status(401).json({ success: false, message: '未登录' });
   try {
-    const [rows] = await pool.execute('SELECT id, name, pool_status, owner FROM customers WHERE id = ?', [id]);
+    const [rows] = await pool.execute('SELECT id, name, pool_status, owner FROM customers WHERE id = ? AND is_deleted = 0', [id]);
     if (rows.length === 0) return res.status(404).json({ success: false, message: '客户不存在' });
     if (rows[0].pool_status === 'private') return res.status(400).json({ success: false, message: '该客户已在私海' });
     await pool.execute("UPDATE customers SET pool_status = 'private', owner = ?, followup_reminded = 0 WHERE id = ?", [user, id]);
@@ -214,7 +221,7 @@ router.post('/customers/:id/release', async (req, res) => {
   const user = currentUser(req);
   if (!user) return res.status(401).json({ success: false, message: '未登录' });
   try {
-    const [rows] = await pool.execute('SELECT id, name, pool_status, owner FROM customers WHERE id = ?', [id]);
+    const [rows] = await pool.execute('SELECT id, name, pool_status, owner FROM customers WHERE id = ? AND is_deleted = 0', [id]);
     if (rows.length === 0) return res.status(404).json({ success: false, message: '客户不存在' });
     if (rows[0].pool_status !== 'private') return res.status(400).json({ success: false, message: '该客户已在公海' });
     if (rows[0].owner !== user) return res.status(403).json({ success: false, message: '你没有该权限' });
@@ -234,7 +241,7 @@ router.post('/customers/:id/assign', async (req, res) => {
   if (!isManager(req)) return res.status(403).json({ success: false, message: '无权限' });
   if (!owner || !String(owner).trim()) return res.status(400).json({ success: false, message: '请指定负责人' });
   try {
-    const [rows] = await pool.execute('SELECT id, name, pool_status FROM customers WHERE id = ?', [id]);
+    const [rows] = await pool.execute('SELECT id, name, pool_status FROM customers WHERE id = ? AND is_deleted = 0', [id]);
     if (rows.length === 0) return res.status(404).json({ success: false, message: '客户不存在' });
     if (rows[0].pool_status !== 'public') return res.status(400).json({ success: false, message: '请先由负责人释放到公海' });
     await pool.execute("UPDATE customers SET owner = ?, pool_status = 'private', followup_reminded = 0 WHERE id = ?", [String(owner).trim(), id]);
@@ -267,7 +274,7 @@ router.get('/customers/followup-reminders', async (req, res) => {
   try {
     await ensureCustomerColumns(pool);
     const [rows] = await pool.execute(
-      "SELECT * FROM customers WHERE next_followup_at IS NOT NULL AND pool_status = 'private' AND next_followup_at <= DATE_ADD(NOW(), INTERVAL 3 DAY) ORDER BY next_followup_at ASC"
+      "SELECT * FROM customers WHERE is_deleted = 0 AND next_followup_at IS NOT NULL AND pool_status = 'private' AND next_followup_at <= DATE_ADD(NOW(), INTERVAL 3 DAY) ORDER BY next_followup_at ASC"
     );
     const now = new Date();
     const list = rows.map(r => ({
@@ -295,7 +302,7 @@ router.get('/customers/followup-reminders', async (req, res) => {
 router.get('/customers/tags', async (req, res) => {
   const { pool } = req.app.locals;
   try {
-    const [rows] = await pool.execute('SELECT tags FROM customers WHERE tags IS NOT NULL AND tags <> ""');
+    const [rows] = await pool.execute('SELECT tags FROM customers WHERE is_deleted = 0 AND tags IS NOT NULL AND tags <> ""');
     const set = new Set();
     for (const r of rows) {
       String(r.tags).split(',').map(t => t.trim()).filter(Boolean).forEach(t => set.add(t));
@@ -317,6 +324,7 @@ router.get('/customers/export', async (req, res) => {
     const owner = req.query.owner || '';
     const where = [];
     const params = [];
+    where.push('is_deleted = 0'); // 软删除过滤：导出不含已删客户
     if (keyword) { where.push('(name LIKE ? OR contact LIKE ? OR phone LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`); }
     if (tag) { where.push('(tags LIKE ?)'); params.push(`%${tag}%`); }
     if (poolFilter === 'public') where.push("pool_status = 'public'");
@@ -343,7 +351,8 @@ router.get('/customers/export', async (req, res) => {
     xlsx.utils.book_append_sheet(wb, ws, '客户管理');
     const buf = xlsx.write(wb, { bookType: 'xlsx', type: 'buffer' });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename=customers_export.xlsx');
+    const exportName = encodeURIComponent(`客户导出_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    res.setHeader('Content-Disposition', `attachment; filename="customers_export.xlsx"; filename*=UTF-8''${exportName}`);
     res.send(buf);
   } catch (error) {
     console.error('导出客户失败:', error);
@@ -359,7 +368,8 @@ router.get('/customers/template', (req, res) => {
   xlsx.utils.book_append_sheet(wb, ws, '客户导入模板');
   const buf = xlsx.write(wb, { bookType: 'xlsx', type: 'buffer' });
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', 'attachment; filename=customers_import_template.xlsx');
+  const templateName = encodeURIComponent('客户导入模板.xlsx');
+  res.setHeader('Content-Disposition', `attachment; filename="customers_import_template.xlsx"; filename*=UTF-8''${templateName}`);
   res.send(buf);
 });
 

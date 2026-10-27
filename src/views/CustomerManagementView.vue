@@ -68,11 +68,7 @@
           <el-button text size="small" v-if="row.pool_status === 'private' && row.owner === currentUser" @click.stop="release(row)">释放</el-button>
           <el-button text size="small" v-if="isManager && row.pool_status === 'public'" @click.stop="assign(row)">分配</el-button>
           <el-button text size="small" v-if="hasPerm('btn_edit') && (row.pool_status === 'public' || row.owner === currentUser)" @click.stop="openEdit(row)">编辑</el-button>
-          <el-popconfirm v-if="hasPerm('btn_delete')" title="确定删除此客户？" @confirm.stop="deleteCustomer(row.id)">
-            <template #reference>
-              <el-button text size="small" type="danger" @click.stop>删除</el-button>
-            </template>
-          </el-popconfirm>
+          <el-button text size="small" type="danger" v-if="hasPerm('btn_delete') && row.pool_status === 'private' && row.owner === currentUser" @click.stop="deleteCustomer(row.id)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -348,13 +344,13 @@ const saveCustomer = async () => {
 
 const deleteCustomer = async (id: number) => {
   try {
-    await ElMessageBox.confirm('确定要删除该客户吗？此操作不可恢复', '删除客户', {
-      confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
-    })
+    await ElMessageBox.confirm('确定删除该客户吗？', '提示', { type: 'warning' })
     const res = await fetch('/api/customers/' + id, { method: 'DELETE' }).then(r => r.json())
     if (res.success) {
       ElMessage.success('客户已删除')
       await loadCustomers()
+    } else {
+      ElMessage.error(res.message || '删除失败')
     }
   } catch { /* ignore */ }
 }
@@ -451,7 +447,7 @@ const openByName = (name: string) => {
 const downloadTemplate = () => {
   const a = document.createElement('a')
   a.href = '/api/customers/template?token=' + encodeURIComponent(localStorage.getItem('token') || '')
-  a.download = 'customers_import_template.xlsx'
+  a.download = '客户导入模板.xlsx'
   a.click()
 }
 
@@ -479,7 +475,7 @@ const exportCustomers = async () => {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'customers_export.xlsx'
+    a.download = '客户导出_' + new Date().toISOString().slice(0, 10) + '.xlsx'
     a.click()
     window.URL.revokeObjectURL(url)
   } catch { ElMessage.error('导出失败') }

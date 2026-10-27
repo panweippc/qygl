@@ -18,6 +18,8 @@
       </template>
     </PageHeaderBar>
 
+    <DealTable :perm="perm" />
+
     <el-alert
       v-if="overdue.count > 0"
       class="cl-overdue-alert"
@@ -116,8 +118,6 @@
         </ul>
       </div>
     </div>
-
-    <DealTable :perm="perm" />
   </div>
 </template>
 
