@@ -40,6 +40,11 @@
  *     Restart 保证崩溃自启、服务器重启也在；每次部署 nssm restart 拉起最新代码。
  *   - 解决此前 start /b 启动的 dev server 不归 pm2、被 Jenkins 会话/进程树清理杀掉(3003 周期性掉)的问题。
  *   - 部署机未装 nssm 时自动回退 start /b（不阻断构建，但重启仍会掉，需运维补装 nssm 并赋权）。
+ *
+ * v1.2.80 修复（版本号停旧标签）：
+ *   - 阶段1 补 `git fetch origin --tags`：此前只 fetch main 分支，部署机仓库缺新 tag，
+ *     `git describe --tags` 只能找到最旧基线(如 v1.2.30)，登录页版本号显示 v1.2.30-218-g9b186a1 之类。
+ *   - fetch tags 放在跳过判断之前，即使无新提交也会同步标签；后端版本号在下次重启后端时生效。
  */
 boolean skipDeploy = false   // 顶层 Groovy 变量，供 when{expression} 实时读取（比 environment 条件可靠）
 
@@ -80,6 +85,8 @@ pipeline {
         echo "=== 阶段1: 检测/拉取最新代码 (${PROJECT_DIR}) ==="
         dir("${PROJECT_DIR}") {
           bat "git fetch origin ${GIT_BRANCH}"
+          // 同步标签：否则部署机仓库缺新 tag，git describe 停在旧基线，登录页版本号不同步（v1.2.80）
+          bat "git fetch origin --tags"
           script {
             // 只抽取 40 位 SHA，排除 cmd 回显的命令文本，否则比较永远不相等 → 每次都误判为"有更新"
             def rawLocal  = bat(returnStdout: true, script: "git rev-parse ${GIT_BRANCH}").trim()

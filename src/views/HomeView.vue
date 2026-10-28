@@ -131,7 +131,9 @@
               <span v-if="p.applicant">申请人：{{ p.applicant }}</span>
             </div>
             <div v-if="p.description" class="cd-project-desc">{{ p.description }}</div>
-            <div v-if="p.link" class="cd-project-link"><a :href="p.link" target="_blank" rel="noopener">项目链接</a></div>
+            <div v-if="p.link" class="cd-project-link">
+              <a v-for="(u, i) in splitHomeLinks(p.link)" :key="i" :href="u" target="_blank" rel="noopener">项目链接{{ splitHomeLinks(p.link).length > 1 ? ` ${i + 1}` : '' }}</a>
+            </div>
           </div>
         </div>
         <div v-else class="contact-empty">暂无负责项目</div>
@@ -156,6 +158,12 @@ import {
 
 const router = useRouter()
 const guard = useRoleGuard()
+
+// 项目链接多网址：project_link/link 单字段按换行分隔存多个网址（兼容历史单链接）
+const splitHomeLinks = (link: any): string[] => {
+  if (!link) return []
+  return String(link).split(/\n+/).map((s: string) => s.trim()).filter(Boolean)
+}
 const roleTier = guard.roleTier
 const isApprover = computed(() => roleTier.value !== 'employee')
 
@@ -655,7 +663,7 @@ function progressTagType(p: number): 'info' | 'warning' | 'success' {
 .cd-project-name { font-weight: 600; color: #333; font-size: 0.95rem; }
 .cd-project-meta { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; font-size: 0.82rem; color: rgba(51,51,51,0.75); }
 .cd-project-desc { margin-top: 0.4rem; font-size: 0.82rem; color: rgba(51,51,51,0.7); line-height: 1.5; }
-.cd-project-link { margin-top: 0.3rem; font-size: 0.82rem; }
+.cd-project-link { margin-top: 0.3rem; font-size: 0.82rem; display: flex; flex-direction: column; gap: 0.15rem; align-items: flex-start; }
 .cd-project-link a { color: #2E6FB8; }
 
 /* 区块标题计数后缀 */

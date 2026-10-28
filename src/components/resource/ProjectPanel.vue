@@ -40,9 +40,9 @@
             <el-progress :percentage="Math.min(100, Math.max(0, Number(project.progress) || 0))" :stroke-width="8" />
             <span class="stage-tag">{{ progressStageLabel(project.progress) }}</span>
           </div>
-          <div v-if="project.project_link" class="project-link">
-            <a :href="project.project_link" target="_blank" rel="noopener noreferrer">
-              <el-icon><Link /></el-icon>{{ project.project_link }}
+          <div v-if="splitLinks(project.project_link).length" class="project-link">
+            <a v-for="(u, i) in splitLinks(project.project_link)" :key="i" :href="u" target="_blank" rel="noopener noreferrer">
+              <el-icon><Link /></el-icon>{{ u }}
             </a>
           </div>
           <div v-if="project.category_name && (all || categoryId === null)" class="project-uncat">
@@ -85,7 +85,15 @@
           <el-input v-model="addForm.description" type="textarea" placeholder="请输入项目描述" />
         </el-form-item>
         <el-form-item label="项目链接">
-          <el-input v-model="addForm.link" placeholder="请输入项目链接" />
+          <div class="link-list">
+            <div v-for="(_, i) in addForm.links" :key="i" class="link-row">
+              <el-input v-model="addForm.links[i]" placeholder="请输入项目链接" />
+              <el-button v-if="addForm.links.length > 1" text class="link-remove" @click="addForm.links.splice(i, 1)">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </div>
+            <el-button text type="primary" class="link-add" @click="addForm.links.push('')">+ 添加链接</el-button>
+          </div>
         </el-form-item>
         <el-form-item label="负责人">
           <el-select v-model="addForm.manager" multiple filterable clearable collapse-tags collapse-tags-tooltip placeholder="选择负责人（可多选，默认当前用户）" style="width:100%">
@@ -133,7 +141,15 @@
           <el-input v-model="editForm.description" type="textarea" placeholder="请输入项目描述" />
         </el-form-item>
         <el-form-item label="项目链接">
-          <el-input v-model="editForm.link" placeholder="请输入项目链接" />
+          <div class="link-list">
+            <div v-for="(_, i) in editForm.links" :key="i" class="link-row">
+              <el-input v-model="editForm.links[i]" placeholder="请输入项目链接" />
+              <el-button v-if="editForm.links.length > 1" text class="link-remove" @click="editForm.links.splice(i, 1)">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </div>
+            <el-button text type="primary" class="link-add" @click="editForm.links.push('')">+ 添加链接</el-button>
+          </div>
         </el-form-item>
         <el-form-item label="负责人">
           <el-select v-model="editForm.manager" multiple filterable clearable collapse-tags collapse-tags-tooltip placeholder="选择负责人（可多选）" style="width:100%">
@@ -266,6 +282,23 @@ const splitManagers = (m: any): string[] => {
   return String(m).split(',').map((s: string) => s.trim()).filter(Boolean)
 }
 
+// ===== 多项目链接：project_link 单字段按换行分隔存多个网址（兼容历史单链接） =====
+// 展示/回填：按换行拆成数组
+const splitLinks = (link: any): string[] => {
+  if (!link) return []
+  return String(link).split(/\n+/).map((s: string) => s.trim()).filter(Boolean)
+}
+// 提交：数组去空、去重后按换行合并入库
+const joinLinks = (links: string[]): string => {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const l of links || []) {
+    const t = String(l || '').trim()
+    if (t && !seen.has(t)) { seen.add(t); out.push(t) }
+  }
+  return out.join('\n')
+}
+
 const validNames = computed(() => new Set(categoryOptions.value.map(c => c.name)))
 
 const visibleProjects = computed(() => {
@@ -292,10 +325,10 @@ const loadMembers = async () => {
 }
 
 const addDialogVisible = ref(false)
-const addForm = ref({ name: '', description: '', link: '', categoryName: '', manager: [] as string[], status: '未开始', progress: 0, stage: 0, dateRange: [] as string[] })
+const addForm = ref({ name: '', description: '', links: [''] as string[], categoryName: '', manager: [] as string[], status: '未开始', progress: 0, stage: 0, dateRange: [] as string[] })
 const openAddProject = () => {
   addForm.value = {
-    name: '', description: '', link: '',
+    name: '', description: '', links: [''],
     categoryName: props.categoryId !== null ? props.categoryName : '',
     manager: [currentUsername.value],
     status: '未开始', progress: 0, dateRange: []
@@ -313,7 +346,7 @@ const submitAddProject = async () => {
       categoryName: catName,
       projectName: addForm.value.name,
       description: addForm.value.description || `${addForm.value.name}的项目描述`,
-      link: addForm.value.link || '',
+      link: joinLinks(addForm.value.links),
       manager: addForm.value.manager || currentUsername.value,
       status: addForm.value.status || '未开始',
       progress: Math.min(100, Math.max(0, Number(addForm.value.progress) || 0)),
@@ -326,13 +359,14 @@ const submitAddProject = async () => {
 }
 
 const editDialogVisible = ref(false)
-const editForm = ref({ id: 0, name: '', description: '', link: '', manager: [] as string[], status: '未开始', progress: 0, stage: 0, dateRange: [] as string[] })
+const editForm = ref({ id: 0, name: '', description: '', links: [''] as string[], manager: [] as string[], status: '未开始', progress: 0, stage: 0, dateRange: [] as string[] })
 const editProject = (project: any) => {
+  const links = splitLinks(project.project_link)
   editForm.value = {
     id: project.id,
     name: project.project_name,
     description: project.description || '',
-    link: project.project_link || '',
+    links: links.length ? links : [''],
     manager: project.manager ? String(project.manager).split(',').map((s: string) => s.trim()).filter(Boolean) : [],
     status: project.status || '未开始',
     progress: Number(project.progress) || 0,
@@ -348,7 +382,7 @@ const submitEditProject = async () => {
     const res = await updateCategoryProject(editForm.value.id, {
       projectName: editForm.value.name,
       description: editForm.value.description,
-      link: editForm.value.link,
+      link: joinLinks(editForm.value.links),
       manager: editForm.value.manager || currentUsername.value,
       status: editForm.value.status || '未开始',
       progress: Math.min(100, Math.max(0, Number(editForm.value.progress) || 0)),
@@ -414,8 +448,14 @@ onMounted(() => { refreshRole(); loadProjects(); loadCategories(); loadMembers()
 .stage-tag { font-size: 0.78rem; color: #fff; background: #2E6FB8; padding: 0.1rem 0.5rem; border-radius: 10px; font-weight: 600; white-space: nowrap; }
 .project-manager { font-size: 0.8rem; color: #1E5AA8; margin-bottom: 0.4rem; }
 .form-row { display: flex; gap: 1rem; }
+.project-link { display: flex; flex-direction: column; gap: 0.25rem; }
 .project-link a { color: #1E5AA8; text-decoration: none; font-size: 0.8rem; word-break: break-all; }
 .project-link a:hover { text-decoration: underline; }
+.link-list { width: 100%; display: flex; flex-direction: column; gap: 0.4rem; }
+.link-row { display: flex; align-items: center; gap: 0.4rem; }
+.link-row .el-input { flex: 1; }
+.link-remove { color: #909399; }
+.link-add { align-self: flex-start; padding-left: 0; }
 .project-uncat { font-size: 0.78rem; color: #faad14; margin-top: 0.35rem; }
 .project-actions { display: flex; gap: 0.4rem; align-items: flex-start; flex-shrink: 0; }
 .action-btn { background: rgba(30, 90, 168,0.15) !important; color: #1E5AA8 !important; border: 1px solid rgba(30, 90, 168,0.3) !important; border-radius: 6px !important; width: 32px !important; height: 32px !important; padding: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; transition: all 0.3s ease !important; }
