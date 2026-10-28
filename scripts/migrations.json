@@ -18,5 +18,6 @@
   "migrations/file-categories-createdby-v1.2.76.sql",
   "migrations/customer-pool-followup-v1.2.72.sql",
   "migrations/deal-expected-payment-v1.2.73.sql",
-  "migrations/customers-soft-delete-v1.2.77.sql"
+  "migrations/customers-soft-delete-v1.2.77.sql",
+  "migrations/business-soft-delete-v1.2.78.sql"
 ]

@@ -20,6 +20,7 @@ router.get('/assets', async (req, res) => {
     const { pool } = req.app.locals;
     const { type, status, department, keyword, categoryId, includeScrap, page, pageSize } = req.query;
     const where = ['1=1'];
+    where.push('a.is_deleted = 0');
     const params = [];
     if (type) { where.push('a.assetType = ?'); params.push(type); }
     if (status) { where.push('a.status = ?'); params.push(status); }
@@ -59,8 +60,8 @@ router.get('/assets/summary', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const [[totalRow]] = await pool.execute('SELECT COUNT(*) AS total FROM assets');
-    const [byType] = await pool.execute('SELECT assetType, COUNT(*) AS c FROM assets GROUP BY assetType');
-    const [byStatus] = await pool.execute('SELECT status, COUNT(*) AS c FROM assets GROUP BY status');
+    const [byType] = await pool.execute('SELECT assetType, COUNT(*) AS c FROM assets WHERE is_deleted = 0 GROUP BY assetType');
+    const [byStatus] = await pool.execute('SELECT status, COUNT(*) AS c FROM assets WHERE is_deleted = 0 GROUP BY status');
     // 折旧自动计算（直线法）：累计折旧 = (原值-残值)/年限/12 × 已计提月数(封顶总月数)；月折旧 = (原值-残值)/年限/12
     const [depRows] = await pool.execute(
       `SELECT
@@ -113,7 +114,7 @@ router.get('/assets/summary', async (req, res) => {
     // 月度入库趋势
     const [monthRows] = await pool.execute(
       `SELECT DATE_FORMAT(acquireDate,'%Y-%m') AS month, COUNT(*) AS count
-       FROM assets WHERE acquireDate IS NOT NULL GROUP BY month ORDER BY month`
+       FROM assets WHERE is_deleted = 0 AND acquireDate IS NOT NULL GROUP BY month ORDER BY month`
     );
     const monthly = monthRows.map(r => ({ month: r.month, count: Number(r.count || 0) }));
 
@@ -251,7 +252,7 @@ router.post('/assets', async (req, res) => {
       b.warrantyDate || null, b.usefulLifeYears || null, avail, operator
     ];
 
-    const [[{ c: baseC }]] = await pool.execute('SELECT COUNT(*) AS c FROM assets WHERE YEAR(createdAt) = ?', [year]);
+    const [[{ c: baseC }]] = await pool.execute('SELECT COUNT(*) AS c FROM assets WHERE is_deleted = 0 AND YEAR(createdAt) = ?', [year]);
     let seq = baseC;
     const batch = (assetType === 'fixed' && Number(b.batchCount) > 1) ? Number(b.batchCount) : 1;
     const totalQty = Number(b.quantity || 1);
@@ -352,8 +353,8 @@ router.delete('/assets/:id', async (req, res) => {
       'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail) VALUES (?, ?, ?, ?, ?, ?)',
       [id, '删除', old.status, '已删除', operator, `删除资产 ${old.assetCode || ''} ${old.name}`]
     );
-    await pool.execute('DELETE FROM assets WHERE id = ?', [id]);
-    createOperationLog(pool, { userId: null, username: operator, action: 'delete', module: 'asset', targetId: id, targetName: old.name, detail: `删除资产 ID: ${id}`, ipAddress: req.ip });
+    await pool.execute('UPDATE assets SET is_deleted = 1 WHERE id = ?', [id]);
+    createOperationLog(pool, { userId: null, username: operator, action: 'soft_delete', module: 'asset', targetId: id, targetName: old.name, detail: `删除资产 ID: ${id}`, ipAddress: req.ip });
     res.json({ success: true, message: '资产删除成功' });
   } catch (error) {
     console.error('删除资产失败:', error);
@@ -514,7 +515,7 @@ router.post('/assets/:id/scrap', async (req, res) => {
       'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail, qty, opDate, purpose, disposal, vendor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [id, '报废', a.status, '报废', operator, `报废 ${qty} ${a.unit || ''}`, qty, opDate, purpose, disposal, vendor]
     );
-    createOperationLog(pool, { userId: null, username: operator, action: 'delete', module: 'asset', targetId: Number(id), targetName: a.name, detail: `报废资产: ${a.name} x${qty}`, ipAddress: req.ip });
+    createOperationLog(pool, { userId: null, username: operator, action: 'soft_delete', module: 'asset', targetId: Number(id), targetName: a.name, detail: `报废资产: ${a.name} x${qty}`, ipAddress: req.ip });
     res.json({ success: true, message: '报废成功' });
   } catch (error) {
     console.error('报废失败:', error);
@@ -710,7 +711,7 @@ router.put('/asset-inventories/:id/void', async (req, res) => {
     await pool.execute('UPDATE assets SET frozen = 0 WHERE frozen = 1');
     const operator = getOperator(req);
     createOperationLog(pool, {
-      userId: null, username: operator, action: 'delete', module: 'asset',
+      userId: null, username: operator, action: 'soft_delete', module: 'asset',
       targetId: Number(id), targetName: '盘点单', detail: `作废盘点单 ID:${id}`, ipAddress: req.ip
     });
     res.json({ success: true, message: '盘点单已作废' });
@@ -823,7 +824,7 @@ router.post('/asset-inventories/:id/discrepancies/:did/handle', async (req, res)
 router.get('/asset-inventory-plans', async (req, res) => {
   try {
     const { pool } = req.app.locals;
-    const [rows] = await pool.execute('SELECT * FROM asset_inventory_plans ORDER BY id DESC');
+    const [rows] = await pool.execute('SELECT * FROM asset_inventory_plans WHERE is_deleted = 0 ORDER BY id DESC');
     res.json({ success: true, data: rows });
   } catch (error) {
     console.error('获取盘点计划失败:', error);
@@ -884,7 +885,7 @@ router.delete('/asset-inventory-plans/:id', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const { id } = req.params;
-    await pool.execute('DELETE FROM asset_inventory_plans WHERE id = ?', [id]);
+    await pool.execute('UPDATE asset_inventory_plans SET is_deleted = 1 WHERE id = ?', [id]);
     res.json({ success: true, message: '计划已删除' });
   } catch (error) {
     console.error('删除盘点计划失败:', error);
@@ -1002,7 +1003,7 @@ router.post('/assets/import', upload.single('file'), async (req, res) => {
     cats.forEach(c => { catByName[clean(c.name)] = c.id; });
 
     const year = new Date().getFullYear();
-    const [[{ c: baseC }]] = await pool.execute('SELECT COUNT(*) AS c FROM assets WHERE YEAR(createdAt) = ?', [year]);
+    const [[{ c: baseC }]] = await pool.execute('SELECT COUNT(*) AS c FROM assets WHERE is_deleted = 0 AND YEAR(createdAt) = ?', [year]);
     let seq = baseC;
     const cols = ['assetCode', 'name', 'assetType', 'categoryId', 'quantity', 'unit', 'acquireDate', 'source', 'originalValue', 'residualValue', 'depMethod', 'responsibleUser', 'department', 'location', 'carrier', 'status', 'expireDate', 'supplier', 'invoiceNo', 'spec', 'sn', 'remark', 'createdBy', 'availableQuantity'];
     const placeholders = cols.map(() => '?').join(', ');

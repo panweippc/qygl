@@ -263,7 +263,7 @@ router.post('/sales-import', requireSalesWriter, upload.single('file'), async (r
       }
 
       // 查找或创建盟市
-      let [cityRows] = await pool.execute('SELECT id, sales, customers FROM city_sales WHERE name = ?', [cityName]);
+      let [cityRows] = await pool.execute('SELECT id, sales, customers FROM city_sales WHERE name = ? AND is_deleted = 0', [cityName]);
       let cityId;
       if (cityRows.length === 0) {
         const [result] = await pool.execute(
@@ -282,7 +282,7 @@ router.post('/sales-import', requireSalesWriter, upload.single('file'), async (r
 
       // 查找或创建旗县
       let [countyRows] = await pool.execute(
-        'SELECT id, sales, customers FROM county_sales WHERE cityId = ? AND name = ?',
+        'SELECT id, sales, customers FROM county_sales WHERE cityId = ? AND name = ? AND is_deleted = 0',
         [cityId, countyName]
       );
       let countyId;
@@ -323,7 +323,7 @@ router.post('/sales-import', requireSalesWriter, upload.single('file'), async (r
 
       for (let stageId = 1; stageId <= 5; stageId++) {
         const [stageRows] = await funnelConn.execute(
-          'SELECT COUNT(*) as cnt, COALESCE(SUM(sales), 0) as amt FROM town_sales WHERE intention = ?',
+          'SELECT COUNT(*) as cnt, COALESCE(SUM(sales), 0) as amt FROM town_sales WHERE intention = ? AND is_deleted = 0',
           [stageId]
         );
         const today = new Date().toISOString().slice(0, 10);

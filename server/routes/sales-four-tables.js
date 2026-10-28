@@ -260,7 +260,8 @@ const COMMON_COLS = [
   col('report_month', `VARCHAR(20)${CS} DEFAULT ''`),
   col('created_by', `VARCHAR(255)${CS} DEFAULT ''`),
   col('created_at', `DATETIME DEFAULT CURRENT_TIMESTAMP`),
-  col('updated_at', `DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`)
+  col('updated_at', `DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`),
+  col('is_deleted', 'TINYINT(1) NOT NULL DEFAULT 0')
 ];
 
 // 成交用户（common 去 company_support/competitor/partner_name 等 + 4 个金额列）
@@ -283,7 +284,8 @@ const DEAL_COLS = [
   col('report_month', `VARCHAR(20)${CS} DEFAULT ''`),
   col('created_by', `VARCHAR(255)${CS} DEFAULT ''`),
   col('created_at', `DATETIME DEFAULT CURRENT_TIMESTAMP`),
-  col('updated_at', `DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`)
+  col('updated_at', `DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`),
+  col('is_deleted', 'TINYINT(1) NOT NULL DEFAULT 0')
 ];
 
 // 大项目进展
@@ -327,7 +329,8 @@ const PROJECT_COLS = [
   col('report_month', `VARCHAR(20)${CS} DEFAULT ''`),
   col('created_by', `VARCHAR(255)${CS} DEFAULT ''`),
   col('created_at', `DATETIME DEFAULT CURRENT_TIMESTAMP`),
-  col('updated_at', `DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`)
+  col('updated_at', `DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`),
+  col('is_deleted', 'TINYINT(1) NOT NULL DEFAULT 0')
 ];
 
 const KEY_PERSONS_COLS = [
@@ -748,7 +751,7 @@ router.get('/sales-four-tables/stats', requireSalesView, async (req, res) => {
   const { pool } = req.app.locals;
   try {
     await ensureSchema(pool);
-    const ownerCond = req.salesPerm.isOwnerFilter ? 'WHERE created_by = ?' : '';
+    const ownerCond = req.salesPerm.isOwnerFilter ? 'WHERE created_by = ? AND is_deleted = 0' : 'WHERE is_deleted = 0';
     const ownerParam = req.salesPerm.isOwnerFilter ? [req.salesPerm.username] : [];
     const stats = {};
     for (const [type, meta] of Object.entries(TABLE_META)) {
@@ -809,7 +812,7 @@ router.get('/sales-four-tables/deal/overdue', requireSalesView, async (req, res)
   try {
     const { pool } = req.app.locals;
     await ensureSchema(pool);
-    const ownerFilter = req.salesPerm.isOwnerFilter ? 'AND owner = ?' : '';
+    const ownerFilter = req.salesPerm.isOwnerFilter ? 'AND owner = ? AND is_deleted = 0' : 'AND is_deleted = 0';
     const ownerParam = req.salesPerm.isOwnerFilter ? [req.salesPerm.username] : [];
     const [rows] = await pool.execute(
       `SELECT id, owner, customer_name, contract_amount, received_amount, unreceived_amount, expected_payment_date, report_month, DATEDIFF(CURDATE(), expected_payment_date) AS overdue_days
@@ -883,6 +886,7 @@ router.get('/sales-four-tables/:type/export', requireSalesView, async (req, res)
     const { month, owner, keyword, sales_type, revenue_type, sales_status, payment_status } = req.query
     const where = []
     const params = []
+    where.push('is_deleted = 0')
     if (month) { where.push('report_month = ?'); params.push(month) }
     if (owner) { where.push('owner = ?'); params.push(owner) }
     if (sales_type) { where.push('sales_type = ?'); params.push(sales_type) }
@@ -925,6 +929,7 @@ router.get('/sales-four-tables/:type', requireSalesView, async (req, res) => {
     const table = meta ? meta.table : 'sales_project_analysis';
     const conditions = [];
     const params = [];
+    conditions.push('is_deleted = 0');
     if (month) { conditions.push('report_month = ?'); params.push(month); }
     if (owner) { conditions.push('owner = ?'); params.push(owner); }
     if (sales_type) { conditions.push('sales_type = ?'); params.push(sales_type); }
@@ -1391,8 +1396,8 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
       );
       // 追加当前状态版本
       await insertVersion(pool, destType, recordId, { ...destBody, id: recordId, created_by: originalCreator }, createdBy);
-      // 删除原表记录
-      await pool.execute(`DELETE FROM ${table} WHERE id = ?`, [id]);
+      // 软删除原表记录
+      await pool.execute(`UPDATE ${table} SET is_deleted = 1 WHERE id = ?`, [id]);
 
       createOperationLog(pool, { username: getOperator(req), action: 'update', module: 'sales-four-tables', targetId: recordId, targetName: `${type} 数据`, detail: `更新${type}记录并迁移到${destType}(原id=${id})` });
       return res.json({ success: true, message: '更新成功', data: { id: recordId, destType, sync } });
@@ -1447,14 +1452,13 @@ router.delete('/sales-four-tables/:type/:id', requireSalesWriter, async (req, re
   try {
     await ensureSchema(pool);
     const table = meta ? meta.table : 'sales_project_analysis';
-    await pool.execute(`DELETE FROM ${table} WHERE id = ?`, [id]);
-    await pool.execute('DELETE FROM sales_table_versions WHERE table_type = ? AND record_id = ?', [type, id]);
+    await pool.execute(`UPDATE ${table} SET is_deleted = 1 WHERE id = ?`, [id]);
     if (type === 'project') {
       await pool.execute('DELETE FROM sales_project_key_persons WHERE analysis_id = ?', [id]);
       await pool.execute('DELETE FROM sales_project_competitors WHERE analysis_id = ?', [id]);
       await pool.execute('DELETE FROM sales_project_visit_records WHERE analysis_id = ?', [id]);
     }
-    createOperationLog(pool, { username: getOperator(req), action: 'delete', module: 'sales-four-tables', targetId: id, targetName: `${type} 数据`, detail: `删除${type}记录(id=${id})` });
+    createOperationLog(pool, { username: getOperator(req), action: 'soft_delete', module: 'sales-four-tables', targetId: id, targetName: `${type} 数据`, detail: `软删除${type}记录(id=${id})` });
     res.json({ success: true, message: '删除成功' });
   } catch (error) {
     console.error('删除销售数据失败:', error);

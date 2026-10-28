@@ -14,7 +14,7 @@ function calcServiceFeeStatus(serviceEndTime) {
 router.get('/closing-projects', async (req, res) => {
   try {
     const { pool } = req.app.locals;
-    const [projects] = await pool.execute('SELECT * FROM closing_projects');
+    const [projects] = await pool.execute('SELECT * FROM closing_projects WHERE is_deleted = 0 OR is_deleted IS NULL');
     const enriched = projects.map(p => ({
       ...p,
       nextYearFeeStatus: calcServiceFeeStatus(p.serviceEndTime)
@@ -111,12 +111,13 @@ router.delete('/closing-projects/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const { pool } = req.app.locals;
-    const [rows] = await pool.execute('SELECT name FROM closing_projects WHERE id = ?', [id]);
-    const projectName = rows.length > 0 ? rows[0].name : id;
-    await pool.execute('DELETE FROM closing_projects WHERE id = ?', [id]);
+    const [rows] = await pool.execute('SELECT name FROM closing_projects WHERE id = ? AND (is_deleted = 0 OR is_deleted IS NULL)', [id]);
+    if (rows.length === 0) return res.status(400).json({ success: false, message: '该成交项目已删除或不存在' });
+    const projectName = rows[0].name;
+    await pool.execute('UPDATE closing_projects SET is_deleted = 1 WHERE id = ?', [id]);
     await createOperationLog(pool, {
       username: getOperator(req),
-      action: 'delete',
+      action: 'soft_delete',
       module: 'deal',
       targetName: `成交项目"${projectName}"`,
       targetId: parseInt(id),

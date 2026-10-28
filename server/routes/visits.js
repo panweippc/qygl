@@ -19,7 +19,7 @@ router.get('/visit-records/:townId', async (req, res) => {
   const { townId } = req.params;
   try {
     const { pool } = req.app.locals;
-    const [data] = await pool.execute('SELECT * FROM visit_records WHERE townId = ? ORDER BY id DESC', [townId]);
+    const [data] = await pool.execute('SELECT * FROM visit_records WHERE townId = ? AND is_deleted = 0 ORDER BY id DESC', [townId]);
     res.json({ success: true, data: data });
   } catch (error) {
     res.status(500).json({ success: false, message: '获取拜访记录失败' });
@@ -31,7 +31,7 @@ router.get('/visit-records/town/:townId', async (req, res) => {
   const { townId } = req.params;
   try {
     const { pool } = req.app.locals;
-    const [data] = await pool.execute('SELECT * FROM visit_records WHERE townId = ? ORDER BY id DESC', [townId]);
+    const [data] = await pool.execute('SELECT * FROM visit_records WHERE townId = ? AND is_deleted = 0 ORDER BY id DESC', [townId]);
     res.json({ success: true, data: data });
   } catch (error) {
     res.status(500).json({ success: false, message: '获取拜访记录失败' });
@@ -130,10 +130,10 @@ router.delete('/visit-records/:id', async (req, res) => {
     const { pool } = req.app.locals;
     const [rows] = await pool.execute('SELECT customerName FROM visit_records WHERE id = ?', [id]);
     const name = rows.length > 0 ? rows[0].customerName : id;
-    await pool.execute('DELETE FROM visit_records WHERE id = ?', [id]);
+    await pool.execute('UPDATE visit_records SET is_deleted = 1 WHERE id = ?', [id]);
     await createOperationLog(pool, {
       username: getOperator(req),
-      action: 'delete',
+      action: 'soft_delete',
       module: 'visit',
       targetName: `拜访记录"${name}"`,
       targetId: parseInt(id),

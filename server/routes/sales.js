@@ -82,7 +82,7 @@ router.put('/sales-funnel/data/:id', requireSalesWriter, async (req, res) => {
 router.get('/city-sales', async (req, res) => {
   try {
     const { pool } = req.app.locals;
-    const [data] = await pool.execute('SELECT * FROM city_sales');
+    const [data] = await pool.execute('SELECT * FROM city_sales WHERE is_deleted = 0');
     res.json({ success: true, data: data });
   } catch (error) {
     res.status(500).json({ success: false, message: '获取盟市销售数据失败' });
@@ -154,7 +154,7 @@ router.delete('/city-sales/:id', requireSalesWriter, async (req, res) => {
     const { pool } = req.app.locals;
     const [rows] = await pool.execute('SELECT name FROM city_sales WHERE id = ?', [id]);
     const cityName = rows.length > 0 ? rows[0].name : id;
-    await pool.execute('DELETE FROM city_sales WHERE id = ?', [id]);
+    await pool.execute('UPDATE city_sales SET is_deleted = 1 WHERE id = ?', [id]);
     await createOperationLog(pool, {
       username: getOperator(req),
       action: 'delete',
@@ -173,7 +173,7 @@ router.get('/county-sales/:cityId', async (req, res) => {
   const { cityId } = req.params;
   try {
     const { pool } = req.app.locals;
-    const [counties] = await pool.execute('SELECT id, name FROM county_sales WHERE cityId = ?', [cityId]);
+    const [counties] = await pool.execute('SELECT id, name FROM county_sales WHERE cityId = ? AND is_deleted = 0', [cityId]);
     const result = await Promise.all(counties.map(async (c) => {
       const [towns] = await pool.execute('SELECT COUNT(*) as cnt FROM town_sales WHERE countyId = ?', [c.id]);
       return { ...c, sales: 0, customers: towns[0].cnt || 0 };
@@ -234,7 +234,7 @@ router.delete('/county-sales/:id', requireSalesWriter, async (req, res) => {
     const { pool } = req.app.locals;
     const [rows] = await pool.execute('SELECT name FROM county_sales WHERE id = ?', [id]);
     const countyName = rows.length > 0 ? rows[0].name : id;
-    await pool.execute('DELETE FROM county_sales WHERE id = ?', [id]);
+    await pool.execute('UPDATE county_sales SET is_deleted = 1 WHERE id = ?', [id]);
     await createOperationLog(pool, {
       username: getOperator(req),
       action: 'delete',
@@ -253,7 +253,7 @@ router.get('/town-sales/:countyId', async (req, res) => {
   const { countyId } = req.params;
   try {
     const { pool } = req.app.locals;
-    const [data] = await pool.execute('SELECT * FROM town_sales WHERE countyId = ?', [countyId]);
+    const [data] = await pool.execute('SELECT * FROM town_sales WHERE countyId = ? AND is_deleted = 0', [countyId]);
     res.json({ success: true, data: data });
   } catch (error) {
     res.status(500).json({ success: false, message: '获取乡镇销售数据失败' });
@@ -328,7 +328,7 @@ router.delete('/town-sales/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const { pool } = req.app.locals;
-    await pool.execute('DELETE FROM town_sales WHERE id = ?', [id]);
+    await pool.execute('UPDATE town_sales SET is_deleted = 1 WHERE id = ?', [id]);
     res.json({ success: true, message: '乡镇销售数据删除成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '删除乡镇销售数据失败' });
@@ -359,6 +359,7 @@ router.get('/sales-opportunities', async (req, res) => {
       whereClauses.push('ts.manager = ?');
       params.push(manager);
     }
+    whereClauses.push('ts.is_deleted = 0');
     const whereStr = whereClauses.length > 0 ? ' WHERE ' + whereClauses.join(' AND ') : '';
 
     const [countResult] = await pool.execute('SELECT COUNT(*) AS total FROM town_sales ts' + whereStr, params);
@@ -382,7 +383,7 @@ router.get('/sales-opportunities', async (req, res) => {
     }
 
     // 获取可选负责人列表
-    const [managers] = await pool.execute('SELECT DISTINCT ts.manager FROM town_sales ts WHERE ts.manager IS NOT NULL AND ts.manager != \'\' ORDER BY ts.manager');
+    const [managers] = await pool.execute('SELECT DISTINCT ts.manager FROM town_sales ts WHERE ts.is_deleted = 0 AND ts.manager IS NOT NULL AND ts.manager != \'\' ORDER BY ts.manager');
 
     res.json({ success: true, data: { list: rows, total, page, pageSize, managers: managers.map(m => m.manager) } });
   } catch (error) {
@@ -424,12 +425,12 @@ router.get('/sales-targets', async (req, res) => {
     const month = Number(req.query.month) || (new Date().getMonth() + 1);
     // 按客户负责人分组统计实际数据（优先用customer_manager，回退到manager）
     const [targets] = await pool.execute(
-      `SELECT st.*, COALESCE(ts.cnt, 0) as actualCount, COALESCE(ts.totalSales, 0) as actualAmount FROM sales_targets st LEFT JOIN (SELECT COALESCE(NULLIF(customer_manager,''), manager) as cm, COUNT(*) as cnt, COALESCE(SUM(sales), 0) as totalSales FROM town_sales WHERE YEAR(createdAt) = ? AND MONTH(createdAt) = ? GROUP BY cm) ts ON st.managerId = ts.cm WHERE st.year = ? AND st.month = ? ORDER BY st.managerId`,
+      `SELECT st.*, COALESCE(ts.cnt, 0) as actualCount, COALESCE(ts.totalSales, 0) as actualAmount FROM sales_targets st LEFT JOIN (SELECT COALESCE(NULLIF(customer_manager,''), manager) as cm, COUNT(*) as cnt, COALESCE(SUM(sales), 0) as totalSales FROM town_sales WHERE is_deleted = 0 AND YEAR(createdAt) = ? AND MONTH(createdAt) = ? GROUP BY cm) ts ON st.managerId = ts.cm WHERE st.year = ? AND st.month = ? ORDER BY st.managerId`,
       [year, month, year, month]
     );
     // 获取所有客户负责人列表（含未设目标的），优先用customer_manager
     const [allManagers] = await pool.execute(
-      `SELECT DISTINCT COALESCE(NULLIF(customer_manager,''), manager) as cm, our_manager FROM town_sales WHERE COALESCE(NULLIF(customer_manager,''), manager) IS NOT NULL AND COALESCE(NULLIF(customer_manager,''), manager) != '' ORDER BY cm REGEXP '^[0-9]+$' DESC, CAST(cm AS UNSIGNED), cm`
+      `SELECT DISTINCT COALESCE(NULLIF(customer_manager,''), manager) as cm, our_manager FROM town_sales WHERE is_deleted = 0 AND COALESCE(NULLIF(customer_manager,''), manager) IS NOT NULL AND COALESCE(NULLIF(customer_manager,''), manager) != '' ORDER BY cm REGEXP '^[0-9]+$' DESC, CAST(cm AS UNSIGNED), cm`
     );
     const managerList = allManagers.map(m => ({ id: m.cm, our: m.our_manager || '' }));
     const targetMap = new Map(targets.map(t => [t.managerId, t]));

@@ -211,7 +211,7 @@ router.delete('/provinces/:id', async (req, res) => {
         if (countyIds.length > 0) {
           const countyPlaceholders = countyIds.map(() => '?').join(',');
           await connection.execute(
-            `DELETE FROM closing_projects WHERE countyId IN (${countyPlaceholders})`,
+            `UPDATE closing_projects SET is_deleted = 1 WHERE countyId IN (${countyPlaceholders})`,
             countyIds
           );
         }
@@ -321,7 +321,7 @@ router.delete('/cities/:id', async (req, res) => {
       if (countyIds.length > 0) {
         const countyPlaceholders = countyIds.map(() => '?').join(',');
         await connection.execute(
-          `DELETE FROM closing_projects WHERE countyId IN (${countyPlaceholders})`,
+          `UPDATE closing_projects SET is_deleted = 1 WHERE countyId IN (${countyPlaceholders})`,
           countyIds
         );
 
@@ -422,7 +422,7 @@ router.delete('/counties/:id', async (req, res) => {
       return res.json({ success: false, message: '旗县不存在' });
     }
     const coName = existing[0].name;
-    await pool.execute('DELETE FROM closing_projects WHERE countyId = ?', [id]);
+    await pool.execute('UPDATE closing_projects SET is_deleted = 1 WHERE countyId = ?', [id]);
     await pool.execute('DELETE FROM counties WHERE id = ?', [id]);
     // 删除旗县审计
     createOperationLog(pool, { userId: String(req.user?.id || ''), username: getOperator(req), action: 'delete', module: 'region', targetId: id, targetName: `旗县: ${coName}`, detail: `删除旗县: ${coName}（含其下项目）`, ipAddress: req.ip });
