@@ -1039,17 +1039,6 @@ export const getOaApproverConfigs = async (): Promise<ApiResponse<import('./type
   return response.data;
 };
 
-// 销售目标管理
-export const getSalesTargets = async (year?: number, month?: number): Promise<ApiResponse<any[]>> => {
-  const response = await api.get('/sales-targets', { params: { year, month } });
-  return response.data;
-};
-
-export const updateSalesTargets = async (targets: any[]): Promise<ApiResponse> => {
-  const response = await api.put('/sales-targets', { targets });
-  return response.data;
-};
-
 // 首页审批数据聚合（跨 7 张业务表，按姓名统计）
 export interface HomeApprovalSummary {
   myTotal: number

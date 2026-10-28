@@ -72,11 +72,6 @@ const router = createRouter({
       redirect: '/sales-funnel'
     },
     {
-      path: '/sales-target',
-      name: 'sales-target',
-      component: () => import('../views/SalesTargetView.vue')
-    },
-    {
       path: '/announcement-management',
       name: 'announcement-management',
       component: () => import('../views/AnnouncementManagementView.vue')

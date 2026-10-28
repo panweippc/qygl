@@ -84,15 +84,6 @@
               <span>销售漏斗</span>
               <div class="sidebar-item-indicator"></div>
             </router-link>
-            <router-link v-if="hasPermission('/sales-target')" to="/sales-target" class="sidebar-item">
-              <div class="sidebar-icon sidebar-icon-sm">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/>
-                </svg>
-              </div>
-              <span>销售目标</span>
-              <div class="sidebar-item-indicator"></div>
-            </router-link>
             <router-link v-if="hasPermission('/customer-management')" to="/customer-management" class="sidebar-item">
               <div class="sidebar-icon sidebar-icon-sm">
                 <svg viewBox="0 0 24 24" fill="currentColor">
@@ -244,7 +235,7 @@ const hasPermission = (menuPath: string) => {
 const groupVisible = computed(() => {
   if (isAdmin.value) return { office: true, business: true, system: true }
   const officePerm = ['/oa-office', '/monthly-report', '/asset-management', '/resource-center', '/message-center']
-  const businessPerm = ['/closing-project', '/sales-funnel', '/sales-target', '/customer-management']
+  const businessPerm = ['/closing-project', '/sales-funnel', '/customer-management']
   const systemPerm = ['/employee-management', '/system', '/operation-log', '/security-alerts', '/monitor', '/announcement-management']
   return {
     office: officePerm.some(permFor),

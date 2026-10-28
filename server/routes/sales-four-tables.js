@@ -830,47 +830,6 @@ router.get('/sales-four-tables/deal/overdue', requireSalesView, async (req, res)
   }
 });
 
-// 跨模块：成交(实际) ↔ 销售目标(目标) 按负责人+月份达成对比
-router.get('/sales-four-tables/achievement', requireSalesView, async (req, res) => {
-  try {
-    const { pool } = req.app.locals;
-    await ensureSchema(pool);
-    const year = Number(req.query.year) || new Date().getFullYear();
-    const month = Number(req.query.month) || (new Date().getMonth() + 1);
-    const ym = `${year}-${String(month).padStart(2, '0')}`;
-    const ownerFilter = req.salesPerm.isOwnerFilter ? 'AND created_by = ?' : '';
-    const ownerParam = req.salesPerm.isOwnerFilter ? [req.salesPerm.username] : [];
-    const [deals] = await pool.execute(
-      `SELECT owner, COALESCE(SUM(contract_amount),0) AS contract, COALESCE(SUM(received_amount),0) AS received, COALESCE(SUM(unreceived_amount),0) AS unreceived, COUNT(*) AS cnt
-       FROM sales_deal_customers WHERE report_month = ? ${ownerFilter} GROUP BY owner ORDER BY contract DESC`,
-      [ym, ...ownerParam]
-    );
-    const [targets] = await pool.execute(
-      'SELECT managerId, managerName, targetAmount FROM sales_targets WHERE year = ? AND month = ?',
-      [year, month]
-    );
-    const targetMap = new Map(targets.map(t => [String(t.managerId), t]));
-    const owners = new Set([...deals.map(d => String(d.owner || '未分配')), ...targets.map(t => String(t.managerId))]);
-    const list = [...owners].map(o => {
-      const d = deals.find(x => String(x.owner || '未分配') === o);
-      const t = targetMap.get(o);
-      const contract = d ? Number(d.contract) : 0;
-      const received = d ? Number(d.received) : 0;
-      const target = t ? Number(t.targetAmount || 0) : 0;
-      const rate = target > 0 ? Math.round(contract / target * 100) : (contract > 0 ? null : 0);
-      return { owner: o, managerName: (t && t.managerName) || o, target, contract, received, unreceived: d ? Number(d.unreceived) : 0, count: d ? Number(d.cnt) : 0, achievementRate: rate };
-    });
-    const totals = list.reduce((acc, r) => {
-      acc.target += r.target; acc.contract += r.contract; acc.received += r.received; acc.unreceived += r.unreceived; acc.count += r.count;
-      return acc;
-    }, { target: 0, contract: 0, received: 0, unreceived: 0, count: 0 });
-    totals.achievementRate = totals.target > 0 ? Math.round(totals.contract / totals.target * 100) : (totals.contract > 0 ? null : 0);
-    res.json({ success: true, data: { year, month, ym, list, totals } });
-  } catch (e) {
-    console.error('目标达成查询失败:', e);
-    res.status(500).json({ success: false, message: '查询失败: ' + e.message });
-  }
-});
 
 // 通用列表查询
 // 导出当前表为 Excel（销售漏斗四表导出增强）

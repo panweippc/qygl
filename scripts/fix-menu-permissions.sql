@@ -17,7 +17,6 @@ INSERT IGNORE INTO menus (parentId, name, path, component, icon, sort, status, c
 (0, '消息中心', '/message-center', 'MessageCenterView', '💬', 6, '启用', NOW(), NOW()),
 (0, '产品分类', '/project-category', 'ProjectCategoryView', '📦', 7, '启用', NOW(), NOW()),
 (0, '销售漏斗', '/sales-funnel', 'SalesFunnelView', '🔻', 8, '启用', NOW(), NOW()),
-(0, '销售目标', '/sales-target', 'SalesTargetView', '🎯', 9, '启用', NOW(), NOW()),
 (0, '客户管理', '/customer-management', 'CustomerManagementView', '👥', 10, '启用', NOW(), NOW()),
 (0, '机会跟进', '/sales-opportunity', 'SalesOpportunityView', '💡', 11, '启用', NOW(), NOW()),
 (0, '成交项目', '/closing-project', 'ClosingProjectView', '✅', 12, '启用', NOW(), NOW()),
@@ -34,7 +33,7 @@ CROSS JOIN menus m
 WHERE r.name IN ('系统管理员', '总经理')
   AND m.path IN (
     '/oa-office', '/monthly-report', '/tool-inventory', '/file-storage', '/knowledge-base', '/message-center',
-    '/project-category', '/sales-funnel', '/sales-target', '/customer-management', '/sales-opportunity', '/closing-project',
+    '/project-category', '/sales-funnel', '/customer-management', '/sales-opportunity', '/closing-project',
     '/employee-management', '/operation-log', '/security-alerts', '/monitor'
   );
 
@@ -52,7 +51,7 @@ SELECT r.id, m.id, NOW()
 FROM roles r
 CROSS JOIN menus m
 WHERE r.name = '销售部经理'
-  AND m.path IN ('/project-category', '/sales-funnel', '/sales-target', '/customer-management', '/sales-opportunity', '/closing-project');
+  AND m.path IN ('/project-category', '/sales-funnel', '/customer-management', '/sales-opportunity', '/closing-project');
 
 -- 步骤5：财务总监额外分配系统管理权限
 INSERT IGNORE INTO role_permissions (roleId, menuId, createdAt)

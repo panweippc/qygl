@@ -58,12 +58,6 @@ const router = createRouter({
       meta: { requiresAuth: true, pcComponent: () => import('@/views/CustomerManagementView.vue') }
     },
     {
-      path: '/sales-target',
-      name: 'm-sales-target',
-      component: () => import('./views/PcScaleView.vue'),
-      meta: { requiresAuth: true, pcComponent: () => import('@/views/SalesTargetView.vue') }
-    },
-    {
       path: '/closing-project',
       name: 'm-closing-project',
       component: () => import('./views/PcScaleView.vue'),

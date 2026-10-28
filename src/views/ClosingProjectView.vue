@@ -56,55 +56,11 @@
       </div>
     </div>
 
-    <div class="cl-achievement">
-      <div class="ach-head">
-        <h3 class="cl-card-title">目标达成对比（成交实际 ↔ 销售目标）</h3>
-        <div class="ach-filter">
-          <el-select v-model="achYear" style="width:110px" @change="loadAchievement">
-            <el-option v-for="y in yearOptions" :key="y" :label="y + ' 年'" :value="y" />
-          </el-select>
-          <el-select v-model="achMonth" style="width:100px" @change="loadAchievement">
-            <el-option v-for="m in 12" :key="m" :label="m + ' 月'" :value="m" />
-          </el-select>
-          <el-button @click="loadAchievement">刷新</el-button>
-        </div>
-      </div>
-      <el-table :data="achievement.list" v-loading="achLoading" stripe border size="small" class="ach-table">
-        <el-table-column prop="owner" label="负责人" min-width="120" />
-        <el-table-column label="销售目标" width="130">
-          <template #default="{ row }">¥{{ fmt(row.target) }}</template>
-        </el-table-column>
-        <el-table-column label="实际合同额" width="140">
-          <template #default="{ row }">¥{{ fmt(row.contract) }}</template>
-        </el-table-column>
-        <el-table-column label="已回款" width="130">
-          <template #default="{ row }">¥{{ fmt(row.received) }}</template>
-        </el-table-column>
-        <el-table-column label="成交笔数" width="90" align="center">
-          <template #default="{ row }">{{ row.count }}</template>
-        </el-table-column>
-        <el-table-column label="达成率" width="160">
-          <template #default="{ row }">
-            <span v-if="row.achievementRate === null" class="muted-cell">无目标</span>
-            <el-progress v-else :percentage="Math.min(100, row.achievementRate)" :stroke-width="10"
-              :color="row.achievementRate >= 100 ? '#67c23a' : '#1E5AA8'"
-              :format="(p: number) => (row.achievementRate >= 100 ? '100%+' : p + '%')" />
-          </template>
-        </el-table-column>
-      </el-table>
-      <div class="ach-total">
-        合计：目标 ¥{{ fmt(achievement.totals.target) }} ｜ 实际合同额 ¥{{ fmt(achievement.totals.contract) }} ｜ 已回款 ¥{{ fmt(achievement.totals.received) }} ｜
-        <span :class="achievement.totals.achievementRate != null ? (achievement.totals.achievementRate >= 100 ? 'cl-pos' : 'cl-neg') : 'muted-cell'">
-          总体达成率 {{ achievement.totals.achievementRate == null ? '无目标' : (achievement.totals.achievementRate >= 100 ? '100%+ (' + achievement.totals.achievementRate + '%)' : achievement.totals.achievementRate + '%') }}
-        </span>
-      </div>
-      <p class="ach-tip">说明：实际数取自「成交用户」表按负责人与申报月份汇总；目标数取自「销售目标」表（按负责人 + 年/月）。负责人名称需与销售目标中的 managerId 一致方可匹配。</p>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { salesFetchJSON } from '../components/sales/salesApi'
 import PageHeaderBar from '../components/PageHeaderBar.vue'
 import DealTable from '../components/sales/DealTable.vue'
@@ -114,15 +70,6 @@ const perm = ref({ canWrite: false, canView: false, isAdmin: false })
 const summary = ref({ count: 0, contract: 0, actual: 0, received: 0, unreceived: 0 })
 const summaryLoading = ref(false)
 const overdue = ref({ count: 0, totalUnreceived: 0 })
-
-const achYear = ref(new Date().getFullYear())
-const achMonth = ref(new Date().getMonth() + 1)
-const yearOptions = computed(() => {
-  const y = new Date().getFullYear()
-  return [y - 2, y - 1, y, y + 1]
-})
-const achLoading = ref(false)
-const achievement = ref<any>({ list: [], totals: { target: 0, contract: 0, received: 0, unreceived: 0, count: 0, achievementRate: 0 } })
 
 async function loadPerm() {
   try {
@@ -169,23 +116,11 @@ async function loadOverdue() {
   }
 }
 
-async function loadAchievement() {
-  achLoading.value = true
-  try {
-    const json = await salesFetchJSON(`/api/sales-four-tables/achievement?year=${achYear.value}&month=${achMonth.value}`)
-    if (json.success && json.data) achievement.value = json.data
-  } catch (e: any) {
-    console.error('加载目标达成失败:', e.message)
-  } finally {
-    achLoading.value = false
-  }
-}
-
 function fmt(n: number): string {
   return Number(n || 0).toLocaleString()
 }
 
-onMounted(() => { loadPerm(); loadSummary(); loadOverdue(); loadAchievement() })
+onMounted(() => { loadPerm(); loadSummary(); loadOverdue() })
 </script>
 
 <style scoped>
@@ -214,12 +149,6 @@ onMounted(() => { loadPerm(); loadSummary(); loadOverdue(); loadAchievement() })
 .cl-guide-pop { padding: 0.5rem; }
 .cl-guide-title { font-weight: 600; margin: 0 0 0.5rem; font-size: 1rem; color: #2c3e50; }
 .cl-guide-pop p:last-child { margin: 0; line-height: 1.6; color: #4a5568; font-size: 0.9rem; }
-.cl-achievement { margin: 0 1.5rem 1rem; background: rgba(255,255,255,0.95); border: 1px solid rgba(30,90,168,0.25); border-radius: 10px; padding: 0.8rem 1rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-.ach-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
-.ach-filter { display: flex; gap: 0.5rem; }
-.ach-table { margin-top: 0.6rem; }
-.ach-total { margin-top: 0.6rem; font-size: 0.9rem; color: #333; }
-.ach-tip { margin: 0.5rem 0 0; font-size: 0.78rem; color: #909399; line-height: 1.5; }
 .cl-pos { color: #2e7d32; font-weight: 600; }
 .cl-neg { color: #c62828; font-weight: 600; }
 .muted-cell { color: #909399; font-size: 0.85rem; }
