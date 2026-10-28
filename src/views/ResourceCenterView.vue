@@ -29,7 +29,7 @@
       <aside class="rc-sidebar">
         <div class="sidebar-title">
           资料分类
-          <span class="count-hint">仅显示{{ segmentLabel }}计数</span>
+          <span class="count-hint">分类计数：文件 · 文章 · 项目信息</span>
         </div>
         <div class="cat-tree">
           <!-- 全部：跨分类聚合视图 -->
@@ -43,7 +43,9 @@
               <span class="cat-node-name">全部</span>
             </div>
             <div class="cat-node-counts">
-              <span :class="{ zero: allTotal === 0 }">📦 {{ allTotal }}</span>
+              <span :class="{ zero: stats.totals.files === 0 }" class="cnt-item">文 {{ stats.totals.files }}</span>
+              <span :class="{ zero: stats.totals.articles === 0 }" class="cnt-item">章 {{ stats.totals.articles }}</span>
+              <span :class="{ zero: stats.totals.projects === 0 }" class="cnt-item">项 {{ stats.totals.projects }}</span>
             </div>
           </div>
 
@@ -51,7 +53,7 @@
             v-for="cat in stats.categories"
             :key="cat.id"
             class="cat-node"
-            :class="{ active: selected.id === cat.id, dim: countOf(cat) === 0 }"
+            :class="{ active: selected.id === cat.id, dim: (cat.fileCount + cat.articleCount + cat.projectCount) === 0 }"
             @click="selectCategory(cat.id, cat.name)"
           >
             <div class="cat-node-main">
@@ -65,7 +67,9 @@
               </el-button>
             </div>
             <div class="cat-node-counts">
-              <span :class="{ zero: countOf(cat) === 0 }">{{ countIcon }} {{ countOf(cat) }}</span>
+              <span :class="{ zero: cat.fileCount === 0 }" class="cnt-item">文 {{ cat.fileCount }}</span>
+              <span :class="{ zero: cat.articleCount === 0 }" class="cnt-item">章 {{ cat.articleCount }}</span>
+              <span :class="{ zero: cat.projectCount === 0 }" class="cnt-item">项 {{ cat.projectCount }}</span>
             </div>
           </div>
 
@@ -85,7 +89,7 @@
           </div>
 
           <section class="search-section">
-            <h4 class="search-section-title">📄 文件（{{ searchResult?.files.length || 0 }}）</h4>
+            <h4 class="search-section-title">文件（{{ searchResult?.files.length || 0 }}）</h4>
             <div v-if="(searchResult?.files || []).length === 0" class="search-empty">无匹配文件</div>
             <div v-else class="search-list">
               <a v-for="f in searchResult.files" :key="'f'+f.id" class="search-item" :href="f.url" target="_blank" rel="noopener">
@@ -96,18 +100,18 @@
           </section>
 
           <section class="search-section">
-            <h4 class="search-section-title">📚 文章（{{ searchResult?.articles.length || 0 }}）</h4>
+            <h4 class="search-section-title">文章（{{ searchResult?.articles.length || 0 }}）</h4>
             <div v-if="(searchResult?.articles || []).length === 0" class="search-empty">无匹配文章</div>
             <div v-else class="search-list">
               <div v-for="a in searchResult.articles" :key="'a'+a.id" class="search-item" @click="openSearchArticle(a)">
                 <span class="si-main">{{ a.title }}</span>
-                <span class="si-sub">{{ a.author || '未知' }} · {{ a.categoryName || '未分类' }} · 👁️ {{ a.views || 0 }}</span>
+                <span class="si-sub">{{ a.author || '未知' }} · {{ a.categoryName || '未分类' }} · 浏览 {{ a.views || 0 }}</span>
               </div>
             </div>
           </section>
 
           <section class="search-section">
-            <h4 class="search-section-title">📦 项目（{{ searchResult?.projects.length || 0 }}）</h4>
+            <h4 class="search-section-title">项目（{{ searchResult?.projects.length || 0 }}）</h4>
             <div v-if="(searchResult?.projects || []).length === 0" class="search-empty">无匹配项目</div>
             <div v-else class="search-list">
               <div v-for="p in searchResult.projects" :key="'p'+p.id" class="search-item" @click="selectProjectCategory(p)">
@@ -210,23 +214,6 @@ const segments = [
 const visibleSegments = computed(() => segments.filter(s => hasMenu(s.perm)))
 const activeSegment = ref('files')
 
-// 侧边栏计数跟随当前段落，避免每个分类都堆三个数字（截图里 4 个分类都是「3 0 0」噪音很大）
-const segmentMeta: Record<string, { label: string; icon: string; key: 'fileCount' | 'articleCount' | 'projectCount' }> = {
-  files: { label: '文件', icon: '📄', key: 'fileCount' },
-  articles: { label: '文章', icon: '📚', key: 'articleCount' },
-  projects: { label: '项目信息', icon: '📦', key: 'projectCount' }
-}
-const segmentLabel = computed(() => segmentMeta[activeSegment.value]?.label || '文件')
-const countIcon = computed(() => segmentMeta[activeSegment.value]?.icon || '📄')
-const countOf = (cat: CategoryStat): number => {
-  const meta = segmentMeta[activeSegment.value]
-  return meta ? Number((cat as unknown as Record<string, unknown>)[meta.key] || 0) : 0
-}
-const uncategorizedCount = computed(() => {
-  const meta = segmentMeta[activeSegment.value]
-  if (!meta) return 0
-  return Number((stats.value.uncategorized as unknown as Record<string, unknown>)[meta.key] || 0)
-})
 
 // 分类管理权限：仅创建人或管理员（与后端 requireOwnerOrRole 口径一致）可见编辑/删除按钮
 const currentUser = (localStorage.getItem('username') || '').trim()
@@ -436,8 +423,9 @@ watch(
 .cat-node-name { font-weight: 500; color: #333; font-size: 0.95rem; flex: 1; }
 .cat-del-btn { margin-left: auto; color: #d32f2f !important; opacity: 0.35; transition: opacity 0.2s; padding: 0 !important; height: auto !important; }
 .cat-node:hover .cat-del-btn { opacity: 1; }
-.cat-node-counts { display: flex; gap: 0.75rem; margin-top: 0.35rem; padding-left: 1.1rem; font-size: 0.75rem; color: #888; }
-.cat-node-counts span.zero { color: #c8ccd4; }
+.cat-node-counts { display: flex; gap: 0.7rem; margin-top: 0.35rem; padding-left: 1.1rem; font-size: 0.73rem; color: #888; flex-wrap: wrap; }
+.cat-node-counts .cnt-item { color: #6b7280; }
+.cat-node-counts .cnt-item.zero { color: #c8ccd4; }
 .cat-empty { padding: 1.5rem 0.5rem; color: #999; font-size: 0.85rem; text-align: center; }
 
 .rc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
