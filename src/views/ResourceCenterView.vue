@@ -255,8 +255,8 @@ const createCategory = async () => {
     return
   }
   try {
-    // 负责人自动带入当前登录用户（创建人即负责人），无需手动填写
-    const res = await addFileCategory({ name: newCat.value.name.trim(), description: newCat.value.description.trim(), owner: currentUser })
+    // 负责人不再由前端传：后端统一用 createdBy（当前登录用户姓名）兜底，避免把登录账号当姓名
+    const res = await addFileCategory({ name: newCat.value.name.trim(), description: newCat.value.description.trim() })
     if (res.success) {
       await loadCategories()
       showAddCatDialog.value = false
