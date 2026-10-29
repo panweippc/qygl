@@ -2,6 +2,10 @@
   <el-dialog v-model="visible" :title="`成交项目详情 · ${customerName || ''}`" width="920px" top="4vh" destroy-on-close>
     <el-tabs v-model="activeTab">
       <el-tab-pane label="基本信息" name="basic">
+        <div class="convert-bar">
+          <el-button v-if="!convertedProjectId" type="success" size="small" :disabled="!props.recordId" @click="openConvert">转为成交项目</el-button>
+          <span v-else class="converted-tip">已转为成交项目（项目ID：{{ convertedProjectId }}）</span>
+        </div>
         <el-descriptions :column="2" border v-loading="basicLoading" class="basic-desc">
           <el-descriptions-item label="负责人">{{ basic.owner || '—' }}</el-descriptions-item>
           <el-descriptions-item label="客户名单">{{ basic.customer_name || '—' }}</el-descriptions-item>
@@ -243,6 +247,55 @@ async function removeSub(kind: string, row: any) {
     else ElMessage.error(json.message || '删除失败')
   } catch (e: any) {
     ElMessage.error('删除失败: ' + (e?.message || ''))
+  }
+}
+
+// 方案E：成交用户一键转正相关
+async function loadConvertCustomers() {
+  try {
+    const json = await salesFetchJSON('/api/customers')
+    if (json.success) convertCustomers.value = json.data || []
+  } catch (e) { /* 客户列表非必须，失败不影响转正 */ }
+}
+
+function openConvert() {
+  convertForm.value = {
+    name: (basic.value.customer_name ? basic.value.customer_name + ' ' : '') + '成交项目',
+    customerId: basic.value.customerId != null ? basic.value.customerId : null,
+    price: 0,
+    dealTime: new Date().toISOString().split('T')[0],
+    status: '进行中',
+    description: ''
+  }
+  loadConvertCustomers()
+  convertVisible.value = true
+}
+
+async function confirmConvert() {
+  if (!convertForm.value.name.trim()) { ElMessage.warning('请输入项目名称'); return }
+  if (!props.recordId) return
+  converting.value = true
+  try {
+    const body = {
+      name: convertForm.value.name.trim(),
+      customerId: convertForm.value.customerId || null,
+      price: convertForm.value.price || 0,
+      dealTime: convertForm.value.dealTime,
+      status: convertForm.value.status,
+      description: convertForm.value.description
+    }
+    const json = await salesFetchJSON(`/api/sales-four-tables/deal/${props.recordId}/convert-to-project`, { method: 'POST', body: JSON.stringify(body) })
+    if (json.success) {
+      ElMessage.success('已转为成交项目')
+      convertedProjectId.value = json.data?.closingProjectId || null
+      convertVisible.value = false
+    } else {
+      ElMessage.error(json.message || '转正失败')
+    }
+  } catch (e: any) {
+    ElMessage.error('转正失败: ' + (e?.message || ''))
+  } finally {
+    converting.value = false
   }
 }
 </script>

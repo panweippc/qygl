@@ -1554,6 +1554,69 @@ const DEAL_SUB_KINDS = {
   aftersales: { table: 'sales_deal_aftersales_records', label: '售后运维工单', fields: ['title', 'ticket_type', 'status', 'content', 'handler'] }
 };
 
+// 方案E 配套：单条成交用户详情（供 DealDetailDialog 基本信息区加载，含 closing_project_id 转正标记）
+router.get('/sales-four-tables/deal/:id', requireSalesView, async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id } = req.params;
+  try {
+    await ensureSchema(pool);
+    const [rows] = await pool.execute('SELECT * FROM sales_deal_customers WHERE id = ? AND is_deleted = 0', [id]);
+    if (rows.length === 0) return res.status(404).json({ success: false, message: '成交用户不存在' });
+    res.json({ success: true, data: rows[0] });
+  } catch (error) {
+    console.error('查询成交用户详情失败:', error);
+    res.status(500).json({ success: false, message: '查询成交用户详情失败' });
+  }
+});
+
+// 方案E：成交用户一键转正为成交项目（原子事务：生成 closing_projects + 回绑 customerId + 标记 closing_project_id）
+router.post('/sales-four-tables/deal/:id/convert-to-project', requireSalesWriter, async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id } = req.params;
+  const { name, customerId, price, dealTime, status, description } = req.body;
+  if (!name || !String(name).trim()) return res.status(400).json({ success: false, message: '项目名称不能为空' });
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [dealRows] = await conn.execute('SELECT * FROM sales_deal_customers WHERE id = ? AND is_deleted = 0', [id]);
+    if (dealRows.length === 0) { await conn.rollback(); return res.status(404).json({ success: false, message: '成交用户不存在' }); }
+    const deal = dealRows[0];
+    if (deal.closing_project_id) {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: '该成交用户已转为成交项目', data: { closingProjectId: deal.closing_project_id } });
+    }
+    const todayStr = () => new Date().toISOString().split('T')[0];
+    const fmtDate = (s) => (s ? new Date(s).toISOString().split('T')[0] : null);
+    const formattedDealTime = fmtDate(dealTime) || todayStr();
+    const applicant = deal.owner || deal.customer_name || '';
+    const finalCustomerId = customerId != null ? customerId : (deal.customerId != null ? deal.customerId : null);
+    const insertSql = `INSERT INTO closing_projects
+      (name, description, status, startDate, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId, customerId, applicant, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    const [ins] = await conn.execute(insertSql, [
+      String(name).trim(), description ?? '', status || '进行中', formattedDealTime, formattedDealTime, price || 0,
+      formattedDealTime, '待定', '未结', 0, null, null, null, finalCustomerId, applicant,
+      new Date().toISOString().replace('T', ' ').replace('Z', '')
+    ]);
+    const closingProjectId = ins.insertId;
+    await conn.execute('UPDATE sales_deal_customers SET customerId = ?, closing_project_id = ? WHERE id = ?', [finalCustomerId, closingProjectId, id]);
+    await conn.commit();
+    try {
+      await createOperationLog(pool, {
+        username: getOperator(req), action: 'convert', module: 'sales-four-tables',
+        targetId: closingProjectId, targetName: `成交用户转正: ${deal.customer_name || ''} → 成交项目"${String(name).trim()}"`
+      });
+    } catch (e) { /* 操作日志失败不影响主流程 */ }
+    res.json({ success: true, message: '已转为成交项目', data: { closingProjectId } });
+  } catch (error) {
+    await conn.rollback();
+    console.error('成交用户转正失败:', error);
+    res.status(500).json({ success: false, message: '转正失败: ' + error.message });
+  } finally {
+    conn.release();
+  }
+});
+
 // 子记录列表
 router.get('/sales-four-tables/deal/:id/sub-records', requireSalesView, async (req, res) => {
   const { pool } = req.app.locals;
