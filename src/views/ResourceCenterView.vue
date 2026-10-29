@@ -153,9 +153,6 @@
         <el-form-item label="分类名称">
           <el-input v-model="newCat.name" placeholder="请输入分类名称" />
         </el-form-item>
-        <el-form-item label="负责人">
-          <el-input v-model="newCat.owner" placeholder="请输入负责人（可选）" />
-        </el-form-item>
         <el-form-item label="分类描述">
           <el-input v-model="newCat.description" type="textarea" :rows="3" placeholder="请输入分类描述" />
         </el-form-item>
@@ -234,7 +231,7 @@ const managedCats = computed<number[] | 'all'>(() => {
 })
 
 const showAddCatDialog = ref(false)
-const newCat = ref({ name: '', description: '', owner: '' })
+const newCat = ref({ name: '', description: '' })
 
 const selectAll = () => { selected.value = { id: 'all', name: '全部' } }
 const selectCategory = (id: number | null, name: string) => { selected.value = { id, name } }
@@ -258,11 +255,12 @@ const createCategory = async () => {
     return
   }
   try {
-    const res = await addFileCategory({ name: newCat.value.name.trim(), description: newCat.value.description.trim(), owner: newCat.value.owner.trim() })
+    // 负责人自动带入当前登录用户（创建人即负责人），无需手动填写
+    const res = await addFileCategory({ name: newCat.value.name.trim(), description: newCat.value.description.trim(), owner: currentUser })
     if (res.success) {
       await loadCategories()
       showAddCatDialog.value = false
-      newCat.value = { name: '', description: '', owner: '' }
+      newCat.value = { name: '', description: '' }
       ElMessage.success('分类创建成功')
     } else ElMessage.error(res.message || '创建分类失败')
   } catch (e: any) { ElMessage.error(e.message || '创建分类失败')

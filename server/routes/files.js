@@ -47,7 +47,7 @@ router.post('/file-categories', requireRole(), async (req, res) => {
     }
     const [result] = await pool.execute(
       'INSERT INTO file_categories (name, description, owner, createdBy, createdAt) VALUES (?, ?, ?, ?, ?)',
-      [String(name).trim(), description || '', owner || '', createdBy, new Date().toISOString().replace('T', ' ').replace('Z', '')]
+      [String(name).trim(), description || '', owner || createdBy, createdBy, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
     await createOperationLog(pool, {
       username,

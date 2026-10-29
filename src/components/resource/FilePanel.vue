@@ -105,8 +105,6 @@
           </button>
         </div>
         <div class="tool-right">
-          <el-checkbox v-model="duplicatesOnly" size="small">仅看重复</el-checkbox>
-          <el-checkbox v-model="groupedView" size="small">按格式分组</el-checkbox>
           <el-select v-model="sortKey" size="small" style="width: 112px">
             <el-option label="上传时间" value="date" />
             <el-option label="文件名" value="name" />
@@ -137,9 +135,6 @@
 
       <div v-loading="loading">
         <section v-for="g in displayGroups" :key="g.key" class="group-block">
-          <div v-if="groupedView" class="group-block-title">
-            {{ g.label }}<span class="group-block-count">{{ g.files.length }}</span>
-          </div>
           <div class="file-grid">
             <div
               v-for="file in g.files"
@@ -321,8 +316,6 @@ const groupChips = computed(() => [
 ])
 
 const activeGroup = ref('all')
-const groupedView = ref(false)
-const duplicatesOnly = ref(false)
 const sortKey = ref<'date' | 'name' | 'size'>('date')
 const sortAsc = ref(false)
 
@@ -343,7 +336,6 @@ const duplicateTotal = computed(() =>
 const filteredFiles = computed<FileItem[]>(() => {
   let list = scopedFiles.value
   if (activeGroup.value !== 'all') list = list.filter(f => groupKeyOf(f) === activeGroup.value)
-  if (duplicatesOnly.value) list = list.filter(f => dupCountOf(f) > 1)
   const q = searchQuery.value.trim().toLowerCase()
   if (q) list = list.filter(f => displayName(f.name).toLowerCase().includes(q))
   const dir = sortAsc.value ? 1 : -1
@@ -357,13 +349,7 @@ const filteredFiles = computed<FileItem[]>(() => {
 })
 
 // 平铺视图复用同一套卡片模板：包成一个「伪分组」，避免重新写一份卡片 DOM
-const displayGroups = computed(() => {
-  const list = filteredFiles.value
-  if (!groupedView.value) return [{ key: 'flat', label: '', files: list }]
-  return GROUP_ORDER
-    .map(k => ({ key: k, label: GROUP_LABEL[k] || k, files: list.filter(f => groupKeyOf(f) === k) }))
-    .filter(g => g.files.length > 0)
-})
+const displayGroups = computed(() => [{ key: 'flat', label: '', files: filteredFiles.value }])
 
 // ===== 勾选与批量操作 =====
 const selectedIds = ref<number[]>([])
@@ -442,7 +428,6 @@ const listTitle = computed(() => {
 const emptyText = computed(() => {
   if (searchQuery.value.trim()) return '没有匹配的文件'
   if (activeGroup.value !== 'all') return `该分类下暂无「${GROUP_LABEL[activeGroup.value] || ''}」类型的文件`
-  if (duplicatesOnly.value) return '没有检测到重复文件'
   if (scope.value === 'all') return '资料中心暂无文件'
   if (scope.value === 'uncategorized') return '没有未分类的文件'
   return '该分类下暂无文件'
@@ -657,8 +642,6 @@ onMounted(() => { loadFiles(); loadCategories() })
 
 /* 分组 */
 .group-block { margin-bottom: 1.25rem; }
-.group-block-title { font-size: 0.95rem; font-weight: 600; color: #2E6FB8; margin-bottom: 0.65rem; display: flex; align-items: center; gap: 0.45rem; }
-.group-block-count { font-size: 0.75rem; font-weight: 600; color: #2E6FB8; background: rgba(30, 90, 168,0.15); padding: 0.05rem 0.5rem; border-radius: 10px; }
 
 .file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.25rem; }
 .file-card { background: rgba(255,255,255,0.9); border: 1px solid rgba(30, 90, 168,0.3); border-radius: 12px; overflow: hidden; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.08); position: relative; }
