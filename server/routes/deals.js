@@ -1,5 +1,6 @@
 import express from 'express';
 import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
+import { getRealName } from '../utils/identity.js';
 const router = express.Router();
 
 function calcServiceFeeStatus(serviceEndTime) {
@@ -26,10 +27,27 @@ router.get('/closing-projects', async (req, res) => {
   }
 });
 
+// 方案A：按客户下钻其全部成交项目（供客户管理详情 Tab 调用）
+router.get('/closing-projects/by-customer/:customerId', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const { customerId } = req.params;
+    const [projects] = await pool.execute('SELECT * FROM closing_projects WHERE customerId = ? AND (is_deleted = 0 OR is_deleted IS NULL)', [customerId]);
+    const enriched = projects.map(p => ({
+      ...p,
+      nextYearFeeStatus: calcServiceFeeStatus(p.serviceEndTime)
+    }));
+    res.json({ success: true, data: enriched });
+  } catch (error) {
+    console.error('按客户查询成交项目失败:', error);
+    res.status(500).json({ success: false, message: '按客户查询成交项目失败' });
+  }
+});
+
 router.post('/closing-projects', async (req, res) => {
   try {
     const { pool } = req.app.locals;
-    const { name, description, status, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId } = req.body;
+    const { name, description, status, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId, customerId } = req.body;
     // 安全加固：申请人身份一律从 JWT token 解析，忽略请求体 applicant，防伪造
     const applicant = getRealName(req) || '';
 
@@ -44,13 +62,14 @@ router.post('/closing-projects', async (req, res) => {
       return `${year}-${month}-${day}`;
     }
 
-    const formattedDealTime = formatDate(dealTime);
-    const formattedServiceEndTime = formatDate(serviceEndTime);
+    const todayStr = () => new Date().toISOString().split('T')[0];
+    const formattedDealTime = formatDate(dealTime) || todayStr();
+    const formattedServiceEndTime = formatDate(serviceEndTime) || todayStr();
     const formattedStartDate = formattedDealTime;
 
     const computedFeeStatus = calcServiceFeeStatus(formattedServiceEndTime);
-    const query = `INSERT INTO closing_projects (name, description, status, startDate, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId, applicant, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-    const values = [name, description, status, formattedStartDate, formattedDealTime, price, formattedServiceEndTime, computedFeeStatus, contractFeeStatus || '未结', remainingAmount || 0, provinceId, cityId, countyId, applicant || '', new Date().toISOString().replace('T', ' ').replace('Z', '')];
+    const query = `INSERT INTO closing_projects (name, description, status, startDate, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId, customerId, applicant, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    const values = [name, description ?? '', status ?? '进行中', formattedStartDate, formattedDealTime, price, formattedServiceEndTime, computedFeeStatus, contractFeeStatus || '未结', remainingAmount || 0, provinceId ?? null, cityId ?? null, countyId ?? null, customerId ?? null, applicant || '', new Date().toISOString().replace('T', ' ').replace('Z', '')];
 
     console.log('SQL查询:', query);
     console.log('SQL参数:', values);
@@ -71,7 +90,7 @@ router.post('/closing-projects', async (req, res) => {
 
 router.put('/closing-projects/:id', async (req, res) => {
   const { id } = req.params;
-  const { name, description, status, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId, applicant } = req.body;
+  const { name, description, status, dealTime, price, serviceEndTime, nextYearFeeStatus, contractFeeStatus, remainingAmount, provinceId, cityId, countyId, customerId, applicant } = req.body;
   try {
     const { pool } = req.app.locals;
     const [old] = await pool.execute('SELECT name FROM closing_projects WHERE id = ?', [id]);
@@ -83,9 +102,12 @@ router.put('/closing-projects/:id', async (req, res) => {
 
     const computedFeeStatus = calcServiceFeeStatus(formatDate(serviceEndTime));
     const beforeValue = await getRecordBefore(pool, 'closing_projects', id, { name: 1, description: 1, status: 1, price: 1, contractFeeStatus: 1, remainingAmount: 1 });
+    const setClauses = ['name = ?', 'description = ?', 'status = ?', 'startDate = ?', 'dealTime = ?', 'price = ?', 'serviceEndTime = ?', 'nextYearFeeStatus = ?', 'contractFeeStatus = ?', 'remainingAmount = ?', 'provinceId = ?', 'cityId = ?', 'countyId = ?', 'applicant = ?'];
+    const setValues = [name, description, status, formatDate(dealTime), formatDate(dealTime), price, formatDate(serviceEndTime), computedFeeStatus, contractFeeStatus || '未结', remainingAmount || 0, provinceId, cityId, countyId, applicant || ''];
+    if (customerId !== undefined) { setClauses.push('customerId = ?'); setValues.push(customerId); }
     await pool.execute(
-      'UPDATE closing_projects SET name = ?, description = ?, status = ?, startDate = ?, dealTime = ?, price = ?, serviceEndTime = ?, nextYearFeeStatus = ?, contractFeeStatus = ?, remainingAmount = ?, provinceId = ?, cityId = ?, countyId = ?, applicant = ? WHERE id = ?',
-      [name, description, status, formatDate(dealTime), formatDate(dealTime), price, formatDate(serviceEndTime), computedFeeStatus, contractFeeStatus || '未结', remainingAmount || 0, provinceId, cityId, countyId, applicant || '', id]
+      'UPDATE closing_projects SET ' + setClauses.join(', ') + ' WHERE id = ?',
+      [...setValues, id]
     );
     const opUser = getOperator(req);
     await createOperationLog(pool, {

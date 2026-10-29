@@ -281,6 +281,7 @@ const DEAL_COLS = [
   col('unreceived_amount', `DECIMAL(18,2) DEFAULT 0`),
   col('expected_payment_date', `DATE`),
   col('remark', `TEXT${CS}`),
+  col('customerId', 'INT DEFAULT NULL'),
   col('report_month', `VARCHAR(20)${CS} DEFAULT ''`),
   col('created_by', `VARCHAR(255)${CS} DEFAULT ''`),
   col('created_at', `DATETIME DEFAULT CURRENT_TIMESTAMP`),
@@ -877,6 +878,23 @@ router.get('/sales-four-tables/:type/export', requireSalesView, async (req, res)
 })
 
 
+// 方案B/D：按 customerId 反查其成交用户记录（销售漏斗·成交阶段，供客户详情下钻）
+// 必须注册在 /sales-four-tables/:type 之前，否则会被 :type 路由抢匹配
+router.get('/sales-four-tables/by-customer/:customerId', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { customerId } = req.params;
+  try {
+    const [rows] = await pool.execute(
+      'SELECT id, customer_name, contact, phone, owner, contract_amount, actual_amount, received_amount, unreceived_amount, expected_payment_date, report_month, is_deleted FROM sales_deal_customers WHERE customerId = ? AND is_deleted = 0 ORDER BY created_at DESC',
+      [customerId]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('按客户查询成交用户失败:', error);
+    res.status(500).json({ success: false, message: '按客户查询成交用户失败' });
+  }
+});
+
 router.get('/sales-four-tables/:type', requireSalesView, async (req, res) => {
   const { pool } = req.app.locals;
   const { type } = req.params;
@@ -1155,6 +1173,17 @@ async function syncCustomerFromFunnel(pool, { customerName, contact, phone, stag
   }
 }
 
+// 方案B：将同步得到的客户ID回写到成交用户记录（销售四表↔客户 双向绑定）
+// 仅对 sales_deal_customers 生效；其余漏斗表无该列，安全跳过
+async function linkCustomerToDeal(pool, { table, recordId, customerId }) {
+  if (!customerId || table !== 'sales_deal_customers') return;
+  try {
+    await pool.execute('UPDATE sales_deal_customers SET customerId = ? WHERE id = ?', [customerId, recordId]);
+  } catch (e) {
+    console.error('[linkCustomerToDeal] 回写成交用户 customerId 失败:', e.message);
+  }
+}
+
 async function insertVersion(pool, tableType, recordId, data, createdBy) {
   try {
     const [max] = await pool.execute(
@@ -1260,6 +1289,9 @@ router.post('/sales-four-tables/:type', requireSalesWriter, async (req, res) => 
       });
     }
 
+    // 方案B：回写成交用户 customerId（销售四表↔客户 双向绑定）
+    await linkCustomerToDeal(pool, { table, recordId, customerId: sync.customer?.customerId });
+
     // 大项目子表
     if (type === 'project') {
       const { key_persons = [], competitors = [], visit_records = [] } = req.body;
@@ -1337,6 +1369,8 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
       });
     }
 
+    await linkCustomerToDeal(pool, { table, recordId, customerId: sync.customer?.customerId });
+
     if (destType !== type) {
       // 迁移到目标表
       const destTable = destType === 'deal' ? 'sales_deal_customers' : TABLE_META[destType].table;
@@ -1347,6 +1381,7 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
       const insertSql = `INSERT INTO ${destTable} (${destColumns.join(', ')}, created_by) VALUES (${destValues.join(', ')}, ?)`;
       const [insertResult] = await pool.execute(insertSql, [...Object.values(destBody), originalCreator]);
       recordId = insertResult.insertId;
+      await linkCustomerToDeal(pool, { table: destTable, recordId, customerId: sync.customer?.customerId });
 
       // 迁移历史版本快照到新记录
       await pool.execute(
@@ -1809,7 +1844,7 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
               if (syncRes?.created) projectCreated++;
               else if (syncRes?.analysisId) projectSynced++;
               // 双向关联：同步到客户管理
-              await syncCustomerFromFunnel(pool, {
+              const sc = await syncCustomerFromFunnel(pool, {
                 customerName,
                 contact: String(obj['联系人'] || '').trim(),
                 phone: String(obj['电话'] || '').trim(),
@@ -1817,6 +1852,7 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
                 isDeal: destType === 'deal',
                 operator: createdBy
               });
+              await linkCustomerToDeal(pool, { table: destTable, recordId: result.insertId, customerId: sc?.customerId });
             } catch (e) {
               // 大项目进展/客户同步失败不影响导入主流程，但要在响应里留痕
               errors.push('大项目进展同步失败(' + customerName + '): ' + e.message);

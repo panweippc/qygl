@@ -154,6 +154,12 @@ router.put('/customers/:id', async (req, res) => {
     if (next_followup_at !== undefined) { sets.push('next_followup_at = ?'); values.push(next_followup_at || null); sets.push('followup_reminded = 0'); }
     values.push(id);
     await pool.execute(`UPDATE customers SET ${sets.join(', ')} WHERE id = ?`, values);
+    // 方案B：客户改名时同步成交用户表的客户名单（保持双向绑定一致）
+    if (name && beforeValue && beforeValue.name && name !== beforeValue.name) {
+      try {
+        await pool.execute('UPDATE sales_deal_customers SET customer_name = ? WHERE customerId = ? AND is_deleted = 0', [name, id]);
+      } catch (e) { console.error('同步成交用户客户名单失败:', e.message); }
+    }
     await createOperationLog(pool, {
       username: getOperator(req),
       action: 'update',
@@ -181,6 +187,12 @@ router.delete('/customers/:id', async (req, res) => {
     if (rows[0].is_deleted) return res.status(400).json({ success: false, message: '该客户已删除' });
     // 仅客户对应的负责人可以删除
     if (rows[0].owner !== user) return res.status(403).json({ success: false, message: '你没有该权限' });
+    // 方案B 保护：客户若已关联成交用户或成交项目，禁止删除（避免脏数据/悬空引用）
+    const [dealLinks] = await pool.execute('SELECT COUNT(*) AS c FROM sales_deal_customers WHERE customerId = ? AND is_deleted = 0', [id]);
+    const [projLinks] = await pool.execute('SELECT COUNT(*) AS c FROM closing_projects WHERE customerId = ? AND (is_deleted = 0 OR is_deleted IS NULL)', [id]);
+    if ((dealLinks[0] && dealLinks[0].c > 0) || (projLinks[0] && projLinks[0].c > 0)) {
+      return res.status(400).json({ success: false, message: '该客户已关联成交数据，请先解除关联后再删除' });
+    }
     // 软删除：仅打标记，不做物理删除
     await pool.execute('UPDATE customers SET is_deleted = 1 WHERE id = ?', [id]);
     await createOperationLog(pool, {
@@ -499,6 +511,23 @@ router.get('/customers/funnel-link', async (req, res) => {
     res.json({ success: true, data: out });
   } catch (error) {
     res.status(500).json({ success: false, message: '获取关联漏斗失败' });
+  }
+});
+
+// 单条客户详情：供客户管理深链 / 跨模块下钻（方案D）
+// 注意：注册在全部 /customers/* 静态路由之后，避免 :id 抢匹配
+router.get('/customers/:id', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id } = req.params;
+  if (!/^\d+$/.test(String(id))) return res.status(400).json({ success: false, message: '客户ID格式错误' });
+  try {
+    await ensureCustomerColumns(pool);
+    const [rows] = await pool.execute('SELECT * FROM customers WHERE id = ? AND is_deleted = 0', [id]);
+    if (rows.length === 0) return res.status(404).json({ success: false, message: '客户不存在' });
+    res.json({ success: true, data: rows[0] });
+  } catch (error) {
+    console.error('获取客户详情失败:', error);
+    res.status(500).json({ success: false, message: '获取客户详情失败' });
   }
 });
 

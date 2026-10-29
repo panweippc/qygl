@@ -392,6 +392,15 @@ const openDetail = async (row: any) => {
       if (res.success) linkedFunnel.value = res.data || []
     } catch { /* ignore */ }
   }
+  // 方案A/D：按客户ID反查其关联成交项目与销售漏斗·成交阶段
+  try {
+    const [pj, dl] = await Promise.all([
+      fetch('/api/closing-projects/by-customer/' + row.id).then(r => r.json()),
+      fetch('/api/sales-four-tables/by-customer/' + row.id).then(r => r.json())
+    ])
+    linkedProjects.value = pj.success ? (pj.data || []) : []
+    linkedDeals.value = dl.success ? (dl.data || []) : []
+  } catch { /* ignore */ }
 }
 
 const saveFollowup = async () => {

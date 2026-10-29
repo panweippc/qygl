@@ -59,6 +59,39 @@
         <el-button type="primary" :loading="saving" @click="saveSub">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="convertVisible" title="转为成交项目" width="520px" append-to-body :close-on-click-modal="false">
+      <el-form label-width="100px">
+        <el-form-item label="项目名称">
+          <el-input v-model="convertForm.name" placeholder="请输入项目名称" />
+        </el-form-item>
+        <el-form-item label="关联客户">
+          <el-select v-model="convertForm.customerId" placeholder="选择关联客户（可不选）" clearable filterable style="width:100%">
+            <el-option v-for="c in convertCustomers" :key="c.id" :label="c.name" :value="c.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="成交价格">
+          <el-input-number v-model="convertForm.price" :min="0" style="width:100%" />
+        </el-form-item>
+        <el-form-item label="成交时间">
+          <el-date-picker v-model="convertForm.dealTime" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+        </el-form-item>
+        <el-form-item label="项目状态">
+          <el-select v-model="convertForm.status">
+            <el-option label="进行中" value="进行中" />
+            <el-option label="已完成" value="已完成" />
+            <el-option label="已取消" value="已取消" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="项目描述">
+          <el-input v-model="convertForm.description" type="textarea" :rows="3" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="convertVisible = false">取消</el-button>
+        <el-button type="primary" :loading="converting" @click="confirmConvert">确定生成</el-button>
+      </template>
+    </el-dialog>
   </el-dialog>
 </template>
 

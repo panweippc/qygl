@@ -21,5 +21,7 @@
   "migrations/customers-soft-delete-v1.2.77.sql",
   "migrations/business-soft-delete-v1.2.78.sql",
   "migrations/remove-sales-target-menu-v1.2.79.sql",
-  "migrations/project-multi-links-v1.2.80.sql"
+  "migrations/project-multi-links-v1.2.80.sql",
+  "migrations/closing-projects-customer-v1.2.82.sql",
+  "migrations/sales-deal-customer-link-v1.2.82.sql"
 ]

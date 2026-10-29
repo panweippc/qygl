@@ -133,6 +133,11 @@
             <el-option label="已交" value="已交" />
           </el-select>
         </el-form-item>
+        <el-form-item label="关联客户">
+          <el-select v-model="editForm.customerId" placeholder="选择关联客户（可不选）" clearable filterable style="width:100%">
+            <el-option v-for="c in customersList" :key="c.id" :label="c.name" :value="c.id" />
+          </el-select>
+        </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
@@ -148,7 +153,7 @@
 import { ref, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElOption, ElDatePicker, ElMessageBox } from 'element-plus'
-import { Edit, Delete } from '@element-plus/icons-vue'
+import { Edit, Delete, User } from '@element-plus/icons-vue'
 import { useButtonPermission } from '@/composables/usePermission'
 
 const router = useRouter()
@@ -170,6 +175,7 @@ interface Project {
   price: number
   serviceEndTime: string
   nextYearFeeStatus: string
+  customerId: number
 }
 
 // 项目详情
@@ -196,7 +202,8 @@ const editForm = ref({
   dealTime: null,
   price: 0,
   serviceEndTime: null,
-  nextYearFeeStatus: '未交'
+  nextYearFeeStatus: '未交',
+  customerId: null
 })
 
 function autoCalcFeeStatus(serviceEndTime) {
@@ -236,6 +243,26 @@ const mockProjects: Project[] = [
   }
 ]
 
+// 客户列表（用于关联客户下拉与名称解析）
+const customersList = ref<Array<{ id: number; name: string }>>([])
+const customerMap = ref<Record<number, string>>({})
+const loadCustomers = async () => {
+  try {
+    const res = await fetch('/api/customers?pageSize=200')
+    const data = await res.json()
+    if (data.success) {
+      customersList.value = data.data.list || []
+      const m: Record<number, string> = {}
+      customersList.value.forEach((c: any) => { m[c.id] = c.name })
+      customerMap.value = m
+    }
+  } catch (e) { console.error('加载客户列表失败:', e) }
+}
+const customerNameOf = (id: number) => customerMap.value[id] || ''
+const goCustomer = () => {
+  if (project.value.customerId) router.push(`/customer-management?customerId=${project.value.customerId}`)
+}
+
 // 加载项目详情
 const loadProjectDetail = async () => {
   const id = Number(route.params.id)
@@ -266,7 +293,8 @@ const openEditDialog = () => {
     dealTime: project.value.dealTime,
     price: project.value.price,
     serviceEndTime: project.value.serviceEndTime,
-    nextYearFeeStatus: project.value.nextYearFeeStatus
+    nextYearFeeStatus: project.value.nextYearFeeStatus,
+    customerId: project.value.customerId || null
   }
   editDialogVisible.value = true
 }
