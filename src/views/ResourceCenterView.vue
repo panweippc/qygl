@@ -71,6 +71,7 @@
               <span :class="{ zero: cat.articleCount === 0 }" class="cnt-item">章 {{ cat.articleCount }}</span>
               <span :class="{ zero: cat.projectCount === 0 }" class="cnt-item">项 {{ cat.projectCount }}</span>
             </div>
+            <div v-if="cat.owner" class="cat-node-owner">负责人：{{ cat.owner }}</div>
           </div>
 
           <!-- 未分类桶已按需求移除：内容统一归入资料分类，「全部」视图仍可见未归属数据 -->
@@ -152,6 +153,9 @@
         <el-form-item label="分类名称">
           <el-input v-model="newCat.name" placeholder="请输入分类名称" />
         </el-form-item>
+        <el-form-item label="负责人">
+          <el-input v-model="newCat.owner" placeholder="请输入负责人（可选）" />
+        </el-form-item>
         <el-form-item label="分类描述">
           <el-input v-model="newCat.description" type="textarea" :rows="3" placeholder="请输入分类描述" />
         </el-form-item>
@@ -186,6 +190,7 @@ interface CategoryStat {
   name: string
   description: string
   createdBy?: string
+  owner?: string
   fileCount: number
   articleCount: number
   projectCount: number
@@ -229,7 +234,7 @@ const managedCats = computed<number[] | 'all'>(() => {
 })
 
 const showAddCatDialog = ref(false)
-const newCat = ref({ name: '', description: '' })
+const newCat = ref({ name: '', description: '', owner: '' })
 
 const selectAll = () => { selected.value = { id: 'all', name: '全部' } }
 const selectCategory = (id: number | null, name: string) => { selected.value = { id, name } }
@@ -247,15 +252,21 @@ const loadCategories = async () => {
 
 const createCategory = async () => {
   if (!newCat.value.name.trim()) { ElMessage.warning('请输入分类名称'); return }
+  // 同名分类本地预校验：已存在同名分类直接提示，不发请求
+  if (stats.value.categories.some(c => c.name === newCat.value.name.trim())) {
+    ElMessage.warning('该分类已存在')
+    return
+  }
   try {
-    const res = await addFileCategory({ name: newCat.value.name.trim(), description: newCat.value.description.trim() })
+    const res = await addFileCategory({ name: newCat.value.name.trim(), description: newCat.value.description.trim(), owner: newCat.value.owner.trim() })
     if (res.success) {
       await loadCategories()
       showAddCatDialog.value = false
-      newCat.value = { name: '', description: '' }
+      newCat.value = { name: '', description: '', owner: '' }
       ElMessage.success('分类创建成功')
     } else ElMessage.error(res.message || '创建分类失败')
-  } catch (e: any) { ElMessage.error(e.message || '创建分类失败') }
+  } catch (e: any) { ElMessage.error(e.message || '创建分类失败')
+  }
 }
 
 const removeCategory = async (cat: CategoryStat) => {
@@ -297,7 +308,7 @@ const editCategory = async (cat: CategoryStat) => {
         inputValidator: (v: string) => (v && v.trim() ? true : '分类名称不能为空')
       }
     )
-    const res = await renameFileCategory(cat.id, { name: newName.trim(), description: cat.description || '' })
+    const res = await renameFileCategory(cat.id, { name: newName.trim(), description: cat.description || '', owner: cat.owner || '' })
     if (res.success) {
       await loadCategories()
       if (selected.value.id === cat.id) selected.value = { id: cat.id, name: newName.trim() }
@@ -426,6 +437,7 @@ watch(
 .cat-node-counts { display: flex; gap: 0.7rem; margin-top: 0.35rem; padding-left: 1.1rem; font-size: 0.73rem; color: #888; flex-wrap: wrap; }
 .cat-node-counts .cnt-item { color: #6b7280; }
 .cat-node-counts .cnt-item.zero { color: #c8ccd4; }
+.cat-node-owner { margin-top: 0.25rem; padding-left: 1.1rem; font-size: 0.73rem; color: #1E5AA8; }
 .cat-empty { padding: 1.5rem 0.5rem; color: #999; font-size: 0.85rem; text-align: center; }
 
 .rc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }

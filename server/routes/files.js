@@ -33,13 +33,21 @@ router.get('/file-categories', async (req, res) => {
 
 router.post('/file-categories', requireRole(), async (req, res) => {
   const { pool } = req.app.locals;
-  const { name, description } = req.body;
+  const { name, description, owner } = req.body;
   const username = req.user?.name || req.user?.username || '系统';
   const createdBy = req.user?.name || req.user?.username || '';
+  if (!name || !String(name).trim()) {
+    return res.status(400).json({ success: false, message: '分类名称不能为空' });
+  }
   try {
+    // 同名分类校验：分类名全局唯一，已存在则拒绝创建
+    const [dup] = await pool.execute('SELECT id FROM file_categories WHERE name = ?', [String(name).trim()]);
+    if (dup.length > 0) {
+      return res.status(400).json({ success: false, message: '该分类已存在' });
+    }
     const [result] = await pool.execute(
-      'INSERT INTO file_categories (name, description, createdBy, createdAt) VALUES (?, ?, ?, ?)',
-      [name, description || '', createdBy, new Date().toISOString().replace('T', ' ').replace('Z', '')]
+      'INSERT INTO file_categories (name, description, owner, createdBy, createdAt) VALUES (?, ?, ?, ?, ?)',
+      [String(name).trim(), description || '', owner || '', createdBy, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
     await createOperationLog(pool, {
       username,
@@ -86,7 +94,7 @@ router.delete('/file-categories/:id', requireOwnerOrRole(getCategoryOwner, ...CA
 router.put('/file-categories/:id', requireOwnerOrRole(getCategoryOwner, ...CATEGORY_MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
-  const { name, description } = req.body;
+  const { name, description, owner } = req.body;
   const username = req.user?.name || req.user?.username || '系统';
   if (!name || !name.trim()) {
     return res.status(400).json({ success: false, message: '分类名称不能为空' });
@@ -98,7 +106,17 @@ router.put('/file-categories/:id', requireOwnerOrRole(getCategoryOwner, ...CATEG
     }
     const oldName = oldRows[0].name;
     const newName = name.trim();
-    await pool.execute('UPDATE file_categories SET name = ?, description = ? WHERE id = ?', [newName, description || '', id]);
+    // 改名重名校验：排除自身后仍存在同名分类则拒绝
+    const [dup] = await pool.execute('SELECT id FROM file_categories WHERE name = ? AND id <> ?', [newName, id]);
+    if (dup.length > 0) {
+      return res.status(400).json({ success: false, message: '该分类已存在' });
+    }
+    let updateSql = 'UPDATE file_categories SET name = ?, description = ?';
+    const updateVals = [newName, description || ''];
+    if (owner !== undefined) { updateSql += ', owner = ?'; updateVals.push(owner || ''); }
+    updateSql += ' WHERE id = ?';
+    updateVals.push(id);
+    await pool.execute(updateSql, updateVals);
     // 项目信息按 category_name 字符串关联，改名需同步
     await pool.execute('UPDATE category_projects SET category_name = ? WHERE category_name = ?', [newName, oldName]);
     await createOperationLog(pool, {

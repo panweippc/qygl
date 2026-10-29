@@ -23,5 +23,7 @@
   "migrations/remove-sales-target-menu-v1.2.79.sql",
   "migrations/project-multi-links-v1.2.80.sql",
   "migrations/closing-projects-customer-v1.2.82.sql",
-  "migrations/sales-deal-customer-link-v1.2.82.sql"
+  "migrations/sales-deal-customer-link-v1.2.82.sql",
+  "migrations/sales-deal-closing-project-id-v1.2.83.sql",
+  "migrations/file-categories-owner-v1.2.84.sql"
 ]

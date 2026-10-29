@@ -50,6 +50,7 @@ export interface FileCategory {
   id: number
   name: string
   description?: string
+  owner?: string
 }
 
 export interface FileItem {
