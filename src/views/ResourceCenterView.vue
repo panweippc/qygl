@@ -43,9 +43,9 @@
               <span class="cat-node-name">全部</span>
             </div>
             <div class="cat-node-counts">
-              <span :class="{ zero: stats.totals.files === 0 }" class="cnt-item">文 {{ stats.totals.files }}</span>
-              <span :class="{ zero: stats.totals.articles === 0 }" class="cnt-item">章 {{ stats.totals.articles }}</span>
-              <span :class="{ zero: stats.totals.projects === 0 }" class="cnt-item">项 {{ stats.totals.projects }}</span>
+              <span :class="{ zero: stats.totals.files === 0 }" class="cnt-item">文件 {{ stats.totals.files }}</span>
+              <span :class="{ zero: stats.totals.articles === 0 }" class="cnt-item">文章 {{ stats.totals.articles }}</span>
+              <span :class="{ zero: stats.totals.projects === 0 }" class="cnt-item">项目 {{ stats.totals.projects }}</span>
             </div>
           </div>
 
@@ -59,6 +59,7 @@
             <div class="cat-node-main">
               <span class="cat-dot"></span>
               <span class="cat-node-name">{{ cat.name }}</span>
+              <span v-if="cat.owner" class="cat-node-owner">负责人：{{ cat.owner }}</span>
               <el-button v-if="canManageCategory(cat)" text size="small" class="cat-edit-btn" title="编辑分类" @click.stop="editCategory(cat)">
                 <el-icon><Edit /></el-icon>
               </el-button>
@@ -67,11 +68,10 @@
               </el-button>
             </div>
             <div class="cat-node-counts">
-              <span :class="{ zero: cat.fileCount === 0 }" class="cnt-item">文 {{ cat.fileCount }}</span>
-              <span :class="{ zero: cat.articleCount === 0 }" class="cnt-item">章 {{ cat.articleCount }}</span>
-              <span :class="{ zero: cat.projectCount === 0 }" class="cnt-item">项 {{ cat.projectCount }}</span>
+              <span :class="{ zero: cat.fileCount === 0 }" class="cnt-item">文件 {{ cat.fileCount }}</span>
+              <span :class="{ zero: cat.articleCount === 0 }" class="cnt-item">文章 {{ cat.articleCount }}</span>
+              <span :class="{ zero: cat.projectCount === 0 }" class="cnt-item">项目 {{ cat.projectCount }}</span>
             </div>
-            <div v-if="cat.owner" class="cat-node-owner">负责人：{{ cat.owner }}</div>
           </div>
 
           <!-- 未分类桶已按需求移除：内容统一归入资料分类，「全部」视图仍可见未归属数据 -->
@@ -435,7 +435,7 @@ watch(
 .cat-node-counts { display: flex; gap: 0.7rem; margin-top: 0.35rem; padding-left: 1.1rem; font-size: 0.73rem; color: #888; flex-wrap: wrap; }
 .cat-node-counts .cnt-item { color: #6b7280; }
 .cat-node-counts .cnt-item.zero { color: #c8ccd4; }
-.cat-node-owner { margin-top: 0.25rem; padding-left: 1.1rem; font-size: 0.73rem; color: #1E5AA8; }
+.cat-node-owner { font-size: 0.72rem; color: #1E5AA8; flex-shrink: 0; white-space: nowrap; margin-left: 0.35rem; }
 .cat-empty { padding: 1.5rem 0.5rem; color: #999; font-size: 0.85rem; text-align: center; }
 
 .rc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
