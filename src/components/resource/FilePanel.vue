@@ -80,7 +80,13 @@
         <h3 class="section-subtitle">
           {{ listTitle }}
           <span class="count-badge">{{ filteredFiles.length }}</span>
-          <span v-if="duplicateTotal > 0" class="dup-hint">其中重复文件 {{ duplicateTotal }} 个</span>
+          <span
+            v-if="duplicateTotal > 0"
+            class="dup-hint"
+            :class="{ active: dupOnly }"
+            :title="dupOnly ? '点击显示全部文件' : '点击只看重复文件'"
+            @click="dupOnly = !dupOnly"
+          >{{ dupOnly ? '只看重复 (' + duplicateTotal + ' 个)' : '其中重复文件 ' + duplicateTotal + ' 个' }}</span>
         </h3>
         <el-input
           v-model="searchQuery"
@@ -318,6 +324,8 @@ const groupChips = computed(() => [
 const activeGroup = ref('all')
 const sortKey = ref<'date' | 'name' | 'size'>('date')
 const sortAsc = ref(false)
+// 点击「重复文件」徽标只展示重复项（替代原先的常驻复选框，保持工具栏干净）
+const dupOnly = ref(false)
 
 // ===== 重复文件检测：按解码后的文件名归组 =====
 const dupCountMap = computed<Record<string, number>>(() => {
@@ -336,6 +344,7 @@ const duplicateTotal = computed(() =>
 const filteredFiles = computed<FileItem[]>(() => {
   let list = scopedFiles.value
   if (activeGroup.value !== 'all') list = list.filter(f => groupKeyOf(f) === activeGroup.value)
+  if (dupOnly.value) list = list.filter(f => dupCountOf(f) > 1)
   const q = searchQuery.value.trim().toLowerCase()
   if (q) list = list.filter(f => displayName(f.name).toLowerCase().includes(q))
   const dir = sortAsc.value ? 1 : -1
@@ -621,7 +630,9 @@ onMounted(() => { loadFiles(); loadCategories() })
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.9rem; gap: 1rem; flex-wrap: wrap; }
 .section-subtitle { font-size: 1.15rem; font-weight: 600; color: #333; margin: 0; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .count-badge { background: rgba(30, 90, 168,0.15); color: #2E6FB8; font-size: 0.8rem; padding: 0.1rem 0.55rem; border-radius: 10px; font-weight: 600; }
-.dup-hint { font-size: 0.75rem; font-weight: 400; color: #d48806; background: rgba(250,173,20,0.12); padding: 0.1rem 0.5rem; border-radius: 10px; }
+.dup-hint { font-size: 0.75rem; font-weight: 400; color: #d48806; background: rgba(250,173,20,0.12); padding: 0.1rem 0.5rem; border-radius: 10px; cursor: pointer; user-select: none; transition: all 0.15s; }
+.dup-hint:hover { background: rgba(250,173,20,0.22); }
+.dup-hint.active { color: #fff; background: #fa8c16; font-weight: 600; }
 .search-input { width: 260px; }
 
 /* 格式分类 chips + 排序工具条 */
