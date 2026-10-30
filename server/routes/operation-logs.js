@@ -32,7 +32,13 @@ const MODULE_LABELS = {
   customer: '客户管理',
   office_supplies: '办公用品',
   knowledge: '知识库',
-  region: '区域管理'
+  region: '区域管理',
+  ai: 'AI 助手',
+  announcement: '公告管理',
+  leave: '请假申请',
+  operation_log: '操作日志',
+  user: '用户管理',
+  'sales-four-tables': '销售四表'
 };
 
 // 动作中文映射（用于筛选下拉显示）
@@ -51,10 +57,26 @@ const ACTION_LABELS = {
   withdraw: '撤回',
   backup_create: '创建备份',
   backup_delete: '删除备份',
+  backup_download: '下载备份',
+  backup_download_files: '下载备份文件',
   backup_restore: '恢复备份',
   restore: '恢复',
   assign: '分配权限',
-  change_password: '修改密码'
+  change_password: '修改密码',
+  upload: '上传',
+  soft_delete: '删除',
+  return: '退回',
+  resubmit: '重新提交',
+  export: '导出',
+  import: '导入',
+  ai_ask: 'AI 提问',
+  claim: '认领',
+  release: '释放',
+  convert: '转为成交项目',
+  transfer: '移交',
+  batch_transfer: '批量移交',
+  kick: '强制下线',
+  disable_role: '停用角色'
 };
 
 // 获取操作日志（分页 + 筛选）

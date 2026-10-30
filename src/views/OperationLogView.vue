@@ -105,10 +105,15 @@ const filters = ref({ module: '', action: '', startDate: '', endDate: '' })
 
 // 动作中文映射（与后端一致）
 const ACTION_MAP: Record<string, string> = {
-  create: '创建', update: '更新', delete: '删除', login: '登录',
+  create: '创建', update: '更新', delete: '删除', soft_delete: '删除', login: '登录',
   login_fail: '登录失败', login_new_ip: '新IP登录', logout: '退出',
   approve: '审批通过', reject: '驳回', submit: '提交', forward: '转发', withdraw: '撤回',
-  backup_create: '创建备份', backup_delete: '删除备份', restore: '恢复', assign: '分配权限'
+  return: '退回', resubmit: '重新提交', upload: '上传', download: '下载',
+  export: '导出', import: '导入', claim: '认领', release: '释放',
+  convert: '转为成交项目', transfer: '移交', batch_transfer: '批量移交',
+  kick: '强制下线', disable_role: '停用角色', change_password: '修改密码', ai_ask: 'AI 提问',
+  backup_create: '创建备份', backup_delete: '删除备份', backup_download: '下载备份',
+  backup_download_files: '下载备份文件', backup_restore: '恢复备份', restore: '恢复', assign: '分配权限'
 }
 
 // 模块中文映射（与后端一致）
@@ -117,7 +122,10 @@ const MODULE_MAP: Record<string, string> = {
   reimbursement: '报销申请', entertainment: '招待申请', meeting: '会议申请', distribute: '任务下发',
   sales: '销售管理', deal: '成交管理', project: '项目管理', visit: '拜访管理',
   weekly_report: '周报', monthly_report: '月报', file: '文件管理', notification: '消息通知',
-  asset: '资产管理', system: '系统管理'
+  asset: '资产管理', system: '系统管理', leave: '请假申请', customer: '客户管理',
+  ai: 'AI 助手', announcement: '公告管理', operation_log: '操作日志', user: '用户管理',
+  'sales-four-tables': '销售四表', region: '区域管理', knowledge: '知识库',
+  tool: '工具管理', chat: '聊天室', office_supplies: '办公用品', oa_approval: 'OA 审批'
 }
 
 // 字段中文映射（变更详情展示）
@@ -140,10 +148,13 @@ function actionLabel(action: string) {
 
 function actionType(action: string) {
   const map: Record<string, string> = {
-    create: 'success', update: 'primary', delete: 'danger', login: 'info',
+    create: 'success', update: 'primary', delete: 'danger', soft_delete: 'danger', login: 'info',
     login_fail: 'danger', login_new_ip: 'warning', logout: 'info',
     approve: 'success', reject: 'danger', submit: 'warning', forward: 'warning', withdraw: 'info',
-    backup_create: 'success', backup_delete: 'danger'
+    return: 'danger', resubmit: 'warning', upload: 'success', export: 'warning', import: 'warning',
+    claim: 'success', release: 'warning', convert: 'success', transfer: 'warning', batch_transfer: 'warning',
+    kick: 'danger', disable_role: 'danger', change_password: 'warning', ai_ask: 'primary',
+    backup_create: 'success', backup_delete: 'danger', backup_download: 'info', backup_download_files: 'info', backup_restore: 'warning'
   }
   return map[action] || 'info'
 }
