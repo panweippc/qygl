@@ -15,6 +15,13 @@
         <div class="nav-item-indicator"></div>
       </router-link>
 
+      <button type="button" class="nav-item search-btn" @click="openGlobalSearch">
+        <span class="search-icon">⌕</span>
+        <span>搜索</span>
+        <span class="kbd-hint">Ctrl K</span>
+        <div class="nav-item-indicator"></div>
+      </button>
+
       <el-dropdown trigger="click" placement="bottom-end" @command="handleCommand">
         <div class="user-info">
           <el-avatar :size="32" :src="avatarUrl">
@@ -47,8 +54,10 @@ import { useRouter } from 'vue-router'
 import { ArrowDown, User, Lock, SwitchButton } from '@element-plus/icons-vue'
 import { disconnectSocket } from '../services/socket'
 import { useNotificationStore } from '../stores/notifications'
+import { useGlobalSearch } from '../composables/useGlobalSearch'
 
 const router = useRouter()
+const { open: openGlobalSearch } = useGlobalSearch()
 const currentUser = ref('用户')
 const currentUsername = ref('')
 const avatarUrl = ref('')
@@ -443,6 +452,21 @@ onUnmounted(() => {
 
 .notification-btn { position: relative; }
 .bell-icon { font-size: 20px; line-height: 1; }
+
+.search-btn { gap: 6px; }
+.search-icon { font-size: 18px; line-height: 1; font-weight: bold; }
+.kbd-hint {
+  font-size: 11px;
+  color: #888;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 2px;
+  white-space: nowrap;
+}
+.search-btn:hover .kbd-hint { color: #1E5AA8; border-color: rgba(30, 90, 168, 0.4); }
+
 .badge {
   position: absolute; top: 2px; right: 2px; background: #f44336; color: #fff;
   font-size: 10px; min-width: 16px; height: 16px; border-radius: 8px;

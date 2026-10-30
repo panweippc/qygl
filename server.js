@@ -73,6 +73,7 @@ import backupRouter from './server/routes/backup.js';
 import monitorRouter from './server/routes/monitor.js';
 import announcementsRouter, { ensureAnnouncementsSchema } from './server/routes/announcements.js';
 import aiRouter from './server/routes/ai.js';
+import searchRouter from './server/routes/search.js';
 import { requireAuth } from './server/middleware/requireAuth.js';
 import { startMetricsCollector } from './server/utils/metrics-collector.js';
 
@@ -290,6 +291,9 @@ app.get('/api/health', async (req, res) => {
 // 全局鉴权中间件（除 POST /login、GET /api/health 外，所有 /api 接口均需有效 token）
 // /api/health 已在上方注册（早于本中间件），故免鉴权；其余 /api/* 路由均受本中间件保护
 app.use('/api', requireAuth);
+
+// 全局搜索（GET 免 CSRF，但受上方 requireAuth 鉴权保护）
+app.use('/api', searchRouter);
 
 // 挂载工作流路由
 app.use('/api', workflowRouter);

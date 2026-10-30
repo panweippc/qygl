@@ -268,6 +268,12 @@ export const searchResourceCenter = async (keyword: string, username?: string): 
   return response.data;
 };
 
+// 全局搜索：跨模块聚合（员工/通讯录、OA 申请、资料中心、客户、公告、操作日志）
+export const globalSearch = async (q: string): Promise<ApiResponse<any>> => {
+  const response = await api.get('/search', { params: { q } });
+  return response.data;
+};
+
 // 产品分类管理
 export const getProjectCategories = async (): Promise<ApiResponse<Project[]>> => {
   const response = await api.get('/project-categories');
