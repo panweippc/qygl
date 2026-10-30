@@ -126,7 +126,7 @@ router.get('/oa/flows', async (req, res) => {
     res.json({ success: true, data: flows });
   } catch (error) {
     console.error('获取审批流程列表失败:', error);
-    res.status(500).json({ success: false, message: '获取审批流程列表失败: ' + error.message });
+    res.status(500).json({ success: false, message: '获取审批流程列表失败' });
   }
 });
 
@@ -142,7 +142,7 @@ router.post('/oa/generate-approval-path', async (req, res) => {
     res.json({ success: true, data: approvalPath });
   } catch (error) {
     console.error('生成审批路径失败:', error);
-    res.status(500).json({ success: false, message: '生成审批路径失败: ' + error.message });
+    res.status(500).json({ success: false, message: '生成审批路径失败' });
   }
 });
 
@@ -297,7 +297,7 @@ router.post('/oa/submit', async (req, res) => {
   } catch (error) {
     await connection.rollback();
     console.error('提交审批申请失败:', error);
-    res.status(500).json({ success: false, message: '提交审批申请失败: ' + error.message });
+    res.status(500).json({ success: false, message: '提交审批申请失败' });
   } finally {
     connection.release();
   }
@@ -325,7 +325,7 @@ router.get('/oa/todo/:userId', async (req, res) => {
     res.json({ success: true, data: formattedInstances });
   } catch (error) {
     console.error('获取待办审批列表失败:', error);
-    res.status(500).json({ success: false, message: '获取待办审批列表失败: ' + error.message });
+    res.status(500).json({ success: false, message: '获取待办审批列表失败' });
   }
 });
 
@@ -354,7 +354,7 @@ router.get('/oa/done/:userId', async (req, res) => {
     res.json({ success: true, data: formattedHistories });
   } catch (error) {
     console.error('获取已办审批列表失败:', error);
-    res.status(500).json({ success: false, message: '获取已办审批列表失败: ' + error.message });
+    res.status(500).json({ success: false, message: '获取已办审批列表失败' });
   }
 });
 
@@ -381,7 +381,7 @@ router.get('/oa/my-applications/:userId', async (req, res) => {
     res.json({ success: true, data: formattedInstances });
   } catch (error) {
     console.error('获取我的申请列表失败:', error);
-    res.status(500).json({ success: false, message: '获取我的申请列表失败: ' + error.message });
+    res.status(500).json({ success: false, message: '获取我的申请列表失败' });
   }
 });
 
@@ -418,7 +418,7 @@ router.get('/oa/detail/:instanceId', async (req, res) => {
     });
   } catch (error) {
     console.error('获取审批详情失败:', error);
-    res.status(500).json({ success: false, message: '获取审批详情失败: ' + error.message });
+    res.status(500).json({ success: false, message: '获取审批详情失败' });
   }
 });
 
@@ -578,7 +578,7 @@ router.post('/oa/process', async (req, res) => {
   } catch (error) {
     await connection.rollback();
     console.error('处理审批失败:', error);
-    res.status(500).json({ success: false, message: '处理审批失败: ' + error.message });
+    res.status(500).json({ success: false, message: '处理审批失败' });
   } finally {
     connection.release();
   }
@@ -616,7 +616,7 @@ router.post('/oa/withdraw', async (req, res) => {
     res.json({ success: true, message: '申请撤回成功' });
   } catch (error) {
     console.error('撤回申请失败:', error);
-    res.status(500).json({ success: false, message: '撤回申请失败: ' + error.message });
+    res.status(500).json({ success: false, message: '撤回申请失败' });
   }
 });
 
@@ -628,7 +628,7 @@ router.get('/oa/approver-configs', async (req, res) => {
     res.json({ success: true, data: configs });
   } catch (error) {
     console.error('获取审批人配置失败:', error);
-    res.status(500).json({ success: false, message: '获取审批人配置失败: ' + error.message });
+    res.status(500).json({ success: false, message: '获取审批人配置失败' });
   }
 });
 
@@ -729,7 +729,7 @@ router.get('/home/approval-summary', async (req, res) => {
     res.json({ success: true, data: counts });
   } catch (error) {
     console.error('获取首页审批聚合数据失败:', error);
-    res.status(500).json({ success: false, message: '获取首页审批聚合数据失败: ' + error.message });
+    res.status(500).json({ success: false, message: '获取首页审批聚合数据失败' });
   }
 });
 
@@ -855,7 +855,7 @@ router.get('/oa/all-my-applications/:userId', async (req, res) => {
     res.json({ success: true, data: result });
   } catch (error) {
     console.error('获取全部申请列表失败:', error);
-    res.status(500).json({ success: false, message: '获取全部申请列表失败: ' + error.message });
+    res.status(500).json({ success: false, message: '获取全部申请列表失败' });
   }
 });
 
@@ -878,7 +878,7 @@ router.put('/oa/approver-config/:id', requireRole('系统管理员', '总经理'
     res.json({ success: true, message: '审批人配置更新成功' });
   } catch (error) {
     console.error('更新审批人配置失败:', error);
-    res.status(500).json({ success: false, message: '更新审批人配置失败: ' + error.message });
+    res.status(500).json({ success: false, message: '更新审批人配置失败' });
   }
 });
 

@@ -78,7 +78,7 @@ router.get('/resource-center/categories', async (req, res) => {
     });
   } catch (error) {
     console.error('获取资料中心分类失败:', error);
-    res.status(500).json({ success: false, message: '获取资料中心分类失败: ' + error.message });
+    res.status(500).json({ success: false, message: '获取资料中心分类失败' });
   }
 });
 

@@ -221,7 +221,7 @@ const handleBack = () => {
 // 审批报销
 const approveReimbursement = (row) => {
   // 模拟审批
-  alert(`审批报销申请 ID: ${row.id}`)
+  alert(`审批报销申请 编号：${row.id}`)
 }
 </script>
 

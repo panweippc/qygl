@@ -9,7 +9,7 @@
 
     <div class="table-container">
       <el-table :data="users" style="width: 100%" class="data-table" v-loading="userLoading">
-        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="id" label="编号" width="80" />
         <el-table-column prop="name" label="姓名" width="120" />
         <el-table-column prop="department" label="部门" width="120" />
         <el-table-column prop="position" label="职位" width="120" />

@@ -71,7 +71,7 @@
     <el-dialog v-model="editVisible" :title="editForm.id ? '编辑' + title : '新增' + title" width="600px" align-center destroy-on-close>
       <div class="dialog-body">
         <el-form :model="editForm" label-width="120px">
-          <el-form-item label="owner"><el-input v-model="editForm.owner" /></el-form-item>
+          <el-form-item label="负责人"><el-input v-model="editForm.owner" /></el-form-item>
           <el-form-item label="销售类型">
             <el-select v-model="editForm.sales_type" placeholder="请选择" style="width:100%">
               <el-option v-for="s in SALES_TYPE_OPTIONS" :key="s" :label="s" :value="s" />

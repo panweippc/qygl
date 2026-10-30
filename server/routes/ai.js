@@ -197,7 +197,7 @@ router.post('/intent', async (req, res) => {
       matched
     })
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message })
+    res.status(500).json({ success: false, message: 'AI 服务调用失败，请稍后重试' })
   }
 })
 

@@ -59,7 +59,7 @@ router.put('/projects/:id', async (req, res) => {
     });
     res.json({ success: true, message: '项目更新成功' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 

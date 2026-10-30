@@ -916,7 +916,7 @@ router.post('/asset-inventory-plans/:id/run', async (req, res) => {
     res.json({ success: true, message: `已生成盘点单 ${inventoryNo}`, inventoryId, inventoryNo });
   } catch (error) {
     console.error('按计划生成盘点单失败:', error);
-    res.status(500).json({ success: false, message: error.message || '按计划生成盘点单失败' });
+    res.status(500).json({ success: false, message: '按计划生成盘点单失败' });
   }
 });
 
@@ -1052,7 +1052,7 @@ router.post('/assets/import', upload.single('file'), async (req, res) => {
     res.json({ success: true, message: `导入完成：成功 ${imported} 条，跳过 ${skipped} 条`, data: { imported, skipped, errors: errors.slice(0, 20) } });
   } catch (error) {
     console.error('资产导入失败:', error);
-    res.status(500).json({ success: false, message: '导入失败: ' + error.message });
+    res.status(500).json({ success: false, message: '导入失败' });
   }
 });
 

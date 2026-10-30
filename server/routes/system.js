@@ -62,7 +62,7 @@ router.post('/roles', requireRole(...ADMIN_ROLES), verifyAdminPassword, async (r
     res.json({ success: true, message: '角色创建成功', data: { id: result.insertId } });
   } catch (error) {
     console.error('创建角色失败:', error);
-    res.status(500).json({ success: false, message: '创建角色失败: ' + error.message });
+    res.status(500).json({ success: false, message: '创建角色失败' });
   }
 });
 
@@ -134,7 +134,7 @@ router.delete('/roles/:id', requireRole(...ADMIN_ROLES), verifyAdminPassword, as
     console.error('错误详情:', error.message);
     console.error('错误码:', error.code);
     console.error('SQL状态:', error.sqlState);
-    res.status(500).json({ success: false, message: '删除角色失败: ' + error.message });
+    res.status(500).json({ success: false, message: '删除角色失败' });
   } finally {
     connection.release();
   }
@@ -347,7 +347,7 @@ router.post('/roles/:roleId/permissions', requireRole(...ADMIN_ROLES), async (re
   } catch (error) {
     await connection.rollback();
     console.error('分配权限失败:', error);
-    res.status(500).json({ success: false, message: '分配权限失败: ' + error.message });
+    res.status(500).json({ success: false, message: '分配权限失败' });
   } finally {
     connection.release();
   }

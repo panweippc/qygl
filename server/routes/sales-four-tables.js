@@ -827,7 +827,7 @@ router.get('/sales-four-tables/deal/overdue', requireSalesView, async (req, res)
     res.json({ success: true, data: { list: rows, count: rows.length, totalUnreceived } });
   } catch (e) {
     console.error('回款超期查询失败:', e);
-    res.status(500).json({ success: false, message: '查询失败: ' + e.message });
+    res.status(500).json({ success: false, message: '查询失败' });
   }
 });
 
@@ -873,7 +873,7 @@ router.get('/sales-four-tables/:type/export', requireSalesView, async (req, res)
     return res.send(buf)
   } catch (e) {
     console.error('销售四表导出失败', e)
-    return res.status(500).json({ success: false, message: '导出失败: ' + e.message })
+    return res.status(500).json({ success: false, message: '导出失败' })
   }
 })
 
@@ -1611,7 +1611,7 @@ router.post('/sales-four-tables/deal/:id/convert-to-project', requireSalesWriter
   } catch (error) {
     await conn.rollback();
     console.error('成交用户转正失败:', error);
-    res.status(500).json({ success: false, message: '转正失败: ' + error.message });
+    res.status(500).json({ success: false, message: '转正失败' });
   } finally {
     conn.release();
   }
@@ -1923,7 +1923,7 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
           }
         } catch (e) {
           skipped++;
-          errors.push(String(e.message));
+          errors.push('该行数据写入失败');
         }
       }
     }

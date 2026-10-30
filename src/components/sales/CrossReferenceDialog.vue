@@ -10,7 +10,7 @@
         </div>
         <el-table v-if="sec.rows.length" :data="sec.rows" size="small" stripe>
           <el-table-column prop="report_month" label="申报月份" width="100" />
-          <el-table-column v-if="sec.type !== 'project'" prop="owner" label="owner" width="100" />
+          <el-table-column v-if="sec.type !== 'project'" prop="owner" label="负责人" width="100" />
           <el-table-column v-if="sec.type !== 'project'" prop="sales_type" label="销售类型" width="100" />
           <el-table-column v-if="sec.type !== 'project'" prop="product_type" label="产品类型" min-width="140" show-overflow-tooltip />
           <el-table-column v-if="sec.type === 'project'" prop="project_owner" label="项目负责人" width="120" />

@@ -73,7 +73,7 @@
             <span>{{ row.username || '系统' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="IP" width="130">
+        <el-table-column label="IP 地址" width="130">
           <template #default="{ row }">
             <span>{{ row.ip || '-' }}</span>
           </template>

@@ -9,7 +9,7 @@
 
     <div class="table-container">
       <el-table :data="roles" style="width: 100%" class="data-table" v-loading="loading">
-        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="id" label="编号" width="80" />
         <el-table-column prop="name" label="角色名称" width="150" />
         <el-table-column prop="code" label="角色编码" width="150" />
         <el-table-column prop="description" label="描述" show-overflow-tooltip />

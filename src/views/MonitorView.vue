@@ -113,7 +113,7 @@
                      scope.row.alert_level === 'WARNING' ? 'warning' : 'info'"
               size="small"
             >
-              {{ scope.row.alert_level }}
+              {{ { CRITICAL: '严重', HIGH: '高', WARNING: '中', INFO: '低' }[scope.row.alert_level] || scope.row.alert_level }}
             </el-tag>
           </template>
         </el-table-column>

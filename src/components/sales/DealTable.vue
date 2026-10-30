@@ -239,7 +239,7 @@ function resetFilter() {
 async function exportExcel() {
   try {
     const res = await salesFetch(`/api/sales-four-tables/deal/export?${buildQuery().replace(/&page=.*|&pageSize=.*/g, '')}`)
-    if (!res.ok) { ElMessage.error('导出失败: HTTP ' + res.status); return }
+    if (!res.ok) { ElMessage.error('导出失败（状态码：' + res.status + '）'); return }
     const blob = await res.blob()
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')

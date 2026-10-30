@@ -105,7 +105,7 @@ router.get('/backups', adminOnly, async (req, res) => {
     res.json({ success: true, data: files });
   } catch (error) {
     console.error('列出备份失败:', error);
-    res.status(500).json({ success: false, message: '列出备份失败: ' + error.message });
+    res.status(500).json({ success: false, message: '列出备份失败' });
   }
 });
 
@@ -194,7 +194,7 @@ router.post('/backups', adminOnly, async (req, res) => {
     console.error('创建备份失败:', error);
     try { fs.unlinkSync(full); } catch (e) { /* ignore */ }
     if (filesZip) { try { fs.unlinkSync(filesZip); } catch (e) { /* ignore */ } }
-    res.status(500).json({ success: false, message: '创建备份失败: ' + error.message });
+    res.status(500).json({ success: false, message: '创建备份失败' });
   } finally {
     conn.release();
   }
@@ -275,7 +275,7 @@ router.delete('/backups/:file', adminOnly, verifyAdminPassword, async (req, res)
     res.json({ success: true, message: '备份文件已删除' });
   } catch (error) {
     console.error('删除备份失败:', error);
-    res.status(500).json({ success: false, message: '删除备份失败: ' + error.message });
+    res.status(500).json({ success: false, message: '删除备份失败' });
   }
 });
 
@@ -335,7 +335,7 @@ router.post('/backups/:file/restore', adminOnly, async (req, res) => {
     res.json({ success: true, message: filesRestored ? '恢复成功（含附件）' : '恢复成功', data: { snapshot: snapName } });
   } catch (error) {
     console.error('恢复备份失败:', error);
-    res.status(500).json({ success: false, message: '恢复备份失败: ' + error.message });
+    res.status(500).json({ success: false, message: '恢复备份失败' });
   } finally {
     try { await restoreConn.end(); } catch (e) { /* ignore */ }
   }

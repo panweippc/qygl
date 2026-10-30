@@ -358,7 +358,7 @@ router.post('/sales-import', requireSalesWriter, upload.single('file'), async (r
 
   } catch (error) {
     console.error('导入销售数据失败:', error);
-    res.status(500).json({ success: false, message: '导入失败: ' + error.message });
+    res.status(500).json({ success: false, message: '导入失败' });
   }
 });
 

@@ -78,7 +78,7 @@
                   <div class="announce-line">
                     <span v-if="levelOf(a) !== 'info'" class="announce-badge" :class="'badge-' + levelOf(a)">{{ levelText(levelOf(a)) }}</span>
                     <span class="announce-badge" :class="'cat-' + levelOf(a)">{{ a.category }}</span>
-                    <span v-if="idx === 0 && isRecent(a)" class="announce-badge badge-new">NEW</span>
+                    <span v-if="idx === 0 && isRecent(a)" class="announce-badge badge-new">新</span>
                     <span class="announce-title">{{ a.title }}</span>
                   </div>
                   <p class="announce-summary">{{ a.summary || '点击查看公告详情' }}</p>

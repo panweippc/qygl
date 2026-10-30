@@ -112,7 +112,7 @@ router.get('/distributed-records', async (req, res) => {
     res.json({ success: true, data: records });
   } catch (error) {
     console.error('获取所有下发记录失败:', error);
-    res.status(500).json({ success: false, message: '获取所有下发记录失败: ' + error.message });
+    res.status(500).json({ success: false, message: '获取所有下发记录失败' });
   }
 });
 
@@ -143,7 +143,7 @@ router.get('/distributed-records/user/:targetUser', async (req, res) => {
     res.json({ success: true, data: records });
   } catch (error) {
     console.error('获取下发记录失败:', error);
-    res.status(500).json({ success: false, message: '获取下发记录失败: ' + error.message });
+    res.status(500).json({ success: false, message: '获取下发记录失败' });
   }
 });
 
@@ -163,7 +163,7 @@ router.get('/distributed-records/mine', async (req, res) => {
     res.json({ success: true, data: enriched });
   } catch (error) {
     console.error('获取我的下发记录失败:', error);
-    res.status(500).json({ success: false, message: '获取我的下发记录失败: ' + error.message });
+    res.status(500).json({ success: false, message: '获取我的下发记录失败' });
   }
 });
 
@@ -183,7 +183,7 @@ router.get('/distributed-records/by-distributor/:distributedBy', async (req, res
     res.json({ success: true, data: enriched });
   } catch (error) {
     console.error('获取我下发的记录失败:', error);
-    res.status(500).json({ success: false, message: '获取我下发的记录失败: ' + error.message });
+    res.status(500).json({ success: false, message: '获取我下发的记录失败' });
   }
 });
 
@@ -238,7 +238,7 @@ router.post('/distributed-records/:id/process', async (req, res) => {
     res.json({ success: true, message: '处理成功' });
   } catch (error) {
     console.error('处理下发记录失败:', error);
-    res.status(500).json({ success: false, message: '处理下发记录失败: ' + error.message });
+    res.status(500).json({ success: false, message: '处理下发记录失败' });
   }
 });
 
@@ -299,7 +299,7 @@ router.put('/distributed-records/:id/read', async (req, res) => {
     res.json({ success: true, message: readVal === 1 ? '已标记为已读' : '已标记为未读' });
   } catch (error) {
     console.error('标记下发已读失败:', error);
-    res.status(500).json({ success: false, message: '标记下发已读失败: ' + error.message });
+    res.status(500).json({ success: false, message: '标记下发已读失败' });
   }
 });
 
@@ -431,7 +431,7 @@ router.post('/distributed-records', async (req, res) => {
     res.json({ success: true, message: '下发记录添加成功', data: { id: result.insertId } });
   } catch (error) {
     console.error('添加下发记录失败:', error);
-    res.status(500).json({ success: false, message: '添加下发记录失败: ' + error.message });
+    res.status(500).json({ success: false, message: '添加下发记录失败' });
   }
 });
 
@@ -485,7 +485,7 @@ router.put('/distributed-records/:id', async (req, res) => {
     res.json({ success: true, message: '下发记录更新成功' });
   } catch (error) {
     console.error('更新下发记录失败:', error);
-    res.status(500).json({ success: false, message: '更新下发记录失败: ' + error.message });
+    res.status(500).json({ success: false, message: '更新下发记录失败' });
   }
 });
 

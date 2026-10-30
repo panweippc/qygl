@@ -454,7 +454,7 @@ router.post('/customers/import', upload.single('file'), async (req, res) => {
     res.json({ success: true, message: `导入成功：${imported} 条`, data: { imported } });
   } catch (error) {
     console.error('导入客户失败:', error);
-    res.status(500).json({ success: false, message: '导入失败: ' + error.message });
+    res.status(500).json({ success: false, message: '导入失败' });
   }
 });
 

@@ -73,7 +73,7 @@ router.get('/deleted-applications', async (req, res) => {
     res.json({ success: true, data: result });
   } catch (error) {
     console.error('获取已删除申请失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 

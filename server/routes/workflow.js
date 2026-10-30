@@ -155,7 +155,7 @@ router.get('/projects', async (req, res) => {
     res.json({ success: true, data: responseData });
   } catch (error) {
     console.error('获取项目申请列表失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 
@@ -229,7 +229,7 @@ router.get('/projects/collaborated-with-me', async (req, res) => {
     res.json({ success: true, data: { list } });
   } catch (error) {
     console.error('获取协同给我的失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 
@@ -451,7 +451,7 @@ router.post("/projects", async (req, res) => {
     });
   } catch (error) {
     console.error('创建项目申请失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 
@@ -486,7 +486,7 @@ router.get('/projects/:id', async (req, res) => {
     });
   } catch (error) {
     console.error('获取项目申请失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 
@@ -619,7 +619,7 @@ router.post('/projects/:id/approve', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('审批项目失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 
@@ -758,7 +758,7 @@ router.delete('/projects/:id', async (req, res) => {
     await pool.query('UPDATE project_applications SET is_deleted = 1 WHERE id = ?', [id]);
     res.json({ success: true, message: '项目删除成功' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 
@@ -882,7 +882,7 @@ status: trip.status || 'pending',
     });
   } catch (error) {
     console.error('获取出差申请列表失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 
@@ -997,7 +997,7 @@ router.post("/business-trips", async (req, res) => {
     });
   } catch (error) {
     console.error('创建出差申请失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 
@@ -1019,7 +1019,7 @@ router.get('/business-trips/:id', async (req, res) => {
     res.json({ success: true, data: trips[0] });
   } catch (error) {
     console.error('获取出差申请失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 
@@ -1152,7 +1152,7 @@ router.post('/business-trips/:id/approve', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('审批出差申请失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 
@@ -1183,7 +1183,7 @@ router.get('/approvals/todo', async (req, res) => {
     res.json({ success: true, data: tasks });
   } catch (error) {
     console.error('获取待审批任务失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 
@@ -1210,7 +1210,7 @@ router.get('/approvals/done', async (req, res) => {
     res.json({ success: true, data: tasks });
   } catch (error) {
     console.error('获取已审批任务失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 
@@ -1442,7 +1442,7 @@ router.post('/projects/:id/ack', async (req, res) => {
     res.json({ success: true, data: { updated: result.affectedRows } });
   } catch (error) {
     console.error('协同已知晓失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 
@@ -1483,7 +1483,7 @@ router.post('/projects/:id/opinion', async (req, res) => {
     res.json({ success: true, data: { updated: result.affectedRows } });
   } catch (error) {
     console.error('提交协同意见失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 
@@ -1595,7 +1595,7 @@ router.post('/projects/:id/collaborators', async (req, res) => {
     res.json({ success: true, data: { inserted: insertedCols.length } });
   } catch (error) {
     console.error('追加协同对象失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 
