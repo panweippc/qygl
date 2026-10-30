@@ -50,16 +50,16 @@
           </div>
         </div>
         <div class="project-actions">
-          <el-dropdown v-if="categoryId === null && assignableCategories.length > 0" trigger="click" @command="(name) => assignProject(project, name)">
-            <el-button size="small" class="action-btn assign">
-              <el-icon><FolderOpened /></el-icon>归入分类
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item v-for="c in assignableCategories" :key="c.id" :command="c.name">{{ c.name }}</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+        <el-dropdown v-if="!all && categoryId === null && assignableCategories.length > 0" trigger="click" @command="(name) => assignProject(project, name)">
+          <el-button size="small" class="action-btn assign">
+            <el-icon><FolderOpened /></el-icon>归入分类
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item v-for="c in assignableCategories" :key="c.id" :command="c.name">{{ c.name }}</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
           <el-button v-if="canManageProject(project) && !all" size="small" @click="editProject(project)" class="action-btn">
             <el-icon><Edit /></el-icon>
           </el-button>
