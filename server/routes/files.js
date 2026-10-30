@@ -2,6 +2,7 @@ import express from 'express';
 import { createOperationLog } from '../utils/audit.js';
 import { requireRole, requireOwnerOrRole, isBuiltinAdmin } from '../middleware/auth.js';
 import { getResourceIdentity, getCategoryCreator, canManageCategoryContent } from '../utils/resourcePerm.js';
+import { verifyPassword } from '../utils/security.js';
 const router = express.Router();
 
 // 分类删除权限白名单：与知识库/资料中心保持一致（创建人本人或以下角色可删）
@@ -69,13 +70,20 @@ router.delete('/file-categories/:id', requireOwnerOrRole(getCategoryOwner, ...CA
   const { pool } = req.app.locals;
   const { id } = req.params;
   const username = req.user?.name || req.user?.username || '系统';
+  const { password } = req.body || {};
   try {
+    // 密码二次确认：与登录密码比对，避免误删（分类删除会连带清除全部内容且不可恢复）
+    const loginName = req.user?.username || req.user?.name || '';
+    const [urows] = await pool.execute('SELECT password FROM users WHERE username = ?', [loginName]);
+    if (urows.length === 0 || !verifyPassword(password || '', urows[0].password)) {
+      return res.status(403).json({ success: false, message: '密码错误，删除已取消' });
+    }
     // 文件真实存在于该分类下，随分类一起删除
     await pool.execute('DELETE FROM files WHERE categoryId = ?', [id]);
-    // 文章只解除归属：置空后自动落入「未分类」桶，避免变成任何分类都查不到的孤儿数据
-    await pool.execute('UPDATE knowledge_articles SET resourceCategoryId = NULL WHERE resourceCategoryId = ?', [id]);
-    // 项目信息按 category_name 字符串关联，删除分类时同步清空其归属，避免残留已删除分类的旧名
-    await pool.execute('UPDATE category_projects SET category_name = NULL WHERE category_name = (SELECT name FROM file_categories WHERE id = ?)', [id]);
+    // 文章硬删：删除分类即删除其下全部文章（不可恢复）
+    await pool.execute('DELETE FROM knowledge_articles WHERE resourceCategoryId = ?', [id]);
+    // 项目信息硬删：按分类名字符串关联，删除分类即删除其下全部项目信息（不可恢复）
+    await pool.execute('DELETE FROM category_projects WHERE category_name = (SELECT name FROM file_categories WHERE id = ?)', [id]);
     await pool.execute('DELETE FROM file_categories WHERE id = ?', [id]);
     await createOperationLog(pool, {
       username,
@@ -83,7 +91,7 @@ router.delete('/file-categories/:id', requireOwnerOrRole(getCategoryOwner, ...CA
       module: 'file',
       targetId: id,
       targetName: `文件分类ID: ${id}`,
-      detail: `删除文件分类 ID: ${id}`,
+      detail: `删除文件分类 ID: ${id}（含文件、文章、项目信息）`,
       ipAddress: req.ip
     });
     res.json({ success: true, message: '文件分类删除成功' });

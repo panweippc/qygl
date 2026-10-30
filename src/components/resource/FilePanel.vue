@@ -123,7 +123,7 @@
       </div>
 
       <!-- 批量操作条 -->
-      <div v-if="selectedIds.length > 0" class="batch-bar">
+      <div v-if="selectedIds.length > 0 && scope !== 'all'" class="batch-bar">
         <span class="batch-count">已选 {{ selectedIds.length }} 项</span>
         <el-dropdown trigger="click" @command="handleBatchAssign">
           <el-button size="small" type="primary">批量归入分类</el-button>
@@ -186,7 +186,7 @@
                   <el-button size="small" @click="downloadFile(file)" class="action-btn">
                     <el-icon><Download /></el-icon>下载
                   </el-button>
-                  <el-button v-if="canManageCatId(file.categoryId)" size="small" @click="deleteFile(file.id)" class="action-btn delete">
+                  <el-button v-if="canManageCatId(file.categoryId) && scope !== 'all'" size="small" @click="deleteFile(file.id)" class="action-btn delete">
                     <el-icon><Delete /></el-icon>删除
                   </el-button>
                 </div>
@@ -409,6 +409,7 @@ const uploadHeaders = computed(() => {
 const uploadCategoryId = ref<number | null>(props.categoryId)
 // 上传区可见性：管理员恒可见；非管理员仅在有可管理分类时可见（目标分类下拉同样仅列自己创建的分类）
 const uploadVisible = computed(() => {
+  if (scope.value === 'all') return false // 全部视图为纯展示，隐藏上传入口
   if (isAdminAll.value) return true
   if (scope.value === 'category') return canManageCatId(props.categoryId)
   return managedList.value.length > 0

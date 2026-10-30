@@ -5,7 +5,7 @@
         <template #prefix><span>🔍</span></template>
       </el-input>
       <el-button size="small" type="primary" @click="search">搜索</el-button>
-      <el-button size="small" type="primary" @click="openNewArticle">写文章</el-button>
+      <el-button v-if="!props.all" size="small" type="primary" @click="openNewArticle">写文章</el-button>
     </div>
 
     <div class="article-list" v-loading="loading">
@@ -22,8 +22,8 @@
           </div>
           <div class="article-actions" @click.stop>
             <el-tag size="small" class="cat-tag">{{ article.categoryName || '未分类' }}</el-tag>
-            <el-button v-if="canManageArticle(article)" text size="small" @click.stop="editArticle(article)">✏️</el-button>
-            <el-popconfirm v-if="canManageArticle(article)" title="确定删除此文章？" confirm-button-text="删除" @confirm="deleteArticle(article.id)">
+        <el-button v-if="canManageArticle(article) && !props.all" text size="small" @click.stop="editArticle(article)">✏️</el-button>
+        <el-popconfirm v-if="canManageArticle(article) && !props.all" title="确定删除此文章？" confirm-button-text="删除" @confirm="deleteArticle(article.id)">
               <template #reference>
                 <el-button text size="small" type="danger">🗑️</el-button>
               </template>
@@ -221,8 +221,8 @@ const canManageCatId = (catId: number | null): boolean => {
 const canManageArticle = (article: any): boolean => canManageCatId(article?.resourceCategoryId ?? null)
 // 写文章入口：管理员恒可见；非管理员仅在「自己创建的分类视图」或「全部视图且有可管理分类」时可见
 const canWriteHere = computed(() => {
+  if (props.all) return false // 全部视图为纯展示，隐藏写文章入口
   if (isAdminAll.value) return true
-  if (props.all) return managedList.value.length > 0
   if (props.categoryId === null) return false
   return canManageCatId(props.categoryId)
 })

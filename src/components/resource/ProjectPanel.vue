@@ -2,7 +2,7 @@
   <div class="project-panel">
     <div class="pp-toolbar">
       <span class="pp-title">{{ all ? '全部' : (categoryId !== null ? '「' + categoryName + '」' : '未分类') }}项目信息 <span class="count-badge">{{ visibleProjects.length }}</span></span>
-      <el-button type="primary" size="small" @click="openAddProject">新增项目</el-button>
+      <el-button v-if="!all" type="primary" size="small" @click="openAddProject">新增项目</el-button>
     </div>
 
     <el-alert
@@ -50,7 +50,7 @@
           </div>
         </div>
         <div class="project-actions">
-          <el-dropdown v-if="(all || categoryId === null) && assignableCategories.length > 0" trigger="click" @command="(name) => assignProject(project, name)">
+          <el-dropdown v-if="categoryId === null && assignableCategories.length > 0" trigger="click" @command="(name) => assignProject(project, name)">
             <el-button size="small" class="action-btn assign">
               <el-icon><FolderOpened /></el-icon>归入分类
             </el-button>
@@ -60,10 +60,10 @@
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <el-button v-if="canManageProject(project)" size="small" @click="editProject(project)" class="action-btn">
+          <el-button v-if="canManageProject(project) && !all" size="small" @click="editProject(project)" class="action-btn">
             <el-icon><Edit /></el-icon>
           </el-button>
-          <el-button v-if="canManageProject(project)" size="small" @click="handleDeleteProject(project)" class="action-btn delete">
+          <el-button v-if="canManageProject(project) && !all" size="small" @click="handleDeleteProject(project)" class="action-btn delete">
             <el-icon><Delete /></el-icon>
           </el-button>
         </div>
@@ -226,8 +226,8 @@ const canManageProject = (project: any): boolean => {
 }
 // 新增项目入口：管理员恒可见；非管理员仅在自己管理的分类视图或「全部视图且有可管理分类」时可见
 const canAddHere = computed(() => {
+  if (props.all) return false // 全部视图为纯展示，隐藏新增项目入口
   if (isAdminAll.value) return true
-  if (props.all) return managedList.value.length > 0
   if (props.categoryId === null) return false
   return managedList.value.includes(props.categoryId)
 })

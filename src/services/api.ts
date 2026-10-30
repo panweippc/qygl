@@ -190,8 +190,8 @@ export const addFileCategory = async (category: FileCategory): Promise<ApiRespon
   return response.data;
 };
 
-export const deleteFileCategory = async (id: number): Promise<ApiResponse> => {
-  const response = await api.delete(`/file-categories/${id}`);
+export const deleteFileCategory = async (id: number, password?: string): Promise<ApiResponse> => {
+  const response = await api.delete(`/file-categories/${id}`, { data: { password } });
   return response.data;
 };
 

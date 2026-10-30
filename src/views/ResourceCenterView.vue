@@ -269,20 +269,27 @@ const createCategory = async () => {
 
 const removeCategory = async (cat: CategoryStat) => {
   try {
-    // 删除分类会连带删除该分类下的全部文件，且不可恢复；仅创建人或管理员可删（按钮已按权限隐藏），
-    // 这里仍强制「输入分类名」二次确认，避免误点。
-    await ElMessageBox.prompt(
-      `分类「${cat.name}」下的 ${cat.fileCount} 个文件会被一并删除且无法恢复；该分类下的文章将取消分类归属、项目信息将不再挂在该分类下，均可在「全部」视图中查看后重新归档。请输入分类名称以确认：`,
-      '删除分类（不可恢复）',
+    // 第一步：明确告知“该分类下全部内容都会被删除且无法找回”，是否删除
+    await ElMessageBox.confirm(
+      `删除该分类后，该分类下的全部内容（文件、文章、项目信息）都会被删除并无法找回。是否删除？`,
+      '删除分类',
       {
-        confirmButtonText: '确认删除',
-        cancelButtonText: '取消',
+        confirmButtonText: '是，删除',
+        cancelButtonText: '否，退出',
         type: 'warning',
-        inputPlaceholder: cat.name,
-        inputValidator: (v: string) => (v || '').trim() === cat.name || '输入的分类名称不一致'
+        showCancelButton: true,
+        closeOnClickModal: false
       }
     )
-    const res = await deleteFileCategory(cat.id)
+    // 第二步：输入登录密码二次确认（后端比对登录密码，避免误删）
+    const { value: pwd } = await ElMessageBox.prompt('请输入登录密码以确认删除', '密码确认', {
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+      inputType: 'password',
+      inputPlaceholder: '请输入登录密码'
+    })
+    const res = await deleteFileCategory(cat.id, pwd)
     if (res.success) {
       await loadCategories()
       if (selected.value.id === cat.id) selectAll()
