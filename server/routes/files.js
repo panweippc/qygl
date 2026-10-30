@@ -74,6 +74,8 @@ router.delete('/file-categories/:id', requireOwnerOrRole(getCategoryOwner, ...CA
     await pool.execute('DELETE FROM files WHERE categoryId = ?', [id]);
     // 文章只解除归属：置空后自动落入「未分类」桶，避免变成任何分类都查不到的孤儿数据
     await pool.execute('UPDATE knowledge_articles SET resourceCategoryId = NULL WHERE resourceCategoryId = ?', [id]);
+    // 项目信息按 category_name 字符串关联，删除分类时同步清空其归属，避免残留已删除分类的旧名
+    await pool.execute('UPDATE category_projects SET category_name = NULL WHERE category_name = (SELECT name FROM file_categories WHERE id = ?)', [id]);
     await pool.execute('DELETE FROM file_categories WHERE id = ?', [id]);
     await createOperationLog(pool, {
       username,
