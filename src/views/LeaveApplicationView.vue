@@ -42,6 +42,11 @@
             <el-table-column prop="endDate" label="结束日期"></el-table-column>
             <el-table-column prop="days" label="天数" width="80"></el-table-column>
             <el-table-column prop="status" label="状态"></el-table-column>
+            <el-table-column label="补录" width="80">
+              <template #default="{ row }">
+                <el-tag v-if="row.is_supplementary" type="warning" size="small">补录</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column prop="submitDate" label="提交日期"></el-table-column>
           </el-table>
         </div>
@@ -88,6 +93,11 @@
               <el-table-column prop="startDate" label="开始日期"></el-table-column>
               <el-table-column prop="endDate" label="结束日期"></el-table-column>
               <el-table-column prop="days" label="天数" width="80"></el-table-column>
+              <el-table-column label="补录" width="80">
+                <template #default="{ row }">
+                  <el-tag v-if="row.is_supplementary" type="warning" size="small">补录</el-tag>
+                </template>
+              </el-table-column>
               <el-table-column prop="submitDate" label="提交日期"></el-table-column>
               <el-table-column label="操作" width="120">
                 <template #default="{ row }">
@@ -113,11 +123,16 @@
               <el-table-column prop="startDate" label="开始日期"></el-table-column>
               <el-table-column prop="endDate" label="结束日期"></el-table-column>
               <el-table-column prop="days" label="天数" width="80"></el-table-column>
-              <el-table-column prop="status" label="状态"></el-table-column>
-              <el-table-column prop="submitDate" label="提交日期"></el-table-column>
-            </el-table>
-          </div>
-        </template>
+            <el-table-column prop="status" label="状态"></el-table-column>
+            <el-table-column label="补录" width="80">
+              <template #default="{ row }">
+                <el-tag v-if="row.is_supplementary" type="warning" size="small">补录</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="submitDate" label="提交日期"></el-table-column>
+          </el-table>
+        </div>
+      </template>
 
         <!-- 请假申请表单对话�?-->
         <el-dialog
@@ -166,6 +181,30 @@
                 type="textarea"
                 :rows="4"
                 placeholder="请输入请假原因"
+              ></el-input>
+            </el-form-item>
+
+            <el-form-item label="事后补录">
+              <el-switch
+                v-model="form.isSupplementary"
+                active-text="是"
+                inactive-text="否"
+                :active-value="true"
+                :inactive-value="false"
+              />
+              <span class="form-hint">突发请假先口头报备、事后回系统补正式记录时开启</span>
+            </el-form-item>
+
+            <el-form-item
+              label="补录说明"
+              prop="supplementaryReason"
+              v-if="form.isSupplementary"
+            >
+              <el-input
+                v-model="form.supplementaryReason"
+                type="textarea"
+                :rows="3"
+                placeholder="请说明口头报备时间、对象及原因（开启补录时必填）"
               ></el-input>
             </el-form-item>
             
@@ -341,7 +380,9 @@ const { hasPerm } = useButtonPermission()
   startDate: '',
   endDate: '',
   days: '',
-  reason: ''
+  reason: '',
+  isSupplementary: false,
+  supplementaryReason: ''
 })
 
 const fileList = ref([])
@@ -454,7 +495,14 @@ const rules = {
     startDate: [{ required: true, message: '请选择开始日期', trigger: 'change' }],
     endDate: [{ required: true, message: '请选择结束日期', trigger: 'change' }],
     days: [{ required: true, message: '请输入请假天数', trigger: 'blur' }],
-  reason: [{ required: true, message: '请输入请假原因', trigger: 'blur' }]
+  reason: [{ required: true, message: '请输入请假原因', trigger: 'blur' }],
+  supplementaryReason: [{
+    validator: (rule: any, value: string, cb: any) => {
+      if (form.value.isSupplementary && !value) cb(new Error('开启补录时必须填写补录说明'))
+      else cb()
+    },
+    trigger: 'blur'
+  }]
 }
 
 // 审批表单验证规则
@@ -491,7 +539,9 @@ const submitApplication = () => {
           endDate: formatDate(form.value.endDate),
           days: form.value.days,
           reason: form.value.reason,
-          approver: '陈东'
+          approver: '陈东',
+          isSupplementary: form.value.isSupplementary ? 1 : 0,
+          supplementaryReason: form.value.isSupplementary ? form.value.supplementaryReason : ''
         }
         
         // 直接提交申请
@@ -551,7 +601,9 @@ const confirmApprover = async () => {
         endDate: formatDate(form.value.endDate),
         days: form.value.days,
         reason: form.value.reason,
-        approver: approverForm.value.approver
+        approver: approverForm.value.approver,
+        isSupplementary: form.value.isSupplementary ? 1 : 0,
+        supplementaryReason: form.value.isSupplementary ? form.value.supplementaryReason : ''
       }
       
       const response = await addLeaveApplication(applicationData)
@@ -656,7 +708,9 @@ const resetForm = () => {
     startDate: '',
     endDate: '',
     days: '',
-    reason: ''
+    reason: '',
+    isSupplementary: false,
+    supplementaryReason: ''
   }
   fileList.value = []
 }
@@ -1001,6 +1055,12 @@ onMounted(async () => {
   font-weight: 600 !important;
   box-shadow: 0 4px 15px rgba(30, 90, 168, 0.4) !important;
   transition: all 0.3s ease !important;
+}
+
+.form-hint {
+  margin-left: 10px;
+  font-size: 12px;
+  color: #909399;
 }
 
 .apply-btn:hover {

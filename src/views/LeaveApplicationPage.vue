@@ -129,6 +129,34 @@
               />
             </el-form-item>
 
+            <el-divider content-position="left">补录信息（突发请假事后补录）</el-divider>
+
+            <el-form-item label="事后补录">
+              <el-switch
+                v-model="form.isSupplementary"
+                active-text="是"
+                inactive-text="否"
+                :active-value="true"
+                :inactive-value="false"
+              />
+              <span class="form-hint">突发请假先口头报备、事后回系统补正式记录时开启</span>
+            </el-form-item>
+
+            <el-form-item
+              label="补录说明"
+              prop="supplementaryReason"
+              v-if="form.isSupplementary"
+            >
+              <el-input
+                v-model="form.supplementaryReason"
+                type="textarea"
+                :rows="3"
+                placeholder="请说明口头报备时间、对象及原因（开启补录时必填）"
+                maxlength="500"
+                show-word-limit
+              />
+            </el-form-item>
+
             <el-divider content-position="left">附件</el-divider>
 
             <el-form-item label="附件">
@@ -271,7 +299,9 @@ const form = reactive({
   reason: '',
   halfDayPeriod: '',
   endHalfPeriod: '',
-  approver: ''
+  approver: '',
+  isSupplementary: false,
+  supplementaryReason: ''
 })
 
 const rules = {
@@ -279,7 +309,14 @@ const rules = {
   startDate: [{ required: true, message: '请选择开始日期', trigger: 'change' }],
   endDate: [{ required: true, message: '请选择结束日期', trigger: 'change' }],
   reason: [{ required: true, message: '请输入请假原因', trigger: 'blur' }],
-  approver: [{ required: true, message: '请选择审批人', trigger: 'change' }]
+  approver: [{ required: true, message: '请选择审批人', trigger: 'change' }],
+  supplementaryReason: [{
+    validator: (rule: any, value: string, cb: any) => {
+      if (form.isSupplementary && !value) cb(new Error('开启补录时必须填写补录说明'))
+      else cb()
+    },
+    trigger: 'blur'
+  }]
 }
 
 const onDurationTypeChange = () => {
@@ -404,7 +441,9 @@ const submitForm = async () => {
           halfDayPeriod: form.durationType === 'halfDay'
             ? form.halfDayPeriod
             : (form.durationType === 'custom' && form.endHalfPeriod ? form.endHalfPeriod : null),
-          attachments
+          attachments,
+          isSupplementary: form.isSupplementary ? 1 : 0,
+          supplementaryReason: form.isSupplementary ? form.supplementaryReason : ''
         }
         const response = editId
           ? await resubmitLeave(editId, data)
@@ -511,6 +550,12 @@ initPage()
 
 .leave-application-page .application-form .el-divider {
   margin: 30px 0 20px;
+}
+
+.leave-application-page .form-hint {
+  margin-left: 10px;
+  font-size: 12px;
+  color: #909399;
 }
 
 .leave-application-page .process-preview .timeline-content h4 {

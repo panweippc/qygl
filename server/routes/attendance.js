@@ -152,7 +152,7 @@ router.get('/leave-applications/:id', async (req, res) => {
 
 // 提交请假申请
 router.post('/leave-applications', async (req, res) => {
-  const { leaveType, startDate, endDate, days, reason, approver, attachments, halfDayPeriod } = req.body;
+  const { leaveType, startDate, endDate, days, reason, approver, attachments, halfDayPeriod, isSupplementary, supplementaryReason } = req.body;
   // 安全加固：申请人身份一律从 JWT token 解析，忽略请求体 applicant，防伪造
   const applicant = getRealName(req);
   if (!applicant) {
@@ -165,12 +165,17 @@ router.post('/leave-applications', async (req, res) => {
   if (!approver) {
     return res.status(400).json({ success: false, message: '请指定审批人' });
   }
+  // 事后补录：开启时补录说明必填，保证审计可追溯
+  const supp = isSupplementary === true || isSupplementary === 1 || isSupplementary === '1';
+  if (supp && !supplementaryReason) {
+    return res.status(400).json({ success: false, message: '补录时必须填写补录说明' });
+  }
   try {
     const { pool } = req.app.locals;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const [ins] = await pool.execute(
-      'INSERT INTO leave_applications (applicant, leaveType, startDate, endDate, days, reason, approver, attachments, halfDayPeriod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [applicant, leaveType, startDate, endDate, days, reason, approver, attachments || null, halfDayPeriod || null, '审批中', now]
+      'INSERT INTO leave_applications (applicant, leaveType, startDate, endDate, days, reason, approver, attachments, halfDayPeriod, is_supplementary, supplementary_reason, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [applicant, leaveType, startDate, endDate, days, reason, approver, attachments || null, halfDayPeriod || null, supp ? 1 : 0, supplementaryReason || null, '审批中', now]
     );
 
     // approver 已校验非空，直接发通知与审批记录

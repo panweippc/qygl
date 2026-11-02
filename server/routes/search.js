@@ -86,9 +86,9 @@ router.get('/search', async (req, res) => {
         : `WHERE 1=1${ownerCond('applicant')}`;
       const p = keyword ? [like, like, like, ...ownerVal('applicant')] : [...ownerVal('applicant')];
       const [rows] = await pool.execute(
-        `SELECT id, applicant, leaveType, status, createdAt FROM leave_applications ${w} ORDER BY id DESC LIMIT ${limit}`, p);
+        `SELECT id, applicant, leaveType, status, is_supplementary, createdAt FROM leave_applications ${w} ORDER BY id DESC LIMIT ${limit}`, p);
       rows.forEach(r => oaItems.push({ id: r.id, type: 'leave', title: `请假 - ${r.applicant}`,
-        sub: `${r.leaveType || ''} · ${statusText(r.status)} · ${fmtDate(r.createdAt)}`, route: '/leave-application', query: { id: r.id } }));
+        sub: `${r.leaveType || ''} · ${statusText(r.status)}${r.is_supplementary ? ' · 补录' : ''} · ${fmtDate(r.createdAt)}`, route: '/leave-application', query: { id: r.id } }));
     }
     // 2.2 报销
     {

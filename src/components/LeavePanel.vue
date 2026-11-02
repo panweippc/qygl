@@ -136,6 +136,11 @@
             </span>
           </template>
         </el-table-column>
+        <el-table-column label="补录" width="80">
+          <template #default="{ row }">
+            <el-tag v-if="row.is_supplementary" type="warning" size="small">补录</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="已读状态" width="100" v-if="leaveSubTab === 'received'">
           <template #default="{ row }">
             <span v-if="getMyDistribution(row, 'leave')" :class="getDistributionRead(row, 'leave') ? 'read-status read' : 'read-status unread'">
