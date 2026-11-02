@@ -459,15 +459,26 @@ const submitReports = async () => {
           userId: currentUserId,
           date: selectedMonth.value
         });
-        
-        const response = await addMonthlyReport({
+
+        const payload = {
           title: autoTitle.value,
           content,
           plan,
           files: processedFiles,
           userId: currentUserId,
-          date: selectedMonth.value
-        });
+          date: selectedMonth.value,
+          status: 'submitted'
+        };
+        // 同月去重：优先转正已有草稿，其次更新已提交记录；都不存在才新增。
+        // 与后端 POST 幂等护栏双保险，避免重复提交产生内容相同的两条月报
+        const ownMonthReports = reports.value.filter(
+          (r: any) => r.date === selectedMonth.value && String(r.userId) === String(currentUserId)
+        )
+        const target = ownMonthReports.find((r: any) => r.status === 'submitted')
+          || ownMonthReports.find((r: any) => r.status === 'draft')
+        const response = target
+          ? await updateMonthlyReport({ ...payload, id: target.id })
+          : await addMonthlyReport(payload);
         
         console.log('上传响应:', response);
         
@@ -525,6 +536,14 @@ const saveDraft = async () => {
     const existingDraft = reports.value.find(
       (r: any) => r.date === month && r.status === 'draft'
     )
+    // 已提交的月份不允许另存草稿（与后端护栏一致），防止草稿覆盖已提交记录
+    const existingSubmitted = reports.value.find(
+      (r: any) => r.date === month && r.status === 'submitted' && String(r.userId) === String(currentUserId)
+    )
+    if (!existingDraft && existingSubmitted) {
+      ElMessage.warning('本月月报已提交，不能另存草稿')
+      return
+    }
     const response = existingDraft
       ? await updateMonthlyReport({ ...payload, id: existingDraft.id })
       : await addMonthlyReport(payload)

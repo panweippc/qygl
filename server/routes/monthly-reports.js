@@ -67,6 +67,50 @@ router.post('/monthly-reports', async (req, res) => {
     const { pool } = req.app.locals;
     const filesJson = files ? JSON.stringify(files) : null;
     const reportStatus = ['draft', 'submitted'].includes(status) ? status : 'submitted';
+    // 幂等护栏：同一用户同一月份不产生重复月报。
+    // - 提交(submitted)：优先转正已有草稿；无草稿则覆盖已有已提交记录；都不存在才新增
+    // - 暂存(draft)：只更新已有草稿；本月已提交则拒绝，防止把已提交记录改回草稿
+    const [existRows] = await pool.execute(
+      'SELECT id, status FROM weeklyReports WHERE userId = ? AND date = ? ORDER BY id ASC',
+      [userId, date || null]
+    );
+    const existSubmitted = existRows.filter((r) => (r.status || 'submitted') !== 'draft');
+    const existDrafts = existRows.filter((r) => r.status === 'draft');
+    if (reportStatus === 'submitted' && existRows.length > 0) {
+      const target = existSubmitted.length > 0 ? existSubmitted[existSubmitted.length - 1] : existDrafts[existDrafts.length - 1];
+      await pool.execute(
+        'UPDATE weeklyReports SET title = ?, content = ?, plan = ?, files = ?, status = ? WHERE id = ?',
+        [title, content, plan || '', filesJson, 'submitted', target.id]
+      );
+      await createOperationLog(pool, {
+        userId: userId,
+        username: getOperator(req),
+        action: 'update',
+        module: 'monthly_report',
+        targetName: `月报: ${title}`,
+        detail: `同月已有月报，提交时转正/更新原记录 (ID: ${target.id})`
+      });
+      return res.json({ success: true, message: '本月已有月报，已更新原记录' });
+    }
+    if (reportStatus === 'draft' && existDrafts.length > 0) {
+      const target = existDrafts[existDrafts.length - 1];
+      await pool.execute(
+        'UPDATE weeklyReports SET title = ?, content = ?, plan = ?, files = ?, status = ? WHERE id = ?',
+        [title, content, plan || '', filesJson, 'draft', target.id]
+      );
+      await createOperationLog(pool, {
+        userId: userId,
+        username: getOperator(req),
+        action: 'update',
+        module: 'monthly_report',
+        targetName: `月报: ${title}`,
+        detail: `更新暂存草稿 (ID: ${target.id})`
+      });
+      return res.json({ success: true, message: '草稿已更新' });
+    }
+    if (reportStatus === 'draft' && existSubmitted.length > 0) {
+      return res.status(400).json({ success: false, message: '本月月报已提交，不能另存草稿' });
+    }
     await pool.execute(
       'INSERT INTO weeklyReports (title, content, plan, files, userId, date, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [title, content, plan || '', filesJson, userId, date || null, reportStatus, localNow()]
