@@ -94,6 +94,11 @@
             <el-table-column prop="amount" label="金额" width="120"></el-table-column>
             <el-table-column prop="reimburseDate" label="报销日期"></el-table-column>
             <el-table-column prop="status" label="状态"></el-table-column>
+            <el-table-column label="补录" width="80">
+              <template #default="{ row }">
+                <el-tag v-if="row.is_supplementary" type="warning" size="small">补录</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column prop="submitDate" label="提交日期"></el-table-column>
             <el-table-column v-if="isAdmin" label="操作" width="120">
               <template #default="{ row }">

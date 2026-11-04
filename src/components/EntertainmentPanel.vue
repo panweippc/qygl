@@ -90,6 +90,11 @@
             </span>
           </template>
         </el-table-column>
+        <el-table-column label="补录" width="80">
+          <template #default="{ row }">
+            <el-tag v-if="row.is_supplementary" type="warning" size="small">补录</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="审批人" width="100">
           <template #default="{ row }">{{ extractRealName(row.approver) || '-' }}</template>
         </el-table-column>

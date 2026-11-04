@@ -85,6 +85,11 @@
             </span>
           </template>
         </el-table-column>
+        <el-table-column label="补录" width="80">
+          <template #default="{ row }">
+            <el-tag v-if="row.is_supplementary" type="warning" size="small">补录</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="提交时间" width="100">
           <template #default="{ row }">
             {{ formatDate(row.submitDate, false) }}

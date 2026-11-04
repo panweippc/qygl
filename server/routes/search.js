@@ -97,9 +97,9 @@ router.get('/search', async (req, res) => {
         : `WHERE 1=1${ownerCond('applicant')}`;
       const p = keyword ? [like, like, like, ...ownerVal('applicant')] : [...ownerVal('applicant')];
       const [rows] = await pool.execute(
-        `SELECT id, applicant, status, createdAt FROM reimbursements ${w} ORDER BY id DESC LIMIT ${limit}`, p);
+        `SELECT id, applicant, status, is_supplementary, createdAt FROM reimbursements ${w} ORDER BY id DESC LIMIT ${limit}`, p);
       rows.forEach(r => oaItems.push({ id: r.id, type: 'reimbursement', title: `报销 - ${r.applicant}`,
-        sub: `${statusText(r.status)} · ${fmtDate(r.createdAt)}`, route: '/reimbursement', query: { id: r.id } }));
+        sub: `${statusText(r.status)}${r.is_supplementary ? ' · 补录' : ''} · ${fmtDate(r.createdAt)}`, route: '/reimbursement', query: { id: r.id } }));
     }
     // 2.3 招待
     {
@@ -108,9 +108,9 @@ router.get('/search', async (req, res) => {
         : `WHERE 1=1${ownerCond('applicant')}`;
       const p = keyword ? [like, like, like, ...ownerVal('applicant')] : [...ownerVal('applicant')];
       const [rows] = await pool.execute(
-        `SELECT id, applicant, status, createdAt FROM entertainment_expenses ${w} ORDER BY id DESC LIMIT ${limit}`, p);
+        `SELECT id, applicant, status, is_supplementary, createdAt FROM entertainment_expenses ${w} ORDER BY id DESC LIMIT ${limit}`, p);
       rows.forEach(r => oaItems.push({ id: r.id, type: 'entertainment', title: `招待 - ${r.applicant}`,
-        sub: `${statusText(r.status)} · ${fmtDate(r.createdAt)}`, route: '/oa/entertainment-apply', query: { id: r.id } }));
+        sub: `${statusText(r.status)}${r.is_supplementary ? ' · 补录' : ''} · ${fmtDate(r.createdAt)}`, route: '/oa/entertainment-apply', query: { id: r.id } }));
     }
     // 2.4 会议
     {
@@ -119,9 +119,9 @@ router.get('/search', async (req, res) => {
         : `WHERE 1=1${ownerCond('organizer')}`;
       const p = keyword ? [like, like, like, ...ownerVal('organizer')] : [...ownerVal('organizer')];
       const [rows] = await pool.execute(
-        `SELECT id, title, organizer, status, createdAt FROM meetings ${w} ORDER BY id DESC LIMIT ${limit}`, p);
+        `SELECT id, title, organizer, status, is_supplementary, createdAt FROM meetings ${w} ORDER BY id DESC LIMIT ${limit}`, p);
       rows.forEach(r => oaItems.push({ id: r.id, type: 'meeting', title: `会议 - ${r.title || ''}`,
-        sub: `${r.organizer || ''} · ${statusText(r.status)} · ${fmtDate(r.createdAt)}`, route: '/meeting-management', query: { id: r.id } }));
+        sub: `${r.organizer || ''} · ${statusText(r.status)}${r.is_supplementary ? ' · 补录' : ''} · ${fmtDate(r.createdAt)}`, route: '/meeting-management', query: { id: r.id } }));
     }
     // 2.5 出差
     {
@@ -130,9 +130,9 @@ router.get('/search', async (req, res) => {
         : `WHERE 1=1${ownerCond('applicant_name')}`;
       const p = keyword ? [like, like, like, ...ownerVal('applicant_name')] : [...ownerVal('applicant_name')];
       const [rows] = await pool.execute(
-        `SELECT id, destination, applicant_name, purpose, status, created_at FROM business_trip_applications ${w} ORDER BY id DESC LIMIT ${limit}`, p);
+        `SELECT id, destination, applicant_name, purpose, status, is_supplementary, created_at FROM business_trip_applications ${w} ORDER BY id DESC LIMIT ${limit}`, p);
       rows.forEach(r => oaItems.push({ id: r.id, type: 'business-trip', title: `出差 - ${r.applicant_name}`,
-        sub: `${r.destination || ''} · ${statusText(r.status)} · ${fmtDate(r.created_at)}`, route: '/oa/business-trip/list', query: { id: r.id } }));
+        sub: `${r.destination || ''} · ${statusText(r.status)}${r.is_supplementary ? ' · 补录' : ''} · ${fmtDate(r.created_at)}`, route: '/oa/business-trip/list', query: { id: r.id } }));
     }
     // 2.6 协同
     {

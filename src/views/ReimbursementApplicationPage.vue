@@ -283,6 +283,24 @@
               </el-upload>
             </el-form-item>
 
+            <el-divider content-position="left">补录</el-divider>
+
+            <el-form-item label="事后补录">
+              <el-switch v-model="form.isSupplementary" />
+              <span class="supplementary-tip">开启后表示本次报销为事后补录，需填写补录说明</span>
+            </el-form-item>
+
+            <el-form-item v-if="form.isSupplementary" label="补录说明" prop="supplementaryReason">
+              <el-input
+                v-model="form.supplementaryReason"
+                type="textarea"
+                :rows="2"
+                maxlength="500"
+                show-word-limit
+                placeholder="请说明为何未在费用发生时提交申请，例如：10月28日招待客户后直接返回，未及时在系统提交"
+              />
+            </el-form-item>
+
             <el-form-item>
               <el-button type="primary" @click="submitForm" :loading="submitting" size="large">提交申请</el-button>
             </el-form-item>
@@ -379,6 +397,8 @@ const form = reactive({
   reimburseDate: '',
   reason: '',
   approver: '陈东',
+  isSupplementary: false,
+  supplementaryReason: '',
   detail: {
     projectName: '',
     peopleCount: 1,
@@ -392,7 +412,16 @@ const rules = {
   reimburseType: [{ required: true, message: '请选择报销类型', trigger: 'change' }],
   reimburseDate: [{ required: true, message: '请选择报销日期', trigger: 'change' }],
   reason: [{ required: true, message: '请输入报销事由', trigger: 'blur' }],
-  approver: [{ required: true, message: '请选择审批人', trigger: 'change' }]
+  approver: [{ required: true, message: '请选择审批人', trigger: 'change' }],
+  supplementaryReason: [
+    {
+      validator: (_rule: any, value: string, cb: any) => {
+        if (form.isSupplementary && !String(value || '').trim()) cb(new Error('开启补录时必须填写补录说明'))
+        else cb()
+      },
+      trigger: 'blur'
+    }
+  ]
 }
 
 const calcSegmentDays = (segment: any) => {
@@ -486,6 +515,9 @@ const loadForEdit = async () => {
           else if (!form.approver) form.approver = rec.approver
         }
         returnReason.value = rec.return_reason || ''
+        // 补录开关需为布尔值，数据库返回 0/1
+        form.isSupplementary = !!Number(rec.is_supplementary || 0)
+        form.supplementaryReason = rec.supplementary_reason || ''
       }
     }
   } catch (error) {
@@ -522,7 +554,9 @@ const submitForm = async () => {
           reason: form.reason,
           approver: form.approver,
           detail: form.detail,
-          attachments
+          attachments,
+          isSupplementary: form.isSupplementary ? 1 : 0,
+          supplementaryReason: form.isSupplementary ? form.supplementaryReason : ''
         }
         const response = editId
           ? await resubmitReimbursement(editId, data)
@@ -573,6 +607,7 @@ onMounted(async () => {
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .card-header .title { font-size: 18px; font-weight: bold; }
 .application-form .el-divider { margin: 30px 0 20px; }
+.supplementary-tip { margin-left: 12px; font-size: 12px; color: #909399; }
 .timeline-content h4 { margin: 0 0 5px 0; font-size: 14px; }
 .timeline-content p { margin: 0; font-size: 12px; }
 .timeline-content .text-gray { color: #909399; }

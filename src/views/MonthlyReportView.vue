@@ -167,7 +167,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Delete, Document, Picture } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { getMonthlyReports, addMonthlyReport, updateMonthlyReport, getEmployees } from '../services/api'
 import { buildContent, buildPlan, emptySections, autoReportTitle, sectionsFromReport } from '../utils/monthlyReport'
 
@@ -379,12 +379,6 @@ onMounted(async () => {
   recoverDraft()
 })
 
-// 组件挂载时加载数�?
-onMounted(async () => {
-  await loadEmployees()
-  await loadReports()
-})
-
 const handleFileChange = (file: any) => {
   currentReport.value.files.push(file)
 }
@@ -476,6 +470,21 @@ const submitReports = async () => {
         )
         const target = ownMonthReports.find((r: any) => r.status === 'submitted')
           || ownMonthReports.find((r: any) => r.status === 'draft')
+        // 该月已有月报时二次确认，避免误覆盖
+        if (target) {
+          const isSubmitted = target.status === 'submitted'
+          try {
+            await ElMessageBox.confirm(
+              isSubmitted
+                ? `${selectedMonth.value} 已有已提交的月报，本次提交将覆盖原有月报内容，是否继续？`
+                : `${selectedMonth.value} 已有暂存的月报草稿，本次提交将用当前内容覆盖该草稿并转为已提交，是否继续？`,
+              '确认覆盖月报',
+              { confirmButtonText: '覆盖提交', cancelButtonText: '取消', type: 'warning' }
+            )
+          } catch {
+            return
+          }
+        }
         const response = target
           ? await updateMonthlyReport({ ...payload, id: target.id })
           : await addMonthlyReport(payload);
@@ -534,7 +543,7 @@ const saveDraft = async () => {
       status: 'draft'
     }
     const existingDraft = reports.value.find(
-      (r: any) => r.date === month && r.status === 'draft'
+      (r: any) => r.date === month && r.status === 'draft' && String(r.userId) === String(currentUserId)
     )
     // 已提交的月份不允许另存草稿（与后端护栏一致），防止草稿覆盖已提交记录
     const existingSubmitted = reports.value.find(
@@ -565,13 +574,19 @@ const saveDraft = async () => {
 const recoverDraft = () => {
   const month = selectedMonth.value
   if (!month) return
-  const draft = reports.value.find((r: any) => r.date === month && r.status === 'draft')
+  const currentUserId = getCurrentUserId()
+  const draft = reports.value.find(
+    (r: any) => r.date === month && r.status === 'draft' && String(r.userId) === String(currentUserId)
+  )
   if (draft) {
     currentReport.value = {
       ...sectionsFromReport(draft.content || '', draft.plan || ''),
       files: Array.isArray(draft.files) ? draft.files : []
     }
     ElMessage.info(`已恢复 ${month} 草稿`)
+  } else {
+    // 该月无草稿时必须清空表单，否则切换月份会把上一个月填写的内容带到本月（串月）
+    currentReport.value = { ...emptySections(), files: [] }
   }
 }
 

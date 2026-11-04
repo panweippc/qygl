@@ -152,7 +152,7 @@ router.post('/reimbursements/:id/return', async (req, res) => {
 
 // 提交报销申请：申请人身份从 token 读取，禁止伪造他人名义提交
 router.post('/reimbursements', async (req, res) => {
-  const { reimburseType, amount, reimburseDate, reason, approver, attachments, detail } = req.body;
+  const { reimburseType, amount, reimburseDate, reason, approver, attachments, detail, isSupplementary, supplementaryReason } = req.body;
   const applicant = getRealName(req);
   if (!applicant) {
     return res.status(401).json({ success: false, message: '未登录' });
@@ -160,12 +160,17 @@ router.post('/reimbursements', async (req, res) => {
   if (!reimburseType || !amount) {
     return res.status(400).json({ success: false, message: '报销类型和金额不能为空' });
   }
+  // 事后补录：开启时补录说明必填，保证审计可追溯
+  const supp = isSupplementary === true || isSupplementary === 1 || isSupplementary === '1';
+  if (supp && !supplementaryReason) {
+    return res.status(400).json({ success: false, message: '补录时必须填写补录说明' });
+  }
   try {
     const { pool } = req.app.locals;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const [ins] = await pool.execute(
-      'INSERT INTO reimbursements (applicant, reimburseType, amount, reimburseDate, reason, approver, attachments, detail, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [applicant, reimburseType, amount, reimburseDate, reason, approver, attachments || null, detail ? JSON.stringify(detail) : null, '审批中', now]
+      'INSERT INTO reimbursements (applicant, reimburseType, amount, reimburseDate, reason, approver, attachments, detail, is_supplementary, supplementary_reason, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [applicant, reimburseType, amount, reimburseDate, reason, approver, attachments || null, detail ? JSON.stringify(detail) : null, supp ? 1 : 0, supplementaryReason || null, '审批中', now]
     );
 
     await createNotification(pool, {

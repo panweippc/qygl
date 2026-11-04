@@ -108,6 +108,20 @@ function removeFile(idx: number) {
   files.value.splice(idx, 1)
 }
 
+// 查询当前用户在该月份是否已有月报（用于提交前二次确认覆盖）
+async function fetchExistingReport(monthStr: string) {
+  try {
+    const res = await api.get('/monthly-reports')
+    const list = (res.data && res.data.data) || []
+    const uid = localStorage.getItem('userId')
+    // 无 userId 时直接按月份判断：接口本身只返回当前登录用户的数据
+    const own = uid ? list.filter((r: any) => String(r.userId) === String(uid)) : list
+    return own.find((r: any) => r.date === monthStr) || null
+  } catch (e) {
+    return null
+  }
+}
+
 async function submit(status: 'draft' | 'submitted') {
   err.value = ''
   if (!month.value) { err.value = '请选择月份'; return }
@@ -119,6 +133,16 @@ async function submit(status: 'draft' | 'submitted') {
   }
   loading.value = true
   try {
+    // 该月已有月报时二次确认，避免误覆盖
+    if (status === 'submitted') {
+      const existing = await fetchExistingReport(month.value)
+      if (existing) {
+        const tip = existing.status === 'submitted'
+          ? `${month.value} 已有已提交的月报，本次提交将覆盖原有月报内容，是否继续？`
+          : `${month.value} 已有暂存的月报草稿，本次提交将用当前内容覆盖该草稿并转为已提交，是否继续？`
+        if (!window.confirm(tip)) { loading.value = false; return }
+      }
+    }
     const payload = {
       title: title.value || `${month.value}工作月报`,
       content,

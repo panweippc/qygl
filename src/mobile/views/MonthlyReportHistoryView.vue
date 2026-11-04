@@ -36,6 +36,27 @@
         <div v-if="r.files && r.files.length" class="r-files">
           <span v-for="(f, i) in r.files" :key="i" class="r-file" @click="openFile(f.url)">📎 {{ f.name }}</span>
         </div>
+        <button class="r-logs-btn" @click="openLogs(r)">查看历程</button>
+      </div>
+    </div>
+    <div v-if="logsVisible" class="logs-mask" @click.self="logsVisible = false">
+      <div class="logs-sheet">
+        <div class="logs-sheet-head">
+          <span>月报历程</span>
+          <button class="logs-close" @click="logsVisible = false">✕</button>
+        </div>
+        <div v-if="logsLoading" class="m-muted">加载中…</div>
+        <div v-else-if="logsList.length === 0" class="empty">暂无历程记录</div>
+        <div v-else class="logs-list">
+          <div v-for="log in logsList" :key="log.id" class="logs-row">
+            <div class="logs-meta">
+              <span class="logs-tag" :class="log.action">{{ actionLabel(log.action) }}</span>
+              <span class="logs-op">{{ log.username || '系统' }}</span>
+            </div>
+            <div class="logs-detail">{{ log.detail }}</div>
+            <div class="logs-time">{{ log.createdAt }}</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -43,7 +64,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import api, { getEmployees } from '@/services/api'
+import api, { getEmployees, getMonthlyReportLogs } from '@/services/api'
 import { useRoleGuard } from '@/composables/useRoleGuard'
 
 const guard = useRoleGuard()
@@ -123,6 +144,28 @@ function openFile(url: string) {
   window.open(url, '_blank')
 }
 
+// 月报历程
+const logsVisible = ref(false)
+const logsLoading = ref(false)
+const logsList = ref<any[]>([])
+
+async function openLogs(r: Report) {
+  logsVisible.value = true
+  logsLoading.value = true
+  logsList.value = []
+  try {
+    const res = await getMonthlyReportLogs(r.id)
+    if (res.success) logsList.value = res.data || []
+  } catch (e) { /* ignore */ }
+  finally { logsLoading.value = false }
+}
+
+function actionLabel(action: string) {
+  if (action === 'create') return '创建'
+  if (action === 'update') return '更新'
+  return action
+}
+
 onMounted(async () => {
   await guard.refresh()
   await load()
@@ -181,4 +224,63 @@ onMounted(async () => {
   border-top: 1px solid #f0f1f2;
   padding-top: 12px;
 }
+.r-logs-btn {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #b26a00;
+  background: rgba(255, 193, 7, 0.12);
+  border: 1px solid rgba(255, 193, 7, 0.4);
+  border-radius: 6px;
+  padding: 5px 12px;
+}
+.logs-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  z-index: 999;
+}
+.logs-sheet {
+  width: 100%;
+  max-height: 70vh;
+  background: #fff;
+  border-radius: 14px 14px 0 0;
+  padding: 14px 16px 20px;
+  overflow-y: auto;
+}
+.logs-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.logs-close {
+  border: none;
+  background: #f2f3f5;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  font-size: 14px;
+  color: #646566;
+}
+.logs-list { display: flex; flex-direction: column; gap: 12px; }
+.logs-row {
+  border-left: 2px solid #1e5aa8;
+  padding-left: 10px;
+}
+.logs-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.logs-tag {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: #e6f1fb;
+  color: #1e5aa8;
+}
+.logs-tag.update { background: #eaf3de; color: #639922; }
+.logs-op { font-size: 12px; color: #646566; }
+.logs-detail { font-size: 13px; color: #323233; line-height: 1.5; }
+.logs-time { font-size: 11px; color: #969799; margin-top: 2px; }
 </style>

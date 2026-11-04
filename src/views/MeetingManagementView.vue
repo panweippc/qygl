@@ -97,6 +97,11 @@
             <el-table-column prop="meetingLocation" label="会议地点"></el-table-column>
             <el-table-column prop="attendees" label="参会人员"></el-table-column>
             <el-table-column prop="status" label="状态"></el-table-column>
+            <el-table-column label="补录" width="80">
+              <template #default="{ row }">
+                <el-tag v-if="row.is_supplementary" type="warning" size="small">补录</el-tag>
+              </template>
+            </el-table-column>
           </el-table>
         </div>
       </div>

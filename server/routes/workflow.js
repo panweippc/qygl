@@ -918,13 +918,20 @@ router.post("/business-trips", async (req, res) => {
       approverId,
       approver_id,
       applicantName,
-      applicant_name
+      applicant_name,
+      isSupplementary,
+      supplementaryReason
     } = req.body;
 
     // 安全加固：申请人身份一律从 JWT token 解析，忽略请求体传入的 applicant/applicantId/applicantName，防伪造
     const applicantNameVal = getRealName(req);
     if (!applicantNameVal) {
       return res.status(401).json({ success: false, message: '未登录，无法提交申请' });
+    }
+    // 事后补录：开启时补录说明必填，保证审计可追溯
+    const supp = isSupplementary === true || isSupplementary === 1 || isSupplementary === '1';
+    if (supp && !supplementaryReason) {
+      return res.status(400).json({ success: false, message: '补录时必须填写补录说明' });
     }
     const applicantEmpRow = await resolveApplicantByName(pool, applicantNameVal);
     const applicantIdVal = req.user?.id || applicantEmpRow?.id || applicantId || applicant_id;
@@ -953,8 +960,8 @@ router.post("/business-trips", async (req, res) => {
 
     const [result] = await pool.query(
        `INSERT INTO business_trip_applications
-        (trip_code, applicant_id, applicant_name, department, destination, is_urgent, start_date, end_date, days, purpose, estimated_cost, itinerary, cost_breakdown, accommodation, transport, accompany_persons, customer_info, status, current_step, approver, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, ?, ?)`,
+        (trip_code, applicant_id, applicant_name, department, destination, is_urgent, start_date, end_date, days, purpose, estimated_cost, itinerary, cost_breakdown, accommodation, transport, accompany_persons, customer_info, is_supplementary, supplementary_reason, status, current_step, approver, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, ?, ?)`,
       [
         tripCode,
         applicantIdVal || '',
@@ -973,6 +980,8 @@ router.post("/business-trips", async (req, res) => {
         transport || '',
         typeof accompanyPersons === 'object' ? JSON.stringify(accompanyPersons) : (accompany_persons || ''),
         typeof customerInfo === 'object' ? JSON.stringify(customerInfo) : (customer_info || ''),
+        supp ? 1 : 0,
+        supplementaryReason || null,
         approverNameVal || null,
         now,
         now

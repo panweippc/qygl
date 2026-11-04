@@ -172,13 +172,18 @@ router.get('/entertainment-expenses/:id', async (req, res) => {
 });
 
 router.post('/entertainment-expenses', async (req, res) => {
-  const { guestName, guestUnit, location, guestCount, expenseType, expenseAmount, expenseDate, purpose, approver, attachments } = req.body;
+  const { guestName, guestUnit, location, guestCount, expenseType, expenseAmount, expenseDate, purpose, approver, attachments, isSupplementary, supplementaryReason } = req.body;
   const applicant = getRealName(req);
   if (!applicant) {
     return res.status(401).json({ success: false, message: '未登录' });
   }
   if (!expenseType) {
     return res.status(400).json({ success: false, message: '招待类型不能为空' });
+  }
+  // 事后补录：开启时补录说明必填，保证审计可追溯
+  const supp = isSupplementary === true || isSupplementary === 1 || isSupplementary === '1';
+  if (supp && !supplementaryReason) {
+    return res.status(400).json({ success: false, message: '补录时必须填写补录说明' });
   }
   try {
     const { pool } = req.app.locals;
@@ -187,8 +192,8 @@ router.post('/entertainment-expenses', async (req, res) => {
     const safeAmount = expenseAmount === null || expenseAmount === undefined || expenseAmount === '' || isNaN(Number(expenseAmount))
       ? 0 : Number(expenseAmount);
     const [ins] = await pool.execute(
-      'INSERT INTO entertainment_expenses (applicant, guestName, guestUnit, location, guestCount, expenseType, expenseAmount, expenseDate, purpose, approver, attachments, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [applicant, guestName, guestUnit || '', location || '', guestCount || 1, expenseType, safeAmount, expenseDate, purpose, approver, attachments || null, '审批中', now]
+      'INSERT INTO entertainment_expenses (applicant, guestName, guestUnit, location, guestCount, expenseType, expenseAmount, expenseDate, purpose, approver, attachments, is_supplementary, supplementary_reason, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [applicant, guestName, guestUnit || '', location || '', guestCount || 1, expenseType, safeAmount, expenseDate, purpose, approver, attachments || null, supp ? 1 : 0, supplementaryReason || null, '审批中', now]
     );
     await createNotification(pool, { userId: approver, title: '业务招待费审批提醒', content: `${applicant} 提交了${safeAmount}元的${expenseType}招待申请，请审批`, type: 'approval' });
     await createOperationLog(pool, { username: applicant, action: 'submit', module: 'entertainment', targetName: `${expenseType}招待(${safeAmount}元)`, detail: `提交给${approver}审批` });

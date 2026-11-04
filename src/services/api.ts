@@ -179,6 +179,20 @@ export const updateMonthlyReport = async (report: MonthlyReport): Promise<ApiRes
   return response.data;
 };
 
+// 月报历程：按 id 拉取该月报的操作时间线
+export interface MonthlyReportLog {
+  id: number
+  username: string
+  action: string
+  detail: string
+  createdAt: string
+}
+
+export const getMonthlyReportLogs = async (id: number): Promise<ApiResponse<MonthlyReportLog[]>> => {
+  const response = await api.get(`/monthly-reports/${id}/logs`);
+  return response.data;
+};
+
 // 文件分类管理
 export const getFileCategories = async (): Promise<ApiResponse<FileCategory[]>> => {
   const response = await api.get('/file-categories');

@@ -147,7 +147,7 @@ router.get('/meetings/:id', async (req, res) => {
 });
 
 router.post('/meetings', async (req, res) => {
-  const { title, meetingDate, meetingTime, location, participants, agenda, approver } = req.body;
+  const { title, meetingDate, meetingTime, location, participants, agenda, approver, isSupplementary, supplementaryReason } = req.body;
   // 安全加固：发起人身份一律从 JWT token 解析，忽略请求体 organizer，防伪造
   const organizer = getRealName(req);
   if (!organizer) {
@@ -156,12 +156,17 @@ router.post('/meetings', async (req, res) => {
   if (!title) {
     return res.status(400).json({ success: false, message: '会议标题不能为空' });
   }
+  // 事后补录：开启时补录说明必填，保证审计可追溯
+  const supp = isSupplementary === true || isSupplementary === 1 || isSupplementary === '1';
+  if (supp && !supplementaryReason) {
+    return res.status(400).json({ success: false, message: '补录时必须填写补录说明' });
+  }
   try {
     const { pool } = req.app.locals;
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const [ins] = await pool.execute(
-      'INSERT INTO meetings (title, organizer, meetingDate, meetingTime, location, participants, agenda, approver, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [title, organizer, meetingDate, meetingTime, location, participants, agenda, approver, '待审批', now]
+      'INSERT INTO meetings (title, organizer, meetingDate, meetingTime, location, participants, agenda, approver, is_supplementary, supplementary_reason, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [title, organizer, meetingDate, meetingTime, location, participants, agenda, approver, supp ? 1 : 0, supplementaryReason || null, '待审批', now]
     );
 
     await createNotification(pool, { userId: approver, title: '会议审批提醒', content: `${organizer} 发起了会议"${title}"，请审批`, type: 'approval' });

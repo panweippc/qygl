@@ -305,6 +305,24 @@
           </el-upload>
         </el-form-item>
 
+        <el-divider content-position="left">补录</el-divider>
+
+        <el-form-item label="事后补录">
+          <el-switch v-model="form.isSupplementary" />
+          <span class="supplementary-tip">开启后表示本次出差为事后补录，需填写补录说明</span>
+        </el-form-item>
+
+        <el-form-item v-if="form.isSupplementary" label="补录说明" prop="supplementaryReason">
+          <el-input
+            v-model="form.supplementaryReason"
+            type="textarea"
+            :rows="2"
+            maxlength="500"
+            show-word-limit
+            placeholder="请说明为何未在出差前提交申请"
+          />
+        </el-form-item>
+
         <!-- 提交按钮 -->
         <el-form-item>
           <el-button type="primary" @click="submitForm" :loading="submitting">
@@ -470,7 +488,9 @@ const form = reactive({
   transport: '',
   accompanyPersons: [],
   customerInfo: '',
-  approver: ''
+  approver: '',
+  isSupplementary: false,
+  supplementaryReason: ''
 });
 
 const rules = {
@@ -494,6 +514,15 @@ const rules = {
   ],
   accompanyPersons: [
     { required: true, message: '请选择同行人员', trigger: 'change' }
+  ],
+  supplementaryReason: [
+    {
+      validator: (rule: any, value: string, cb: any) => {
+        if (form.isSupplementary && !value) cb(new Error('开启补录时必须填写补录说明'))
+        else cb()
+      },
+      trigger: 'blur'
+    }
   ]
 };
 
@@ -572,6 +601,9 @@ const loadForEdit = async () => {
           else if (!form.approver) form.approver = rec.approver
         }
         returnReason.value = rec.return_reason || ''
+        // 补录开关需为布尔值，数据库返回 0/1
+        form.isSupplementary = !!Number(rec.is_supplementary || 0)
+        form.supplementaryReason = rec.supplementary_reason || ''
       }
     }
   } catch (error) {
@@ -770,6 +802,12 @@ initPage()
 
 .business-trip-application .application-form .el-divider {
   margin: 30px 0 20px;
+}
+
+.supplementary-tip {
+  margin-left: 12px;
+  font-size: 12px;
+  color: #909399;
 }
 
 .business-trip-application .itinerary-list .itinerary-item {

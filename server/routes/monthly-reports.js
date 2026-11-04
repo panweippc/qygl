@@ -50,6 +50,28 @@ router.get('/monthly-reports', async (req, res) => {
   }
 });
 
+// 月报状态中文映射（用于操作日志 detail 展示 from→to）
+const STATUS_TEXT = { draft: '暂存草稿', submitted: '已提交' };
+
+// 月报历程：按 targetId 拉取该月报的操作时间线（复用 operation_logs）
+router.get('/monthly-reports/:id/logs', async (req, res) => {
+  try {
+    const { pool } = req.app.locals;
+    const id = req.params.id;
+    const [rows] = await pool.execute(
+      `SELECT id, username, action, detail, createdAt
+       FROM operation_logs
+       WHERE module = 'monthly_report' AND targetId = ? AND detail NOT LIKE '数据变更%'
+       ORDER BY createdAt ASC`,
+      [id]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('获取月报历程失败:', error);
+    res.status(500).json({ success: false, message: '获取月报历程失败' });
+  }
+});
+
 router.post('/monthly-reports', async (req, res) => {
   const { title, content, plan, files, date, status } = req.body;
   // 安全加固：月报归属用户一律从 JWT token 解析，忽略请求体 userId，防伪造
@@ -87,8 +109,9 @@ router.post('/monthly-reports', async (req, res) => {
         username: getOperator(req),
         action: 'update',
         module: 'monthly_report',
+        targetId: target.id,
         targetName: `月报: ${title}`,
-        detail: `同月已有月报，提交时转正/更新原记录 (ID: ${target.id})`
+        detail: `月报转正/更新 (${STATUS_TEXT[target.status]}→${STATUS_TEXT[reportStatus]}) (ID: ${target.id})`
       });
       return res.json({ success: true, message: '本月已有月报，已更新原记录' });
     }
@@ -103,15 +126,16 @@ router.post('/monthly-reports', async (req, res) => {
         username: getOperator(req),
         action: 'update',
         module: 'monthly_report',
+        targetId: target.id,
         targetName: `月报: ${title}`,
-        detail: `更新暂存草稿 (ID: ${target.id})`
+        detail: `更新暂存草稿 (${STATUS_TEXT[target.status]}→${STATUS_TEXT[reportStatus]}) (ID: ${target.id})`
       });
       return res.json({ success: true, message: '草稿已更新' });
     }
     if (reportStatus === 'draft' && existSubmitted.length > 0) {
       return res.status(400).json({ success: false, message: '本月月报已提交，不能另存草稿' });
     }
-    await pool.execute(
+    const [insertResult] = await pool.execute(
       'INSERT INTO weeklyReports (title, content, plan, files, userId, date, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [title, content, plan || '', filesJson, userId, date || null, reportStatus, localNow()]
     );
@@ -120,8 +144,9 @@ router.post('/monthly-reports', async (req, res) => {
       username: getOperator(req),
       action: 'create',
       module: 'monthly_report',
+      targetId: insertResult.insertId,
       targetName: `月报: ${title}`,
-      detail: `新增月报: ${title}`
+      detail: `新增月报: ${title} (${STATUS_TEXT[reportStatus]})`
     });
     res.json({ success: true, message: '月报上传成功' });
   } catch (error) {
@@ -149,6 +174,8 @@ router.put('/monthly-reports/:id', async (req, res) => {
     const beforeValue = await getRecordBefore(pool, 'weeklyReports', id, { title: 1, content: 1, plan: 1 });
     const filesJson = files ? JSON.stringify(files) : null;
     const reportStatus = ['draft', 'submitted'].includes(status) ? status : 'submitted';
+    const [oldRows] = await pool.execute('SELECT status FROM weeklyReports WHERE id = ?', [id]);
+    const beforeStatus = oldRows[0] ? (oldRows[0].status || 'draft') : 'draft';
     await pool.execute(
       'UPDATE weeklyReports SET title = ?, content = ?, plan = ?, files = ?, date = ?, status = ? WHERE id = ?',
       [title, content, plan || '', filesJson, date || null, reportStatus, id]
@@ -157,8 +184,9 @@ router.put('/monthly-reports/:id', async (req, res) => {
       username: getOperator(req),
       action: 'update',
       module: 'monthly_report',
+      targetId: id,
       targetName: `月报: ${title}`,
-      detail: `更新月报: ${title} (ID: ${id})`
+      detail: `更新月报: ${title} (${STATUS_TEXT[beforeStatus]}→${STATUS_TEXT[reportStatus]}) (ID: ${id})`
     });
     await logDataChange(pool, {
       module: 'monthly_report',

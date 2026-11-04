@@ -52,6 +52,11 @@
             <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="补录" width="80">
+          <template #default="{ row }">
+            <el-tag v-if="row.is_supplementary" type="warning" size="small">补录</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="start_date" label="开始日期" width="110">
           <template #default="{ row }">
             {{ formatDate(row.start_date) }}

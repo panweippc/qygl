@@ -134,6 +134,24 @@
               </el-upload>
             </el-form-item>
 
+            <el-divider content-position="left">补录</el-divider>
+
+            <el-form-item label="事后补录">
+              <el-switch v-model="form.isSupplementary" />
+              <span class="supplementary-tip">开启后表示本次招待为事后补录，需填写补录说明</span>
+            </el-form-item>
+
+            <el-form-item v-if="form.isSupplementary" label="补录说明" prop="supplementaryReason">
+              <el-input
+                v-model="form.supplementaryReason"
+                type="textarea"
+                :rows="2"
+                maxlength="500"
+                show-word-limit
+                placeholder="请说明为何未在招待发生时提交申请"
+              />
+            </el-form-item>
+
             <el-form-item>
               <el-button type="primary" @click="submitForm" :loading="submitting" size="large">
                 提交申请
@@ -255,7 +273,9 @@ const form = reactive({
   expenseAmount: null,
   expenseDate: '',
   approver: '',
-  purpose: ''
+  purpose: '',
+  isSupplementary: false,
+  supplementaryReason: ''
 })
 
 const rules = {
@@ -264,7 +284,16 @@ const rules = {
   expenseAmount: [{ required: true, message: '请输入费用金额', trigger: 'blur' }],
   expenseDate: [{ required: true, message: '请选择招待日期', trigger: 'change' }],
   purpose: [{ required: true, message: '请输入招待事由', trigger: 'blur' }],
-  approver: [{ required: true, message: '请选择审批人', trigger: 'change' }]
+  approver: [{ required: true, message: '请选择审批人', trigger: 'change' }],
+  supplementaryReason: [
+    {
+      validator: (rule: any, value: string, cb: any) => {
+        if (form.isSupplementary && !value) cb(new Error('开启补录时必须填写补录说明'))
+        else cb()
+      },
+      trigger: 'blur'
+    }
+  ]
 }
 
 const loadApprovers = async () => {
@@ -309,6 +338,8 @@ const loadForEdit = async () => {
           else if (!form.approver) form.approver = rec.approver
         }
         returnReason.value = rec.return_reason || ''
+        // 补录开关需为布尔值，数据库返回 0/1
+        form.isSupplementary = !!Number(rec.is_supplementary || 0)
       }
     }
   } catch (error) {
@@ -345,7 +376,9 @@ const submitForm = async () => {
           expenseDate: form.expenseDate,
           purpose: form.purpose,
           approver: approverName,
-          attachments
+          attachments,
+          isSupplementary: form.isSupplementary ? 1 : 0,
+          supplementaryReason: form.isSupplementary ? form.supplementaryReason : ''
         }
         const response = editId
           ? await resubmitEntertainment(editId, data)
@@ -390,6 +423,12 @@ initPage()
   padding: 20px;
   width: 100%;
   box-sizing: border-box;
+}
+
+.supplementary-tip {
+  margin-left: 12px;
+  font-size: 12px;
+  color: #909399;
 }
 
 .main-container {

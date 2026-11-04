@@ -121,9 +121,12 @@
                     </div>
                   </div>
                   <div class="report-footer">
-                    <div v-if="isCurrentUserReport(report)" class="report-actions">
-                      <el-button size="small" @click="editReport(report)" class="edit-btn">
+                    <div class="report-actions">
+                      <el-button v-if="isCurrentUserReport(report) || isAdmin || isGeneralManager" size="small" @click="editReport(report)" class="edit-btn">
                         编辑
+                      </el-button>
+                      <el-button size="small" @click="openLogs(report)" class="logs-btn">
+                        查看历程
                       </el-button>
                     </div>
                   </div>
@@ -250,6 +253,33 @@
             </span>
           </template>
         </el-dialog>
+
+        <!-- 月报历程抽屉 -->
+        <el-drawer
+          v-model="logsVisible"
+          title="月报历程"
+          direction="rtl"
+          size="420px"
+          class="logs-drawer"
+        >
+          <div v-loading="logsLoading" class="report-logs">
+            <el-timeline v-if="logsList.length > 0">
+              <el-timeline-item
+                v-for="log in logsList"
+                :key="log.id"
+                :timestamp="log.createdAt"
+                placement="top"
+              >
+                <div class="log-item">
+                  <span class="log-action" :class="log.action">{{ actionLabel(log.action) }}</span>
+                  <span class="log-operator">{{ log.username || '系统' }}</span>
+                </div>
+                <div class="log-detail">{{ log.detail }}</div>
+              </el-timeline-item>
+            </el-timeline>
+            <el-empty v-else description="暂无历程记录" />
+          </div>
+        </el-drawer>
       </div>
     </main>
 
@@ -268,7 +298,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElImage } from 'element-plus'
 import { Plus, Delete, Document, Download, View } from '@element-plus/icons-vue'
 import { useButtonPermission } from '@/composables/usePermission'
-import { getMonthlyReports, getEmployees, updateMonthlyReport } from '../services/api'
+import { getMonthlyReports, getEmployees, updateMonthlyReport, getMonthlyReportLogs } from '../services/api'
 import { sectionsFromReport, buildContent, buildPlan, emptySections, nonEmptySections, autoReportTitle } from '../utils/monthlyReport'
 import * as mammoth from 'mammoth'
 import DOMPurify from 'dompurify'
@@ -372,6 +402,36 @@ const previewVisible = ref(false)
 const previewFileData = ref<any>({ name: '', url: '', type: '', size: 0 })
 const previewFileContent = ref('')
 const previewDocContent = ref('')
+
+// 月报历程相关
+const logsVisible = ref(false)
+const logsLoading = ref(false)
+const logsList = ref<any[]>([])
+
+const openLogs = async (report: Report) => {
+  logsVisible.value = true
+  logsLoading.value = true
+  logsList.value = []
+  try {
+    const response = await getMonthlyReportLogs(report.id)
+    if (response.success) {
+      logsList.value = response.data || []
+    } else {
+      ElMessage.error('加载历程失败')
+    }
+  } catch (error) {
+    console.error('加载月报历程失败:', error)
+    ElMessage.error('加载历程失败')
+  } finally {
+    logsLoading.value = false
+  }
+}
+
+const actionLabel = (action: string): string => {
+  if (action === 'create') return '创建'
+  if (action === 'update') return '更新'
+  return action
+}
 
 // 处理文件添加
 const handleFileChange = (file: any) => {
@@ -1448,6 +1508,56 @@ onMounted(async () => {
 .report-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+.logs-btn {
+  background: rgba(255, 193, 7, 0.1) !important;
+  color: #b26a00 !important;
+  border: 1px solid rgba(255, 193, 7, 0.4) !important;
+  border-radius: 6px !important;
+  transition: all 0.3s ease !important;
+}
+
+.logs-btn:hover {
+  background: rgba(255, 193, 7, 0.2) !important;
+  box-shadow: 0 0 10px rgba(255, 193, 7, 0.3) !important;
+}
+
+.report-logs {
+  padding: 0.5rem;
+  min-height: 200px;
+}
+
+.log-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.log-action {
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(30, 90, 168, 0.1);
+  color: #1E5AA8;
+}
+
+.log-action.update {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+
+.log-operator {
+  font-size: 0.8rem;
+  color: rgba(51, 51, 51, 0.7);
+}
+
+.log-detail {
+  font-size: 0.85rem;
+  color: rgba(51, 51, 51, 0.8);
+  line-height: 1.5;
 }
 
 .edit-btn {
