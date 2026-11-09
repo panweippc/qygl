@@ -92,6 +92,21 @@ const TABLE_META = {
   }
 };
 
+// Excel 表头别名：历史模板列名（代理类型/合作伙伴/进展状态…）与现模板不一致，
+// 识别表头时统一归一化，避免整张表被静默跳过（成功 0 条、跳过 0 条）
+const HEADER_ALIASES = {
+  '代理类型': '收入类型',
+  '收入类型(代理类型)': '收入类型',
+  '合作伙伴': '合作伙伴名称',
+  '进展状态': '进展状态百分比',
+  '主观机会度': '主观机会度判断',
+  '公司级支持': '公司级支持需求'
+};
+function normalizeHeader(h) {
+  const s = String(h).trim();
+  return HEADER_ALIASES[s] || s;
+}
+
 // 大项目进展 Excel 导入表头（与 PROJECT_FIELD_LABELS 一致，排除系统字段）
 const PROJECT_IMPORT_HEADERS = [
   '客户名称', '申报日期', '单位性质', '人员规模', '资金状况', '现有网络覆盖', '服务器及机房',
@@ -1815,7 +1830,7 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
       const raw = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-      // 查找表头行
+      // 查找表头行（历史模板列名先归一化，避免「代理类型」等别名导致整表漏识别）
       let headerIdx = -1;
       for (let i = 0; i < Math.min(10, raw.length); i++) {
         const row = raw[i].map(c => String(c).trim());
@@ -1823,15 +1838,25 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
         // 漏斗/成交仍要求表头全匹配（与既有模板一致）
         const matched = type === 'project'
           ? (row.includes('客户名称') && row.includes('申报日期'))
-          : headersRef.every(h => row.includes(h));
+          : headersRef.every(h => row.map(normalizeHeader).includes(h));
         if (matched) { headerIdx = i; break; }
       }
-      if (headerIdx === -1) continue;
+      if (headerIdx === -1) {
+        const firstRow = (raw[0] || []).map(c => String(c).trim()).map(normalizeHeader);
+        const missing = type === 'project' ? [] : headersRef.filter(h => !firstRow.includes(h));
+        errors.push('工作表「' + sheetName + '」未识别到表头行' + (missing.length ? '，缺少列：' + missing.join('、') : ''));
+        continue;
+      }
       const headers = raw[headerIdx].map(c => String(c).trim());
       const dataRows = raw.slice(headerIdx + 1).filter(r => r.some(c => String(c).trim() !== ''));
       for (const row of dataRows) {
         const obj = {};
-        headers.forEach((h, i) => { obj[h] = row[i]; });
+        // 同时保留原始表头与归一化表头，兼容 importDestType 等读取旧列名的逻辑
+        headers.forEach((h, i) => {
+          obj[h] = row[i];
+          const nh = normalizeHeader(h);
+          if (nh !== h) obj[nh] = row[i];
+        });
         const rowNo = headerIdx + 2 + dataRows.indexOf(row);
         // owner 列若被误填成序号（纯数字），回退为当前导入人，避免负责人变成 1/2/3
         const ownerRaw = String(obj['owner'] ?? '').trim();
@@ -1851,6 +1876,9 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
         try {
           let sql, params;
           let destType = type;
+          // 提到外层作用域：后面 linkCustomerToDeal 需要实际落库表名
+          // （project 类型不在 TABLE_META 中，用兜底值）
+          let destTable = meta ? meta.table : 'sales_project_analysis';
           if (type === 'deal') {
             sql = `INSERT INTO ${meta.table}
               (owner, sales_type, revenue_type, report_date, product_type, customer_name, contact, phone, site_count, contract_amount, actual_amount, received_amount, unreceived_amount, expected_payment_date, remark, report_month, created_by)
@@ -1881,7 +1909,7 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
           } else {
             // 漏斗模板（意向/重点）按行归属自动分表：归属列/进展百分比/进展状态文本 → intention/key
             destType = importDestType(obj, type);
-            const destTable = destType === 'deal' ? 'sales_deal_customers' : TABLE_META[destType].table;
+            destTable = destType === 'deal' ? 'sales_deal_customers' : TABLE_META[destType].table;
             sql = `INSERT INTO ${destTable}
               (owner, sales_type, revenue_type, report_date, product_type, partner_name, competitor, customer_name, contact, phone, site_count, monthly_repayment, monthly_confidence, estimated_total, progress_percent, sales_status, estimated_repay_month, opportunity_assessment, success_or_giveup, company_support, remark, report_month, created_by)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
