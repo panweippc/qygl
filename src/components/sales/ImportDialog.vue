@@ -25,7 +25,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, h } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 
@@ -43,13 +43,19 @@ function reset() { uploadRef.value?.clearFiles?.() }
 function onChange() {}
 function onSuccess(res: any) {
   loading.value = false
-  if (res.success) {
-    ElMessage.success(res.message)
-    emit('success')
-    visible.value = false
-  } else {
+  if (!res.success) {
     ElMessage.error(res.message || '导入失败')
+    return
   }
+  const errs = Array.isArray(res.data?.errors) ? res.data.errors : []
+  if (errs.length) {
+    const detail = `${res.message}\n${errs.slice(0, 5).join('\n')}${errs.length > 5 ? `\n…另有 ${errs.length - 5} 条` : ''}`
+    ElMessage({ type: 'warning', duration: 10000, showClose: true, message: h('div', { style: 'white-space: pre-line' }, detail) })
+  } else {
+    ElMessage.success(res.message)
+  }
+  emit('success')
+  visible.value = false
 }
 function onError(err: any) {
   loading.value = false

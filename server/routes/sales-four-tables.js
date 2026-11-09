@@ -651,9 +651,18 @@ function parseDate(v) {
     if (year < 1900 || year > 2100) return null;
     return d.toISOString().slice(0, 10);
   }
+  // Excel 日期序列号：cellDates:true 会把日期转成受时区+闰年补偿影响的 Date，
+  // 直接 toISOString() 会少一天；改用 1900 日期系统按序列号还原日历日
+  if (typeof v === 'number' && Number.isFinite(v) && v > 20000 && v < 80000) {
+    const p = xlsx.SSF.parse_date_code(v);
+    if (p && p.y >= 1900 && p.y <= 2100) {
+      return `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`;
+    }
+    return null;
+  }
   const s = String(v).trim();
   if (!s) return null;
-  // 2024-01-01 / 2024/01/01 / Excel serial handled by xlsx
+  // 2024-01-01 / 2024/01/01
   const m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
   return null;
@@ -701,13 +710,14 @@ function importDestType(obj, urlType) {
   return urlType;
 }
 
-// 导入枚举白名单（与前端 salesConstants 保持一致，可扩展）：用于拦截非法枚举值
-// 字段键为 DB 列名，值为允许集合；Excel 中文表头通过映射读取
+// 导入枚举常用值（与前端 salesConstants 下拉一致）：仅用于提示，不拦截行。
+// 历史 Excel 常出现下拉之外的业务值（如「新购」「扩容」），硬拦截会让整批数据被静默丢弃
+// 字段键为 DB 列名，值为常用值集合；Excel 中文表头通过映射读取
 const SALES_ENUM_WHITELIST = {
   sales_type: ['渠道', '直销', '服务'],
   revenue_type: ['代理', '直销']
 }
-const ENUM_LABEL_MAP = { sales_type: '销售类型', revenue_type: '收入类型(代理类型)' }
+const ENUM_LABEL_MAP = { sales_type: '销售类型', revenue_type: '收入类型' }
 
 // 当前用户销售四表权限（供前端统一判断）
 router.get('/sales-four-tables/permission', requireSalesView, async (req, res) => {
@@ -1791,7 +1801,8 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
   if (!req.file) return res.status(400).json({ success: false, message: '请上传 Excel 文件' });
   try {
     await ensureSchema(pool);
-    const workbook = xlsx.readFile(req.file.path, { cellDates: true });
+    // 日期保留 Excel 序列号，由 parseDate 按 1900 日期系统还原，避免时区导致入库少一天
+    const workbook = xlsx.readFile(req.file.path, { cellDates: false });
     const createdBy = cleanOwner(req.user?.username);
     const headersRef = type === 'project' ? PROJECT_IMPORT_HEADERS : meta.headers;
     let imported = 0;
@@ -1822,19 +1833,21 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
         const obj = {};
         headers.forEach((h, i) => { obj[h] = row[i]; });
         const rowNo = headerIdx + 2 + dataRows.indexOf(row);
+        // owner 列若被误填成序号（纯数字），回退为当前导入人，避免负责人变成 1/2/3
+        const ownerRaw = String(obj['owner'] ?? '').trim();
+        const ownerVal = ownerRaw && !/^\d+(\.\d+)?$/.test(ownerRaw) ? ownerRaw : createdBy;
         const reportDate = parseDate(obj['申报日期']);
         const reportMonth = reportDate ? reportDate.slice(0, 7) : '';
-        if (!reportDate) { skipped++; continue; }
-        // 枚举白名单校验：销售类型 / 代理类型(收入类型列) 拦截非法值，跳过该行并提示行号
-        const enumErrs = [];
+        if (!reportDate) { errors.push(`第${rowNo}行 申报日期为空或无法识别，已跳过`); skipped++; continue; }
+        // 枚举取值仅提示、不丢行：历史 Excel 常见下拉外的业务值（如「新购」），
+        // 原先硬跳过会让用户只看到「跳过 N 条」却查不到原因；现按原值入库并给出行号提示
         for (const [field, allowed] of Object.entries(SALES_ENUM_WHITELIST)) {
           const label = ENUM_LABEL_MAP[field];
-          const rawVal = String(obj[label === '销售类型' ? '销售类型' : '收入类型'] ?? '').trim();
+          const rawVal = String(obj[label] ?? '').trim();
           if (rawVal && !allowed.includes(rawVal)) {
-            enumErrs.push(`第${rowNo}行 ${label}="${rawVal}" 不在允许值[${allowed.join('/')}]内`);
+            errors.push(`第${rowNo}行 ${label}="${rawVal}" 不在常用值[${allowed.join('/')}]内，已按原值导入`);
           }
         }
-        if (enumErrs.length) { enumErrs.forEach(e => errors.push(e)); skipped++; continue; }
         try {
           let sql, params;
           let destType = type;
@@ -1843,7 +1856,7 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
               (owner, sales_type, revenue_type, report_date, product_type, customer_name, contact, phone, site_count, contract_amount, actual_amount, received_amount, unreceived_amount, expected_payment_date, remark, report_month, created_by)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
             params = [
-              obj['owner'] || createdBy, obj['销售类型'] || '', obj['收入类型'] || '', reportDate, obj['产品类型'] || '',
+              ownerVal, obj['销售类型'] || '', obj['收入类型'] || '', reportDate, obj['产品类型'] || '',
               obj['客户名单'] || '', obj['联系人'] || '', obj['电话'] || '', parseNum(obj['站点数']),
               parseNum(obj['合同额']), parseNum(obj['实际金额']), parseNum(obj['回款金额']), parseNum(obj['未回款金额']),
               parseDate(obj['约定回款日期']), obj['备注'] || '', reportMonth, createdBy
@@ -1873,7 +1886,7 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
               (owner, sales_type, revenue_type, report_date, product_type, partner_name, competitor, customer_name, contact, phone, site_count, monthly_repayment, monthly_confidence, estimated_total, progress_percent, sales_status, estimated_repay_month, opportunity_assessment, success_or_giveup, company_support, remark, report_month, created_by)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
             params = [
-              obj['owner'] || createdBy, obj['销售类型'] || '', obj['收入类型'] || '', reportDate, obj['产品类型'] || '',
+              ownerVal, obj['销售类型'] || '', obj['收入类型'] || '', reportDate, obj['产品类型'] || '',
               obj['合作伙伴名称'] || '', obj['主要竞争对手'] || '', obj['客户名单'] || '', obj['联系人'] || '', obj['电话'] || '',
               parseNum(obj['站点数']), parseNum(obj['本月回款金额']), obj['本月回款把握度'] || '', parseNum(obj['预计总回款额']),
               parseNum(obj['进展状态百分比']), obj['销售状态'] || '', obj['预计回款月份'] || '', obj['主观机会度判断'] || '',
@@ -1900,7 +1913,7 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
             try {
               const syncRes = await ensureProjectForFunnel(pool, {
                 customer_name: customerName,
-                owner: String(obj['owner'] || createdBy).trim(),
+                owner: String(ownerVal).trim(),
                 report_date: reportDate,
                 report_month: reportMonth
               }, createdBy);
