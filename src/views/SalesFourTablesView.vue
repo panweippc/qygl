@@ -14,6 +14,7 @@
           </div>
         </el-popover>
         <el-button size="small" type="primary" @click="openExport">导出 Excel</el-button>
+        <el-button size="small" @click="openLogs()">导入/导出记录</el-button>
         <el-button v-if="perm.canWrite" size="small" @click="openCleanup">清理版本快照</el-button>
         <el-button v-if="perm.canWrite" size="small" type="warning" @click="batchTransferVisible = true">批量转交（离职交接）</el-button>
         <el-tag v-if="perm.canWrite" type="success">可写入</el-tag>
@@ -89,13 +90,45 @@
       <template #footer>
         <el-button @click="exportVisible = false">取消</el-button>
         <el-button type="primary" :loading="exporting" @click="doExport">开始导出</el-button>
+        <el-button @click="openLogs('export')">查看导出记录</el-button>
       </template>
+    </el-dialog>
+
+    <el-dialog v-model="logsVisible" title="导入 / 导出记录" width="960px" top="6vh">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+        <el-select v-model="logFilters.action" placeholder="全部动作" clearable style="width:140px" @change="loadLogs">
+          <el-option label="导入" value="import" />
+          <el-option label="导出" value="export" />
+        </el-select>
+        <el-input v-model="logFilters.keyword" placeholder="文件名 / 操作人 / 关键词" clearable style="width:260px" @keyup.enter="loadLogs" />
+        <el-button @click="loadLogs">查询</el-button>
+        <el-button @click="openLogs()">刷新</el-button>
+        <span style="margin-left:auto;color:#909399;font-size:12px">共 {{ logs.length }} 条</span>
+      </div>
+      <el-table :data="logs" v-loading="logsLoading" size="small" stripe max-height="60vh" empty-text="暂无导入/导出记录">
+        <el-table-column prop="createdAt" label="时间" width="165">
+          <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+        </el-table-column>
+        <el-table-column prop="username" label="操作人" width="100" />
+        <el-table-column label="动作" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.action === 'import' ? 'warning' : 'success'" size="small">{{ row.action === 'import' ? '导入' : '导出' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="fileName" label="文件名" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="targetName" label="对象" width="150" show-overflow-tooltip />
+        <el-table-column prop="detail" label="详情" min-width="260" show-overflow-tooltip />
+        <el-table-column prop="ipAddress" label="来源地址" width="130" />
+      </el-table>
+      <p style="margin:10px 0 0;color:#909399;font-size:12px;line-height:1.6">
+        数据来自系统操作日志，按模块「销售四表」自动归集；有销售查看权限的人可看全部记录。每次导入/导出成功后本列表会自动刷新。
+      </p>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { salesFetchJSON, exportSalesExcel } from '../components/sales/salesApi'
@@ -147,7 +180,7 @@ async function doExport() {
       filename: name,
       filters: { month: f.month, owner: f.owner, keyword: f.keyword, sales_type: f.sales_type, revenue_type: f.revenue_type }
     })
-    if (r.ok) { ElMessage.success('导出成功'); exportVisible.value = false }
+    if (r.ok) { ElMessage.success('导出成功'); exportVisible.value = false; refreshLogsIfOpen() }
     else if (r.message !== '已取消') ElMessage.error(r.message || '导出失败')
   } finally { exporting.value = false }
 }
@@ -215,6 +248,7 @@ function refreshStats() {
 function onDataChanged() {
   refreshStats()
   Object.values(tableRefMap()).forEach((r: any) => r?.load?.())
+  refreshLogsIfOpen()
 }
 
 /** 当前激活页签的数据重载（跨表迁移跳转后目标表立即取最新数据） */
@@ -261,7 +295,47 @@ function onCrossJump({ type, id }: { type: string, id: number }) {
   // 子表格加载后通过事件或 provide 滚动到对应行较复杂，先切换标签页让用户定位
 }
 
-onMounted(loadPerm)
+// ===== 导入/导出记录（页面内直接查看，免跳操作日志页）=====
+const logsVisible = ref(false)
+const logsLoading = ref(false)
+const logs = ref<any[]>([])
+const logFilters = ref({ action: '', keyword: '' })
+async function loadLogs() {
+  logsLoading.value = true
+  try {
+    const qs = new URLSearchParams()
+    if (logFilters.value.action) qs.set('action', logFilters.value.action)
+    if (logFilters.value.keyword) qs.set('keyword', logFilters.value.keyword)
+    qs.set('limit', '200')
+    const json = await salesFetchJSON('/api/sales-four-tables/import-export-logs?' + qs.toString())
+    logs.value = json.success && Array.isArray(json.data) ? json.data : []
+    if (!json.success) ElMessage.error(json.message || '加载记录失败')
+  } catch (e: any) { ElMessage.error('加载记录失败: ' + e.message) }
+  finally { logsLoading.value = false }
+}
+function openLogs(action = '') {
+  logFilters.value.action = action
+  logFilters.value.keyword = ''
+  logsVisible.value = true
+  loadLogs()
+}
+function refreshLogsIfOpen() { if (logsVisible.value) loadLogs() }
+function formatTime(v: any) {
+  if (!v) return '-'
+  const d = new Date(v)
+  return isNaN(d.getTime()) ? String(v) : d.toLocaleString('zh-CN', { hour12: false })
+}
+// 导入弹窗里的「查看导入记录」通过自定义事件通知页面打开
+function onOpenSalesLogs(e: Event) {
+  const detail = (e as CustomEvent).detail || {}
+  openLogs(detail.action || '')
+}
+
+onMounted(() => {
+  loadPerm()
+  window.addEventListener('open-sales-logs', onOpenSalesLogs as EventListener)
+})
+onUnmounted(() => window.removeEventListener('open-sales-logs', onOpenSalesLogs as EventListener))
 </script>
 
 <style scoped>

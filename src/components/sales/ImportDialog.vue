@@ -18,6 +18,7 @@
       <div class="el-upload__text">拖拽文件到此处或 <em>点击上传</em></div>
     </el-upload>
     <template #footer>
+      <el-button link type="info" size="small" style="margin-right:auto" @click="openLogs">查看导入记录</el-button>
       <el-button @click="visible = false">取消</el-button>
       <el-button type="primary" :loading="loading" @click="submit">开始导入</el-button>
     </template>
@@ -40,6 +41,9 @@ const loading = ref(false)
 const token = localStorage.getItem('token') || ''
 
 function reset() { uploadRef.value?.clearFiles?.() }
+function openLogs() {
+  window.dispatchEvent(new CustomEvent('open-sales-logs', { detail: { action: 'import' } }))
+}
 function onChange() {}
 function onSuccess(res: any) {
   loading.value = false

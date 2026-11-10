@@ -15,6 +15,23 @@ const __dirname = path.dirname(__filename);
 const router = express.Router();
 const upload = multer({ dest: path.join(__dirname, '../../uploads/temp') });
 
+// multer 按 latin1 解码 multipart 里的中文文件名，UTF-8 字节会被当成 latin1 字符，
+// 变成「é..å..」这类乱码。把 latin1 字符串还原回 UTF-8；已是正确中文或纯 ASCII 的原样返回。
+function decodeUploadFilename(name) {
+  if (!name) return '';
+  const s = String(name);
+  // 含码位 > 0xFF 的字符说明已是正常 Unicode，直接返回，避免二次破坏
+  for (let i = 0; i < s.length; i++) {
+    if (s.charCodeAt(i) > 0xFF) return s;
+  }
+  try {
+    const fixed = Buffer.from(s, 'latin1').toString('utf8');
+    // 还原结果含替换符说明不是合法 UTF-8（多为纯 ASCII 或异常串），保留原值
+    if (fixed && !fixed.includes('\uFFFD')) return fixed;
+  } catch (e) { /* 忽略，返回原值 */ }
+  return s;
+}
+
 const SALES_ROLES = ['系统管理员', '总经理', '销售部经理', '业务中心经理'];
 const VIEW_ROLES = ['系统管理员', '总经理', '销售部经理', '业务中心经理'];
 
@@ -777,6 +794,43 @@ const SALES_ENUM_WHITELIST = {
   revenue_type: ['代理', '直销']
 }
 const ENUM_LABEL_MAP = { sales_type: '销售类型', revenue_type: '收入类型' }
+
+// 导入/导出记录：销售四表页面内直接查看，免跳转操作日志页
+// 必须注册在 /sales-four-tables/:type 之前，否则会被 :type 抢匹配
+router.get('/sales-four-tables/import-export-logs', requireSalesView, async (req, res) => {
+  const { pool } = req.app.locals;
+  const { action, keyword, limit } = req.query;
+  try {
+    const where = ["module = 'sales-four-tables'", "action IN ('import', 'export')"];
+    const params = [];
+    if (action === 'import' || action === 'export') { where.push('action = ?'); params.push(action); }
+    const kw = String(keyword || '').trim();
+    if (kw) {
+      where.push('(username LIKE ? OR targetName LIKE ? OR detail LIKE ?)');
+      params.push(`%${kw}%`, `%${kw}%`, `%${kw}%`);
+    }
+    const lim = Math.min(Math.max(parseInt(limit) || 100, 1), 500);
+    const [rows] = await pool.execute(
+      `SELECT id, username, action, targetName, detail, ipAddress, createdAt FROM operation_logs WHERE ${where.join(' AND ')} ORDER BY createdAt DESC, id DESC LIMIT ${lim}`,
+      params
+    );
+    // 从详情里拆出文件名单独成列，方便用户直接确认「这个文件导过没有」
+    // 同时兼容历史日志里 latin1 解码造成的中文文件名乱码，保证「文件名」「详情」两列都能看
+    const data = rows.map(r => {
+      let detail = String(r.detail || '');
+      const m = detail.match(/文件=([^，,]+)/);
+      const fileName = m ? decodeUploadFilename(m[1]) : (r.action === 'import' ? '（早期记录未记文件名）' : '');
+      if (m) {
+        detail = detail.replace(/文件=([^，,]+)/, () => '文件=' + fileName);
+      }
+      return { ...r, detail, fileName };
+    });
+    return res.json({ success: true, data });
+  } catch (e) {
+    console.error('查询导入导出记录失败', e);
+    return res.status(500).json({ success: false, message: '查询失败' });
+  }
+});
 
 // 当前用户销售四表权限（供前端统一判断）
 router.get('/sales-four-tables/permission', requireSalesView, async (req, res) => {
@@ -2041,7 +2095,7 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
     await createOperationLog(pool, {
       username: getOperator(req), action: 'import', module: 'sales-four-tables',
       targetName: `${type} Excel导入`,
-      detail: `文件=${req.file.originalname || '-'}，成功${imported}条，跳过${skipped}条，重复${duplicated}条${projTip}`,
+      detail: `文件=${decodeUploadFilename(req.file.originalname) || '-'}，成功${imported}条，跳过${skipped}条，重复${duplicated}条${projTip}`,
       ipAddress: req.ip
     });
     res.json({ success: true, message: `导入完成：成功 ${imported} 条，跳过 ${skipped} 条${dupTip}${projTip}`, data: { imported, skipped, duplicated, projectCreated, projectSynced, destTypeNote, errors: errors } });
