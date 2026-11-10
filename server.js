@@ -2032,10 +2032,8 @@ const initDatabase = async () => {
         { name: '资料中心', path: '/resource-center', component: 'ResourceCenterView', icon: '📁', sort: 4 },
         { name: '消息中心', path: '/message-center', component: 'MessageCenterView', icon: '💬', sort: 5 },
         // 业务管理
-        { name: '销售漏斗', path: '/sales-funnel', component: 'SalesFunnelView', icon: '🔻', sort: 8 },
-        { name: '销售目标', path: '/sales-target', component: 'SalesTargetView', icon: '🎯', sort: 9 },
+        { name: '销售漏斗', path: '/sales-funnel', component: 'SalesFourTablesView', icon: '🔻', sort: 8 },
         { name: '客户管理', path: '/customer-management', component: 'CustomerManagementView', icon: '👥', sort: 10 },
-        { name: '机会跟进', path: '/sales-opportunity', component: 'SalesOpportunityView', icon: '💡', sort: 11 },
         { name: '成交项目', path: '/closing-project', component: 'ClosingProjectView', icon: '✅', sort: 12 },
         // 系统设置
         { name: '员工管理', path: '/employee-management', component: 'EmployeeManagementView', icon: '👤', sort: 13 },

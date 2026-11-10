@@ -67,11 +67,6 @@ const router = createRouter({
       component: () => import('../views/CustomerManagementView.vue')
     },
     {
-      path: '/sales-opportunity',
-      name: 'sales-opportunity',
-      redirect: '/sales-funnel'
-    },
-    {
       path: '/announcement-management',
       name: 'announcement-management',
       component: () => import('../views/AnnouncementManagementView.vue')
@@ -110,21 +105,6 @@ const router = createRouter({
       path: '/system',
       name: 'system-management',
       component: () => import('../views/SystemManagementView.vue')
-    },
-    {
-      path: '/city-sales/:cityName',
-      name: 'city-sales',
-      component: () => import('../views/CitySalesDetailView.vue')
-    },
-    {
-      path: '/city-sales/:cityName/:countyName',
-      name: 'county-detail',
-      component: () => import('../views/CountyDetailView.vue')
-    },
-    {
-      path: '/town-detail/:cityName/:countyName/:townName',
-      name: 'town-detail',
-      component: () => import('../views/TownDetailView.vue')
     },
     {
       path: '/project-detail/:id',

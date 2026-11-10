@@ -484,8 +484,8 @@ router.get('/customers/funnel-link', async (req, res) => {
     for (const { table, stage } of tables) {
       try {
       const [rows] = await pool.execute(
-        `SELECT id, customer_name, contact, phone, owner, progress_percent, sales_status, success_or_giveup, contract_amount, actual_amount, report_month FROM \`${table}\` WHERE customer_name = ? ORDER BY created_at DESC`,
-        [name]
+        `SELECT id, customer_name, contact, phone, owner, progress_percent, sales_status, success_or_giveup, contract_amount, actual_amount, report_month FROM \`${table}\` WHERE TRIM(customer_name) = ? AND is_deleted = 0 ORDER BY created_at DESC`,
+        [String(name).trim()]
       );
       for (const r of rows) {
         out.push({
@@ -511,6 +511,60 @@ router.get('/customers/funnel-link', async (req, res) => {
     res.json({ success: true, data: out });
   } catch (error) {
     res.status(500).json({ success: false, message: '获取关联漏斗失败' });
+  }
+});
+
+// 方案A：客户管理 → 大项目进展 只做「按需手动创建」，不做反向自动建骨架。
+// 按客户名去空格精确判重；新建时只写骨架字段，并带出该客户未删除的历史拜访。
+router.post('/customers/:id/create-project', async (req, res) => {
+  const { pool } = req.app.locals;
+  const id = parseInt(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ success: false, message: '客户编号无效' });
+  try {
+    const [rows] = await pool.execute('SELECT id, name, owner, is_deleted FROM customers WHERE id = ?', [id]);
+    if (!rows.length || rows[0].is_deleted) return res.status(404).json({ success: false, message: '客户不存在' });
+    const name = String(rows[0].name || '').trim();
+    if (!name) return res.status(400).json({ success: false, message: '客户名称为空' });
+
+    const [exist] = await pool.execute(
+      'SELECT id FROM sales_project_analysis WHERE TRIM(customer_name) = ? AND is_deleted = 0 LIMIT 1', [name]
+    );
+    if (exist.length) {
+      return res.json({ success: true, created: false, analysisId: exist[0].id, message: '该客户已有大项目进展记录' });
+    }
+
+    const operator = currentUser(req);
+    const today = new Date().toISOString().slice(0, 10);
+    const [r] = await pool.execute(
+      'INSERT INTO sales_project_analysis (customer_name, report_date, project_owner, report_month, created_by) VALUES (?, ?, ?, ?, ?)',
+      [name, today, rows[0].owner || operator, today.slice(0, 7), operator]
+    );
+
+    const [visits] = await pool.execute(
+      'SELECT id, visitDate, visitContent, nextPlan FROM visit_records WHERE TRIM(customerName) = ? AND is_deleted = 0 ORDER BY visitDate DESC, id DESC',
+      [name]
+    );
+    let seq = 1;
+    for (const v of visits) {
+      await pool.execute(
+        'INSERT INTO sales_project_visit_records (analysis_id, seq, visit_time, communication_record, next_strategy, source_visit_id) VALUES (?, ?, ?, ?, ?, ?)',
+        [r.insertId, seq++, v.visitDate || '', v.visitContent || '', v.nextPlan || '', v.id]
+      );
+    }
+
+    try {
+      await createOperationLog(pool, {
+        userId: req.user?.id || null, username: operator, action: 'create', module: 'customer',
+        targetId: id, targetName: name,
+        detail: `从客户管理创建大项目进展(id=${r.insertId})，带出拜访记录 ${visits.length} 条`,
+        ipAddress: req.ip || null
+      });
+    } catch (e) { console.error('创建大项目进展写审计日志失败:', e.message); }
+
+    return res.json({ success: true, created: true, analysisId: r.insertId, visitCount: visits.length, message: '已创建大项目进展记录' });
+  } catch (e) {
+    console.error('从客户管理创建大项目进展失败:', e);
+    return res.status(500).json({ success: false, message: '创建失败: ' + e.message });
   }
 });
 

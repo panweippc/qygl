@@ -1065,7 +1065,7 @@ router.get('/sales-four-tables/:type', requireSalesView, async (req, res) => {
     // MySQL 5.7 在 prepared statement 中对 LIMIT/OFFSET 占位符校验严格，这里直接拼接整数
     const dealCols = type === 'deal' ? `, ${PAYMENT_STATUS_CASE} AS payment_status, ${IS_OVERDUE_CASE} AS is_overdue` : '';
     const [rows] = await pool.execute(
-      `SELECT *, (SELECT COUNT(*) FROM visit_records WHERE customerName = ${table}.customer_name AND is_deleted = 0) AS visit_count${dealCols} FROM ${table} ${where} ORDER BY updated_at DESC LIMIT ${sizeNum} OFFSET ${offset}`,
+      `SELECT *, (SELECT COUNT(*) FROM visit_records WHERE TRIM(customerName) = TRIM(${table}.customer_name) AND is_deleted = 0) AS visit_count${dealCols} FROM ${table} ${where} ORDER BY updated_at DESC LIMIT ${sizeNum} OFFSET ${offset}`,
       params
     );
     res.json({ success: true, data: { list: rows, total, page: parseInt(page), pageSize: parseInt(pageSize) } });
@@ -1210,8 +1210,8 @@ function extractProjectBody(req) {
 async function mirrorVisitsToProject(pool, customerName, analysisId) {
   await pool.execute('DELETE FROM sales_project_visit_records WHERE analysis_id = ?', [analysisId]);
   const [visits] = await pool.execute(
-    'SELECT id, visitDate, visitContent, nextPlan FROM visit_records WHERE customerName = ? AND is_deleted = 0 ORDER BY visitDate DESC, id DESC',
-    [customerName]
+    'SELECT id, visitDate, visitContent, nextPlan FROM visit_records WHERE TRIM(customerName) = ? AND is_deleted = 0 ORDER BY visitDate DESC, id DESC',
+    [String(customerName || '').trim()]
   );
   let seq = 1;
   for (const v of visits) {
@@ -1225,10 +1225,10 @@ async function mirrorVisitsToProject(pool, customerName, analysisId) {
 // 漏斗保存后：按 customer_name 自动带出/同步大项目进展记录 + 拜访记录
 // 返回 { analysisId, created, skipped, error }。失败不再吞掉，error 回显给前端。
 async function ensureProjectForFunnel(pool, funnelBody, createdBy) {
-  const customerName = funnelBody.customer_name;
+  const customerName = String(funnelBody.customer_name || '').trim();
   if (!customerName) return { analysisId: null, created: false, skipped: true, error: null };
   try {
-    const [existing] = await pool.execute('SELECT id FROM sales_project_analysis WHERE customer_name = ? LIMIT 1', [customerName]);
+    const [existing] = await pool.execute('SELECT id FROM sales_project_analysis WHERE TRIM(customer_name) = ? AND is_deleted = 0 LIMIT 1', [customerName]);
     let analysisId;
     let created = false;
     if (existing.length === 0) {
@@ -1258,13 +1258,13 @@ async function ensureProjectForFunnel(pool, funnelBody, createdBy) {
 
 // 销售漏斗 ↔ 客户管理 双向关联 + 成交联动
 // 返回 { customerId, skipped, status, error }。失败不再吞掉，error 回显给前端。
-async function syncCustomerFromFunnel(pool, { customerName, contact, phone, stage, isDeal, operator }) {
+async function syncCustomerFromFunnel(pool, { customerName, contact, phone, isDeal, operator }) {
   const name = String(customerName || '').trim();
   if (!name) return { customerId: null, skipped: true, status: null, error: null };
   try {
     await ensureCustomerColumns(pool);
     const now = new Date().toISOString().replace('T', ' ').replace('Z', '');
-    const [exist] = await pool.execute('SELECT id, status, tags FROM customers WHERE name = ? LIMIT 1', [name]);
+    const [exist] = await pool.execute('SELECT id, status, tags FROM customers WHERE TRIM(name) = ? AND is_deleted = 0 LIMIT 1', [name]);
     if (exist.length) {
       const cid = exist[0].id;
       const sets = [];
@@ -1405,15 +1405,16 @@ router.post('/sales-four-tables/:type', requireSalesWriter, async (req, res) => 
     const recordId = result.insertId;
     await insertVersion(pool, destType, recordId, { ...body, created_by: createdBy }, createdBy);
 
-    // 漏斗保存后自动带出大项目进展 + 同步拜访记录（仅 funnel 类型），同步结果回显给前端
+    // 方案A：大项目进展骨架只由三张漏斗表带出；四类表（含大项目进展）统一单向同步到客户管理
     const sync = { project: null, customer: null };
     if (type === 'intention' || type === 'key' || type === 'deal') {
       sync.project = await ensureProjectForFunnel(pool, body, createdBy);
+    }
+    if (type === 'intention' || type === 'key' || type === 'deal' || type === 'project') {
       sync.customer = await syncCustomerFromFunnel(pool, {
         customerName: body.customer_name,
-        contact: body.contact,
-        phone: body.phone,
-        stage: destType,
+        contact: body.contact || '',
+        phone: body.phone || '',
         isDeal: destType === 'deal',
         operator: createdBy
       });
@@ -1485,15 +1486,16 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
       destType = destTypeByProgress(parseNum(req.body.progress_percent));
     }
 
-    // 漏斗保存后自动带出大项目进展 + 同步拜访记录（仅 funnel 类型，迁移前后都执行），同步结果回显
+    // 方案A：大项目进展骨架只由三张漏斗表带出；四类表（含大项目进展）统一单向同步到客户管理
     const sync = { project: null, customer: null };
     if (type === 'intention' || type === 'key' || type === 'deal') {
       sync.project = await ensureProjectForFunnel(pool, body, createdBy);
+    }
+    if (type === 'intention' || type === 'key' || type === 'deal' || type === 'project') {
       sync.customer = await syncCustomerFromFunnel(pool, {
         customerName: body.customer_name,
-        contact: body.contact,
-        phone: body.phone,
-        stage: destType,
+        contact: body.contact || '',
+        phone: body.phone || '',
         isDeal: destType === 'deal',
         operator: createdBy
       });
@@ -2054,6 +2056,16 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
           if (type === 'project') {
             try { await mirrorVisitsToProject(pool, String(obj['客户名称'] || '').trim(), result.insertId); }
             catch (e) { errors.push('拜访记录带出失败(' + (obj['客户名称'] || '') + '): ' + e.message); }
+            // 方案A：大项目进展导入同样单向同步到客户管理，反向不做自动建骨架
+            try {
+              await syncCustomerFromFunnel(pool, {
+                customerName: String(obj['客户名称'] || '').trim(),
+                contact: '',
+                phone: '',
+                isDeal: false,
+                operator: createdBy
+              });
+            } catch (e) { errors.push('客户档案同步失败(' + (obj['客户名称'] || '') + '): ' + e.message); }
           }
 
           // 与在线「新增/保存」保持一致：导入同样按客户名自动带出「大项目进展」记录
@@ -2073,7 +2085,6 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
                 customerName,
                 contact: String(obj['联系人'] || '').trim(),
                 phone: String(obj['电话'] || '').trim(),
-                stage: destType,
                 isDeal: destType === 'deal',
                 operator: createdBy
               });

@@ -91,6 +91,7 @@
             <el-option label="意向" value="意向" />
             <el-option label="沉默" value="沉默" />
             <el-option label="流失" value="流失" />
+            <el-option label="成交" value="成交" />
           </el-select>
         </el-form-item>
         <el-form-item label="公海/私海">
@@ -124,7 +125,7 @@
             <el-tag v-for="t in (detail.tags || '').split(',').filter(Boolean)" :key="t" size="small" style="margin:1px">{{ t }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="状态">
-            <el-tag :type="detail.status === '活跃' ? 'success' : detail.status === '意向' ? 'warning' : 'info'" size="small">{{ detail.status }}</el-tag>
+            <el-tag :type="detail.status === '活跃' || detail.status === '成交' ? 'success' : detail.status === '意向' ? 'warning' : 'info'" size="small">{{ detail.status }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="负责人">{{ detail.owner || '—' }}</el-descriptions-item>
           <el-descriptions-item label="公海/私海">
@@ -206,6 +207,10 @@
             <el-button type="primary" v-if="hasPerm('btn_add')" @click="addActivity" :loading="savingActivity">添加跟进</el-button>
           </el-form-item>
         </el-form>
+      </template>
+      <template #footer>
+        <el-button @click="showDetail = false">关闭</el-button>
+        <el-button type="primary" :loading="creatingProject" @click="createProject">创建大项目进展</el-button>
       </template>
     </el-dialog>
     </div>
@@ -416,6 +421,25 @@ const saveFollowup = async () => {
 }
 
 const goFunnel = () => { window.open('/sales-funnel', '_blank') }
+
+// 方案A：客户管理 → 大项目进展 按需手动创建，不做反向自动建骨架
+const creatingProject = ref(false)
+const createProject = async () => {
+  if (!detail.value) return
+  try {
+    await ElMessageBox.confirm(
+      `将为「${detail.value.name}」在大项目进展表中创建一条骨架记录（客户名称、申报日期、负责人），其余字段留空待补充。该客户已有记录时不会重复创建。`,
+      '创建大项目进展', { type: 'info', confirmButtonText: '创建', cancelButtonText: '取消' }
+    )
+  } catch { return }
+  creatingProject.value = true
+  try {
+    const res = await fetch('/api/customers/' + detail.value.id + '/create-project', { method: 'POST' }).then(r => r.json())
+    if (res.success) ElMessage.success(res.message + (res.created ? '，可前往销售漏斗补充详情' : ''))
+    else ElMessage.error(res.message || '创建失败')
+  } catch { ElMessage.error('创建失败') }
+  creatingProject.value = false
+}
 
 const fmtMoney = (v: any) => {
   const n = Number(v)

@@ -1,9 +1,6 @@
 import { useRoute } from 'vue-router'
 
 const parentPathMap: Record<string, string> = {
-  '/city-sales': '/sales-funnel',
-  '/county-detail': '/sales-funnel',
-  '/town-detail': '/sales-funnel',
   '/project-detail': '/closing-project',
 }
 
