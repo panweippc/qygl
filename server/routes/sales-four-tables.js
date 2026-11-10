@@ -1065,7 +1065,7 @@ router.get('/sales-four-tables/:type', requireSalesView, async (req, res) => {
     // MySQL 5.7 在 prepared statement 中对 LIMIT/OFFSET 占位符校验严格，这里直接拼接整数
     const dealCols = type === 'deal' ? `, ${PAYMENT_STATUS_CASE} AS payment_status, ${IS_OVERDUE_CASE} AS is_overdue` : '';
     const [rows] = await pool.execute(
-      `SELECT *, (SELECT COUNT(*) FROM visit_records WHERE customerName = ${table}.customer_name) AS visit_count${dealCols} FROM ${table} ${where} ORDER BY updated_at DESC LIMIT ${sizeNum} OFFSET ${offset}`,
+      `SELECT *, (SELECT COUNT(*) FROM visit_records WHERE customerName = ${table}.customer_name AND is_deleted = 0) AS visit_count${dealCols} FROM ${table} ${where} ORDER BY updated_at DESC LIMIT ${sizeNum} OFFSET ${offset}`,
       params
     );
     res.json({ success: true, data: { list: rows, total, page: parseInt(page), pageSize: parseInt(pageSize) } });
@@ -1206,17 +1206,18 @@ function extractProjectBody(req) {
 }
 
 // 按客户名把全局拜访记录镜像到大项目进展的拜访记录子表（新建项目时一次性带出历史拜访）
+// 只镜像未删除的拜访；带上来源标识，供删除拜访记录时精确定位同步删除
 async function mirrorVisitsToProject(pool, customerName, analysisId) {
   await pool.execute('DELETE FROM sales_project_visit_records WHERE analysis_id = ?', [analysisId]);
   const [visits] = await pool.execute(
-    'SELECT visitDate, visitContent, nextPlan FROM visit_records WHERE customerName = ? ORDER BY visitDate DESC, id DESC',
+    'SELECT id, visitDate, visitContent, nextPlan FROM visit_records WHERE customerName = ? AND is_deleted = 0 ORDER BY visitDate DESC, id DESC',
     [customerName]
   );
   let seq = 1;
   for (const v of visits) {
     await pool.execute(
-      'INSERT INTO sales_project_visit_records (analysis_id, seq, visit_time, communication_record, next_strategy) VALUES (?, ?, ?, ?, ?)',
-      [analysisId, seq++, v.visitDate || '', v.visitContent || '', v.nextPlan || '']
+      'INSERT INTO sales_project_visit_records (analysis_id, seq, visit_time, communication_record, next_strategy, source_visit_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [analysisId, seq++, v.visitDate || '', v.visitContent || '', v.nextPlan || '', v.id]
     );
   }
 }

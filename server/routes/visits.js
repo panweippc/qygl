@@ -7,7 +7,7 @@ router.get('/visit-records/customer/:customerName', async (req, res) => {
   const { customerName } = req.params;
   try {
     const { pool } = req.app.locals;
-    const [data] = await pool.execute('SELECT * FROM visit_records WHERE customerName = ? ORDER BY visitDate DESC, id DESC', [customerName]);
+    const [data] = await pool.execute('SELECT * FROM visit_records WHERE customerName = ? AND is_deleted = 0 ORDER BY visitDate DESC, id DESC', [customerName]);
     res.json({ success: true, data: data });
   } catch (error) {
     res.status(500).json({ success: false, message: '获取拜访记录失败' });
@@ -60,18 +60,19 @@ router.post('/visit-records', async (req, res) => {
       [[maxRow]] = await pool.execute('SELECT COALESCE(MAX(visitNo), 0) AS maxNo FROM visit_records WHERE customerName = ?', [customerName]);
     }
     const visitNo = Number(maxRow.maxNo) + 1;
-    await pool.execute(
+    const [insertResult] = await pool.execute(
       'INSERT INTO visit_records (townId, customer_id, customerName, address, visitDate, visitPerson, visitContent, nextPlan, visitNo, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [tid, customerId, customerName, address || '', visitDate, visitPerson, visitContent, nextPlan || null, visitNo, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
-    // 同步到大项目进展的拜访记录子表（若该客户已建项目）
+    const visitId = insertResult.insertId;
+    // 同步到大项目进展的拜访记录子表（若该客户已建项目），带上来源标识供删除时精确定位
     try {
       const [proj] = await pool.execute('SELECT id FROM sales_project_analysis WHERE customer_name = ? LIMIT 1', [customerName]);
       if (proj.length) {
         const [[mx]] = await pool.execute('SELECT COALESCE(MAX(seq),0) AS m FROM sales_project_visit_records WHERE analysis_id = ?', [proj[0].id]);
         await pool.execute(
-          'INSERT INTO sales_project_visit_records (analysis_id, seq, visit_time, communication_record, next_strategy) VALUES (?, ?, ?, ?, ?)',
-          [proj[0].id, mx.m + 1, visitDate, visitContent, nextPlan || '']
+          'INSERT INTO sales_project_visit_records (analysis_id, seq, visit_time, communication_record, next_strategy, source_visit_id) VALUES (?, ?, ?, ?, ?, ?)',
+          [proj[0].id, mx.m + 1, visitDate, visitContent, nextPlan || '', visitId]
         );
       }
     } catch (e) { console.error('同步项目拜访记录失败(不影响主流程):', e); }
@@ -123,14 +124,28 @@ router.put('/visit-records/:id', async (req, res) => {
   }
 });
 
-// 删除拜访记录
+// 删除拜访记录（软删除全局表 + 同步删除大项目进展中的拜访记录镜像行）
 router.delete('/visit-records/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const { pool } = req.app.locals;
-    const [rows] = await pool.execute('SELECT customerName FROM visit_records WHERE id = ?', [id]);
+    const [rows] = await pool.execute('SELECT customerName, visitContent, nextPlan FROM visit_records WHERE id = ?', [id]);
     const name = rows.length > 0 ? rows[0].customerName : id;
     await pool.execute('UPDATE visit_records SET is_deleted = 1 WHERE id = ?', [id]);
+    if (rows.length > 0) {
+      // 主路径：按来源标识精确删除；兜底：历史镜像行无来源标识时按内容匹配，且只限该客户名下项目
+      const content = String(rows[0].visitContent ?? '');
+      const strategy = String(rows[0].nextPlan ?? '');
+      await pool.execute(
+        `DELETE FROM sales_project_visit_records
+         WHERE source_visit_id = ?
+            OR (source_visit_id IS NULL
+                AND analysis_id IN (SELECT id FROM sales_project_analysis WHERE customer_name = ?)
+                AND communication_record = ?
+                AND next_strategy = ?)`,
+        [id, name, content, strategy]
+      );
+    }
     await createOperationLog(pool, {
       username: getOperator(req),
       action: 'soft_delete',

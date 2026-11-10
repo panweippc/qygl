@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-model="visible" :title="(customerName || '') + ' · 拜访记录'" width="640px" align-center destroy-on-close>
+  <el-dialog v-model="visible" :title="(customerName || '') + ' · 拜访记录'" width="680px" align-center destroy-on-close>
     <div v-loading="loading">
       <p v-if="!customerName" class="hint">未关联客户</p>
       <template v-else>
@@ -12,6 +12,11 @@
           <el-table-column prop="visitPerson" label="拜访人" width="90" />
           <el-table-column prop="visitContent" label="内容" min-width="140" show-overflow-tooltip />
           <el-table-column prop="nextPlan" label="下一步" min-width="120" show-overflow-tooltip />
+          <el-table-column v-if="canWrite" label="操作" width="76" fixed="right" align="center">
+            <template #default="{ row }">
+              <el-button link type="danger" size="small" @click="remove(row)">删除</el-button>
+            </template>
+          </el-table-column>
         </el-table>
 
         <div v-if="showForm" class="vr-form">
@@ -34,11 +39,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesFetchJSON } from './salesApi'
 
 const props = defineProps<{ modelValue: boolean, customerName: string, canWrite?: boolean }>()
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'changed'])
 const visible = computed({
   get: () => props.modelValue,
   set: (v) => emit('update:modelValue', v)
@@ -72,10 +77,34 @@ async function save() {
       method: 'POST',
       body: JSON.stringify({ ...form.value, customerName: props.customerName, townId: null })
     })
-    if (json.success) { ElMessage.success('保存成功'); form.value = emptyForm(); showForm.value = false; loadList() }
+    if (json.success) {
+      ElMessage.success('保存成功')
+      form.value = emptyForm()
+      showForm.value = false
+      await loadList()
+      emit('changed')
+    }
     else ElMessage.error(json.message || '保存失败')
   } catch (e: any) { ElMessage.error('保存失败: ' + e.message) }
   finally { saving.value = false }
+}
+
+async function remove(row: any) {
+  try {
+    await ElMessageBox.confirm(
+      '确定删除这条拜访记录吗？大项目进展中对应的拜访记录也会一并删除。',
+      '删除确认',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
+  } catch { return }
+  try {
+    const json = await salesFetchJSON(`/api/visit-records/${row.id}`, { method: 'DELETE' })
+    if (json.success) {
+      ElMessage.success('删除成功')
+      await loadList()
+      emit('changed')
+    } else ElMessage.error(json.message || '删除失败')
+  } catch (e: any) { ElMessage.error('删除失败: ' + e.message) }
 }
 </script>
 

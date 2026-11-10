@@ -40,7 +40,7 @@
     </el-tabs>
 
     <CrossReferenceDialog v-model="crossVisible" :customer="crossCustomer" @jump="onCrossJump" />
-    <VisitRecordsDialog v-model="visitRecordsVisible" :customer-name="visitCustomer" :can-write="perm.canWrite" />
+    <VisitRecordsDialog v-model="visitRecordsVisible" :customer-name="visitCustomer" :can-write="perm.canWrite" @changed="onDataChanged" />
     <TransferDialog v-model="batchTransferVisible" mode="batch" @done="onBatchTransferDone" />
 
     <el-dialog v-model="cleanupVisible" title="清理版本快照" width="480px">
