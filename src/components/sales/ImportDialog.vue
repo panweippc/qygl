@@ -49,8 +49,14 @@ function onSuccess(res: any) {
   }
   const errs = Array.isArray(res.data?.errors) ? res.data.errors : []
   if (errs.length) {
-    const detail = `${res.message}\n${errs.slice(0, 5).join('\n')}${errs.length > 5 ? `\n…另有 ${errs.length - 5} 条` : ''}`
-    ElMessage({ type: 'warning', duration: 10000, showClose: true, message: h('div', { style: 'white-space: pre-line' }, detail) })
+    // 全量展示明细（不再截断为前 5 条）：可滚动、不自动消失，用户看完手动关闭
+    const detail = `${res.message}\n\n共 ${errs.length} 条明细：\n${errs.join('\n')}`
+    ElMessage({
+      type: 'warning',
+      duration: 0,
+      showClose: true,
+      message: h('div', { style: 'white-space: pre-line; max-height: 60vh; overflow-y: auto; line-height: 1.6; padding-right: 8px' }, detail)
+    })
   } else {
     ElMessage.success(res.message)
   }

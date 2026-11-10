@@ -1972,7 +1972,7 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
     const isFunnel = type === 'intention' || type === 'key' || type === 'deal';
     const projTip = isFunnel ? `，带出大项目进展 ${projectCreated} 条（同步 ${projectSynced} 条）` : '';
     createOperationLog(pool, { username: getOperator(req), action: 'import', module: 'sales-four-tables', targetName: `${type} Excel导入`, detail: `导入${type}，成功${imported}条，跳过${skipped}条${projTip}` });
-    res.json({ success: true, message: `导入完成：成功 ${imported} 条，跳过 ${skipped} 条${projTip}`, data: { imported, skipped, projectCreated, projectSynced, destTypeNote, errors: errors.slice(0, 10) } });
+    res.json({ success: true, message: `导入完成：成功 ${imported} 条，跳过 ${skipped} 条${projTip}`, data: { imported, skipped, projectCreated, projectSynced, destTypeNote, errors: errors } });
   } catch (error) {
     console.error('导入失败:', error);
     res.status(500).json({ success: false, message: '导入失败' });
