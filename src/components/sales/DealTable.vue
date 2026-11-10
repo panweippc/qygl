@@ -153,7 +153,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { salesFetch, salesFetchJSON } from './salesApi'
+import { salesFetch, salesFetchJSON, exportSalesExcel } from './salesApi'
 import ImportDialog from './ImportDialog.vue'
 import DiffDialog from './DiffDialog.vue'
 import TransferDialog from './TransferDialog.vue'
@@ -237,18 +237,17 @@ function resetFilter() {
   load()
 }
 async function exportExcel() {
-  try {
-    const res = await salesFetch(`/api/sales-four-tables/deal/export?${buildQuery().replace(/&page=.*|&pageSize=.*/g, '')}`)
-    if (!res.ok) { ElMessage.error('导出失败（状态码：' + res.status + '）'); return }
-    const blob = await res.blob()
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = '成交项目-' + new Date().toISOString().slice(0, 10) + '.xlsx'
-    document.body.appendChild(a); a.click(); a.remove()
-    window.URL.revokeObjectURL(url)
-    ElMessage.success('导出成功')
-  } catch (e: any) { ElMessage.error('导出失败: ' + e.message) }
+  const filters: Record<string, string> = {}
+  new URLSearchParams(buildQuery()).forEach((v, k) => {
+    if (v && k !== 'page' && k !== 'pageSize') filters[k] = v
+  })
+  const r = await exportSalesExcel({
+    type: 'deal',
+    filename: '成交项目-' + new Date().toISOString().slice(0, 10) + '.xlsx',
+    filters
+  })
+  if (r.ok) ElMessage.success('导出成功')
+  else if (r.message !== '已取消') ElMessage.error(r.message || '导出失败')
 }
 function openEdit(row?: any) { editForm.value = row ? { ...emptyForm(), ...row } : emptyForm(); editVisible.value = true }
 async function save() {

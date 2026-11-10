@@ -13,7 +13,7 @@
             <p>本模块包含「意向漏斗、重点漏斗、成交用户、大项目进展」四张表。销售部成员和业务中心经理可在线填写或 Excel 导入；李智鑫（总经理/管理员）可查看全部数据。每次保存自动生成版本快照，支持字段级差异对比。</p>
           </div>
         </el-popover>
-        <el-button size="small" type="primary" @click="exportCurrent">导出 Excel</el-button>
+        <el-button size="small" type="primary" @click="openExport">导出 Excel</el-button>
         <el-button v-if="perm.canWrite" size="small" @click="openCleanup">清理版本快照</el-button>
         <el-button v-if="perm.canWrite" size="small" type="warning" @click="batchTransferVisible = true">批量转交（离职交接）</el-button>
         <el-tag v-if="perm.canWrite" type="success">可写入</el-tag>
@@ -57,6 +57,40 @@
         <el-button type="primary" :loading="cleaning" @click="submitCleanup">开始清理</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="exportVisible" title="导出 Excel" width="520px">
+      <el-form label-width="100px">
+        <el-form-item label="导出表">
+          <el-select v-model="exportForm.type" style="width:100%">
+            <el-option label="意向漏斗" value="intention" />
+            <el-option label="重点漏斗" value="key" />
+            <el-option label="成交用户" value="deal" />
+            <el-option label="大项目进展" value="project" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="申报月份"><el-input v-model="exportForm.month" placeholder="如 2024-07，留空导出全部" /></el-form-item>
+        <el-form-item label="负责人"><el-input v-model="exportForm.owner" placeholder="留空导出全部" /></el-form-item>
+        <el-form-item label="关键词"><el-input v-model="exportForm.keyword" placeholder="客户 / 合作伙伴 / 项目名称" /></el-form-item>
+        <el-form-item label="销售类型">
+          <el-select v-model="exportForm.sales_type" clearable placeholder="全部" style="width:100%">
+            <el-option v-for="o in SALES_TYPE_OPTIONS" :key="o" :label="o" :value="o" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="收入类型">
+          <el-select v-model="exportForm.revenue_type" clearable placeholder="全部" style="width:100%">
+            <el-option v-for="o in REVENUE_TYPE_OPTIONS" :key="o" :label="o" :value="o" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="文件名"><el-input v-model="exportForm.filename" placeholder="可自定义，自动补 .xlsx" /></el-form-item>
+      </el-form>
+      <p style="margin:4px 0 0;color:#909399;font-size:12px;line-height:1.6">
+        点击「开始导出」后可自行选择保存位置与文件名（浏览器支持时）；不支持的浏览器直接下载。每次导出均记入操作日志。
+      </p>
+      <template #footer>
+        <el-button @click="exportVisible = false">取消</el-button>
+        <el-button type="primary" :loading="exporting" @click="doExport">开始导出</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -64,7 +98,8 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { QuestionFilled } from '@element-plus/icons-vue'
-import { salesFetchJSON } from '../components/sales/salesApi'
+import { salesFetchJSON, exportSalesExcel } from '../components/sales/salesApi'
+import { SALES_TYPE_OPTIONS, REVENUE_TYPE_OPTIONS } from '../components/sales/salesConstants'
 import PageHeaderBar from '../components/PageHeaderBar.vue'
 import StatsPanel from '../components/sales/StatsPanel.vue'
 import CrossReferenceDialog from '../components/sales/CrossReferenceDialog.vue'
@@ -86,6 +121,36 @@ const projectRef = ref<any>(null)
 const visitRecordsVisible = ref(false)
 const visitCustomer = ref('')
 const batchTransferVisible = ref(false)
+
+// 导出：可选表 / 筛选条件 / 文件名，并尽量让用户自己选保存位置
+const TYPE_LABELS: Record<string, string> = { intention: '意向漏斗', key: '重点漏斗', deal: '成交用户', project: '大项目进展' }
+const exportVisible = ref(false)
+const exporting = ref(false)
+const emptyExportForm = () => ({
+  type: activeTab.value, month: '', owner: '', keyword: '', sales_type: '', revenue_type: '', filename: ''
+})
+const exportForm = ref(emptyExportForm())
+function openExport() {
+  exportForm.value = {
+    ...emptyExportForm(),
+    filename: `${TYPE_LABELS[activeTab.value]}-${new Date().toISOString().slice(0, 10)}.xlsx`
+  }
+  exportVisible.value = true
+}
+async function doExport() {
+  exporting.value = true
+  try {
+    const f = exportForm.value
+    const name = f.filename || `${TYPE_LABELS[f.type] || f.type}-${new Date().toISOString().slice(0, 10)}.xlsx`
+    const r = await exportSalesExcel({
+      type: f.type,
+      filename: name,
+      filters: { month: f.month, owner: f.owner, keyword: f.keyword, sales_type: f.sales_type, revenue_type: f.revenue_type }
+    })
+    if (r.ok) { ElMessage.success('导出成功'); exportVisible.value = false }
+    else if (r.message !== '已取消') ElMessage.error(r.message || '导出失败')
+  } finally { exporting.value = false }
+}
 
 // 版本快照清理
 const cleanupVisible = ref(false)
@@ -194,33 +259,6 @@ function onCrossJump({ type, id }: { type: string, id: number }) {
   activeTab.value = type
   reloadActiveTab()
   // 子表格加载后通过事件或 provide 滚动到对应行较复杂，先切换标签页让用户定位
-}
-
-async function exportCurrent() {
-  const type = activeTab.value
-  const token = localStorage.getItem('token') || ''
-  try {
-    const res = await fetch(`/api/sales-four-tables/${type}/export`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store'
-    })
-    if (!res.ok) {
-      ElMessage.error('导出失败')
-      return
-    }
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${type}-export.xlsx`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    ElMessage.success('导出成功')
-  } catch (e: any) {
-    ElMessage.error('导出失败: ' + e.message)
-  }
 }
 
 onMounted(loadPerm)

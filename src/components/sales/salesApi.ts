@@ -33,3 +33,63 @@ export async function salesFetchJSON<T = any>(url: string, options?: RequestInit
     throw new Error(`解析响应失败: ${e.message}`)
   }
 }
+
+
+/**
+ * 销售四表 Excel 导出
+ * 浏览器支持 showSaveFilePicker 时先让用户选择保存位置/文件名，不支持则降级为默认下载。
+ * 文件选择器必须在用户手势上下文中同步发起，所以先选位置再发请求。
+ */
+export interface SalesExportOptions {
+  type: string
+  filename: string
+  filters?: Record<string, string>
+}
+export async function exportSalesExcel({ type, filename, filters = {} }: SalesExportOptions): Promise<{ ok: boolean; message?: string }> {
+  const finalName = filename.endsWith('.xlsx') ? filename : filename + '.xlsx'
+  const qs = new URLSearchParams()
+  Object.entries(filters).forEach(([k, v]) => { if (v) qs.set(k, v) })
+  const url = `/api/sales-four-tables/${type}/export${qs.toString() ? '?' + qs.toString() : ''}`
+  const token = localStorage.getItem('token') || ''
+
+  let writable: any = null
+  const picker = (window as any).showSaveFilePicker
+  if (typeof picker === 'function') {
+    try {
+      const handle = await picker({
+        suggestedName: finalName,
+        types: [{ description: 'Excel 文件', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }]
+      })
+      writable = await handle.createWritable()
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return { ok: false, message: '已取消' }
+      writable = null
+    }
+  }
+
+  try {
+    const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: 'no-store' })
+    if (!res.ok) {
+      if (writable) { try { await writable.abort() } catch {} }
+      return { ok: false, message: `导出失败（状态码 ${res.status}）` }
+    }
+    const blob = await res.blob()
+    if (writable) {
+      await writable.write(blob)
+      await writable.close()
+    } else {
+      const objUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objUrl
+      a.download = finalName
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(objUrl)
+    }
+    return { ok: true }
+  } catch (e: any) {
+    if (writable) { try { await writable.abort() } catch {} }
+    return { ok: false, message: e.message || '导出失败' }
+  }
+}

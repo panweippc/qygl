@@ -4,6 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { createHash } from 'crypto';
 import { createOperationLog, getOperator } from '../utils/audit.js';
 import { ensureCustomerColumns } from './customers.js';
 import { isBuiltinAdmin } from '../middleware/auth.js';
@@ -691,6 +692,49 @@ function parseNum(v) {
   return isNaN(n) ? 0 : n;
 }
 
+// ===== 导入去重 =====
+// 指纹列顺序必须与各分支 INSERT 的业务列顺序一致（不含末尾 created_by）
+const FP_FUNNEL_COLS = ['sales_type','revenue_type','report_date','product_type','partner_name','competitor','customer_name','contact','phone','site_count','monthly_repayment','monthly_confidence','estimated_total','progress_percent','sales_status','estimated_repay_month','opportunity_assessment','success_or_giveup','company_support','remark','report_month'];
+const FP_DEAL_COLS = ['sales_type','revenue_type','report_date','product_type','customer_name','contact','phone','site_count','contract_amount','actual_amount','received_amount','unreceived_amount','expected_payment_date','remark','report_month'];
+const FP_PROJECT_COLS = Object.keys(PROJECT_FIELD_LABELS).filter(c => !['id','created_at','updated_at','created_by'].includes(c));
+
+// 归一化：把 Excel 值与库里的 DECIMAL/Date 值收敛成同一文本，避免格式差异导致漏判
+function normFpVal(v) {
+  if (v === null || v === undefined) return '';
+  if (v instanceof Date) {
+    const y = v.getFullYear(), m = String(v.getMonth() + 1).padStart(2, '0'), d = String(v.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  if (typeof v === 'number') return String(v);
+  const str = String(v).trim();
+  if (/^-?[0-9]+([.][0-9]+)?$/.test(str) && !/^0[0-9]/.test(str)) return String(Number(str));
+  return str;
+}
+function makeImportFingerprint(table, values) {
+  return createHash('md5').update(table + '|~|' + values.map(normFpVal).join('|~|')).digest('hex');
+}
+function fingerprintColsFor(table) {
+  if (table === 'sales_deal_customers') return FP_DEAL_COLS;
+  if (table === 'sales_project_analysis') return FP_PROJECT_COLS;
+  return FP_FUNNEL_COLS;
+}
+// 一次性载入相关表已有记录的业务指纹，文件内重复行与历史重复行都会命中
+async function loadExistingFingerprints(pool, type) {
+  const groups = type === 'project'
+    ? [['sales_project_analysis', FP_PROJECT_COLS]]
+    : [['sales_intention_funnel', FP_FUNNEL_COLS], ['sales_key_funnel', FP_FUNNEL_COLS], ['sales_deal_customers', FP_DEAL_COLS]];
+  const set = new Set();
+  for (const [table, cols] of groups) {
+    try {
+      const [rows] = await pool.execute('SELECT ' + cols.map(c => '`' + c + '`').join(', ') + ' FROM ' + table + ' WHERE is_deleted = 0');
+      for (const r of rows) set.add(makeImportFingerprint(table, cols.map(c => r[c])));
+    } catch (e) {
+      console.error('加载导入去重指纹失败', table, e.message);
+    }
+  }
+  return set;
+}
+
 function getReportMonth(reportDate) {
   const d = parseDate(reportDate);
   if (!d) return '';
@@ -895,6 +939,12 @@ router.get('/sales-four-tables/:type/export', requireSalesView, async (req, res)
     const fname = encodeURIComponent((isProject ? '大项目进展' : meta.label) + '-' + new Date().toISOString().slice(0, 10) + '.xlsx')
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${fname}`)
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    await createOperationLog(pool, {
+      username: getOperator(req), action: 'export', module: 'sales-four-tables',
+      targetName: `${isProject ? '大项目进展' : meta.label} Excel导出`,
+      detail: `导出 ${rows.length} 条，筛选=${JSON.stringify({ month, owner, keyword, sales_type, revenue_type, sales_status, payment_status })}，文件=${decodeURIComponent(fname)}`,
+      ipAddress: req.ip
+    })
     return res.send(buf)
   } catch (e) {
     console.error('销售四表导出失败', e)
@@ -1816,12 +1866,15 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
   if (!req.file) return res.status(400).json({ success: false, message: '请上传 Excel 文件' });
   try {
     await ensureSchema(pool);
+    // 导入去重：一次性载入四表已有记录的业务指纹，避免重复文件/重复行再次入库
+    const existingFingerprints = await loadExistingFingerprints(pool, type);
     // 日期保留 Excel 序列号，由 parseDate 按 1900 日期系统还原，避免时区导致入库少一天
     const workbook = xlsx.readFile(req.file.path, { cellDates: false });
     const createdBy = cleanOwner(req.user?.username);
     const headersRef = type === 'project' ? PROJECT_IMPORT_HEADERS : meta.headers;
     let imported = 0;
     let skipped = 0;
+    let duplicated = 0;
     let projectCreated = 0;
     let projectSynced = 0;
     const errors = [];
@@ -1923,6 +1976,19 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
             // 记录实际归属，供响应回显
             if (destType !== type) destTypeNote.push({ customer: obj['客户名单'] || '', from: type, to: destType });
           }
+          // 去重：业务字段完全一致视为同一条数据，已入库则禁止重复上传
+          const fpCols = fingerprintColsFor(destTable);
+          // 漏斗/成交的 params 首位是 owner（会因导入账号不同而变化），判重时跳过，
+          // 保证换账号重复上传同一份数据仍能被拦住；大项目进展 params 首位就是业务字段
+          const fpOffset = destTable === 'sales_project_analysis' ? 0 : 1;
+          const fpValues = fpCols.map((_, i) => params[fpOffset + i]);
+          const fp = makeImportFingerprint(destTable, fpValues);
+          if (existingFingerprints.has(fp)) {
+            errors.push(`第${rowNo}行 该数据已上传，禁止重复上传`);
+            duplicated++;
+            continue;
+          }
+          existingFingerprints.add(fp);
           const [result] = await pool.execute(sql, params);
           // 漏斗导入可能按行归属落到与 url type 不同的表（如从 intention 导入却归到 key），
           // 版本快照的 table_type 必须与记录实际所在表一致，否则详情页按 :type 查不到该版本
@@ -1971,8 +2037,14 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
     fs.unlink(req.file.path, () => {});
     const isFunnel = type === 'intention' || type === 'key' || type === 'deal';
     const projTip = isFunnel ? `，带出大项目进展 ${projectCreated} 条（同步 ${projectSynced} 条）` : '';
-    createOperationLog(pool, { username: getOperator(req), action: 'import', module: 'sales-four-tables', targetName: `${type} Excel导入`, detail: `导入${type}，成功${imported}条，跳过${skipped}条${projTip}` });
-    res.json({ success: true, message: `导入完成：成功 ${imported} 条，跳过 ${skipped} 条${projTip}`, data: { imported, skipped, projectCreated, projectSynced, destTypeNote, errors: errors } });
+    const dupTip = duplicated ? `，重复 ${duplicated} 条（禁止重复上传）` : '';
+    await createOperationLog(pool, {
+      username: getOperator(req), action: 'import', module: 'sales-four-tables',
+      targetName: `${type} Excel导入`,
+      detail: `文件=${req.file.originalname || '-'}，成功${imported}条，跳过${skipped}条，重复${duplicated}条${projTip}`,
+      ipAddress: req.ip
+    });
+    res.json({ success: true, message: `导入完成：成功 ${imported} 条，跳过 ${skipped} 条${dupTip}${projTip}`, data: { imported, skipped, duplicated, projectCreated, projectSynced, destTypeNote, errors: errors } });
   } catch (error) {
     console.error('导入失败:', error);
     res.status(500).json({ success: false, message: '导入失败' });
