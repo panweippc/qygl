@@ -2,6 +2,18 @@ import express from 'express';
 import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
 const router = express.Router();
 
+// visit_records 中 VARCHAR(255) 字段的长度上限。超长会触发
+// ER_DATA_TOO_LONG 直接 500，前端只看到笼统的「添加拜访记录失败」，
+// 因此在写库前先给出可读提示（POST/PUT 共用）。
+const VARCHAR_FIELDS = { customerName: '客户名称', visitPerson: '拜访人', address: '地址' };
+function checkVisitLengths(body) {
+  for (const [key, label] of Object.entries(VARCHAR_FIELDS)) {
+    const len = String(body?.[key] ?? '').length;
+    if (len > 255) return `${label}不能超过 255 个字符（当前 ${len} 个）`;
+  }
+  return null;
+}
+
 // 按客户名获取拜访记录（销售漏斗联动）
 router.get('/visit-records/customer/:customerName', async (req, res) => {
   const { customerName } = req.params;
@@ -46,6 +58,8 @@ router.post('/visit-records', async (req, res) => {
     if (!customerName || !visitDate || !visitPerson || !visitContent) {
       return res.status(400).json({ success: false, message: '客户名称、拜访日期、拜访人、拜访内容为必填' });
     }
+    const lengthError = checkVisitLengths({ customerName, visitPerson, address });
+    if (lengthError) return res.status(400).json({ success: false, message: lengthError });
     // 解析客户主数据 id（customers 为空时写 NULL，为后续精确统计预留）
     let customerId = null;
     try {
@@ -84,7 +98,9 @@ router.post('/visit-records', async (req, res) => {
     });
     res.json({ success: true, message: '拜访记录添加成功' });
   } catch (error) {
-    res.status(500).json({ success: false, message: '添加拜访记录失败' });
+    console.error('添加拜访记录失败:', error);
+    const tip = error?.code === 'ER_DATA_TOO_LONG' ? '：字段内容超过数据库长度限制，请缩短地址或拜访人' : '';
+    res.status(500).json({ success: false, message: '添加拜访记录失败' + tip });
   }
 });
 
@@ -92,6 +108,8 @@ router.post('/visit-records', async (req, res) => {
 router.put('/visit-records/:id', async (req, res) => {
   const { id } = req.params;
   const { customerName, address, visitDate, visitPerson, visitContent, nextPlan } = req.body;
+  const lengthError = checkVisitLengths({ customerName, visitPerson, address });
+  if (lengthError) return res.status(400).json({ success: false, message: lengthError });
   try {
     const { pool } = req.app.locals;
     const [old] = await pool.execute('SELECT customerName FROM visit_records WHERE id = ?', [id]);
@@ -120,7 +138,9 @@ router.put('/visit-records/:id', async (req, res) => {
     });
     res.json({ success: true, message: '拜访记录更新成功' });
   } catch (error) {
-    res.status(500).json({ success: false, message: '更新拜访记录失败' });
+    console.error('更新拜访记录失败:', error);
+    const tip = error?.code === 'ER_DATA_TOO_LONG' ? '：字段内容超过数据库长度限制，请缩短地址或拜访人' : '';
+    res.status(500).json({ success: false, message: '更新拜访记录失败' + tip });
   }
 });
 

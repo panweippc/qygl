@@ -2,7 +2,7 @@
   <div class="ft-panel">
     <div class="ft-toolbar">
       <div class="ft-filters">
-        <el-input v-model="filter.keyword" placeholder="客户/合作伙伴/owner" clearable style="width:200px" @keyup.enter="load" />
+        <el-input v-model="filter.keyword" placeholder="客户/客户所属/合作伙伴/owner" clearable style="width:220px" @keyup.enter="load" />
         <el-input v-model="filter.month" placeholder="申报月份 如 2024-07" clearable style="width:160px" @keyup.enter="load" />
         <el-button type="primary" @click="load">查询</el-button>
       </div>
@@ -16,12 +16,13 @@
       <el-table :data="list" v-loading="loading" stripe style="width:100%" @row-click="(_, __, e) => (e && perm.canWrite) && openEdit(_)">
         <el-table-column type="index" label="序号" width="60" :index="indexMethod" align="center" />
         <el-table-column prop="owner" label="owner" width="100" />
-        <el-table-column prop="customer_name" label="客户名单" min-width="140" show-overflow-tooltip>
+        <el-table-column prop="customer_name" label="客户名单" min-width="260" :resizable="true" show-overflow-tooltip>
           <template #default="{ row }">
-            <el-button link size="small" @click.stop="emit('customer-click', row.customer_name)">{{ row.customer_name }}</el-button>
+            <el-button link size="small" class="customer-cell" @click.stop="emit('customer-click', row.customer_name)">{{ row.customer_name }}</el-button>
           </template>
         </el-table-column>
-        <el-table-column prop="partner_name" label="合作伙伴" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="partner_name" label="客户所属" min-width="140" :resizable="true" show-overflow-tooltip />
+        <el-table-column prop="partner" label="合作伙伴" min-width="140" :resizable="true" show-overflow-tooltip />
         <el-table-column prop="sales_type" label="销售类型" width="100" />
         <el-table-column prop="revenue_type" label="代理类型" width="100" />
         <el-table-column prop="report_date" label="申报日期" width="110" />
@@ -84,7 +85,8 @@
           </el-form-item>
           <el-form-item label="申报日期"><el-date-picker v-model="editForm.report_date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item>
           <el-form-item label="产品类型"><el-input v-model="editForm.product_type" /></el-form-item>
-          <el-form-item label="合作伙伴"><el-input v-model="editForm.partner_name" /></el-form-item>
+          <el-form-item label="客户所属"><el-input v-model="editForm.partner_name" /></el-form-item>
+          <el-form-item label="合作伙伴"><el-input v-model="editForm.partner" /></el-form-item>
           <el-form-item label="主要竞争对手"><el-input v-model="editForm.competitor" /></el-form-item>
           <el-form-item label="客户名单"><el-input v-model="editForm.customer_name" /></el-form-item>
           <el-form-item label="联系人"><el-input v-model="editForm.contact" /></el-form-item>
@@ -159,7 +161,7 @@ const transferVisible = ref(false)
 const transferRow = ref<any>(null)
 const saving = ref(false)
 const emptyForm = () => ({
-  owner: '', sales_type: '', revenue_type: '', report_date: '', product_type: '', partner_name: '', competitor: '',
+  owner: '', sales_type: '', revenue_type: '', report_date: '', product_type: '', partner_name: '', partner: '', competitor: '',
   customer_name: '', contact: '', phone: '', site_count: 0, monthly_repayment: 0, monthly_confidence: '',
   estimated_total: 0, progress_percent: 0, sales_status: '', estimated_repay_month: '', opportunity_assessment: '',
   success_or_giveup: '', company_support: '', remark: ''
@@ -277,6 +279,7 @@ defineExpose({ load })
 .dialog-footer { display: flex; justify-content: flex-end; gap: 0.5rem; }
 .ft-table-wrapper { width: 100%; overflow-x: auto; border: 1px solid #ebeef5; border-radius: 4px; }
 .ft-table-wrapper :deep(.el-table) { min-width: max-content; }
+.ft-table-wrapper :deep(.customer-cell) { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
 .op-cell { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; white-space: nowrap; }
 .op-cell :deep(.el-button) { padding: 0 4px; margin-left: 0 !important; margin-right: 0; }
 </style>

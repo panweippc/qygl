@@ -96,12 +96,12 @@ const TABLE_META = {
   intention: {
     table: 'sales_intention_funnel',
     label: '意向漏斗',
-    headers: ['owner', '销售类型', '收入类型', '申报日期', '产品类型', '合作伙伴名称', '主要竞争对手', '客户名单', '联系人', '电话', '站点数', '本月回款金额', '本月回款把握度', '预计总回款额', '进展状态百分比', '销售状态', '预计回款月份', '主观机会度判断', '成功/放弃', '公司级支持需求', '备注']
+    headers: ['owner', '销售类型', '收入类型', '申报日期', '产品类型', '客户所属', '主要竞争对手', '客户名单', '联系人', '电话', '站点数', '本月回款金额', '本月回款把握度', '预计总回款额', '进展状态百分比', '销售状态', '预计回款月份', '主观机会度判断', '成功/放弃', '公司级支持需求', '备注']
   },
   key: {
     table: 'sales_key_funnel',
     label: '重点漏斗',
-    headers: ['owner', '销售类型', '收入类型', '申报日期', '产品类型', '合作伙伴名称', '主要竞争对手', '客户名单', '联系人', '电话', '站点数', '本月回款金额', '本月回款把握度', '预计总回款额', '进展状态百分比', '销售状态', '预计回款月份', '主观机会度判断', '成功/放弃', '公司级支持需求', '备注']
+    headers: ['owner', '销售类型', '收入类型', '申报日期', '产品类型', '客户所属', '主要竞争对手', '客户名单', '联系人', '电话', '站点数', '本月回款金额', '本月回款把握度', '预计总回款额', '进展状态百分比', '销售状态', '预计回款月份', '主观机会度判断', '成功/放弃', '公司级支持需求', '备注']
   },
   deal: {
     table: 'sales_deal_customers',
@@ -111,11 +111,15 @@ const TABLE_META = {
 };
 
 // Excel 表头别名：历史模板列名（代理类型/合作伙伴/进展状态…）与现模板不一致，
-// 识别表头时统一归一化，避免整张表被静默跳过（成功 0 条、跳过 0 条）
+// 识别表头时统一归一化，避免整张表被静默跳过（成功 0 条、跳过 0 条）。
+// 原「合作伙伴」列已更名为「客户所属」（partner_name 保留原名存历史值），
+// 因此两种旧列名都归一化到「客户所属」；新模板另有一列「合作伙伴」对应新增 partner 字段，
+// 逐行取值时按表头是否含「客户所属/合作伙伴名称」区分新旧语义，见导入逻辑。
 const HEADER_ALIASES = {
   '代理类型': '收入类型',
   '收入类型(代理类型)': '收入类型',
-  '合作伙伴': '合作伙伴名称',
+  '合作伙伴': '客户所属',
+  '合作伙伴名称': '客户所属',
   '进展状态': '进展状态百分比',
   '主观机会度': '主观机会度判断',
   '公司级支持': '公司级支持需求'
@@ -142,7 +146,8 @@ const FUNNEL_FIELD_LABELS = {
   revenue_type: '收入类型',
   report_date: '申报日期',
   product_type: '产品类型',
-  partner_name: '合作伙伴名称',
+  partner_name: '客户所属',
+  partner: '合作伙伴',
   competitor: '主要竞争对手',
   customer_name: '客户名单',
   contact: '联系人',
@@ -275,6 +280,7 @@ const COMMON_COLS = [
   col('report_date', `DATE`),
   col('product_type', `VARCHAR(255)${CS} DEFAULT ''`),
   col('partner_name', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('partner', `VARCHAR(255)${CS} DEFAULT ''`),
   col('competitor', `VARCHAR(255)${CS} DEFAULT ''`),
   col('customer_name', `VARCHAR(255)${CS} DEFAULT ''`),
   col('contact', `VARCHAR(255)${CS} DEFAULT ''`),
@@ -304,6 +310,7 @@ const DEAL_COLS = [
   col('revenue_type', `VARCHAR(50)${CS} DEFAULT ''`),
   col('report_date', `DATE`),
   col('product_type', `VARCHAR(255)${CS} DEFAULT ''`),
+  col('partner', `VARCHAR(255)${CS} DEFAULT ''`),
   col('customer_name', `VARCHAR(255)${CS} DEFAULT ''`),
   col('contact', `VARCHAR(255)${CS} DEFAULT ''`),
   col('phone', `VARCHAR(255)${CS} DEFAULT ''`),
@@ -473,6 +480,7 @@ async function ensureSchema(pool) {
     report_date DATE,
     product_type VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
     partner_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+    partner VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
     competitor VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
     customer_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
     contact VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
@@ -506,6 +514,7 @@ async function ensureSchema(pool) {
       revenue_type VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
       report_date DATE,
       product_type VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+      partner VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
       customer_name VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
       contact VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
       phone VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
@@ -975,12 +984,14 @@ router.get('/sales-four-tables/:type/export', requireSalesView, async (req, res)
     if (sales_type) { where.push('sales_type = ?'); params.push(sales_type) }
     if (revenue_type) { where.push('revenue_type = ?'); params.push(revenue_type) }
     if (sales_status) { where.push('sales_status = ?'); params.push(sales_status) }
-    if (payment_status && !isProject) { where.push(`${PAYMENT_STATUS_CASE} = ?`); params.push(payment_status) }
+    // 回款状态表达式引用成交表专属金额列，只能用于 deal，意向/重点漏斗拼进去会直接 500
+    if (payment_status && type === 'deal') { where.push(`${PAYMENT_STATUS_CASE} = ?`); params.push(payment_status) }
     if (keyword) {
       if (isProject) { where.push('(customer_name LIKE ? OR project_owner LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
-      else { where.push('(customer_name LIKE ? OR owner LIKE ? OR partner_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`) }
+      else if (type === 'deal') { where.push('(customer_name LIKE ? OR owner LIKE ? OR partner LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`) }
+      else { where.push('(customer_name LIKE ? OR owner LIKE ? OR partner_name LIKE ? OR partner LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`) }
     }
-    const dealCols = !isProject ? `, ${PAYMENT_STATUS_CASE} AS payment_status, ${IS_OVERDUE_CASE} AS is_overdue` : ''
+    const dealCols = type === 'deal' ? `, ${PAYMENT_STATUS_CASE} AS payment_status, ${IS_OVERDUE_CASE} AS is_overdue` : ''
     const sql = `SELECT *${dealCols} FROM ${table}${where.length ? ' WHERE ' + where.join(' AND ') : ''} ORDER BY updated_at DESC`
     const [rows] = await pool.execute(sql, params)
     const cols = rows.length ? Object.keys(rows[0]) : Object.keys(labels)
@@ -1046,9 +1057,13 @@ router.get('/sales-four-tables/:type', requireSalesView, async (req, res) => {
       if (type === 'project') {
         conditions.push('(customer_name LIKE ? OR filler LIKE ?)');
         params.push(`%${keyword}%`, `%${keyword}%`);
-      } else {
-        conditions.push('(customer_name LIKE ? OR partner_name LIKE ? OR owner LIKE ?)');
+      } else if (type === 'deal') {
+        // 成交表没有 partner_name 列，条件里不能带它，否则关键词搜索直接 500
+        conditions.push('(customer_name LIKE ? OR partner LIKE ? OR owner LIKE ?)');
         params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+      } else {
+        conditions.push('(customer_name LIKE ? OR partner_name LIKE ? OR partner LIKE ? OR owner LIKE ?)');
+        params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
       }
     }
     // 非管理角色仅查看自己
@@ -1121,6 +1136,7 @@ function extractFunnelBody(req, type) {
     report_date: parseDate(b.report_date),
     product_type: b.product_type || '',
     partner_name: b.partner_name || '',
+    partner: b.partner || '',
     competitor: b.competitor || '',
     customer_name: b.customer_name || '',
     contact: b.contact || '',
@@ -1148,6 +1164,7 @@ function extractDealBody(req) {
     revenue_type: b.revenue_type || '',
     report_date: parseDate(b.report_date),
     product_type: b.product_type || '',
+    partner: b.partner || '',
     customer_name: b.customer_name || '',
     contact: b.contact || '',
     phone: b.phone || '',
@@ -1961,14 +1978,20 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
       }
       const headers = raw[headerIdx].map(c => String(c).trim());
       const dataRows = raw.slice(headerIdx + 1).filter(r => r.some(c => String(c).trim() !== ''));
+      // 新旧模板区分：新模板同时有「客户所属」(或旧的「合作伙伴名称」) 与新增的「合作伙伴」两列；
+      // 历史模板只有「合作伙伴」一列，其含义是客户所属（partner_name），不能写进新的 partner 字段。
+      const hasBelongHeader = headers.some(h => h === '客户所属' || h === '合作伙伴名称');
       for (const row of dataRows) {
         const obj = {};
-        // 同时保留原始表头与归一化表头，兼容 importDestType 等读取旧列名的逻辑
+        // 同时保留原始表头与归一化表头，兼容 importDestType 等读取旧列名的逻辑；
+        // 新模板下「合作伙伴」是独立字段，不能再归一化成「客户所属」，否则会覆盖客户所属的值。
         headers.forEach((h, i) => {
           obj[h] = row[i];
-          const nh = normalizeHeader(h);
+          const nh = (hasBelongHeader && h === '合作伙伴') ? h : normalizeHeader(h);
           if (nh !== h) obj[nh] = row[i];
         });
+        const belongVal = obj['客户所属'] || obj['合作伙伴名称'] || obj['合作伙伴'] || '';
+        const partnerVal = (hasBelongHeader || type === 'deal') ? (obj['合作伙伴'] || '') : '';
         const rowNo = headerIdx + 2 + dataRows.indexOf(row);
         // owner 列若被误填成序号（纯数字），回退为当前导入人，避免负责人变成 1/2/3
         const ownerRaw = String(obj['owner'] ?? '').trim();
@@ -1993,13 +2016,13 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
           let destTable = meta ? meta.table : 'sales_project_analysis';
           if (type === 'deal') {
             sql = `INSERT INTO ${meta.table}
-              (owner, sales_type, revenue_type, report_date, product_type, customer_name, contact, phone, site_count, contract_amount, actual_amount, received_amount, unreceived_amount, expected_payment_date, remark, report_month, created_by)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+              (owner, sales_type, revenue_type, report_date, product_type, customer_name, contact, phone, site_count, contract_amount, actual_amount, received_amount, unreceived_amount, expected_payment_date, remark, report_month, partner, created_by)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
             params = [
               ownerVal, obj['销售类型'] || '', obj['收入类型'] || '', reportDate, obj['产品类型'] || '',
               obj['客户名单'] || '', obj['联系人'] || '', obj['电话'] || '', parseNum(obj['站点数']),
               parseNum(obj['合同额']), parseNum(obj['实际金额']), parseNum(obj['回款金额']), parseNum(obj['未回款金额']),
-              parseDate(obj['约定回款日期']), obj['备注'] || '', reportMonth, createdBy
+              parseDate(obj['约定回款日期']), obj['备注'] || '', reportMonth, partnerVal, createdBy
             ];
           } else if (type === 'project') {
             // 大项目进展导入：仅主表字段（关键人物/竞争对手/拜访记录仍走手动录入）
@@ -2023,14 +2046,14 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
             destType = importDestType(obj, type);
             destTable = destType === 'deal' ? 'sales_deal_customers' : TABLE_META[destType].table;
             sql = `INSERT INTO ${destTable}
-              (owner, sales_type, revenue_type, report_date, product_type, partner_name, competitor, customer_name, contact, phone, site_count, monthly_repayment, monthly_confidence, estimated_total, progress_percent, sales_status, estimated_repay_month, opportunity_assessment, success_or_giveup, company_support, remark, report_month, created_by)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+              (owner, sales_type, revenue_type, report_date, product_type, partner_name, competitor, customer_name, contact, phone, site_count, monthly_repayment, monthly_confidence, estimated_total, progress_percent, sales_status, estimated_repay_month, opportunity_assessment, success_or_giveup, company_support, remark, report_month, partner, created_by)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
             params = [
               ownerVal, obj['销售类型'] || '', obj['收入类型'] || '', reportDate, obj['产品类型'] || '',
-              obj['合作伙伴名称'] || '', obj['主要竞争对手'] || '', obj['客户名单'] || '', obj['联系人'] || '', obj['电话'] || '',
+              belongVal, obj['主要竞争对手'] || '', obj['客户名单'] || '', obj['联系人'] || '', obj['电话'] || '',
               parseNum(obj['站点数']), parseNum(obj['本月回款金额']), obj['本月回款把握度'] || '', parseNum(obj['预计总回款额']),
               parseNum(obj['进展状态百分比']), obj['销售状态'] || '', obj['预计回款月份'] || '', obj['主观机会度判断'] || '',
-              obj['成功/放弃'] || '', obj['公司级支持需求'] || '', obj['备注'] || '', reportMonth, createdBy
+              obj['成功/放弃'] || '', obj['公司级支持需求'] || '', obj['备注'] || '', reportMonth, partnerVal, createdBy
             ];
             // 记录实际归属，供响应回显
             if (destType !== type) destTypeNote.push({ customer: obj['客户名单'] || '', from: type, to: destType });

@@ -30,11 +30,12 @@
       <el-table :data="list" v-loading="loading" stripe style="width:100%" :row-class-name="rowCls">
         <el-table-column type="index" label="序号" width="60" :index="indexMethod" align="center" />
         <el-table-column prop="owner" label="负责人" width="100" />
-        <el-table-column prop="customer_name" label="客户名单" min-width="160" show-overflow-tooltip>
+        <el-table-column prop="customer_name" label="客户名单" min-width="260" :resizable="true" show-overflow-tooltip>
           <template #default="{ row }">
             <el-button link size="small" @click.stop="emit('customer-click', row.customer_name)">{{ row.customer_name }}</el-button>
           </template>
         </el-table-column>
+        <el-table-column prop="partner" label="合作伙伴" min-width="140" :resizable="true" show-overflow-tooltip />
         <el-table-column prop="sales_type" label="销售类型" width="100" />
         <el-table-column prop="revenue_type" label="代理类型" width="100" />
         <el-table-column prop="sales_status" label="销售状态" width="100" />
@@ -118,6 +119,7 @@
           </el-form-item>
           <el-form-item label="申报日期"><el-date-picker v-model="editForm.report_date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item>
           <el-form-item label="产品类型"><el-input v-model="editForm.product_type" /></el-form-item>
+          <el-form-item label="合作伙伴"><el-input v-model="editForm.partner" /></el-form-item>
           <el-form-item label="客户名单"><el-input v-model="editForm.customer_name" /></el-form-item>
           <el-form-item label="联系人"><el-input v-model="editForm.contact" /></el-form-item>
           <el-form-item label="电话"><el-input v-model="editForm.phone" /></el-form-item>
@@ -185,7 +187,7 @@ const dealDetailVisible = ref(false)
 const dealDetailRow = ref<any>(null)
 const saving = ref(false)
 const emptyForm = () => ({
-  owner: '', sales_type: '', revenue_type: '', report_date: '', product_type: '',
+  owner: '', sales_type: '', revenue_type: '', report_date: '', product_type: '', partner: '',
   customer_name: '', contact: '', phone: '', site_count: 0, contract_amount: 0,
   actual_amount: 0, received_amount: 0, unreceived_amount: 0, expected_payment_date: '', sales_status: '', remark: ''
 })

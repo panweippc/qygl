@@ -78,7 +78,7 @@
         </el-form-item>
         <el-form-item label="申报月份"><el-input v-model="exportForm.month" placeholder="如 2024-07，留空导出全部" /></el-form-item>
         <el-form-item label="负责人"><el-input v-model="exportForm.owner" placeholder="留空导出全部" /></el-form-item>
-        <el-form-item label="关键词"><el-input v-model="exportForm.keyword" placeholder="客户 / 合作伙伴 / 项目名称" /></el-form-item>
+        <el-form-item label="关键词"><el-input v-model="exportForm.keyword" placeholder="客户 / 客户所属 / 合作伙伴 / 项目名称" /></el-form-item>
         <el-form-item label="销售类型">
           <el-select v-model="exportForm.sales_type" clearable placeholder="全部" style="width:100%">
             <el-option v-for="o in SALES_TYPE_OPTIONS" :key="o" :label="o" :value="o" />
