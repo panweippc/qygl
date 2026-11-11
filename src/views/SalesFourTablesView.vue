@@ -15,8 +15,15 @@
         </el-popover>
         <el-button size="small" type="primary" @click="openExport">导出 Excel</el-button>
         <el-button size="small" @click="openLogs()">导入/导出记录</el-button>
-        <el-button v-if="perm.canWrite" size="small" @click="openCleanup">清理版本快照</el-button>
-        <el-button v-if="perm.canWrite" size="small" type="warning" @click="batchTransferVisible = true">批量转交（离职交接）</el-button>
+        <el-popover v-if="perm.canWrite" v-model:visible="moreVisible" placement="bottom-end" :width="200" trigger="click">
+          <template #reference>
+            <el-button size="small">更多</el-button>
+          </template>
+          <div style="display:flex;flex-direction:column;align-items:stretch;gap:2px">
+            <el-button size="small" text @click="openMoreCleanup">清理版本快照</el-button>
+            <el-button size="small" text @click="openMoreTransfer">批量转交（离职交接）</el-button>
+          </div>
+        </el-popover>
         <el-tag v-if="perm.canWrite" type="success">可写入</el-tag>
         <el-tag v-else type="info">仅查看</el-tag>
       </template>
@@ -154,6 +161,9 @@ const projectRef = ref<any>(null)
 const visitRecordsVisible = ref(false)
 const visitCustomer = ref('')
 const batchTransferVisible = ref(false)
+const moreVisible = ref(false)
+function openMoreCleanup() { moreVisible.value = false; openCleanup() }
+function openMoreTransfer() { moreVisible.value = false; batchTransferVisible.value = true }
 
 // 导出：可选表 / 筛选条件 / 文件名，并尽量让用户自己选保存位置
 const TYPE_LABELS: Record<string, string> = { intention: '意向漏斗', key: '重点漏斗', deal: '成交用户', project: '大项目进展' }

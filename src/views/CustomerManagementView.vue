@@ -31,7 +31,7 @@
       </template>
     </el-alert>
 
-    <el-table :data="customers" v-loading="loading" stripe style="width:100%" @row-click="openDetail">
+    <el-table :data="customers" v-loading="loading" stripe class="customer-table" style="width:100%" @row-click="openDetail">
       <el-table-column prop="name" label="客户名称" min-width="160" />
       <el-table-column prop="contact" label="联系人" width="110" />
       <el-table-column prop="phone" label="联系电话" width="140" />
@@ -62,8 +62,9 @@
       <el-table-column prop="createdAt" label="创建时间" width="160">
         <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="250" fixed="right" class-name="op-col">
+      <el-table-column label="操作" width="300" fixed="right" class-name="op-col">
         <template #default="{ row }">
+          <el-button text size="small" type="primary" @click.stop="openDetail(row)">详情</el-button>
           <el-button text size="small" v-if="row.pool_status === 'public'" @click.stop="claim(row)">认领</el-button>
           <el-button text size="small" v-if="row.pool_status === 'private' && row.owner === currentUser" @click.stop="release(row)">释放</el-button>
           <el-button text size="small" v-if="isManager && row.pool_status === 'public'" @click.stop="assign(row)">分配</el-button>
@@ -535,6 +536,8 @@ onMounted(async () => {
 .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 /* 操作列按钮保持一行，不换行 */
 :deep(.op-col .cell) { white-space: nowrap; }
+/* 主列表整行可点开详情，给手型光标做提示；只作用于主表，避免详情弹窗内的联查表误显示可点 */
+:deep(.customer-table .el-table__row) { cursor: pointer; }
 .pagination-wrap { display: flex; justify-content: center; margin-top: 16px; }
 .activity-list { max-height: 300px; overflow-y: auto; }
 .activity-item { padding: 10px 12px; background: #f8f9fa; border-radius: 6px; margin-bottom: 8px; }

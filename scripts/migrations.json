@@ -29,5 +29,6 @@
   "migrations/leave-supplementary-v1.2.95.sql",
   "migrations/oa-supplementary-v1.2.96.sql",
   "migrations/project-visit-source-id-v1.2.99.sql",
-  "migrations/remove-legacy-sales-menus-v1.2.100.sql"
+  "migrations/remove-legacy-sales-menus-v1.2.100.sql",
+  "migrations/customer-public-pool-v1.2.101.sql"
 ]

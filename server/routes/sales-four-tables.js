@@ -1286,9 +1286,11 @@ async function syncCustomerFromFunnel(pool, { customerName, contact, phone, isDe
       }
       return { customerId: cid, skipped: false, status: isDeal ? '成交' : null, error: null };
     }
+    // 同步新建的客户一律进公海：若落私海且负责人为空，前端操作按钮的「公海或负责人=当前用户」
+    // 条件永远不成立，该客户会变成谁都认领不了、分配不了、编辑不了的孤儿记录。
     const [result] = await pool.execute(
-      'INSERT INTO customers (name, contact, phone, email, address, status, tags, source, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [name, contact || '', phone || '', '', '', isDeal ? '成交' : '意向', '来源:销售漏斗', '销售漏斗', now]
+      'INSERT INTO customers (name, contact, phone, email, address, status, tags, source, pool_status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, contact || '', phone || '', '', '', isDeal ? '成交' : '意向', '来源:销售漏斗', '销售漏斗', 'public', now]
     );
     if (isDeal) {
       await pool.execute(

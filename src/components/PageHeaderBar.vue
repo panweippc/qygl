@@ -58,7 +58,8 @@ const handleBack = () => {
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(30, 90, 168, 0.2);
   padding: 0 2rem;
-  height: 60px;
+  /* 不写死 height：操作按钮较多时导航区会换行，固定高度会让按钮溢出压到下方卡片 */
+  min-height: 60px;
   display: flex;
   align-items: center;
   justify-content: space-between;
