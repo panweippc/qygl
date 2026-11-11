@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { createHash } from 'crypto';
 import { createOperationLog, getOperator } from '../utils/audit.js';
-import { ensureCustomerColumns } from './customers.js';
+import { ensureCustomerColumns, archiveCustomerById, LIFECYCLE } from './customers.js';
 import { isBuiltinAdmin } from '../middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1275,7 +1275,7 @@ async function ensureProjectForFunnel(pool, funnelBody, createdBy) {
 
 // 销售漏斗 ↔ 客户管理 双向关联 + 成交联动
 // 返回 { customerId, skipped, status, error }。失败不再吞掉，error 回显给前端。
-async function syncCustomerFromFunnel(pool, { customerName, contact, phone, isDeal, operator }) {
+async function syncCustomerFromFunnel(pool, { customerName, contact, phone, isDeal, givenUp = false, operator }) {
   const name = String(customerName || '').trim();
   if (!name) return { customerId: null, skipped: true, status: null, error: null };
   try {
@@ -1288,8 +1288,8 @@ async function syncCustomerFromFunnel(pool, { customerName, contact, phone, isDe
       const vals = [];
       if (contact) { sets.push('contact = ?'); vals.push(contact); }
       if (phone) { sets.push('phone = ?'); vals.push(phone); }
-      // 成交联动：漏斗标记成交时置客户状态为「成交」（仅置位不回退，避免误改）
-      if (isDeal) { sets.push('status = ?'); vals.push('成交'); }
+      // 成交联动：漏斗标记成交时置客户状态为「已成交」（仅置位不回退，避免误改）
+      if (isDeal) { sets.push('status = ?'); vals.push(LIFECYCLE.DEAL); }
       const tags = exist[0].tags || '';
       if (!tags.includes('来源:销售漏斗')) { sets.push('tags = ?'); vals.push((tags ? tags + ',' : '') + '来源:销售漏斗'); }
       sets.push('source = ?'); vals.push('销售漏斗');
@@ -1301,21 +1301,27 @@ async function syncCustomerFromFunnel(pool, { customerName, contact, phone, isDe
           [cid, '销售漏斗标记成交', '成交', now, now]
         );
       }
-      return { customerId: cid, skipped: false, status: isDeal ? '成交' : null, error: null };
+      // 单向联动：四表「成功/放弃」标为放弃 → 客户归档；反过来不自动复活，必须显式点「重新跟进」
+      if (givenUp && !isDeal) {
+        await archiveCustomerById(pool, { id: cid, reason: '销售四表「成功/放弃」标记为放弃', operator, source: '销售四表' });
+      }
+      return { customerId: cid, skipped: false, status: isDeal ? LIFECYCLE.DEAL : (givenUp ? LIFECYCLE.ARCHIVED : null), error: null };
     }
     // 同步新建的客户一律进公海：若落私海且负责人为空，前端操作按钮的「公海或负责人=当前用户」
     // 条件永远不成立，该客户会变成谁都认领不了、分配不了、编辑不了的孤儿记录。
     const [result] = await pool.execute(
       'INSERT INTO customers (name, contact, phone, email, address, status, tags, source, pool_status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [name, contact || '', phone || '', '', '', isDeal ? '成交' : '意向', '来源:销售漏斗', '销售漏斗', 'public', now]
+      [name, contact || '', phone || '', '', '', isDeal ? LIFECYCLE.DEAL : LIFECYCLE.ACTIVE, '来源:销售漏斗', '销售漏斗', 'public', now]
     );
     if (isDeal) {
       await pool.execute(
         'INSERT INTO customer_activities (customerId, content, followUpMethod, followUpTime, createdAt) VALUES (?, ?, ?, ?, ?)',
         [result.insertId, '销售漏斗标记成交', '成交', now, now]
       );
+    } else if (givenUp) {
+      await archiveCustomerById(pool, { id: result.insertId, reason: '销售四表「成功/放弃」标记为放弃', operator, source: '销售四表' });
     }
-    return { customerId: result.insertId, skipped: false, status: isDeal ? '成交' : null, error: null };
+    return { customerId: result.insertId, skipped: false, status: isDeal ? LIFECYCLE.DEAL : (givenUp ? LIFECYCLE.ARCHIVED : LIFECYCLE.ACTIVE), error: null };
   } catch (e) {
     console.error('同步客户档案失败(不影响销售主流程):', e);
     return { customerId: null, skipped: false, status: null, error: e.message };
@@ -1435,6 +1441,7 @@ router.post('/sales-four-tables/:type', requireSalesWriter, async (req, res) => 
         contact: body.contact || '',
         phone: body.phone || '',
         isDeal: destType === 'deal',
+        givenUp: String(body.success_or_giveup || '').includes('放弃'),
         operator: createdBy
       });
     }
@@ -1516,6 +1523,7 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
         contact: body.contact || '',
         phone: body.phone || '',
         isDeal: destType === 'deal',
+        givenUp: String(body.success_or_giveup || '').includes('放弃'),
         operator: createdBy
       });
     }
@@ -2111,6 +2119,7 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
                 contact: String(obj['联系人'] || '').trim(),
                 phone: String(obj['电话'] || '').trim(),
                 isDeal: destType === 'deal',
+                givenUp: String(obj['成功/放弃'] || '').includes('放弃'),
                 operator: createdBy
               });
               await linkCustomerToDeal(pool, { table: destTable, recordId: result.insertId, customerId: sc?.customerId });

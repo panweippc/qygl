@@ -4,10 +4,19 @@
     <div class="customer-body">
     <div class="page-header">
       <div class="header-actions">
+        <el-button-group class="tab-group">
+          <el-button :type="activeTab === 'active' ? 'primary' : ''" @click="switchTab('active')">在跟进</el-button>
+          <el-button :type="activeTab === 'archived' ? 'primary' : ''" @click="switchTab('archived')">已放弃 / 归档</el-button>
+        </el-button-group>
         <el-input v-model="searchQuery" placeholder="搜索客户名称/联系人/电话" clearable style="width:240px" @clear="loadCustomers" @keyup.enter="loadCustomers" />
         <el-select v-model="tagFilter" placeholder="标签筛选" clearable style="width:140px" @change="loadCustomers">
           <el-option label="全部标签" value="" />
           <el-option v-for="t in tagOptions" :key="t" :label="t" :value="t" />
+        </el-select>
+        <el-select v-if="activeTab === 'active'" v-model="statusFilter" placeholder="状态筛选" clearable style="width:140px" @change="loadCustomers">
+          <el-option label="跟进中" value="跟进中" />
+          <el-option label="暂缓" value="暂缓" />
+          <el-option label="已成交" value="已成交" />
         </el-select>
         <el-select v-model="poolFilter" placeholder="公海/私海" style="width:140px" @change="loadCustomers">
           <el-option label="全部" value="" />
@@ -54,22 +63,39 @@
           <span v-else class="muted">—</span>
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="90">
+      <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }">
-          <el-tag :type="row.status === '活跃' ? 'success' : row.status === '意向' ? 'warning' : 'info'" size="small">{{ row.status }}</el-tag>
+          <el-tag :type="statusTagType(row.status)" size="small">{{ row.status || '—' }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column v-if="activeTab === 'archived'" label="放弃信息" min-width="220">
+        <template #default="{ row }">
+          <div class="archive-cell">
+            <span>{{ formatDate(row.archived_at) || '未记录时间' }}</span>
+            <span class="archive-reason" :title="row.archive_reason">{{ row.archive_reason || '未填写原因' }}</span>
+          </div>
         </template>
       </el-table-column>
       <el-table-column prop="createdAt" label="创建时间" width="160">
         <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="300" fixed="right" class-name="op-col">
+      <el-table-column label="操作" width="340" fixed="right" class-name="op-col">
         <template #default="{ row }">
           <el-button text size="small" type="primary" @click.stop="openDetail(row)">详情</el-button>
           <el-button text size="small" v-if="row.pool_status === 'public'" @click.stop="claim(row)">认领</el-button>
           <el-button text size="small" v-if="row.pool_status === 'private' && row.owner === currentUser" @click.stop="release(row)">释放</el-button>
-          <el-button text size="small" v-if="isManager && row.pool_status === 'public'" @click.stop="assign(row)">分配</el-button>
-          <el-button text size="small" v-if="hasPerm('btn_edit') && (row.pool_status === 'public' || row.owner === currentUser)" @click.stop="openEdit(row)">编辑</el-button>
-          <el-button text size="small" type="danger" v-if="hasPerm('btn_delete') && row.pool_status === 'private' && row.owner === currentUser" @click.stop="deleteCustomer(row.id)">删除</el-button>
+          <el-button text size="small" v-if="hasPerm('btn_edit') && canManage(row)" @click.stop="openEdit(row)">编辑</el-button>
+          <el-button text size="small" type="warning" v-if="activeTab === 'active' && canManage(row)" @click.stop="archiveCustomer(row)">放弃跟进</el-button>
+          <el-button text size="small" type="success" v-if="activeTab === 'archived' && canManage(row)" @click.stop="reactivateCustomer(row)">重新跟进</el-button>
+          <el-dropdown trigger="click" @command="cmd => onMore(cmd, row)">
+            <el-button text size="small" @click.stop>更多</el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item v-if="isManager && row.pool_status === 'public'" command="assign">分配</el-dropdown-item>
+                <el-dropdown-item v-if="hasPerm('btn_delete') && row.pool_status === 'private' && row.owner === currentUser" command="delete">删除</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </template>
       </el-table-column>
     </el-table>
@@ -87,13 +113,13 @@
         <el-form-item label="地址"><el-input v-model="form.address" /></el-form-item>
         <el-form-item label="标签"><el-input v-model="form.tags" placeholder="多个标签用逗号分隔" /></el-form-item>
         <el-form-item label="状态" prop="status">
-          <el-select v-model="form.status">
-            <el-option label="活跃" value="活跃" />
-            <el-option label="意向" value="意向" />
-            <el-option label="沉默" value="沉默" />
-            <el-option label="流失" value="流失" />
-            <el-option label="成交" value="成交" />
+          <el-select v-model="form.status" style="width:100%">
+            <el-option label="跟进中" value="跟进中" />
+            <el-option label="暂缓" value="暂缓" />
+            <el-option label="已成交" value="已成交" />
+            <el-option v-if="form.status && !newStatuses.includes(form.status)" :label="form.status + '（历史）'" :value="form.status" />
           </el-select>
+          <div class="form-hint">暂时不跟进请用列表的「放弃跟进」，可记录原因并随时「重新跟进」。</div>
         </el-form-item>
         <el-form-item label="公海/私海">
           <el-select v-model="form.pool_status">
@@ -126,7 +152,7 @@
             <el-tag v-for="t in (detail.tags || '').split(',').filter(Boolean)" :key="t" size="small" style="margin:1px">{{ t }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="状态">
-            <el-tag :type="detail.status === '活跃' || detail.status === '成交' ? 'success' : detail.status === '意向' ? 'warning' : 'info'" size="small">{{ detail.status }}</el-tag>
+            <el-tag :type="statusTagType(detail.status)" size="small">{{ detail.status }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="负责人">{{ detail.owner || '—' }}</el-descriptions-item>
           <el-descriptions-item label="公海/私海">
@@ -138,6 +164,8 @@
             <el-tag v-else type="info" size="small">手动录入</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ formatDate(detail.createdAt) }}</el-descriptions-item>
+          <el-descriptions-item v-if="detail.status === '已放弃'" label="放弃时间">{{ formatDate(detail.archived_at) || '—' }}</el-descriptions-item>
+          <el-descriptions-item v-if="detail.status === '已放弃'" label="放弃原因" span="2">{{ detail.archive_reason || '未填写' }}</el-descriptions-item>
         </el-descriptions>
 
         <div class="followup-box">
@@ -176,6 +204,17 @@
           <el-button type="primary" link style="margin-top:4px" @click="goFunnel">前往销售漏斗</el-button>
         </div>
 
+        <h3 style="margin:20px 0 12px">状态时间线</h3>
+        <div class="status-timeline" v-loading="statusLogsLoading">
+          <div v-if="statusLogs.length === 0" class="empty-activities">暂无状态变更记录</div>
+          <div v-for="log in statusLogs" :key="log.id" class="status-log-item">
+            <span class="sl-time">{{ formatDate(log.created_at) }}</span>
+            <el-tag size="small" :type="statusTagType(log.to_status)">{{ log.from_status || '新建' }} → {{ log.to_status }}</el-tag>
+            <span class="sl-reason">{{ log.reason || '' }}</span>
+            <span class="sl-operator">{{ log.operator || '' }}</span>
+          </div>
+        </div>
+
         <h3 style="margin:20px 0 12px">跟进记录</h3>
         <div class="activity-list" v-loading="activitiesLoading">
           <div v-if="activities.length === 0" class="empty-activities">暂无跟进记录</div>
@@ -211,6 +250,8 @@
       </template>
       <template #footer>
         <el-button @click="showDetail = false">关闭</el-button>
+        <el-button v-if="detail && detail.status !== '已放弃' && canManage(detail)" type="warning" @click="archiveCustomer(detail)">放弃跟进</el-button>
+        <el-button v-if="detail && detail.status === '已放弃' && canManage(detail)" type="success" @click="reactivateCustomer(detail)">重新跟进</el-button>
         <el-button type="primary" :loading="creatingProject" @click="createProject">创建大项目进展</el-button>
       </template>
     </el-dialog>
@@ -248,11 +289,37 @@ const linkedFunnel = ref<any[]>([])
 const followupInput = ref('')
 const reminders = ref<any[]>([])
 const fileInput = ref<HTMLInputElement | null>(null)
+const activeTab = ref<'active' | 'archived'>('active')
+const statusFilter = ref('')
+const statusLogs = ref<any[]>([])
+const statusLogsLoading = ref(false)
+const newStatuses = ['跟进中', '暂缓', '已成交', '已放弃']
 
 const currentUser = (localStorage.getItem('username') || '') as string
 const isManager = /经理|管理员|GM|admin/i.test(localStorage.getItem('role') || '')
 
-const form = ref({ name: '', contact: '', phone: '', email: '', address: '', tags: '', status: '活跃', pool_status: 'private', owner: '', next_followup_at: '' })
+const form = ref({ name: '', contact: '', phone: '', email: '', address: '', tags: '', status: '跟进中', pool_status: 'private', owner: '', next_followup_at: '' })
+
+// 与后端 canManageCustomer 保持一致：经理/管理员 或 公海 或 本人私海
+const canManage = (row: any) => !!row && (isManager || row.pool_status === 'public' || row.owner === currentUser)
+const statusTagType = (s: string) => {
+  if (!s) return 'info'
+  if (s === '已放弃' || s === '流失') return 'danger'
+  if (s === '已成交' || s === '成交' || s === '活跃') return 'success'
+  if (s === '跟进中' || s === '意向') return 'primary'
+  if (s === '暂缓' || s === '沉默') return 'warning'
+  return 'info'
+}
+const switchTab = (tab: 'active' | 'archived') => {
+  activeTab.value = tab
+  statusFilter.value = ''
+  currentPage.value = 1
+  loadCustomers()
+}
+const onMore = (cmd: string, row: any) => {
+  if (cmd === 'assign') assign(row)
+  else if (cmd === 'delete') deleteCustomer(row.id)
+}
 
 const rules = {
   name: [{ required: true, message: '请输入客户名称' }],
@@ -280,6 +347,8 @@ const buildParams = () => {
   if (tagFilter.value) params.set('tag', tagFilter.value)
   if (poolFilter.value === 'mine') { params.set('pool', 'private'); params.set('owner', currentUser) }
   else if (poolFilter.value) params.set('pool', poolFilter.value)
+  params.set('archived', activeTab.value === 'archived' ? '1' : '0')
+  if (statusFilter.value && activeTab.value === 'active') params.set('status', statusFilter.value)
   return params.toString()
 }
 
@@ -316,7 +385,7 @@ const loadReminders = async () => {
 
 const openAddDialog = () => {
   editingId.value = null
-  form.value = { name: '', contact: '', phone: '', email: '', address: '', tags: '', status: '活跃', pool_status: 'private', owner: '', next_followup_at: '' }
+  form.value = { name: '', contact: '', phone: '', email: '', address: '', tags: '', status: '跟进中', pool_status: 'private', owner: '', next_followup_at: '' }
   showForm.value = true
 }
 
@@ -348,9 +417,61 @@ const saveCustomer = async () => {
   saving.value = false
 }
 
+// 放弃跟进：弹窗收集原因；后端负责置状态、释放公海、清空跟进时间并写流水
+const archiveCustomer = async (row: any) => {
+  if (!row) return
+  let reason = ''
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '放弃后状态变为「已放弃」，自动释放到公海并清空下次跟进时间；以后随时可点「重新跟进」恢复。请填写放弃原因（可留空）：',
+      '放弃跟进 · ' + row.name,
+      { type: 'warning', inputPlaceholder: '如：预算冻结 / 暂不考虑 / 转竞品', confirmButtonText: '确认放弃', cancelButtonText: '取消' }
+    )
+    reason = value || ''
+  } catch { return }
+  try {
+    const res = await fetch('/api/customers/' + row.id + '/archive', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason })
+    }).then(r => r.json())
+    if (res.success) {
+      ElMessage.success(res.message)
+      showDetail.value = false
+      await Promise.all([loadCustomers(), loadReminders()])
+    } else ElMessage.error(res.message || '放弃跟进失败')
+  } catch { ElMessage.error('放弃跟进失败') }
+}
+
+// 重新跟进：一键复活，状态回到「跟进中」，归档标记清空，历史流水保留
+const reactivateCustomer = async (row: any) => {
+  if (!row) return
+  try {
+    const res = await fetch('/api/customers/' + row.id + '/reactivate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: '手动重新跟进' })
+    }).then(r => r.json())
+    if (res.success) {
+      ElMessage.success(res.message)
+      showDetail.value = false
+      await loadCustomers()
+    } else ElMessage.error(res.message || '重新跟进失败')
+  } catch { ElMessage.error('重新跟进失败') }
+}
+
+const loadStatusLogs = async (customerId: number) => {
+  statusLogsLoading.value = true
+  try {
+    const res = await fetch('/api/customers/' + customerId + '/status-logs').then(r => r.json())
+    if (res.success) statusLogs.value = res.data || []
+  } catch { /* ignore */ }
+  statusLogsLoading.value = false
+}
+
 const deleteCustomer = async (id: number) => {
   try {
-    await ElMessageBox.confirm('确定删除该客户吗？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      '删除后客户将从所有列表消失，当前无法自行恢复。若只是暂时不跟进，请改用「放弃跟进」，可记录原因并随时重新跟进。确定仍要删除吗？',
+      '删除客户（不可自行恢复）',
+      { type: 'warning', confirmButtonText: '仍要删除', cancelButtonText: '取消' }
+    )
     const res = await fetch('/api/customers/' + id, { method: 'DELETE' }).then(r => r.json())
     if (res.success) {
       ElMessage.success('客户已删除')
@@ -391,7 +512,7 @@ const openDetail = async (row: any) => {
   linkedFunnel.value = []
   followupInput.value = row.next_followup_at || ''
   activityForm.value.customerId = row.id
-  await loadActivities(row.id)
+  await Promise.all([loadActivities(row.id), loadStatusLogs(row.id)])
   if (row.name) {
     try {
       const res = await fetch('/api/customers/funnel-link?name=' + encodeURIComponent(row.name)).then(r => r.json())
@@ -552,4 +673,13 @@ onMounted(async () => {
 .overdue-text { color: #c62828; font-weight: 600; }
 .followup-box { margin: 14px 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .followup-label { font-size: 13px; color: #666; }
+.tab-group { margin-right: 4px; }
+.form-hint { font-size: 12px; color: #909399; line-height: 1.4; margin-top: 4px; }
+.archive-cell { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.archive-reason { color: #909399; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-timeline { max-height: 220px; overflow-y: auto; }
+.status-log-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: #f8f9fa; border-radius: 6px; margin-bottom: 6px; font-size: 12px; }
+.sl-time { color: #909399; min-width: 132px; }
+.sl-reason { color: #606266; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sl-operator { color: #909399; }
 </style>

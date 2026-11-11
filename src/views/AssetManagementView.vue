@@ -302,18 +302,20 @@
         <el-alert v-if="!form.id" type="info" :closable="false" show-icon
           title="新增资产默认状态为「闲置（在库）」，领用 / 报废等操作请在资产详情中执行" style="margin-bottom:14px" />
         <el-form-item label="资产名称"><el-input v-model="form.name" placeholder="请输入资产名称" /></el-form-item>
-        <el-form-item label="资产类型">
-          <el-select v-model="form.assetType" placeholder="请选择资产类型" @change="onTypeChange">
-            <el-option label="固定资产" value="fixed" />
-            <el-option label="无形资产" value="intangible" />
-            <el-option label="耗材库存" value="consumable" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="分类">
-          <el-select v-model="form.categoryId" placeholder="请选择分类" filterable allow-create default-first-option>
-            <el-option v-for="c in filteredCategories" :key="c.id" :label="c.name" :value="c.id" />
-          </el-select>
-        </el-form-item>
+        <div style="display:flex;gap:12px">
+          <el-form-item label="资产类型" style="flex:1">
+            <el-select v-model="form.assetType" placeholder="请选择资产类型" @change="onTypeChange" style="width:100%">
+              <el-option label="固定资产" value="fixed" />
+              <el-option label="无形资产" value="intangible" />
+              <el-option label="耗材库存" value="consumable" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="分类" style="flex:1">
+            <el-select v-model="form.categoryId" placeholder="请选择分类" filterable allow-create default-first-option style="width:100%">
+              <el-option v-for="c in filteredCategories" :key="c.id" :label="c.name" :value="c.id" />
+            </el-select>
+          </el-form-item>
+        </div>
         <el-form-item label="规格型号"><el-input v-model="form.spec" placeholder="型号 / 规格" /></el-form-item>
 
         <!-- 固定资产 -->

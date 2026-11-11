@@ -24,7 +24,10 @@ async function ensureCustomerColumns(pool) {
       pool_status: "ALTER TABLE customers ADD COLUMN `pool_status` VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'private' COMMENT '公海/私海：public/private'",
       next_followup_at: "ALTER TABLE customers ADD COLUMN `next_followup_at` DATETIME DEFAULT NULL COMMENT '下次跟进时间'",
       followup_reminded: "ALTER TABLE customers ADD COLUMN `followup_reminded` TINYINT(1) DEFAULT 0 COMMENT '是否已生成跟进提醒，避免重复提醒'",
-      is_deleted: "ALTER TABLE customers ADD COLUMN `is_deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除标记（0=未删，1=已删）'"
+      is_deleted: "ALTER TABLE customers ADD COLUMN `is_deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '软删除标记（0=未删，1=已删）'",
+      archived_at: "ALTER TABLE customers ADD COLUMN `archived_at` DATETIME DEFAULT NULL COMMENT '放弃跟进时间'",
+      archive_reason: "ALTER TABLE customers ADD COLUMN `archive_reason` VARCHAR(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '' COMMENT '放弃跟进原因'",
+      status_changed_at: "ALTER TABLE customers ADD COLUMN `status_changed_at` DATETIME DEFAULT NULL COMMENT '最近一次状态变更时间'"
     };
     for (const [col, ddl] of Object.entries(need)) {
       if (!existing.has(col)) {
@@ -32,6 +35,18 @@ async function ensureCustomerColumns(pool) {
         console.log('[ensureCustomerColumns] customers 补列', col);
       }
     }
+    // 状态流水表自愈：迁移未执行时也能保证归档/复活不报错
+    await pool.execute(`CREATE TABLE IF NOT EXISTS customer_status_logs (
+      id INT NOT NULL AUTO_INCREMENT,
+      customer_id INT NOT NULL,
+      from_status VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+      to_status VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+      action VARCHAR(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+      reason VARCHAR(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+      operator VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '',
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id), KEY idx_csl_customer_id (customer_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='客户状态变更流水'`);
     customerColsEnsured = true;
   } catch (e) {
     console.error('[ensureCustomerColumns] 失败(不影响主流程):', e.message);
@@ -48,7 +63,64 @@ function isManager(req) {
 
 const CUSTOMER_FIELDS = ['name', 'contact', 'phone', 'email', 'address', 'tags', 'status', 'owner', 'pool_status', 'source', 'next_followup_at'];
 
-// 列表（支持 关键词/标签/公海私海/负责人 筛选）
+// 客户生命周期状态（新枚举）。历史值 活跃/意向/沉默/流失/成交 保留兼容、不批量改写。
+const LIFECYCLE = { ACTIVE: '跟进中', PAUSED: '暂缓', ARCHIVED: '已放弃', DEAL: '已成交' };
+// 「已成交」筛选同时命中历史「成交」，避免老客户被漏掉
+function statusCondition(status, params) {
+  if (status === LIFECYCLE.DEAL) { params.push(LIFECYCLE.DEAL, '成交'); return 'status IN (?, ?)'; }
+  params.push(status);
+  return 'status = ?';
+}
+function nowStr() { return new Date().toISOString().replace('T', ' ').replace('Z', ''); }
+
+async function writeStatusLog(pool, { customerId, fromStatus, toStatus, action, reason, operator }) {
+  try {
+    await pool.execute(
+      'INSERT INTO customer_status_logs (customer_id, from_status, to_status, action, reason, operator, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [customerId, fromStatus || '', toStatus || '', action, String(reason || '').slice(0, 500), operator || '', nowStr()]
+    );
+  } catch (e) { console.error('[customer-status] 写状态流水失败:', e.message); }
+}
+
+// 状态流转统一处理：归档补齐字段并释放公海；复活清空归档标记；普通流转只记时间。
+// 调用方负责先更新 status，本函数只维护附加字段与流水，避免覆盖状态值。
+async function applyLifecycleTransition(pool, { id, fromStatus, toStatus, reason = '', operator = '', source = '手动' }) {
+  const at = nowStr();
+  const note = String(reason || '').trim();
+  const fullReason = `${source}${note ? '：' + note : ''}`.slice(0, 500);
+  if (toStatus === LIFECYCLE.ARCHIVED && fromStatus !== LIFECYCLE.ARCHIVED) {
+    await pool.execute(
+      "UPDATE customers SET pool_status = 'public', owner = '', archived_at = ?, archive_reason = ?, status_changed_at = ?, next_followup_at = NULL, followup_reminded = 0 WHERE id = ?",
+      [at, String(reason || '').slice(0, 500), at, id]
+    );
+    await writeStatusLog(pool, { customerId: id, fromStatus, toStatus, action: 'archive', reason: fullReason, operator });
+    return 'archive';
+  }
+  if (fromStatus === LIFECYCLE.ARCHIVED && toStatus !== LIFECYCLE.ARCHIVED) {
+    await pool.execute("UPDATE customers SET archived_at = NULL, archive_reason = '', status_changed_at = ? WHERE id = ?", [at, id]);
+    await writeStatusLog(pool, { customerId: id, fromStatus, toStatus, action: 'reactivate', reason: fullReason, operator });
+    return 'reactivate';
+  }
+  if (fromStatus !== toStatus) {
+    await pool.execute('UPDATE customers SET status_changed_at = ? WHERE id = ?', [at, id]);
+    await writeStatusLog(pool, { customerId: id, fromStatus, toStatus, action: 'status_change', reason: fullReason, operator });
+    return 'status_change';
+  }
+  return 'none';
+}
+
+// 供销售四表「成功/放弃 = 放弃」单向联动复用；按客户 ID 归档，重复调用幂等
+async function archiveCustomerById(pool, { id, reason = '', operator = '', source = '销售四表' }) {
+  const [rows] = await pool.execute('SELECT id, status FROM customers WHERE id = ? AND is_deleted = 0', [id]);
+  if (!rows.length) return { changed: false, message: '客户不存在' };
+  const fromStatus = rows[0].status || '';
+  if (fromStatus === LIFECYCLE.ARCHIVED) return { changed: false, message: '该客户已放弃跟进', customerId: id };
+  await pool.execute('UPDATE customers SET status = ? WHERE id = ?', [LIFECYCLE.ARCHIVED, id]);
+  await applyLifecycleTransition(pool, { id, fromStatus, toStatus: LIFECYCLE.ARCHIVED, reason, operator, source });
+  return { changed: true, customerId: id, fromStatus, message: '已放弃跟进' };
+}
+
+// 列表（支持 关键词/标签/公海私海/负责人/状态/归档 筛选）
 router.get('/customers', async (req, res) => {
   const { pool } = req.app.locals;
   try {
@@ -57,12 +129,16 @@ router.get('/customers', async (req, res) => {
     const tag = req.query.tag || '';
     const poolFilter = req.query.pool || ''; // ''=全部, public=公海, private=私海
     const owner = req.query.owner || '';
+    const status = req.query.status || '';
+    const archived = req.query.archived === '1'; // 归档页签：只看已放弃客户
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = Math.min(200, Math.max(1, Number(req.query.pageSize) || 20));
 
     const where = [];
     const params = [];
     where.push('is_deleted = 0'); // 软删除过滤：已删客户不出现在列表
+    // 默认隐藏已放弃客户，避免列表被历史放弃客户淹没；归档页签单独查看
+    where.push(archived ? "status = '已放弃'" : "(status IS NULL OR status <> '已放弃')");
     if (keyword) {
       where.push('(name LIKE ? OR contact LIKE ? OR phone LIKE ?)');
       params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
@@ -71,6 +147,7 @@ router.get('/customers', async (req, res) => {
     if (poolFilter === 'public') where.push("pool_status = 'public'");
     else if (poolFilter === 'private') where.push("pool_status = 'private'");
     if (owner) { where.push('owner = ?'); params.push(owner); }
+    if (status) where.push(statusCondition(status, params));
 
     const whereStr = where.length ? ' WHERE ' + where.join(' AND ') : '';
     const [countResult] = await pool.execute('SELECT COUNT(*) AS total FROM customers' + whereStr, params);
@@ -107,6 +184,8 @@ router.post('/customers', async (req, res) => {
       'INSERT INTO customers (name, contact, phone, email, address, tags, status, owner, pool_status, source, next_followup_at, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [name, contact, phone, email, address, tags, status, own, ps, source ?? null, next_followup_at || null, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
+    await pool.execute('UPDATE customers SET status_changed_at = ? WHERE id = ?', [nowStr(), result.insertId]);
+    await writeStatusLog(pool, { customerId: result.insertId, fromStatus: '', toStatus: status || '', action: 'status_change', reason: '新建客户', operator: getOperator(req) });
     await createOperationLog(pool, {
       username: getOperator(req),
       action: 'create',
@@ -154,6 +233,10 @@ router.put('/customers/:id', async (req, res) => {
     if (next_followup_at !== undefined) { sets.push('next_followup_at = ?'); values.push(next_followup_at || null); sets.push('followup_reminded = 0'); }
     values.push(id);
     await pool.execute(`UPDATE customers SET ${sets.join(', ')} WHERE id = ?`, values);
+    // 客户生命周期：编辑状态同样走统一流转，保证归档字段与流水不缺
+    if (beforeValue && status !== undefined && status !== beforeValue.status) {
+      await applyLifecycleTransition(pool, { id, fromStatus: beforeValue.status || '', toStatus: status, operator: getOperator(req), source: '状态编辑' });
+    }
     // 方案B：客户改名时同步成交用户表的客户名单（保持双向绑定一致）
     if (name && beforeValue && beforeValue.name && name !== beforeValue.name) {
       try {
@@ -205,6 +288,79 @@ router.delete('/customers/:id', async (req, res) => {
     res.json({ success: true, message: '客户删除成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '删除客户失败' });
+  }
+});
+
+// 生命周期操作权限：与列表「编辑」按钮一致（经理/管理员 或 公海 或 本人私海）
+function canManageCustomer(req, row) {
+  const user = currentUser(req);
+  return isManager(req) || row.pool_status === 'public' || (row.owner && row.owner === user);
+}
+
+// 放弃跟进：状态→已放弃，释放公海、清空负责人与下次跟进时间，并写状态流水
+router.post('/customers/:id/archive', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id } = req.params;
+  const { reason = '' } = req.body || {};
+  try {
+    await ensureCustomerColumns(pool);
+    const [rows] = await pool.execute('SELECT id, name, status, pool_status, owner FROM customers WHERE id = ? AND is_deleted = 0', [id]);
+    if (!rows.length) return res.status(404).json({ success: false, message: '客户不存在' });
+    if (!canManageCustomer(req, rows[0])) return res.status(403).json({ success: false, message: '你没有该权限' });
+    if (rows[0].status === LIFECYCLE.ARCHIVED) return res.status(400).json({ success: false, message: '该客户已放弃跟进' });
+    await pool.execute('UPDATE customers SET status = ? WHERE id = ?', [LIFECYCLE.ARCHIVED, id]);
+    await applyLifecycleTransition(pool, { id, fromStatus: rows[0].status || '', toStatus: LIFECYCLE.ARCHIVED, reason, operator: getOperator(req), source: '手动放弃' });
+    await createOperationLog(pool, {
+      username: getOperator(req), action: 'archive', module: 'customer',
+      targetName: `客户: ${rows[0].name}`, detail: `放弃跟进客户 ${rows[0].name}，原因：${String(reason || '未填写').slice(0, 200)}`
+    });
+    res.json({ success: true, message: '已放弃跟进，客户已释放到公海' });
+  } catch (error) {
+    console.error('放弃跟进失败:', error);
+    res.status(500).json({ success: false, message: '放弃跟进失败' });
+  }
+});
+
+// 重新跟进：状态→跟进中，清空归档标记并写状态流水；可同时设置下次跟进时间
+router.post('/customers/:id/reactivate', async (req, res) => {
+  const { pool } = req.app.locals;
+  const { id } = req.params;
+  const { next_followup_at = null, reason = '' } = req.body || {};
+  try {
+    await ensureCustomerColumns(pool);
+    const [rows] = await pool.execute('SELECT id, name, status, pool_status, owner FROM customers WHERE id = ? AND is_deleted = 0', [id]);
+    if (!rows.length) return res.status(404).json({ success: false, message: '客户不存在' });
+    if (!canManageCustomer(req, rows[0])) return res.status(403).json({ success: false, message: '你没有该权限' });
+    if (rows[0].status !== LIFECYCLE.ARCHIVED) return res.status(400).json({ success: false, message: '该客户未处于已放弃状态' });
+    await pool.execute('UPDATE customers SET status = ? WHERE id = ?', [LIFECYCLE.ACTIVE, id]);
+    await applyLifecycleTransition(pool, { id, fromStatus: rows[0].status, toStatus: LIFECYCLE.ACTIVE, reason, operator: getOperator(req), source: '重新跟进' });
+    if (next_followup_at) {
+      await pool.execute('UPDATE customers SET next_followup_at = ?, followup_reminded = 0 WHERE id = ?', [next_followup_at, id]);
+    }
+    await createOperationLog(pool, {
+      username: getOperator(req), action: 'reactivate', module: 'customer',
+      targetName: `客户: ${rows[0].name}`, detail: `重新跟进客户 ${rows[0].name}，状态恢复为跟进中`
+    });
+    res.json({ success: true, message: '已重新跟进，状态恢复为跟进中' });
+  } catch (error) {
+    console.error('重新跟进失败:', error);
+    res.status(500).json({ success: false, message: '重新跟进失败' });
+  }
+});
+
+// 状态时间线（放弃/复活/状态流转全留痕）
+router.get('/customers/:id/status-logs', async (req, res) => {
+  const { pool } = req.app.locals;
+  try {
+    await ensureCustomerColumns(pool);
+    const [rows] = await pool.execute(
+      'SELECT id, from_status, to_status, action, reason, operator, created_at FROM customer_status_logs WHERE customer_id = ? ORDER BY id DESC LIMIT 100',
+      [req.params.id]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('获取客户状态流水失败:', error);
+    res.status(500).json({ success: false, message: '获取状态流水失败' });
   }
 });
 
@@ -286,7 +442,7 @@ router.get('/customers/followup-reminders', async (req, res) => {
   try {
     await ensureCustomerColumns(pool);
     const [rows] = await pool.execute(
-      "SELECT * FROM customers WHERE is_deleted = 0 AND next_followup_at IS NOT NULL AND pool_status = 'private' AND next_followup_at <= DATE_ADD(NOW(), INTERVAL 3 DAY) ORDER BY next_followup_at ASC"
+      "SELECT * FROM customers WHERE is_deleted = 0 AND next_followup_at IS NOT NULL AND pool_status = 'private' AND (status IS NULL OR status <> '已放弃') AND next_followup_at <= DATE_ADD(NOW(), INTERVAL 3 DAY) ORDER BY next_followup_at ASC"
     );
     const now = new Date();
     const list = rows.map(r => ({
@@ -334,14 +490,18 @@ router.get('/customers/export', async (req, res) => {
     const tag = req.query.tag || '';
     const poolFilter = req.query.pool || '';
     const owner = req.query.owner || '';
+    const status = req.query.status || '';
+    const archived = req.query.archived === '1';
     const where = [];
     const params = [];
     where.push('is_deleted = 0'); // 软删除过滤：导出不含已删客户
+    where.push(archived ? "status = '已放弃'" : "(status IS NULL OR status <> '已放弃')");
     if (keyword) { where.push('(name LIKE ? OR contact LIKE ? OR phone LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`); }
     if (tag) { where.push('(tags LIKE ?)'); params.push(`%${tag}%`); }
     if (poolFilter === 'public') where.push("pool_status = 'public'");
     else if (poolFilter === 'private') where.push("pool_status = 'private'");
     if (owner) { where.push('owner = ?'); params.push(owner); }
+    if (status) where.push(statusCondition(status, params));
     const whereStr = where.length ? ' WHERE ' + where.join(' AND ') : '';
     const [rows] = await pool.execute('SELECT * FROM customers' + whereStr + ' ORDER BY createdAt DESC', params);
     const data = rows.map(r => ({
@@ -356,9 +516,11 @@ router.get('/customers/export', async (req, res) => {
       '公海/私海': (r.pool_status === 'public' ? '公海' : '私海'),
       '下次跟进时间': r.next_followup_at || '',
       '来源': r.source || '',
+      '放弃时间': r.archived_at || '',
+      '放弃原因': r.archive_reason || '',
       '创建时间': r.createdAt
     }));
-    const ws = xlsx.utils.json_to_sheet(data.length ? data : [{ '客户名称': '', '联系人': '', '联系电话': '', '邮箱': '', '地址': '', '标签': '', '状态': '', '负责人': '', '公海/私海': '', '下次跟进时间': '', '来源': '', '创建时间': '' }]);
+    const ws = xlsx.utils.json_to_sheet(data.length ? data : [{ '客户名称': '', '联系人': '', '联系电话': '', '邮箱': '', '地址': '', '标签': '', '状态': '', '负责人': '', '公海/私海': '', '下次跟进时间': '', '来源': '', '放弃时间': '', '放弃原因': '', '创建时间': '' }]);
     const wb = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(wb, ws, '客户管理');
     const buf = xlsx.write(wb, { bookType: 'xlsx', type: 'buffer' });
@@ -613,5 +775,5 @@ router.post('/customer-activities', async (req, res) => {
   }
 });
 
-export { ensureCustomerColumns };
+export { ensureCustomerColumns, archiveCustomerById, LIFECYCLE };
 export default router;
