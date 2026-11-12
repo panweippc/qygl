@@ -758,6 +758,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
+import { useRestoreRefresh } from '../composables/useRestoreRefresh'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAiStore } from '../stores/ai'
@@ -920,6 +921,9 @@ const loadInventories = async () => {
   try { const r = await getInventories(); if (r.success) inventories.value = r.data } catch (e) { console.error(e) }
   finally { invLoading.value = false }
 }
+
+// 回收站恢复后立刻重拉资产、盘点计划与统计
+useRestoreRefresh(() => { loadAssets(); loadSummary(); loadPlans() })
 
 onMounted(async () => {
   await Promise.all([loadAssets(), loadCategories(), loadOptions(), loadSummary(), loadInventories()])

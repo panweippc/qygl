@@ -191,6 +191,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRestoreRefresh } from '../../composables/useRestoreRefresh'
 import { Edit, Delete, Link, FolderOpened } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getCategoryProjects, addCategoryProject, updateCategoryProject, deleteCategoryProject, getFileCategories } from '../../services/api'
@@ -424,6 +425,9 @@ watch(() => [props.categoryId, props.all], () => { /* visibleProjects 自动重�
 // 拖动进度滑块时，同步回显最接近的进度阶段
 watch(() => addForm.value.progress, (v) => { addForm.value.stage = nearestStageValue(v) })
 watch(() => editForm.value.progress, (v) => { editForm.value.stage = nearestStageValue(v) })
+
+// 回收站恢复后立刻重拉项目信息列表
+useRestoreRefresh(() => loadProjects())
 
 onMounted(() => { refreshRole(); loadProjects(); loadCategories(); loadMembers() })
 </script>

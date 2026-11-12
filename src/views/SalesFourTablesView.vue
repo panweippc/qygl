@@ -136,6 +136,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRestoreRefresh } from '../composables/useRestoreRefresh'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { salesFetchJSON, exportSalesExcel } from '../components/sales/salesApi'
@@ -340,6 +341,9 @@ function onOpenSalesLogs(e: Event) {
   const detail = (e as CustomEvent).detail || {}
   openLogs(detail.action || '')
 }
+
+// 回收站恢复后刷新统计与四张表（含跨表迁移后的目标表）
+useRestoreRefresh(() => onDataChanged())
 
 onMounted(() => {
   loadPerm()

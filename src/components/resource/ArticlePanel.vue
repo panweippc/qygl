@@ -189,6 +189,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRestoreRefresh } from '../../composables/useRestoreRefresh'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoleGuard } from '@/composables/useRoleGuard'
 import { Plus, Delete, Document, Download } from '@element-plus/icons-vue'
@@ -464,6 +465,9 @@ const previewFile = async (file: any) => {
 }
 
 watch(() => [props.categoryId, props.all], () => { currentPage.value = 1; keyword.value = ''; fetchArticles() })
+
+// 回收站恢复后立刻重拉知识文章列表
+useRestoreRefresh(() => fetchArticles())
 
 onMounted(() => {
   refreshRole(); fetchCategories(); fetchUnifiedCategories(); fetchUsers(); fetchRoles(); fetchTags(); fetchArticles()

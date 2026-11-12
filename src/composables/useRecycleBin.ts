@@ -3,6 +3,8 @@ import { ref } from 'vue'
 import { getRecycleBin, getRecycleModules, restoreRecycleItem, purgeRecycleItem } from '../services/api'
 import type { RecycleItem, RecycleListData } from '../services/api'
 import { ElMessage } from 'element-plus'
+import { RESTORE_EVENT } from './useRestoreRefresh'
+import type { RestoreDetail } from './useRestoreRefresh'
 
 const visible = ref(false)
 const loading = ref(false)
@@ -15,6 +17,8 @@ const keepDays = ref(30)
 const keyword = ref('')
 const module = ref('')
 const modules = ref<{ key: string; label: string }[]>([])
+// 兜底：当前页面没有订阅就地刷新时，递增该版本号重建路由组件
+const restoreVersion = ref(0)
 
 async function load() {
   loading.value = true
@@ -57,11 +61,22 @@ function search() { page.value = 1; return load() }
 function changePage(p: number) { page.value = p; return load() }
 
 async function restore(id: number) {
+  const target: any = list.value.find((x: any) => x.id === id)
   try {
     const res: any = await restoreRecycleItem(id)
     if (res?.success) {
       ElMessage.success(res.message || '已恢复')
       await load()
+      // 通知当前业务页面立刻重拉数据，无需用户手动刷新
+      const detail: RestoreDetail = {
+        module: target?.module || '',
+        recordId: target?.record_id ?? res?.data?.restoredId ?? null,
+        title: target?.title || '',
+        handled: false
+      }
+      window.dispatchEvent(new CustomEvent(RESTORE_EVENT, { detail }))
+      // 没有任何页面认领（例如首页、未接入的页面）时，重建当前路由兜底
+      if (!detail.handled) restoreVersion.value++
       return true
     }
     ElMessage.error(res?.message || '恢复失败')
@@ -87,6 +102,6 @@ async function purge(id: number) {
 export function useRecycleBin() {
   return {
     visible, loading, list, total, page, pageSize, isAdmin, keepDays, keyword, module, modules,
-    open, close, load, search, changePage, restore, purge
+    restoreVersion, open, close, load, search, changePage, restore, purge
   }
 }

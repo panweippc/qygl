@@ -146,6 +146,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRestoreRefresh } from '../composables/useRestoreRefresh'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { extractRealName } from '../utils/oaWorkflowUtils'
@@ -347,6 +348,9 @@ async function remove(row: any) {
     ElMessage.error('删除失败: ' + e.message)
   }
 }
+
+// 回收站恢复后立刻重拉公告列表
+useRestoreRefresh(() => load())
 
 onMounted(() => {
   load()

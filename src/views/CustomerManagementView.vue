@@ -261,6 +261,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useRestoreRefresh } from '../composables/useRestoreRefresh'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useButtonPermission } from '@/composables/usePermission'
@@ -635,6 +636,9 @@ const exportCustomers = async () => {
     window.URL.revokeObjectURL(url)
   } catch { ElMessage.error('导出失败') }
 }
+
+// 回收站恢复后立刻重拉客户列表，无需手动刷新页面
+useRestoreRefresh(() => loadCustomers())
 
 onMounted(async () => {
   if (route.query.name) {

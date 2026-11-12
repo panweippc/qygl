@@ -1431,9 +1431,11 @@ router.post('/sales-four-tables/:type', requireSalesWriter, async (req, res) => 
     const recordId = result.insertId;
     await insertVersion(pool, destType, recordId, { ...body, created_by: createdBy }, createdBy);
 
-    // 方案A：大项目进展骨架只由三张漏斗表带出；四类表（含大项目进展）统一单向同步到客户管理
+    // 大项目进展骨架只由「实际归属为重点/成交」的漏斗带出；四类表统一单向同步到客户管理。
+    // 判定用实际归属 destType 而非网址表类型：漏斗会按进展百分比自动迁移，只有迁移结果才算数，
+    // 这样成交用户始终会带出骨架，跨表迁移进重点/成交时也不会漏建。
     const sync = { project: null, customer: null };
-    if (type === 'intention' || type === 'key' || type === 'deal') {
+    if (destType === 'key' || destType === 'deal') {
       sync.project = await ensureProjectForFunnel(pool, body, createdBy);
     }
     if (type === 'intention' || type === 'key' || type === 'deal' || type === 'project') {
@@ -1513,9 +1515,11 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
       destType = destTypeByProgress(parseNum(req.body.progress_percent));
     }
 
-    // 方案A：大项目进展骨架只由三张漏斗表带出；四类表（含大项目进展）统一单向同步到客户管理
+    // 大项目进展骨架只由「实际归属为重点/成交」的漏斗带出；四类表统一单向同步到客户管理。
+    // 判定用实际归属 destType 而非网址表类型：漏斗会按进展百分比自动迁移，只有迁移结果才算数，
+    // 这样成交用户始终会带出骨架，跨表迁移进重点/成交时也不会漏建。
     const sync = { project: null, customer: null };
-    if (type === 'intention' || type === 'key' || type === 'deal') {
+    if (destType === 'key' || destType === 'deal') {
       sync.project = await ensureProjectForFunnel(pool, body, createdBy);
     }
     if (type === 'intention' || type === 'key' || type === 'deal' || type === 'project') {
@@ -2114,9 +2118,10 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
             } catch (e) { errors.push('客户档案同步失败(' + (obj['客户名称'] || '') + '): ' + e.message); }
           }
 
-          // 与在线「新增/保存」保持一致：导入同样按客户名自动带出「大项目进展」记录
+          // 与在线「新增/保存」保持一致：导入同样按客户名自动带出「大项目进展」记录。
+          // 按该行实际归属表判定（导入每行可能落到不同表），仅重点/成交带出骨架。
           const customerName = String(obj['客户名单'] || '').trim();
-          if ((type === 'intention' || type === 'key' || type === 'deal') && customerName) {
+          if ((destType === 'key' || destType === 'deal') && customerName) {
             try {
               const syncRes = await ensureProjectForFunnel(pool, {
                 customer_name: customerName,

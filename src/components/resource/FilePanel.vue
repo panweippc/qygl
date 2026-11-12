@@ -239,6 +239,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRestoreRefresh } from '../../composables/useRestoreRefresh'
 import { Plus, Delete, Download, Document, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -598,6 +599,9 @@ watch(() => props.all, () => {
   activeGroup.value = 'all'
   selectedIds.value = []
 })
+
+// 回收站恢复后立刻重拉资料文件列表
+useRestoreRefresh(() => loadFiles())
 
 onMounted(() => { loadFiles(); loadCategories() })
 </script>
