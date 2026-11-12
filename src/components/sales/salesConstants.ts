@@ -24,12 +24,12 @@ export const DEST_TYPE_LABEL: Record<string, string> = {
   project: '大项目进展'
 }
 
-// 按进展状态百分比归属到对应表：10-40%意向漏斗 / 41-90%重点漏斗 / 91-100%成交用户
-// 与后端 destTypeByProgress 保持一致。
+// 按进展状态百分比归属到对应表：10-40%意向漏斗 / 41-99%重点漏斗 / 100%成交用户
+// 与后端 destTypeByProgress 保持一致（方案A+：只有 100% 才算成交）。
 export function destTypeByProgress(p: number): 'intention' | 'key' | 'deal' {
   const n = Number(p) || 0
-  if (n >= 91 && n <= 100) return 'deal'
-  if (n >= 41 && n <= 90) return 'key'
+  if (n >= 100) return 'deal'
+  if (n >= 41 && n <= 99) return 'key'
   return 'intention'
 }
 

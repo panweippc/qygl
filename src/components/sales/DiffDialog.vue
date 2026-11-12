@@ -1,5 +1,10 @@
 <template>
   <el-dialog v-model="visible" title="版本对比" width="780px">
+    <!-- 方案A+：版本对比只读，给由漏斗迁入且未补录的记录一个直达编辑的兜底入口 -->
+    <div v-if="props.type === 'deal' && props.pendingFill" class="rb-fill-hint">
+      <span>该记录由漏斗迁入，合同额、实际金额、回款金额、约定回款日期尚未补齐；版本对比仅供查看历史。</span>
+      <el-button type="primary" size="small" @click="goFill">去补录</el-button>
+    </div>
     <div v-if="loading" v-loading="true" element-loading-text="加载中…" style="min-height:120px" />
     <div v-else-if="!chain.length" class="diff-empty">该记录当前为初始版本，暂无后续变更。</div>
     <div v-else>
@@ -80,8 +85,8 @@ import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { salesFetchJSON } from './salesApi'
 
-const props = defineProps<{ modelValue: boolean, type: string, recordId: number | null }>()
-const emit = defineEmits(['update:modelValue'])
+const props = defineProps<{ modelValue: boolean, type: string, recordId: number | null, pendingFill?: boolean }>()
+const emit = defineEmits(['update:modelValue', 'go-fill'])
 const visible = computed({
   get: () => props.modelValue,
   set: (v) => emit('update:modelValue', v)
@@ -139,6 +144,12 @@ async function loadArbitrary() {
   else ElMessage.error(json.message || '对比失败')
 }
 
+// 关掉只读版本弹窗，交由父组件打开编辑弹窗并聚焦缺失字段
+function goFill() {
+  emit('go-fill')
+  visible.value = false
+}
+
 function toggle(v: number) {
   expanded.value = { ...expanded.value, [v]: !expanded.value[v] }
 }
@@ -153,6 +164,7 @@ watch(() => props.recordId, () => { if (visible.value) loadChain() })
 </script>
 
 <style scoped>
+.rb-fill-hint { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; background: #fdf6ec; border: 1px solid #f5dab1; color: #b88230; border-radius: 4px; padding: 0.55rem 0.75rem; margin-bottom: 0.75rem; font-size: 0.85rem; }
 .diff-empty { text-align: center; color: #999; padding: 2rem; }
 .diff-select { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
 .arbitrary-result { margin-bottom: 0.5rem; }

@@ -62,10 +62,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="expected_payment_date" label="约定回款" width="120" />
-        <el-table-column label="回款状态" width="130">
+        <el-table-column label="回款状态" width="190">
           <template #default="{ row }">
             <el-tag :type="payTag(row.payment_status)" size="small">{{ payLabel(row.payment_status) }}</el-tag>
             <el-tag v-if="row.is_overdue" type="danger" size="small" effect="dark" style="margin-left:4px">超期</el-tag>
+            <el-tag v-if="isPendingFill(row)" type="warning" size="small" effect="plain" class="pending-tag" title="金额字段待补齐，点击直接去补录" @click.stop="openEdit(row, true)">待补录</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="report_month" label="申报月份" width="100" />
@@ -103,8 +104,11 @@
       @size-change="onSizeChange"
     />
 
-    <el-dialog v-model="editVisible" :title="editForm.id ? '编辑成交用户' : '新增成交用户'" width="550px" align-center destroy-on-close>
+    <el-dialog v-model="editVisible" :title="editForm.id ? '编辑成交用户' : '新增成交用户'" width="620px" align-center destroy-on-close @opened="onEditOpened">
       <div class="dialog-body">
+        <el-alert v-if="showFillHint" class="fill-hint" type="warning" :closable="false" show-icon
+          :title="funnelRef ? '该记录由漏斗自动迁入，金额字段尚未补齐' : '该记录的成交金额字段尚未补齐'"
+          :description="`请核对并补充：${missingLabels}${funnelRef ? '。下方灰色文字是漏斗侧的预计值，仅供参考，请勿直接照抄为实际金额' : ''}。`" />
         <el-form :model="editForm" label-width="120px">
           <el-form-item label="owner"><el-input v-model="editForm.owner" /></el-form-item>
           <el-form-item label="销售类型">
@@ -124,11 +128,33 @@
           <el-form-item label="联系人"><el-input v-model="editForm.contact" /></el-form-item>
           <el-form-item label="电话"><el-input v-model="editForm.phone" /></el-form-item>
           <el-form-item label="站点数"><el-input-number v-model="editForm.site_count" :min="0" style="width:100%" /></el-form-item>
-          <el-form-item label="合同额"><el-input-number v-model="editForm.contract_amount" :min="0" style="width:100%" /></el-form-item>
-          <el-form-item label="实际金额"><el-input-number v-model="editForm.actual_amount" :min="0" style="width:100%" /></el-form-item>
-          <el-form-item label="回款金额"><el-input-number v-model="editForm.received_amount" :min="0" style="width:100%" /></el-form-item>
-          <el-form-item label="未回款金额"><el-input-number v-model="editForm.unreceived_amount" :min="0" style="width:100%" /></el-form-item>
-          <el-form-item label="约定回款日期"><el-date-picker v-model="editForm.expected_payment_date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item>
+          <el-form-item label="合同额" :class="{ 'pending-field': isMissing('contract_amount') }">
+            <div :id="'deal-field-contract_amount'" class="field-wrap">
+              <el-input-number v-model="editForm.contract_amount" :min="0" style="width:100%" />
+              <div v-if="funnelRef" class="ref-tip">漏斗参考（预计总回款额）：{{ fmtMoney(funnelRef.estimated_total) }} · 仅供参考，不作实际金额</div>
+            </div>
+          </el-form-item>
+          <el-form-item label="实际金额" :class="{ 'pending-field': isMissing('actual_amount') }">
+            <div :id="'deal-field-actual_amount'" class="field-wrap"><el-input-number v-model="editForm.actual_amount" :min="0" style="width:100%" /></div>
+          </el-form-item>
+          <el-form-item label="回款金额" :class="{ 'pending-field': isMissing('received_amount') }">
+            <div :id="'deal-field-received_amount'" class="field-wrap">
+              <el-input-number v-model="editForm.received_amount" :min="0" style="width:100%" />
+              <div v-if="funnelRef" class="ref-tip">漏斗参考（本月回款金额）：{{ fmtMoney(funnelRef.monthly_repayment) }} · 仅供参考，不作实际金额</div>
+            </div>
+          </el-form-item>
+          <el-form-item label="未回款金额">
+            <div class="field-wrap">
+              <el-input-number v-model="editForm.unreceived_amount" :min="0" style="width:100%" disabled />
+              <div class="ref-tip">由「合同额 − 回款金额」自动计算，无需填写</div>
+            </div>
+          </el-form-item>
+          <el-form-item label="约定回款日期" :class="{ 'pending-field': isMissing('expected_payment_date') }">
+            <div :id="'deal-field-expected_payment_date'" class="field-wrap">
+              <el-date-picker v-model="editForm.expected_payment_date" value-format="YYYY-MM-DD" style="width:100%" />
+              <div v-if="funnelRef && funnelRef.estimated_repay_month" class="ref-tip">漏斗参考（预计回款月份）：{{ funnelRef.estimated_repay_month }} · 仅供参考</div>
+            </div>
+          </el-form-item>
           <el-form-item label="销售状态">
             <el-select v-model="editForm.sales_status" placeholder="请选择" style="width:100%">
               <el-option v-for="s in dealStatusOptions" :key="s" :label="s" :value="s" />
@@ -146,14 +172,14 @@
     </el-dialog>
 
     <ImportDialog v-model="importVisible" type="deal" @success="onImportSuccess" />
-    <DiffDialog v-model="diffVisible" type="deal" :record-id="diffRecordId" />
+    <DiffDialog v-model="diffVisible" type="deal" :record-id="diffRecordId" :pending-fill="diffRow ? isPendingFill(diffRow) : false" @go-fill="onGoFill" />
     <TransferDialog v-model="transferVisible" mode="single" type="deal" :id="transferRow?.id ?? null" :current-owner="transferRow?.owner || ''" @done="onTransferDone" />
     <DealDetailDialog v-model="dealDetailVisible" :record-id="dealDetailRow?.id ?? null" :customer-name="dealDetailRow?.customer_name || ''" :perm="perm" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesFetch, salesFetchJSON, exportSalesExcel } from './salesApi'
 import ImportDialog from './ImportDialog.vue'
@@ -192,6 +218,48 @@ const emptyForm = () => ({
   actual_amount: 0, received_amount: 0, unreceived_amount: 0, expected_payment_date: '', sales_status: '', remark: ''
 })
 const editForm = ref<any>(emptyForm())
+const diffRow = ref<any>(null)
+const focusPending = ref(false)
+
+// 方案A+：漏斗迁入成交表时，这 4 项在漏斗表单里不存在，需要用户随后补录
+const DEAL_FILL_FIELDS = [
+  { key: 'contract_amount', label: '合同额' },
+  { key: 'actual_amount', label: '实际金额' },
+  { key: 'received_amount', label: '回款金额' },
+  { key: 'expected_payment_date', label: '约定回款日期' }
+]
+function missingDealFields(row: any) {
+  return DEAL_FILL_FIELDS.filter(f => f.key === 'expected_payment_date'
+    ? !row?.[f.key]
+    : Number(row?.[f.key] || 0) <= 0)
+}
+function isBlankDealAmounts(row: any): boolean {
+  return Number(row?.contract_amount || 0) <= 0 && Number(row?.actual_amount || 0) <= 0 &&
+    Number(row?.received_amount || 0) <= 0 && !row?.expected_payment_date
+}
+// 待补录口径：由漏斗自动迁入（带参考值）或金额四项全空的历史记录，且仍有字段未补齐
+function isPendingFill(row: any): boolean {
+  return !!row && missingDealFields(row).length > 0 &&
+    (!!row.funnel_reference || isBlankDealAmounts(row))
+}
+const showFillHint = computed(() => !!editForm.value.id && isPendingFill(editForm.value))
+const missingLabels = computed(() => missingDealFields(editForm.value).map(f => f.label).join('、'))
+function isMissing(key: string): boolean {
+  return showFillHint.value && missingDealFields(editForm.value).some(f => f.key === key)
+}
+const funnelRef = computed(() => {
+  const raw = editForm.value.funnel_reference
+  if (!raw) return null
+  try { return typeof raw === 'string' ? JSON.parse(raw) : raw } catch { return null }
+})
+function fmtMoney(v: any): string {
+  return Number(v || 0).toLocaleString('zh-CN', { maximumFractionDigits: 2 })
+}
+// 未回款金额前端联动：与后端「合同额 − 回款金额」口径一致，输入框只读
+watch(() => [editForm.value.contract_amount, editForm.value.received_amount], () => {
+  editForm.value.unreceived_amount = Math.max(0,
+    Number(editForm.value.contract_amount || 0) - Number(editForm.value.received_amount || 0))
+})
 
 function payLabel(s: string): string {
   return ({ norevenue: '无合同额', full: '已全额回款', partial: '部分回款', unreceived: '未回款' } as Record<string, string>)[s] || '—'
@@ -251,7 +319,24 @@ async function exportExcel() {
   if (r.ok) ElMessage.success('导出成功')
   else if (r.message !== '已取消') ElMessage.error(r.message || '导出失败')
 }
-function openEdit(row?: any) { editForm.value = row ? { ...emptyForm(), ...row } : emptyForm(); editVisible.value = true }
+function openEdit(row?: any, focus = false) {
+  if (focus && !props.perm.canWrite) { ElMessage.warning('当前账号无编辑权限，请联系负责人补录'); return }
+  editForm.value = row ? { ...emptyForm(), ...row } : emptyForm()
+  if (focus) focusPending.value = true
+  editVisible.value = true
+}
+// 弹窗打开动画结束后聚焦第一个缺失字段，用户不必自己在 17 个字段里找
+function onEditOpened() {
+  if (!focusPending.value) return
+  focusPending.value = false
+  const first = missingDealFields(editForm.value)[0]
+  if (!first) return
+  nextTick(() => {
+    const box = document.getElementById('deal-field-' + first.key)
+    const input = box?.querySelector('input') as HTMLInputElement | null
+    input?.focus()
+  })
+}
 async function save() {
   saving.value = true
   try {
@@ -288,7 +373,12 @@ async function remove(row: any) {
     else ElMessage.error(json.message || '删除失败')
   } catch {}
 }
-function openVersions(row: any) { diffRecordId.value = row.id; diffVisible.value = true }
+function openVersions(row: any) { diffRow.value = row; diffRecordId.value = row.id; diffVisible.value = true }
+// 版本弹窗里的「去补录」：关版本、直接打开编辑并聚焦缺失字段
+function onGoFill() {
+  diffVisible.value = false
+  if (diffRow.value) openEdit(diffRow.value, true)
+}
 function openTransfer(row: any) { transferRow.value = row; transferVisible.value = true }
 function onTransferDone() { load() }
 function openDetail(row: any) { dealDetailRow.value = row; dealDetailVisible.value = true }
@@ -305,6 +395,13 @@ defineExpose({ load })
 .ft-pagination { margin-top: 1rem; justify-content: flex-end; }
 .dialog-body { max-height: 60vh; overflow-y: auto; padding-right: 0.5rem; }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 0.5rem; }
+.pending-tag { cursor: pointer; margin-left: 4px; }
+.fill-hint { margin-bottom: 0.75rem; }
+.field-wrap { width: 100%; }
+.ref-tip { color: #909399; font-size: 0.78rem; line-height: 1.4; margin-top: 2px; }
+/* 待补录字段高亮：橙色标签 + 输入框描边，打开弹窗即可定位 */
+:deep(.pending-field .el-form-item__label) { color: #d48806; font-weight: 600; }
+:deep(.pending-field .el-input__wrapper) { box-shadow: 0 0 0 1px #e6a23c inset; }
 .muted-cell { color: #909399; font-size: 0.85rem; }
 .overdue-amt { color: #c62828; font-weight: 700; }
 .ft-table-wrapper { width: 100%; overflow-x: auto; border: 1px solid #ebeef5; border-radius: 4px; }

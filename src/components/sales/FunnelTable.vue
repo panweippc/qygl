@@ -36,7 +36,7 @@
         <el-table-column prop="sales_status" label="销售状态" width="100" />
         <el-table-column label="归属" width="110">
           <template #default="{ row }">
-            <el-tag :type="row.progress_percent >= 91 ? 'success' : (row.progress_percent >= 41 ? 'warning' : 'info')" size="small" effect="light">{{ progressBandLabel(row.progress_percent) }}</el-tag>
+            <el-tag :type="row.progress_percent >= 100 ? 'success' : (row.progress_percent >= 41 ? 'warning' : 'info')" size="small" effect="light">{{ progressBandLabel(row.progress_percent) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="report_month" label="申报月份" width="100" />
@@ -102,6 +102,7 @@
             v-if="predictedDest"
             class="dest-hint"
             :title="`保存后将归入：${DEST_TYPE_LABEL[predictedDest]}`"
+            :description="predictedDest === 'deal' ? '迁入成交用户后，合同额、实际金额、回款金额、约定回款日期需在成交用户页签点「待补录」补齐' : ''"
             :type="willMigrate ? 'warning' : 'info'"
             :closable="false"
             show-icon
@@ -198,8 +199,11 @@ async function save() {
   // 跨表归属透明度：编辑已有记录且保存后会跨表迁移时，二次确认
   if (editForm.value.id && predictedDest.value !== props.type) {
     try {
+      const dealTip = predictedDest.value === 'deal'
+        ? ' 注意：漏斗表单不含成交金额字段，迁入后请在成交用户页签点「待补录」补齐合同额、实际金额、回款金额、约定回款日期。'
+        : ''
       await ElMessageBox.confirm(
-        `保存后该记录将从「${DEST_TYPE_LABEL[props.type]}」迁移到「${DEST_TYPE_LABEL[predictedDest.value]}」（按进展状态 ${editForm.value.progress_percent}% 判定），是否继续？`,
+        `保存后该记录将从「${DEST_TYPE_LABEL[props.type]}」迁移到「${DEST_TYPE_LABEL[predictedDest.value]}」（按进展状态 ${editForm.value.progress_percent}% 判定）。${dealTip}是否继续？`,
         '跨表归属确认',
         { type: 'warning', confirmButtonText: '确认迁移', cancelButtonText: '取消' }
       )

@@ -322,6 +322,9 @@ const DEAL_COLS = [
   col('unreceived_amount', `DECIMAL(18,2) DEFAULT 0`),
   col('expected_payment_date', `DATE`),
   col('remark', `TEXT${CS}`),
+  // 方案A+：由漏斗迁入时留存的参考值 JSON（预计总回款额/本月回款金额/预计回款月份/来源），
+  // 仅作补录核对参照，不参与财务计算；非空即代表「由漏斗自动迁入」。
+  col('funnel_reference', `TEXT${CS}`),
   col('customerId', 'INT DEFAULT NULL'),
   col('report_month', `VARCHAR(20)${CS} DEFAULT ''`),
   col('created_by', `VARCHAR(255)${CS} DEFAULT ''`),
@@ -768,16 +771,18 @@ function getReportMonth(reportDate) {
   return d.slice(0, 7);
 }
 
-// 按进展状态百分比归属到对应表：10-40%意向漏斗 / 41-90%重点漏斗 / 91-100%成交用户
+// 按进展状态百分比归属到对应表：10-40%意向漏斗 / 41-99%重点漏斗 / 100%成交用户
+// 方案A+：91-99% 只是主观赢单把握度，不是签约事实；提前落入成交表会产生
+// 「已成交但合同额/回款全空」的脏记录，并把客户档案误标为已成交。
 function destTypeByProgress(p) {
-  if (p >= 91 && p <= 100) return 'deal';
-  if (p >= 41 && p <= 90) return 'key';
-  if (p >= 10 && p <= 40) return 'intention';
-  return 'intention'; // 0 或无效值默认归意向漏斗
+  if (p >= 100) return 'deal';
+  if (p >= 41 && p <= 99) return 'key';
+  return 'intention'; // 0-40 或无效值默认归意向漏斗
 }
 
 // 导入时按行判定归属表：归属列 > 进展状态百分比 > 进展状态文本 > URL type
-// 漏斗模板（意向/重点）不含成交字段，故即便判定为成交也回落到重点漏斗，避免缺字段
+// 漏斗模板（意向/重点）不含成交金额字段，故即便判定为成交也回落到重点漏斗，
+// 否则会拿漏斗列去 INSERT 成交表导致整批导入失败（方案A+ 阈值调整后的连带一致性修复）。
 function importDestType(obj, urlType) {
   const belong = String(obj['归属'] || obj['漏斗类型'] || obj['归属漏斗'] || '').trim();
   if (belong) {
@@ -786,7 +791,10 @@ function importDestType(obj, urlType) {
     if (/意向|intention/i.test(belong)) return 'intention';
   }
   const p = parseNum(obj['进展状态百分比']);
-  if (p > 0) return destTypeByProgress(p);
+  if (p > 0) {
+    const byP = destTypeByProgress(p);
+    return (byP === 'deal' && urlType !== 'deal') ? 'key' : byP;
+  }
   const st = String(obj['进展状态'] || obj['销售状态'] || '').trim();
   if (st) {
     if (/成交|合同|实施|交付/.test(st)) return urlType === 'deal' ? 'deal' : 'key';
@@ -995,7 +1003,8 @@ router.get('/sales-four-tables/:type/export', requireSalesView, async (req, res)
     const dealCols = type === 'deal' ? `, ${PAYMENT_STATUS_CASE} AS payment_status, ${IS_OVERDUE_CASE} AS is_overdue` : ''
     const sql = `SELECT *${dealCols} FROM ${table}${where.length ? ' WHERE ' + where.join(' AND ') : ''} ORDER BY updated_at DESC`
     const [rows] = await pool.execute(sql, params)
-    const cols = rows.length ? Object.keys(rows[0]) : Object.keys(labels)
+    // funnel_reference 是补录核对用的内部 JSON，不导出给用户
+    const cols = (rows.length ? Object.keys(rows[0]) : Object.keys(labels)).filter(c => c !== 'funnel_reference')
     const header = cols.map(c => labels[c] || c)
     const data = rows.map(r => cols.map(c => (r[c] === null || r[c] === undefined) ? '' : r[c]))
     const ws = xlsx.utils.aoa_to_sheet([header, ...data])
@@ -1157,8 +1166,29 @@ function extractFunnelBody(req, type) {
   };
 }
 
+// 方案A+：漏斗迁入成交时，把漏斗侧的「预计值」留成一条只读参考，
+// 供补录弹窗灰色展示核对；这些值绝不自动写入成交金额字段，避免财务数据失真。
+// 编辑成交用户时沿用已存参考值，避免补录保存后丢失。
+function buildFunnelReference(req) {
+  const b = req.body || {};
+  const existing = String(b.funnel_reference || '').trim();
+  if (existing) return existing;
+  const hasFunnel = b.progress_percent !== undefined || b.estimated_total !== undefined ||
+    b.monthly_repayment !== undefined || b.estimated_repay_month !== undefined;
+  if (!hasFunnel) return '';
+  return JSON.stringify({
+    estimated_total: parseNum(b.estimated_total),
+    monthly_repayment: parseNum(b.monthly_repayment),
+    estimated_repay_month: String(b.estimated_repay_month || ''),
+    from: req.params?.type || '',
+    at: new Date().toISOString().slice(0, 19).replace('T', ' ')
+  });
+}
+
 function extractDealBody(req) {
   const b = req.body;
+  const contractAmount = parseNum(b.contract_amount);
+  const receivedAmount = parseNum(b.received_amount);
   return {
     owner: b.owner || cleanOwner(req.user?.username) || '',
     sales_type: b.sales_type || '',
@@ -1170,13 +1200,15 @@ function extractDealBody(req) {
     contact: b.contact || '',
     phone: b.phone || '',
     site_count: parseNum(b.site_count),
-    contract_amount: parseNum(b.contract_amount),
+    contract_amount: contractAmount,
     actual_amount: parseNum(b.actual_amount),
-    received_amount: parseNum(b.received_amount),
-    unreceived_amount: parseNum(b.unreceived_amount),
+    received_amount: receivedAmount,
+    // 方案A+：未回款金额统一由后端按「合同额 − 回款金额」推导，不再取表单手填值
+    unreceived_amount: Math.max(0, contractAmount - receivedAmount),
     expected_payment_date: parseDate(b.expected_payment_date),
     remark: b.remark || '',
     report_month: getReportMonth(b.report_date) || b.report_month || '',
+    funnel_reference: buildFunnelReference(req),
   };
 }
 
@@ -1412,7 +1444,7 @@ router.post('/sales-four-tables/:type', requireSalesWriter, async (req, res) => 
       table = meta.table;
       body = extractDealBody(req);
     } else {
-      // 意向/重点漏斗：按进展百分比自动归属到对应表（10-40%意向 / 41-90%重点 / 91-100%成交）
+      // 意向/重点漏斗：按进展百分比自动归属到对应表（10-40%意向 / 41-99%重点 / 100%成交）
       const progress = parseNum(req.body.progress_percent);
       destType = destTypeByProgress(progress);
       if (destType === 'deal') {
@@ -2046,7 +2078,9 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
             params = [
               ownerVal, obj['销售类型'] || '', obj['收入类型'] || '', reportDate, obj['产品类型'] || '',
               obj['客户名单'] || '', obj['联系人'] || '', obj['电话'] || '', parseNum(obj['站点数']),
-              parseNum(obj['合同额']), parseNum(obj['实际金额']), parseNum(obj['回款金额']), parseNum(obj['未回款金额']),
+              parseNum(obj['合同额']), parseNum(obj['实际金额']), parseNum(obj['回款金额']),
+              // 方案A+：与在线新增/编辑口径一致，未回款金额按合同额 − 回款金额推导
+              Math.max(0, parseNum(obj['合同额']) - parseNum(obj['回款金额'])),
               parseDate(obj['约定回款日期']), obj['备注'] || '', reportMonth, partnerVal, createdBy
             ];
           } else if (type === 'project') {
