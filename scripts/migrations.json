@@ -32,5 +32,6 @@
   "migrations/remove-legacy-sales-menus-v1.2.100.sql",
   "migrations/customer-public-pool-v1.2.101.sql",
   "migrations/sales-partner-field-v1.2.102.sql",
-  "migrations/customer-lifecycle-v1.2.103.sql"
+  "migrations/customer-lifecycle-v1.2.103.sql",
+  "migrations/recycle-bin-shared-category-v1.2.104.sql"
 ]

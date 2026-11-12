@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { createHash } from 'crypto';
 import { createOperationLog, getOperator } from '../utils/audit.js';
+import { captureSnapshot, recordDeletion, resolveModule } from '../utils/recycleBin.js';
 import { ensureCustomerColumns, archiveCustomerById, LIFECYCLE } from './customers.js';
 import { isBuiltinAdmin } from '../middleware/auth.js';
 
@@ -1605,12 +1606,16 @@ router.delete('/sales-four-tables/:type/:id', requireSalesWriter, async (req, re
   try {
     await ensureSchema(pool);
     const table = meta ? meta.table : 'sales_project_analysis';
+    // 回收站登记：删前抓主记录整行 + 项目子表整组（子表随后会被物理删除）
+    const recycleModule = { intention: 'sales-intention', key: 'sales-key', deal: 'sales-deal', project: 'sales-project' }[type];
+    const snap = await captureSnapshot(pool, resolveModule(recycleModule), id);
     await pool.execute(`UPDATE ${table} SET is_deleted = 1 WHERE id = ?`, [id]);
     if (type === 'project') {
       await pool.execute('DELETE FROM sales_project_key_persons WHERE analysis_id = ?', [id]);
       await pool.execute('DELETE FROM sales_project_competitors WHERE analysis_id = ?', [id]);
       await pool.execute('DELETE FROM sales_project_visit_records WHERE analysis_id = ?', [id]);
     }
+    await recordDeletion(pool, req, { module: recycleModule, recordId: id, snapshot: snap });
     createOperationLog(pool, { username: getOperator(req), action: 'soft_delete', module: 'sales-four-tables', targetId: id, targetName: `${type} 数据`, detail: `软删除${type}记录(id=${id})` });
     res.json({ success: true, message: '删除成功' });
   } catch (error) {
@@ -1839,10 +1844,18 @@ router.delete('/sales-four-tables/deal/:id/sub-records/:rid', requireSalesWriter
   const { id, rid } = req.params;
   const { kind } = req.query;
   const conf = DEAL_SUB_KINDS[kind];
-  if (!conf) return res.status(400).json({ success: false, message: '未知子记录类型' });
+    if (!conf) return res.status(400).json({ success: false, message: '未知子记录类型' });
   try {
     await ensureSchema(pool);
+    const subMeta = resolveModule('sales-deal-sub', {
+      table: conf.table, label: conf.label, title: 'id', mode: 'reinsert', soft: false, children: []
+    });
+    const snap = await captureSnapshot(pool, subMeta, rid);
     await pool.execute(`DELETE FROM ${conf.table} WHERE id = ? AND deal_id = ?`, [rid, id]);
+    await recordDeletion(pool, req, {
+      module: 'sales-deal-sub', recordId: rid, snapshot: snap,
+      overrides: { table: conf.table, label: conf.label, title: 'id', mode: 'reinsert', soft: false, children: [] }
+    });
     createOperationLog(pool, { username: getOperator(req), action: 'delete', module: 'sales-deal-sub', targetId: parseInt(rid), targetName: conf.label, detail: `删除${conf.label}(deal=${id})` });
     res.json({ success: true, message: '已删除' });
   } catch (error) {

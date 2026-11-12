@@ -51,6 +51,8 @@ export interface FileCategory {
   name: string
   description?: string
   owner?: string
+  is_shared?: number
+  createdBy?: string
 }
 
 export interface FileItem {

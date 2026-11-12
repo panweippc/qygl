@@ -209,11 +209,42 @@ export const deleteFileCategory = async (id: number, password?: string): Promise
   return response.data;
 };
 
-// 编辑文件分类（改名/改描述/改负责人）
-export const renameFileCategory = async (id: number, data: { name: string; description?: string; owner?: string }): Promise<ApiResponse> => {
+// 编辑文件分类（改名/改描述/改负责人/改共享开关）
+export const renameFileCategory = async (id: number, data: { name: string; description?: string; owner?: string; is_shared?: number }): Promise<ApiResponse> => {
   const response = await api.put(`/file-categories/${id}`, data);
   return response.data;
 };
+
+// ===== 全局回收站 =====
+export interface RecycleItem {
+  id: number
+  module: string
+  module_label: string
+  table_name: string
+  record_id: number
+  title: string
+  deleted_by: string
+  deleted_at: string
+  expire_at: string
+  restore_mode: string
+  status: string
+}
+export interface RecycleListData {
+  list: RecycleItem[]
+  total: number
+  page: number
+  pageSize: number
+  isAdmin: boolean
+  keepDays: number
+}
+export const getRecycleBin = async (params: { module?: string; keyword?: string; page?: number; pageSize?: number } = {}): Promise<ApiResponse<RecycleListData>> =>
+  (await api.get('/recycle-bin', { params })).data;
+export const getRecycleModules = async (): Promise<ApiResponse<{ key: string; label: string }[]>> =>
+  (await api.get('/recycle-bin/modules')).data;
+export const restoreRecycleItem = async (id: number): Promise<ApiResponse<{ restoredId: number }>> =>
+  (await api.post(`/recycle-bin/${id}/restore`)).data;
+export const purgeRecycleItem = async (id: number): Promise<ApiResponse> =>
+  (await api.delete(`/recycle-bin/${id}`)).data;
 
 // 文件管理
 export const getFiles = async (): Promise<ApiResponse<FileItem[]>> => {

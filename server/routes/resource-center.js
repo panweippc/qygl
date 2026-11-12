@@ -10,7 +10,8 @@ const MANAGER_ROLES = ['系统管理员', '总经理', '技术部经理', '销�
 router.get('/resource-center/categories', async (req, res) => {
   const { pool } = req.app.locals;
   try {
-    const [categories] = await pool.execute('SELECT id, name, description, createdBy, owner FROM file_categories ORDER BY id');
+    // SELECT * ：is_shared 由迁移 v1.2.104 添加，未跑迁移的旧库也能正常渲染（下方按 0 兜底）
+    const [categories] = await pool.execute('SELECT * FROM file_categories ORDER BY id');
 
     const [fileRows] = await pool.execute('SELECT categoryId, COUNT(*) AS cnt FROM files GROUP BY categoryId');
 
@@ -55,6 +56,7 @@ router.get('/resource-center/categories', async (req, res) => {
       description: c.description || '',
       createdBy: c.createdBy || '',
       owner: c.owner || '',
+      is_shared: Number(c.is_shared) === 1 ? 1 : 0,
       fileCount: fileMap.get(String(c.id)) || 0,
       articleCount: articleMap.get(String(c.id)) || 0,
       projectCount: projectMap.get(c.name) || 0

@@ -58,6 +58,7 @@ import approvalsRouter from './server/routes/approvals.js';
 import distributeRouter from './server/routes/distribute.js';
 import projectApplicationsRouter from './server/routes/project-applications.js';
 import deletedApplicationsRouter from './server/routes/deleted-applications.js';
+import recycleBinRouter from './server/routes/recycle-bin.js';
 import businessTripsRouter from './server/routes/business-trips.js';
 import notificationsRouter from './server/routes/notifications.js';
 import operationLogsRouter from './server/routes/operation-logs.js';
@@ -291,6 +292,9 @@ app.get('/api/health', async (req, res) => {
 // 全局鉴权中间件（除 POST /login、GET /api/health 外，所有 /api 接口均需有效 token）
 // /api/health 已在上方注册（早于本中间件），故免鉴权；其余 /api/* 路由均受本中间件保护
 app.use('/api', requireAuth);
+
+// 回收站路由优先注册：避免被 projects.js 的 DELETE /:id 等单段通配路由拦截
+app.use('/api', recycleBinRouter);
 
 // 全局搜索（GET 免 CSRF，但受上方 requireAuth 鉴权保护）
 app.use('/api', searchRouter);

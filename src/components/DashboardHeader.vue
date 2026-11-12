@@ -22,6 +22,12 @@
         <div class="nav-item-indicator"></div>
       </button>
 
+      <button type="button" class="nav-item search-btn" @click="openRecycleBin" title="回收站：恢复近 30 天删除的记录">
+        <span class="search-icon">♻</span>
+        <span>回收站</span>
+        <div class="nav-item-indicator"></div>
+      </button>
+
       <el-dropdown trigger="click" placement="bottom-end" @command="handleCommand">
         <div class="user-info">
           <el-avatar :size="32" :src="avatarUrl">
@@ -55,9 +61,11 @@ import { ArrowDown, User, Lock, SwitchButton } from '@element-plus/icons-vue'
 import { disconnectSocket } from '../services/socket'
 import { useNotificationStore } from '../stores/notifications'
 import { useGlobalSearch } from '../composables/useGlobalSearch'
+import { useRecycleBin } from '../composables/useRecycleBin'
 
 const router = useRouter()
 const { open: openGlobalSearch } = useGlobalSearch()
+const { open: openRecycleBin } = useRecycleBin()
 const currentUser = ref('用户')
 const currentUsername = ref('')
 const avatarUrl = ref('')

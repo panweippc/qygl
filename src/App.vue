@@ -4,6 +4,7 @@
     <AiAssistant v-if="ENABLE_AI_ASSISTANT" />
     <MessageBubbleAssistant v-if="route.name !== 'login'" />
     <GlobalSearchModal />
+    <RecycleBinDrawer v-if="route.name !== 'login'" />
   </div>
 </template>
 
@@ -13,6 +14,7 @@ import { useRouter, useRoute } from 'vue-router'
 import AiAssistant from './components/AiAssistant.vue'
 import MessageBubbleAssistant from './components/MessageBubbleAssistant.vue'
 import GlobalSearchModal from './components/GlobalSearchModal.vue'
+import RecycleBinDrawer from './components/RecycleBinDrawer.vue'
 import { useGlobalSearch } from './composables/useGlobalSearch'
 
 // 功能开关：当前暂无用户使用 AI 助手，先隐藏；后续上线改为 true 即可一键恢复

@@ -3,6 +3,7 @@ import { createOperationLog, getRecordBefore, logDataChange, getOperator } from 
 import { getRealName } from '../utils/identity.js';
 import { requireOwnerOrRole } from '../middleware/auth.js';
 import { canManageCategoryContentByName } from '../utils/resourcePerm.js';
+import { captureSnapshot, recordDeletion, resolveModule } from '../utils/recycleBin.js';
 const router = express.Router();
 
 // 与 knowledge.js 保持同一套管理员白名单口径
@@ -353,7 +354,9 @@ router.delete('/project-categories/projects/:id', requireOwnerOrRole(getCategory
   const { id } = req.params;
   try {
     await ensureCategoryProjectsTable(pool);
+    const snap = await captureSnapshot(pool, resolveModule('project-info'), id);
     await pool.execute('DELETE FROM category_projects WHERE id = ?', [id]);
+    await recordDeletion(pool, req, { module: 'project-info', recordId: id, snapshot: snap });
     res.json({ success: true, message: '分类项目删除成功' });
   } catch (error) {
     res.status(500).json({ success: false, message: '删除分类项目失败' });

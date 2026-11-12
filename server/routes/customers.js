@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import xlsx from 'xlsx';
 import { createOperationLog, getOperator, getRecordBefore, logDataChange, createNotification } from '../utils/audit.js';
+import { captureSnapshot, recordDeletion, resolveModule } from '../utils/recycleBin.js';
 import { check, firstError, checkTextField } from '../utils/validate.js';
 const router = express.Router();
 
@@ -277,7 +278,9 @@ router.delete('/customers/:id', async (req, res) => {
       return res.status(400).json({ success: false, message: '该客户已关联成交数据，请先解除关联后再删除' });
     }
     // 软删除：仅打标记，不做物理删除
+    const snap = await captureSnapshot(pool, resolveModule('customer'), id);
     await pool.execute('UPDATE customers SET is_deleted = 1 WHERE id = ?', [id]);
+    await recordDeletion(pool, req, { module: 'customer', recordId: id, snapshot: snap });
     await createOperationLog(pool, {
       username: getOperator(req),
       action: 'delete',

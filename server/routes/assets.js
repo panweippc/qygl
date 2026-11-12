@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import xlsx from 'xlsx';
 import { createOperationLog, getOperator } from '../utils/audit.js';
+import { captureSnapshot, recordDeletion, resolveModule } from '../utils/recycleBin.js';
 import { computeNextRun, generateInventoryFromPlan, runDueInventoryPlans } from '../utils/inventoryPlan.js';
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -353,7 +354,9 @@ router.delete('/assets/:id', async (req, res) => {
       'INSERT INTO asset_logs (assetId, action, fromStatus, toStatus, operator, detail) VALUES (?, ?, ?, ?, ?, ?)',
       [id, '删除', old.status, '已删除', operator, `删除资产 ${old.assetCode || ''} ${old.name}`]
     );
+    const snap = await captureSnapshot(pool, resolveModule('asset'), id);
     await pool.execute('UPDATE assets SET is_deleted = 1 WHERE id = ?', [id]);
+    await recordDeletion(pool, req, { module: 'asset', recordId: id, snapshot: snap });
     createOperationLog(pool, { userId: null, username: operator, action: 'soft_delete', module: 'asset', targetId: id, targetName: old.name, detail: `删除资产 ID: ${id}`, ipAddress: req.ip });
     res.json({ success: true, message: '资产删除成功' });
   } catch (error) {
@@ -885,7 +888,9 @@ router.delete('/asset-inventory-plans/:id', async (req, res) => {
   try {
     const { pool } = req.app.locals;
     const { id } = req.params;
+    const snap = await captureSnapshot(pool, resolveModule('asset-plan'), id);
     await pool.execute('UPDATE asset_inventory_plans SET is_deleted = 1 WHERE id = ?', [id]);
+    await recordDeletion(pool, req, { module: 'asset-plan', recordId: id, snapshot: snap });
     res.json({ success: true, message: '计划已删除' });
   } catch (error) {
     console.error('删除盘点计划失败:', error);

@@ -5,7 +5,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { createOperationLog, getOperator } from '../utils/audit.js';
-import { getResourceIdentity, getCategoryCreator } from '../utils/resourcePerm.js';
+import { getResourceIdentity, getCategoryCreator, canManageCategoryContent } from '../utils/resourcePerm.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -200,15 +200,12 @@ router.post('/upload', upload.array('file', 10), async (req, res) => {
     }
     const { pool } = req.app.locals;
 
-    // 资料中心权限收紧：非管理员仅可上传到自己创建的分类，未分类仅管理员可传
+    // 资料中心权限：管理员全权；分类创建人可写；共享分类所有登录用户可写；未分类仅管理员可传。
+    // 统一走 canManageCategoryContent，避免与 files.js/knowledge.js 的权限口径脱节（含共享分类短路）。
     const categoryId = req.body.categoryId || null;
-    const { admin, name: meName } = await getResourceIdentity(pool, req);
-    if (!admin) {
-      const creator = categoryId ? await getCategoryCreator(pool, categoryId) : '';
-      if (!creator || creator !== meName) {
-        files.forEach(f => { try { fs.unlinkSync(path.join(__dirname, '../../uploads', f.filename)); } catch (e) {} });
-        return res.status(403).json({ success: false, message: !categoryId ? '仅分类创建人或管理员可上传文件（请先选择自己创建的资料分类）' : '仅分类创建人或管理员可向该分类上传文件' });
-      }
+    if (!(await canManageCategoryContent(pool, req, categoryId))) {
+      files.forEach(f => { try { fs.unlinkSync(path.join(__dirname, '../../uploads', f.filename)); } catch (e) {} });
+      return res.status(403).json({ success: false, message: !categoryId ? '仅分类创建人或管理员可上传文件（请先选择可编辑的资料分类）' : '仅分类创建人、共享分类成员或管理员可向该分类上传文件' });
     }
 
     await ensureUploadSchema(pool);

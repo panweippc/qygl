@@ -8,6 +8,9 @@
       <router-link to="/" class="nav-item">首页</router-link>
       <span v-if="title" class="nav-item nav-current active">{{ title }}</span>
       <span v-if="$slots.actions" class="nav-actions"><slot name="actions" /></span>
+      <button type="button" class="nav-item recycle-btn" @click="openRecycleBin" title="回收站：恢复近 30 天删除的记录">
+        <span class="recycle-icon">♻</span><span>回收站</span>
+      </button>
       <button class="nav-item logout-btn" @click="handleBack">返回</button>
     </nav>
   </header>
@@ -15,6 +18,7 @@
 
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
+import { useRecycleBin } from '../composables/useRecycleBin'
 
 /**
  * 全站统一两级头部（与审批中心 OAWorkflowView 头部一致）
@@ -32,6 +36,7 @@ const props = withDefaults(defineProps<{
 
 const router = useRouter()
 const route = useRoute()
+const { open: openRecycleBin } = useRecycleBin()
 
 const handleBack = () => {
   if (props.backTo) {
@@ -130,6 +135,17 @@ const handleBack = () => {
   align-items: center;
   gap: 0.5rem;
 }
+.recycle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  border: 1px solid rgba(30, 90, 168, 0.28);
+  background: rgba(30, 90, 168, 0.06);
+  color: #1E5AA8;
+}
+.recycle-btn:hover { background: rgba(30, 90, 168, 0.16); color: #17487f; }
+.recycle-icon { font-size: 15px; line-height: 1; }
 .logout-btn {
   background: rgba(244, 67, 54, 0.1);
   color: #d32f2f;

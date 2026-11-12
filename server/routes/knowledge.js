@@ -2,6 +2,7 @@ import express from 'express';
 import { requireRole, requireOwnerOrRole } from '../middleware/auth.js';
 import { getResourceIdentity, getCategoryCreator, canManageCategoryContent } from '../utils/resourcePerm.js';
 import { getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
+import { captureSnapshot, recordDeletion, resolveModule } from '../utils/recycleBin.js';
 const router = express.Router();
 
 const MANAGER_ROLES = ['系统管理员', '总经理', '技术部经理', '销售部经理', '财务总监'];
@@ -244,7 +245,9 @@ router.delete('/knowledge/articles/:id', requireOwnerOrRole(getArticleCategoryCr
   const { pool } = req.app.locals;
   const { id } = req.params;
   try {
+    const snap = await captureSnapshot(pool, resolveModule('article'), id);
     await pool.execute('DELETE FROM knowledge_articles WHERE id = ?', [id]);
+    await recordDeletion(pool, req, { module: 'article', recordId: id, snapshot: snap });
     res.json({ success: true, message: '删除成功' });
   } catch (error) {
     console.error('删除文章失败:', error);

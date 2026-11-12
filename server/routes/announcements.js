@@ -12,6 +12,7 @@
  */
 import express from 'express';
 import { createOperationLog, getOperator, getRecordBefore, logDataChange } from '../utils/audit.js';
+import { captureSnapshot, recordDeletion, resolveModule } from '../utils/recycleBin.js';
 
 const router = express.Router();
 
@@ -372,7 +373,9 @@ router.delete('/announcements/:id', requireAnnounceAdmin, async (req, res) => {
     if (!publisher || publisher !== operator) {
       return res.status(403).json({ success: false, message: '仅发布人本人可删除该公告' });
     }
+    const snap = await captureSnapshot(pool, resolveModule('announcement'), id);
     await pool.execute('UPDATE announcements SET is_deleted = 1, updated_at = ? WHERE id = ?', [now(), id]);
+    await recordDeletion(pool, req, { module: 'announcement', recordId: id, snapshot: snap });
     createOperationLog(pool, {
       username: getOperator(req), action: 'delete', module: 'announcement',
       targetId: id, targetName: rows[0].title, detail: `删除公告《${rows[0].title}》`,

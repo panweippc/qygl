@@ -1,9 +1,24 @@
 // 资料中心权限工具：分类创建人拥有该分类下文件/文章/项目信息的增删改权，
 // 管理员白名单保留全权，其他成员只读 + 下载（前端隐藏入口 + 后端逐接口校验双层防护）。
+// 共享分类（file_categories.is_shared = 1）：所有登录用户均可编辑该分类下的内容；
+// 分类本体的改名/删除仍限创建人或管理员（files.js 的 requireOwnerOrRole），不受共享开关影响。
 import { isBuiltinAdmin, resolveIdentity } from '../middleware/auth.js';
 
 // 管理员白名单：与 knowledge.js / files.js / projects.js 同一口径
 export const RESOURCE_MANAGER_ROLES = ['系统管理员', '总经理', '技术部经理', '销售部经理', '财务总监'];
+
+// is_shared 列由方案D 迁移 v1.2.104 添加；列不存在时降级为「非共享」，不影响旧库启动
+let sharedColEnsured = false;
+async function hasSharedColumn(pool) {
+  if (sharedColEnsured) return true;
+  try {
+    const [rows] = await pool.execute(
+      "SELECT COUNT(*) AS c FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'file_categories' AND column_name = 'is_shared'"
+    );
+    sharedColEnsured = rows[0].c > 0;
+  } catch (e) { sharedColEnsured = false; }
+  return sharedColEnsured;
+}
 
 /**
  * 解析当前登录用户的资料中心身份。
@@ -30,14 +45,33 @@ export const getCategoryCreator = async (pool, categoryId) => {
   return rows.length > 0 ? String(rows[0].createdBy || '') : '';
 };
 
+// 判断分类是否为「共享编辑」分类（所有登录用户可编辑该分类下的内容）
+export const isSharedCategory = async (pool, categoryId) => {
+  if (categoryId === null || categoryId === undefined || categoryId === '' || Number.isNaN(Number(categoryId))) return false;
+  if (!(await hasSharedColumn(pool))) return false;
+  try {
+    const [rows] = await pool.execute('SELECT is_shared FROM file_categories WHERE id = ?', [categoryId]);
+    return rows.length > 0 && Number(rows[0].is_shared) === 1;
+  } catch (e) { return false; }
+};
+
+export const isSharedCategoryByName = async (pool, categoryName) => {
+  if (!categoryName || !(await hasSharedColumn(pool))) return false;
+  try {
+    const [rows] = await pool.execute('SELECT is_shared FROM file_categories WHERE name = ? LIMIT 1', [categoryName]);
+    return rows.length > 0 && Number(rows[0].is_shared) === 1;
+  } catch (e) { return false; }
+};
+
 /**
- * 当前用户是否可管理指定分类下的内容（管理员 或 分类创建人）。
+ * 当前用户是否可管理指定分类下的内容（管理员 / 分类创建人 / 共享分类的任意登录用户）。
  * 用于：上传文件、写文章、新增项目、调整归属等「写入目标分类」的校验。
  */
 export const canManageCategoryContent = async (pool, req, categoryId) => {
   const { admin, name } = await getResourceIdentity(pool, req);
   if (admin) return true;
   if (!name) return false;
+  if (await isSharedCategory(pool, categoryId)) return true;
   const creator = await getCategoryCreator(pool, categoryId);
   return !!creator && creator === name;
 };
@@ -47,6 +81,7 @@ export const canManageCategoryContentByName = async (pool, req, categoryName) =>
   const { admin, name } = await getResourceIdentity(pool, req);
   if (admin) return true;
   if (!name || !categoryName) return false;
+  if (await isSharedCategoryByName(pool, categoryName)) return true;
   const [rows] = await pool.execute('SELECT createdBy FROM file_categories WHERE name = ? LIMIT 1', [categoryName]);
   const creator = rows.length > 0 ? String(rows[0].createdBy || '') : '';
   return !!creator && creator === name;

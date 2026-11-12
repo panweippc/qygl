@@ -2,6 +2,7 @@ import express from 'express';
 import { createOperationLog } from '../utils/audit.js';
 import { requireRole, requireOwnerOrRole, isBuiltinAdmin } from '../middleware/auth.js';
 import { getResourceIdentity, getCategoryCreator, canManageCategoryContent } from '../utils/resourcePerm.js';
+import { captureSnapshot, recordDeletion, resolveModule } from '../utils/recycleBin.js';
 import { verifyPassword } from '../utils/security.js';
 const router = express.Router();
 
@@ -34,7 +35,7 @@ router.get('/file-categories', async (req, res) => {
 
 router.post('/file-categories', requireRole(), async (req, res) => {
   const { pool } = req.app.locals;
-  const { name, description, owner } = req.body;
+  const { name, description, owner, is_shared } = req.body;
   const username = req.user?.name || req.user?.username || '系统';
   const createdBy = req.user?.name || req.user?.username || '';
   if (!name || !String(name).trim()) {
@@ -47,8 +48,8 @@ router.post('/file-categories', requireRole(), async (req, res) => {
       return res.status(400).json({ success: false, message: '该分类已存在' });
     }
     const [result] = await pool.execute(
-      'INSERT INTO file_categories (name, description, owner, createdBy, createdAt) VALUES (?, ?, ?, ?, ?)',
-      [String(name).trim(), description || '', owner || createdBy, createdBy, new Date().toISOString().replace('T', ' ').replace('Z', '')]
+      'INSERT INTO file_categories (name, description, owner, createdBy, is_shared, createdAt) VALUES (?, ?, ?, ?, ?, ?)',
+      [String(name).trim(), description || '', owner || createdBy, createdBy, is_shared ? 1 : 0, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
     await createOperationLog(pool, {
       username,
@@ -104,7 +105,7 @@ router.delete('/file-categories/:id', requireOwnerOrRole(getCategoryOwner, ...CA
 router.put('/file-categories/:id', requireOwnerOrRole(getCategoryOwner, ...CATEGORY_MANAGER_ROLES), async (req, res) => {
   const { pool } = req.app.locals;
   const { id } = req.params;
-  const { name, description, owner } = req.body;
+  const { name, description, owner, is_shared } = req.body;
   const username = req.user?.name || req.user?.username || '系统';
   if (!name || !name.trim()) {
     return res.status(400).json({ success: false, message: '分类名称不能为空' });
@@ -124,6 +125,7 @@ router.put('/file-categories/:id', requireOwnerOrRole(getCategoryOwner, ...CATEG
     let updateSql = 'UPDATE file_categories SET name = ?, description = ?';
     const updateVals = [newName, description || ''];
     if (owner !== undefined) { updateSql += ', owner = ?'; updateVals.push(owner || ''); }
+    if (is_shared !== undefined) { updateSql += ', is_shared = ?'; updateVals.push(is_shared ? 1 : 0); }
     updateSql += ' WHERE id = ?';
     updateVals.push(id);
     await pool.execute(updateSql, updateVals);
@@ -353,7 +355,9 @@ router.delete('/files/:id', async (req, res) => {
     if (!(await canManageCategoryContent(pool, req, file.categoryId))) {
       return res.status(403).json({ success: false, message: '仅分类创建人或管理员可删除该文件' });
     }
+    const snap = await captureSnapshot(pool, resolveModule('file'), id);
     await pool.execute('DELETE FROM files WHERE id = ?', [id]);
+    await recordDeletion(pool, req, { module: 'file', recordId: id, snapshot: snap });
     await createOperationLog(pool, {
       // 修复：此处原先引用了未定义的 uploaderId，当 token 未携带 id 时会抛 ReferenceError 导致删除失败
       userId: req.user?.id || null,

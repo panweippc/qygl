@@ -59,6 +59,7 @@
             <div class="cat-node-main">
               <span class="cat-dot"></span>
               <span class="cat-node-name">{{ cat.name }}</span>
+              <el-tag v-if="cat.is_shared === 1" size="small" type="success" effect="plain" class="cat-shared-tag" title="所有登录用户均可编辑该分类下的内容">共享</el-tag>
               <span v-if="cat.owner" class="cat-node-owner">负责人：{{ cat.owner }}</span>
               <el-button v-if="canManageCategory(cat)" text size="small" class="cat-edit-btn" title="编辑分类" @click.stop="editCategory(cat)">
                 <el-icon><Edit /></el-icon>
@@ -156,10 +157,37 @@
         <el-form-item label="分类描述">
           <el-input v-model="newCat.description" type="textarea" :rows="3" placeholder="请输入分类描述" />
         </el-form-item>
+        <el-form-item label="共享编辑">
+          <el-switch v-model="newCat.is_shared" :active-value="1" :inactive-value="0" active-text="所有人可编辑内容" />
+        </el-form-item>
+        <div class="shared-hint">开启后，所有登录用户都可上传/修改/删除该分类下的文件、文章、项目信息；分类本身的改名与删除仍仅创建人或管理员可操作。</div>
       </el-form>
       <template #footer>
         <el-button @click="showAddCatDialog = false">取消</el-button>
         <el-button type="primary" @click="createCategory">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑分类：改名/描述/负责人 + 共享开关 -->
+    <el-dialog v-model="showEditCatDialog" title="编辑资料分类" width="460px">
+      <el-form :model="editCat" label-width="80px">
+        <el-form-item label="分类名称">
+          <el-input v-model="editCat.name" placeholder="请输入分类名称" />
+        </el-form-item>
+        <el-form-item label="分类描述">
+          <el-input v-model="editCat.description" type="textarea" :rows="3" placeholder="请输入分类描述" />
+        </el-form-item>
+        <el-form-item label="负责人">
+          <el-input v-model="editCat.owner" placeholder="分类负责人（选填）" />
+        </el-form-item>
+        <el-form-item label="共享编辑">
+          <el-switch v-model="editCat.is_shared" :active-value="1" :inactive-value="0" active-text="所有人可编辑内容" />
+        </el-form-item>
+        <div class="shared-hint">共享仅放开该分类下的内容编辑；分类本体的改名与删除仍仅创建人或管理员可操作。</div>
+      </el-form>
+      <template #footer>
+        <el-button @click="showEditCatDialog = false">取消</el-button>
+        <el-button type="primary" @click="submitEditCategory">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -188,6 +216,7 @@ interface CategoryStat {
   description: string
   createdBy?: string
   owner?: string
+  is_shared?: number
   fileCount: number
   articleCount: number
   projectCount: number
@@ -227,11 +256,16 @@ const canManageCategory = (cat: CategoryStat): boolean => isCategoryManager || (
 // 下发 'all'（管理员）或可管理分类 id 列表给三个面板
 const managedCats = computed<number[] | 'all'>(() => {
   if (isCategoryManager) return 'all'
-  return stats.value.categories.filter(c => (c.createdBy || '') === currentUser).map(c => c.id)
+  // 共享分类对所有登录用户放开内容编辑，与后端 canManageCategoryContent 口径一致
+  return stats.value.categories
+    .filter(c => (c.createdBy || '') === currentUser || c.is_shared === 1)
+    .map(c => c.id)
 })
 
 const showAddCatDialog = ref(false)
-const newCat = ref({ name: '', description: '' })
+const newCat = ref({ name: '', description: '', is_shared: 0 as number })
+const showEditCatDialog = ref(false)
+const editCat = ref({ id: 0, name: '', description: '', owner: '', is_shared: 0 as number })
 
 const selectAll = () => { selected.value = { id: 'all', name: '全部' } }
 const selectCategory = (id: number | null, name: string) => { selected.value = { id, name } }
@@ -256,11 +290,11 @@ const createCategory = async () => {
   }
   try {
     // 负责人不再由前端传：后端统一用 createdBy（当前登录用户姓名）兜底，避免把登录账号当姓名
-    const res = await addFileCategory({ name: newCat.value.name.trim(), description: newCat.value.description.trim() })
+    const res = await addFileCategory({ name: newCat.value.name.trim(), description: newCat.value.description.trim(), is_shared: newCat.value.is_shared })
     if (res.success) {
       await loadCategories()
       showAddCatDialog.value = false
-      newCat.value = { name: '', description: '' }
+      newCat.value = { name: '', description: '', is_shared: 0 }
       ElMessage.success('分类创建成功')
     } else ElMessage.error(res.message || '创建分类失败')
   } catch (e: any) { ElMessage.error(e.message || '创建分类失败')
@@ -300,28 +334,32 @@ const removeCategory = async (cat: CategoryStat) => {
   }
 }
 
-// 编辑分类：改名/改描述。改名会同步项目信息按分类名关联的行（后端已处理）。
-const editCategory = async (cat: CategoryStat) => {
+// 编辑分类：改名/描述/负责人 + 共享开关。改名会同步项目信息按分类名关联的行（后端已处理）。
+const editCategory = (cat: CategoryStat) => {
+  editCat.value = {
+    id: cat.id, name: cat.name, description: cat.description || '',
+    owner: cat.owner || '', is_shared: cat.is_shared === 1 ? 1 : 0
+  }
+  showEditCatDialog.value = true
+}
+
+const submitEditCategory = async () => {
+  const c = editCat.value
+  if (!c.name.trim()) { ElMessage.warning('分类名称不能为空'); return }
+  if (stats.value.categories.some(x => x.id !== c.id && x.name === c.name.trim())) {
+    ElMessage.warning('该分类已存在'); return
+  }
   try {
-    const { value: newName } = await ElMessageBox.prompt(
-      `修改分类「${cat.name}」的名称：`,
-      '编辑分类',
-      {
-        confirmButtonText: '保存',
-        cancelButtonText: '取消',
-        inputValue: cat.name,
-        inputValidator: (v: string) => (v && v.trim() ? true : '分类名称不能为空')
-      }
-    )
-    const res = await renameFileCategory(cat.id, { name: newName.trim(), description: cat.description || '', owner: cat.owner || '' })
+    const res = await renameFileCategory(c.id, {
+      name: c.name.trim(), description: c.description || '', owner: c.owner || '', is_shared: c.is_shared
+    })
     if (res.success) {
       await loadCategories()
-      if (selected.value.id === cat.id) selected.value = { id: cat.id, name: newName.trim() }
+      if (selected.value.id === c.id) selected.value = { id: c.id, name: c.name.trim() }
+      showEditCatDialog.value = false
       ElMessage.success('分类已更新')
     } else ElMessage.error(res.message || '更新分类失败')
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '更新分类失败')
-  }
+  } catch (e: any) { ElMessage.error(e?.message || '更新分类失败') }
 }
 
 // ===== 全局搜索 =====
@@ -463,4 +501,6 @@ watch(
 .search-item:hover { background: rgba(30, 90, 168,0.1); border-color: rgba(30, 90, 168,0.4); }
 .si-main { font-weight: 500; color: #333; font-size: 0.95rem; }
 .si-sub { font-size: 0.78rem; color: #8a94a6; }
+.cat-shared-tag { margin-left: 0.35rem; flex-shrink: 0; transform: scale(0.86); transform-origin: left center; }
+.shared-hint { font-size: 0.76rem; line-height: 1.6; color: #8a94a6; padding: 0 0 0.4rem 80px; margin-top: -0.35rem; }
 </style>
