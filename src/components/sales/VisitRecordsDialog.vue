@@ -1,5 +1,12 @@
 <template>
-  <el-dialog v-model="visible" :title="(customerName || '') + ' · 拜访记录'" width="680px" align-center destroy-on-close>
+  <el-dialog v-model="visible" :width="dialogWidth" :class="{ 'vr-expanded': expanded }" align-center destroy-on-close>
+    <template #header>
+      <div class="vr-titlebar">
+        <span class="vr-title">{{ (customerName || '') + ' · 拜访记录' }}</span>
+        <button class="vr-zoom" type="button" @click="toggleExpand"
+          :title="expanded ? '还原为常规宽度' : '放大到全宽查看'">{{ expanded ? '还原' : '放大' }}</button>
+      </div>
+    </template>
     <div v-loading="loading">
       <p v-if="!customerName" class="hint">未关联客户</p>
       <template v-else>
@@ -7,15 +14,15 @@
           <span class="vr-count">共 {{ list.length }} 条 <span class="vr-tip">点击「内容」或「下一步」查看全文</span></span>
           <el-button v-if="canWrite" type="primary" size="small" @click="showForm = !showForm">+ 新增拜访</el-button>
         </div>
-        <el-table :data="list" stripe style="width:100%; margin-bottom:12px;" max-height="360">
+        <el-table :data="list" stripe style="width:100%; margin-bottom:12px;" :max-height="tableMaxHeight">
           <el-table-column prop="visitDate" label="拜访日期" width="110" />
           <el-table-column prop="visitPerson" label="拜访人" width="90" show-overflow-tooltip />
-          <el-table-column label="内容" min-width="140">
+          <el-table-column label="内容" min-width="300">
             <template #default="{ row }">
               <span class="vr-cell" :title="row.visitContent" @click="openDetail(row)">{{ row.visitContent || '—' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="下一步" min-width="120">
+          <el-table-column label="下一步" min-width="150">
             <template #default="{ row }">
               <span class="vr-cell" :title="row.nextPlan" @click="openDetail(row)">{{ row.nextPlan || '—' }}</span>
             </template>
@@ -44,7 +51,7 @@
     </div>
   </el-dialog>
 
-  <el-dialog v-model="detailVisible" title="拜访记录详情" width="560px" align-center append-to-body destroy-on-close>
+  <el-dialog v-model="detailVisible" title="拜访记录详情" :width="expanded ? '900px' : '720px'" align-center append-to-body destroy-on-close>
     <div class="vr-detail-meta">
       <span>拜访日期：{{ fmtDate(detailRow.visitDate) }}</span>
       <span>拜访人：{{ detailRow.visitPerson || '—' }}</span>
@@ -65,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesFetchJSON } from './salesApi'
 
@@ -81,6 +88,27 @@ const showForm = ref(false)
 const saving = ref(false)
 const detailVisible = ref(false)
 const detailRow = ref<any>({})
+
+// 放大状态：默认走自适应宽度，点标题栏「放大」切到全宽，偏好本地记住
+const EXPAND_KEY = 'sales.visit-dialog.expanded'
+const expanded = ref(false)
+try { expanded.value = localStorage.getItem(EXPAND_KEY) === '1' } catch {}
+const dialogWidth = computed(() => expanded.value ? '96vw' : 'min(1040px, 92vw)')
+
+// el-table 的 max-height 需要数值像素；按视口高度换算，避免 CSS min()/vh 被解析成 NaN
+const tableMaxHeight = ref(360)
+function calcTableHeight() {
+  const vh = typeof window === 'undefined' ? 800 : window.innerHeight
+  tableMaxHeight.value = Math.round(expanded.value ? vh * 0.7 : Math.min(520, vh * 0.6))
+}
+function toggleExpand() {
+  expanded.value = !expanded.value
+  try { localStorage.setItem(EXPAND_KEY, expanded.value ? '1' : '0') } catch {}
+}
+watch(expanded, calcTableHeight)
+onMounted(() => { calcTableHeight(); window.addEventListener('resize', calcTableHeight) })
+onUnmounted(() => { window.removeEventListener('resize', calcTableHeight) })
+
 const emptyForm = () => ({ visitDate: '', visitPerson: '', visitContent: '', nextPlan: '', address: '' })
 const form = ref<any>(emptyForm())
 
@@ -151,10 +179,15 @@ async function remove(row: any) {
 .vr-tip { margin-left: 8px; color: #c0c4cc; }
 .vr-form { border: 1px solid #ebeef5; border-radius: 8px; padding: 12px; margin-top: 8px; }
 .hint { color: #909399; font-size: 13px; }
-.vr-cell { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; color: #409eff; }
+.vr-titlebar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: 28px; }
+.vr-title { font-size: 16px; font-weight: 500; color: var(--el-text-color-primary, #303133); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vr-zoom { flex: none; font-size: 12px; line-height: 1; padding: 5px 10px; border: 1px solid var(--el-border-color, #dcdfe6); border-radius: 4px; background: var(--el-bg-color, #fff); color: var(--el-text-color-regular, #606266); cursor: pointer; }
+.vr-zoom:hover { border-color: #409eff; color: #409eff; }
+.vr-expanded :deep(.el-dialog__body) { max-height: calc(100vh - 130px); overflow-y: auto; }
+.vr-cell { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; line-height: 1.5; overflow: hidden; cursor: pointer; color: #409eff; }
 .vr-cell:hover { text-decoration: underline; }
 .vr-detail-meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; color: #606266; margin-bottom: 14px; }
 .vr-detail-block { margin-bottom: 14px; }
 .vr-detail-label { font-size: 13px; font-weight: 500; color: #303133; margin-bottom: 6px; }
-.vr-detail-text { white-space: pre-wrap; word-break: break-word; line-height: 1.7; font-size: 13px; color: #303133; background: #f7f8fa; border-radius: 6px; padding: 10px 12px; max-height: 320px; overflow-y: auto; }
+.vr-detail-text { white-space: pre-wrap; word-break: break-word; line-height: 1.7; font-size: 13px; color: #303133; background: #f7f8fa; border-radius: 6px; padding: 10px 12px; max-height: 60vh; overflow-y: auto; }
 </style>
