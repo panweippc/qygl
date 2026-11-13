@@ -302,15 +302,15 @@
         <el-alert v-if="!form.id" type="info" :closable="false" show-icon
           title="新增资产默认状态为「闲置（在库）」，领用 / 报废等操作请在资产详情中执行" style="margin-bottom:14px" />
         <el-form-item label="资产名称"><el-input v-model="form.name" placeholder="请输入资产名称" /></el-form-item>
-        <div style="display:flex;gap:12px">
-          <el-form-item label="资产类型" style="flex:1">
+        <div class="asset-type-row">
+          <el-form-item label="资产类型" class="asset-type-col">
             <el-select v-model="form.assetType" placeholder="请选择资产类型" @change="onTypeChange" style="width:100%">
               <el-option label="固定资产" value="fixed" />
               <el-option label="无形资产" value="intangible" />
               <el-option label="耗材库存" value="consumable" />
             </el-select>
           </el-form-item>
-          <el-form-item label="分类" style="flex:1">
+          <el-form-item label="分类" class="asset-type-col">
             <el-select v-model="form.categoryId" placeholder="请选择分类" filterable allow-create default-first-option style="width:100%">
               <el-option v-for="c in filteredCategories" :key="c.id" :label="c.name" :value="c.id" />
             </el-select>
@@ -1495,6 +1495,9 @@ const handleCurrentChange = (c: number) => { currentPage.value = c; loadAssets()
 .dialog { background:rgba(255,255,255,0.95)!important; border:1px solid rgba(30,90,168,0.3)!important; border-radius:12px!important; box-shadow:0 8px 32px rgba(0,0,0,0.1)!important; }
 .dialog .el-dialog__title { color:#333!important; font-weight:600!important; }
 .dialog .el-form-item__label { color:rgba(51,51,51,0.8)!important; font-weight:500!important; }
+/* 新增/编辑资产：资产类型与分类强制同一行、两列等宽，避免被全局样式或窄视口挤成上下两行 */
+.asset-type-row { display:flex!important; flex-direction:row!important; flex-wrap:nowrap!important; align-items:flex-start!important; gap:12px; }
+.asset-type-col { flex:1 1 0!important; min-width:0!important; }
 .detail-dialog .el-descriptions__label { color:rgba(51,51,51,0.7)!important; background:rgba(30,90,168,0.08)!important; }
 .detail-dialog .el-descriptions__content { color:#333!important; }
 .main-content::-webkit-scrollbar { width:8px; }
