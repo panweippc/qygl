@@ -201,6 +201,9 @@ const emptyForm = () => ({
   need_secondary_dev: '', func_deviation: '', key_persons: [], competitors: [], visit_records: []
 })
 const editForm = ref<any>(emptyForm())
+// 详情接口真正加载成功，才允许在保存时替换三张子表；
+// 接口被权限拦截(403)时表单只剩列表行，子表为空，若照旧提交会清空客户的历史拜访记录。
+const childrenLoaded = ref(true)
 
 async function load() {
   loading.value = true
@@ -218,11 +221,25 @@ async function load() {
 
 async function openEdit(row?: any) {
   if (row?.id) {
-    const json = await salesFetchJSON(`/api/sales-four-tables/project/${row.id}`)
-    if (json.success) editForm.value = { ...emptyForm(), ...json.data }
-    else editForm.value = { ...emptyForm(), ...row }
+    try {
+      const json = await salesFetchJSON(`/api/sales-four-tables/project/${row.id}`)
+      if (json.success && json.data) {
+        editForm.value = { ...emptyForm(), ...json.data }
+        childrenLoaded.value = true
+      } else {
+        // 无权限查看完整详情：仍允许改主表字段，但本次保存绝不替换子表
+        editForm.value = { ...emptyForm(), ...row }
+        childrenLoaded.value = false
+        ElMessage.warning('完整详情加载失败，本次保存不会改动拜访记录等子表')
+      }
+    } catch (e: any) {
+      editForm.value = { ...emptyForm(), ...row }
+      childrenLoaded.value = false
+      ElMessage.warning('完整详情加载失败，本次保存不会改动拜访记录等子表')
+    }
   } else {
     editForm.value = emptyForm()
+    childrenLoaded.value = true
   }
   editVisible.value = true
   projectTab.value = 'base'
@@ -237,7 +254,9 @@ async function save() {
   try {
     const url = '/api/sales-four-tables/project' + (editForm.value.id ? `/${editForm.value.id}` : '')
     const method = editForm.value.id ? 'PUT' : 'POST'
-    const json = await salesFetchJSON(url, { method, body: JSON.stringify(editForm.value) })
+    // 只有详情加载成功才声明「可以替换子表」，避免空表单把历史拜访记录删光
+    const payload = { ...editForm.value, replace_children: childrenLoaded.value }
+    const json = await salesFetchJSON(url, { method, body: JSON.stringify(payload) })
     if (json.success) { ElMessage.success('保存成功'); editVisible.value = false; load(); emit('refresh-stats') }
     else ElMessage.error(json.message || '保存失败')
   } catch (e: any) { ElMessage.error('保存失败: ' + e.message) }

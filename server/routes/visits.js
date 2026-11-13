@@ -1,5 +1,7 @@
 import express from 'express';
 import { createOperationLog, getRecordBefore, logDataChange, getOperator } from '../utils/audit.js';
+import { resolveVisitNames, visitNameIn } from '../utils/visitAlias.js';
+import { resolveCustomerId, resolveCustomerIds } from '../utils/customerLink.js';
 const router = express.Router();
 
 // visit_records 中 VARCHAR(255) 字段的长度上限。超长会触发
@@ -15,11 +17,22 @@ function checkVisitLengths(body) {
 }
 
 // 按客户名获取拜访记录（销售漏斗联动）
+// 客户名单被改过后，历史拜访仍挂在旧名下：按等价名集合 + 客户标识一起查，
+// 保证「改名前的记录」依然可见；等效于不搬动任何历史数据就把断链接回来。
 router.get('/visit-records/customer/:customerName', async (req, res) => {
   const { customerName } = req.params;
   try {
     const { pool } = req.app.locals;
-    const [data] = await pool.execute('SELECT * FROM visit_records WHERE customerName = ? AND is_deleted = 0 ORDER BY visitDate DESC, id DESC', [customerName]);
+    const names = await resolveVisitNames(pool, customerName);
+    const cond = visitNameIn(names, 'customerName');
+    // 按等价名找出该客户的全部主数据标识（改名前后可能对应不同档案），
+    // 再按标识查拜访：即使客户名已经改过、拜访记录仍挂旧名，也能完整取回。
+    const ids = await resolveCustomerIds(pool, customerName);
+    const idCond = ids.length ? ` OR customer_id IN (${ids.map(() => '?').join(',')})` : '';
+    const [data] = await pool.execute(
+      `SELECT * FROM visit_records WHERE (${cond.sql}${idCond}) AND is_deleted = 0 ORDER BY visitDate DESC, id DESC`,
+      [...cond.params, ...ids]
+    );
     res.json({ success: true, data: data });
   } catch (error) {
     res.status(500).json({ success: false, message: '获取拜访记录失败' });
@@ -60,12 +73,8 @@ router.post('/visit-records', async (req, res) => {
     }
     const lengthError = checkVisitLengths({ customerName, visitPerson, address });
     if (lengthError) return res.status(400).json({ success: false, message: lengthError });
-    // 解析客户主数据 id（customers 为空时写 NULL，为后续精确统计预留）
-    let customerId = null;
-    try {
-      const [cust] = await pool.execute('SELECT id FROM customers WHERE name = ? LIMIT 1', [customerName]);
-      if (cust.length) customerId = cust[0].id;
-    } catch {}
+    // 解析客户主数据标识（等价名集合，改名后仍能命中；customers 为空时写 NULL）
+    const customerId = await resolveCustomerId(pool, customerName);
     const tid = townId != null && townId !== '' ? Number(townId) : null;
     let maxRow;
     if (tid) {
@@ -79,14 +88,22 @@ router.post('/visit-records', async (req, res) => {
       [tid, customerId, customerName, address || '', visitDate, visitPerson, visitContent, nextPlan || null, visitNo, new Date().toISOString().replace('T', ' ').replace('Z', '')]
     );
     const visitId = insertResult.insertId;
-    // 同步到大项目进展的拜访记录子表（若该客户已建项目），带上来源标识供删除时精确定位
+    // 同步到大项目进展的拜访记录子表，带上来源标识供删除时精确定位。
+    // 按等价名集合 + 客户标识找项目：改名后旧项目骨架仍挂着历史拜访，新增拜访要同步到所有等价项目，
+    // 且不再只取第一条（历史上改名会生成多个骨架）。
     try {
-      const [proj] = await pool.execute('SELECT id FROM sales_project_analysis WHERE customer_name = ? LIMIT 1', [customerName]);
-      if (proj.length) {
-        const [[mx]] = await pool.execute('SELECT COALESCE(MAX(seq),0) AS m FROM sales_project_visit_records WHERE analysis_id = ?', [proj[0].id]);
+      const names = await resolveVisitNames(pool, customerName);
+      const cond = visitNameIn(names, 'customer_name');
+      const idCond = customerId ? ' OR customer_id = ?' : '';
+      const [proj] = await pool.execute(
+        `SELECT id FROM sales_project_analysis WHERE (${cond.sql}${idCond}) AND is_deleted = 0`,
+        [...cond.params, ...(customerId ? [customerId] : [])]
+      );
+      for (const p of proj) {
+        const [[mx]] = await pool.execute('SELECT COALESCE(MAX(seq),0) AS m FROM sales_project_visit_records WHERE analysis_id = ?', [p.id]);
         await pool.execute(
           'INSERT INTO sales_project_visit_records (analysis_id, seq, visit_time, communication_record, next_strategy, source_visit_id) VALUES (?, ?, ?, ?, ?, ?)',
-          [proj[0].id, mx.m + 1, visitDate, visitContent, nextPlan || '', visitId]
+          [p.id, mx.m + 1, visitDate, visitContent, nextPlan || '', visitId]
         );
       }
     } catch (e) { console.error('同步项目拜访记录失败(不影响主流程):', e); }
@@ -156,14 +173,17 @@ router.delete('/visit-records/:id', async (req, res) => {
       // 主路径：按来源标识精确删除；兜底：历史镜像行无来源标识时按内容匹配，且只限该客户名下项目
       const content = String(rows[0].visitContent ?? '');
       const strategy = String(rows[0].nextPlan ?? '');
+      // 兜底路径同样按等价名集合匹配项目：客户改过名时，旧骨架下的镜像行也要能被清理到
+      const names = await resolveVisitNames(pool, name);
+      const cond = visitNameIn(names, 'customer_name');
       await pool.execute(
         `DELETE FROM sales_project_visit_records
          WHERE source_visit_id = ?
             OR (source_visit_id IS NULL
-                AND analysis_id IN (SELECT id FROM sales_project_analysis WHERE customer_name = ?)
+                AND analysis_id IN (SELECT id FROM sales_project_analysis WHERE ${cond.sql})
                 AND communication_record = ?
                 AND next_strategy = ?)`,
-        [id, name, content, strategy]
+        [id, ...cond.params, content, strategy]
       );
     }
     await createOperationLog(pool, {

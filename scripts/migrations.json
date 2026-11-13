@@ -34,5 +34,7 @@
   "migrations/sales-partner-field-v1.2.102.sql",
   "migrations/customer-lifecycle-v1.2.103.sql",
   "migrations/recycle-bin-shared-category-v1.2.104.sql",
-  "migrations/deal-funnel-reference-v1.2.105.sql"
+  "migrations/deal-funnel-reference-v1.2.105.sql",
+  "migrations/visit-name-alias-v1.2.106.sql",
+  "migrations/sales-customer-id-v1.2.107.sql"
 ]

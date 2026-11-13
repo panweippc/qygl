@@ -9,6 +9,8 @@ import { createOperationLog, getOperator } from '../utils/audit.js';
 import { captureSnapshot, recordDeletion, resolveModule } from '../utils/recycleBin.js';
 import { ensureCustomerColumns, archiveCustomerById, LIFECYCLE } from './customers.js';
 import { isBuiltinAdmin } from '../middleware/auth.js';
+import { recordVisitRename, resolveVisitNames, resolveVisitNamesBatch, visitNameIn } from '../utils/visitAlias.js';
+import { rowCustomerId, linkRowCustomerId, resolveCustomerId, resolveCustomerIds } from '../utils/customerLink.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -110,6 +112,41 @@ const TABLE_META = {
     headers: ['owner', '销售类型', '收入类型', '申报日期', '产品类型', '客户名单', '联系人', '电话', '站点数', '合同额', '实际金额', '回款金额', '未回款金额', '约定回款日期', '备注']
   }
 };
+
+// 给四表/项目列表行补 visit_count。
+// 关键：客户名单被改过后，历史拜访记录仍挂在旧名下，按「当前名字精确匹配」会把 1 条显示成 0 条。
+// 这里按 visit_customer_aliases 的连通分量展开等价名一起统计；有 customer_id 时优先按标识关联，
+// 名称集合作为兜底，二者取并集去重（不会重复计数）。只做查询，绝不改动拜访记录数据。
+async function attachVisitCounts(pool, rows) {
+  if (!rows || !rows.length) return rows || [];
+  const nameMap = await resolveVisitNamesBatch(pool, rows.map(r => r.customer_name));
+  const allNames = [...new Set([...nameMap.values()].flat())];
+  const cond = visitNameIn(allNames, 'customerName');
+  const customerIds = [...new Set(rows.map(rowCustomerId).filter(v => v != null && v !== ''))];
+  const idCond = customerIds.length
+    ? ` OR customer_id IN (${customerIds.map(() => '?').join(',')})`
+    : '';
+  const [counts] = await pool.execute(
+    `SELECT id, TRIM(customerName) AS name, customer_id, is_deleted FROM visit_records
+     WHERE (${cond.sql}${idCond}) AND is_deleted = 0`,
+    [...cond.params, ...customerIds]
+  );
+  const byName = new Map();
+  for (const c of counts) byName.set(String(c.name).trim(), (byName.get(String(c.name).trim()) || 0) + 1);
+  for (const r of rows) {
+    const key = String(r.customer_name || '').trim();
+    const group = new Set(nameMap.get(key) || [key]);
+    const ridRaw = rowCustomerId(r);
+    const rid = ridRaw != null ? String(ridRaw) : null;
+    const hitIds = new Set();
+    for (const c of counts) {
+      const byId = rid && String(c.customer_id ?? '') === rid;
+      if (byId || group.has(String(c.name).trim())) hitIds.add(c.id);
+    }
+    r.visit_count = hitIds.size;
+  }
+  return rows;
+}
 
 // Excel 表头别名：历史模板列名（代理类型/合作伙伴/进展状态…）与现模板不一致，
 // 识别表头时统一归一化，避免整张表被静默跳过（成功 0 条、跳过 0 条）。
@@ -1090,9 +1127,11 @@ router.get('/sales-four-tables/:type', requireSalesView, async (req, res) => {
     // MySQL 5.7 在 prepared statement 中对 LIMIT/OFFSET 占位符校验严格，这里直接拼接整数
     const dealCols = type === 'deal' ? `, ${PAYMENT_STATUS_CASE} AS payment_status, ${IS_OVERDUE_CASE} AS is_overdue` : '';
     const [rows] = await pool.execute(
-      `SELECT *, (SELECT COUNT(*) FROM visit_records WHERE TRIM(customerName) = TRIM(${table}.customer_name) AND is_deleted = 0) AS visit_count${dealCols} FROM ${table} ${where} ORDER BY updated_at DESC LIMIT ${sizeNum} OFFSET ${offset}`,
+      `SELECT *${dealCols} FROM ${table} ${where} ORDER BY updated_at DESC LIMIT ${sizeNum} OFFSET ${offset}`,
       params
     );
+    // 拜访条数改由等价名集合 + 客户标识统计，避免改客户名单后「1 条」变「0 条」
+    await attachVisitCounts(pool, rows);
     res.json({ success: true, data: { list: rows, total, page: parseInt(page), pageSize: parseInt(pageSize) } });
   } catch (error) {
     console.error('查询销售四表失败:', error);
@@ -1255,49 +1294,85 @@ function extractProjectBody(req) {
   };
 }
 
-// 按客户名把全局拜访记录镜像到大项目进展的拜访记录子表（新建项目时一次性带出历史拜访）
-// 只镜像未删除的拜访；带上来源标识，供删除拜访记录时精确定位同步删除
-async function mirrorVisitsToProject(pool, customerName, analysisId) {
-  await pool.execute('DELETE FROM sales_project_visit_records WHERE analysis_id = ?', [analysisId]);
+// 把全局拜访记录镜像到大项目进展的拜访记录子表。
+// 三个关键改动：
+//   1. 不再先 DELETE 整张子表 —— 原实现按「当前客户名」查，改名后查不到就会把已有镜像全部清空；
+//   2. 按等价名集合 + 客户标识查询，改名后仍能带出旧名下的历史拜访；
+//   3. 只补缺失行（按来源标识 / 内容去重），天然幂等，重复保存不会新增也不会删除。
+async function mirrorVisitsToProject(pool, customerName, analysisId, customerId = null) {
+  const names = await resolveVisitNames(pool, customerName);
+  const cond = visitNameIn(names, 'customerName');
+  const idCond = customerId != null && customerId !== '' ? ' OR customer_id = ?' : '';
   const [visits] = await pool.execute(
-    'SELECT id, visitDate, visitContent, nextPlan FROM visit_records WHERE TRIM(customerName) = ? AND is_deleted = 0 ORDER BY visitDate DESC, id DESC',
-    [String(customerName || '').trim()]
+    `SELECT id, visitDate, visitContent, nextPlan FROM visit_records
+     WHERE (${cond.sql}${idCond}) AND is_deleted = 0 ORDER BY visitDate DESC, id DESC`,
+    [...cond.params, ...(customerId != null && customerId !== '' ? [customerId] : [])]
   );
-  let seq = 1;
+  const [existing] = await pool.execute(
+    'SELECT seq, source_visit_id, visit_time, communication_record, next_strategy FROM sales_project_visit_records WHERE analysis_id = ?',
+    [analysisId]
+  );
+  const linkedIds = new Set(existing.map(c => String(c.source_visit_id ?? '')));
+  // 历史手工录入的镜像行没有来源标识，按内容比对避免重复补入
+  const contentKeys = new Set(existing.map(c =>
+    `${String(c.visit_time ?? '')}|${String(c.communication_record ?? '')}|${String(c.next_strategy ?? '')}`
+  ));
+  let seq = existing.reduce((m, c) => Math.max(m, Number(c.seq) || 0), 0);
   for (const v of visits) {
+    if (linkedIds.has(String(v.id))) continue;
+    const key = `${String(v.visitDate ?? '')}|${String(v.visitContent ?? '')}|${String(v.nextPlan ?? '')}`;
+    if (contentKeys.has(key)) continue;
     await pool.execute(
       'INSERT INTO sales_project_visit_records (analysis_id, seq, visit_time, communication_record, next_strategy, source_visit_id) VALUES (?, ?, ?, ?, ?, ?)',
-      [analysisId, seq++, v.visitDate || '', v.visitContent || '', v.nextPlan || '', v.id]
+      [analysisId, ++seq, v.visitDate || '', v.visitContent || '', v.nextPlan || '', v.id]
     );
+    linkedIds.add(String(v.id));
+    contentKeys.add(key);
   }
 }
 
 // 漏斗保存后：按 customer_name 自动带出/同步大项目进展记录 + 拜访记录
 // 返回 { analysisId, created, skipped, error }。失败不再吞掉，error 回显给前端。
-async function ensureProjectForFunnel(pool, funnelBody, createdBy) {
+async function ensureProjectForFunnel(pool, funnelBody, createdBy, customerId = null) {
   const customerName = String(funnelBody.customer_name || '').trim();
   if (!customerName) return { analysisId: null, created: false, skipped: true, error: null };
   try {
-    const [existing] = await pool.execute('SELECT id FROM sales_project_analysis WHERE TRIM(customer_name) = ? AND is_deleted = 0 LIMIT 1', [customerName]);
+    // 方案7：按等价名集合 + 客户标识找已有项目。原实现只按「当前名字精确匹配」，
+    // 客户一改名就认为项目不存在，于是另建一个空壳骨架，旧骨架连同拜访记录全部变成孤儿。
+    const names = await resolveVisitNames(pool, customerName);
+    const cond = visitNameIn(names, 'customer_name');
+    const idCond = customerId ? ' OR customer_id = ?' : '';
+    const [existing] = await pool.execute(
+      `SELECT id, customer_name FROM sales_project_analysis WHERE (${cond.sql}${idCond}) AND is_deleted = 0 ORDER BY id LIMIT 1`,
+      [...cond.params, ...(customerId ? [customerId] : [])]
+    );
+    const resolvedCid = customerId || await resolveCustomerId(pool, customerName, names);
     let analysisId;
     let created = false;
+    let nameChanged = false;
     if (existing.length === 0) {
       // 新建：带出客户名/负责人/申报日期/申报月份，其余项目字段留空待用户在「大项目进展」补充
       const cols = ['customer_name', 'report_date', 'project_owner', 'report_month'];
       const vals = [customerName, funnelBody.report_date || null, funnelBody.owner || '', funnelBody.report_month || ''];
+      if (resolvedCid) { cols.push('customer_id'); vals.push(resolvedCid); }
       const sql = `INSERT INTO sales_project_analysis (${cols.join(', ')}, created_by) VALUES (${cols.map(() => '?').join(', ')}, ?)`;
       const [r] = await pool.execute(sql, [...vals, createdBy]);
       analysisId = r.insertId;
       created = true;
-      // 新建即把该客户已有的全局拜访记录带出到大项目进展
-      await mirrorVisitsToProject(pool, customerName, analysisId);
     } else {
       analysisId = existing[0].id;
-      // 轻量同步漏斗派生字段：仅覆盖项目_owner/report_date/report_month，不触碰项目自身丰富字段
+      nameChanged = String(existing[0].customer_name || '').trim() !== customerName;
+      // 轻量同步漏斗派生字段：仅覆盖项目_owner/report_date/report_month，不触碰项目自身丰富字段；
+      // 改名时同步项目名，标识保持不变，不再另建骨架。
       await pool.execute(
-        'UPDATE sales_project_analysis SET project_owner = COALESCE(NULLIF(?, ""), project_owner), report_date = COALESCE(NULLIF(?, ""), report_date), report_month = COALESCE(NULLIF(?, ""), report_month) WHERE id = ?',
-        [funnelBody.owner || '', funnelBody.report_date || '', funnelBody.report_month || '', analysisId]
+        'UPDATE sales_project_analysis SET customer_name = ?, project_owner = COALESCE(NULLIF(?, ""), project_owner), report_date = COALESCE(NULLIF(?, ""), report_date), report_month = COALESCE(NULLIF(?, ""), report_month) WHERE id = ?',
+        [customerName, funnelBody.owner || '', funnelBody.report_date || '', funnelBody.report_month || '', analysisId]
       );
+      if (resolvedCid) await linkRowCustomerId(pool, 'sales_project_analysis', analysisId, customerName, resolvedCid);
+    }
+    // 只在新建或改名时补镜像（幂等、只补不删），避免用户手动删掉的镜像行被日常保存反复补回
+    if (created || nameChanged) {
+      await mirrorVisitsToProject(pool, customerName, analysisId, resolvedCid);
     }
     return { analysisId, created, skipped: false, error: null };
   } catch (e) {
@@ -1308,17 +1383,29 @@ async function ensureProjectForFunnel(pool, funnelBody, createdBy) {
 
 // 销售漏斗 ↔ 客户管理 双向关联 + 成交联动
 // 返回 { customerId, skipped, status, error }。失败不再吞掉，error 回显给前端。
-async function syncCustomerFromFunnel(pool, { customerName, contact, phone, isDeal, givenUp = false, operator }) {
+async function syncCustomerFromFunnel(pool, { customerName, contact, phone, isDeal, givenUp = false, operator, existingCustomerId = null }) {
   const name = String(customerName || '').trim();
   if (!name) return { customerId: null, skipped: true, status: null, error: null };
   try {
     await ensureCustomerColumns(pool);
     const now = new Date().toISOString().replace('T', ' ').replace('Z', '');
-    const [exist] = await pool.execute('SELECT id, status, tags FROM customers WHERE TRIM(name) = ? AND is_deleted = 0 LIMIT 1', [name]);
+    // 方案7：编辑改名时优先沿用原客户标识，只把客户档案的名字改成新名，
+    // 不再按新名另建一份客户档案 —— 从源头消除「改一次名字多一套孤儿数据」。
+    let exist = [];
+    if (existingCustomerId) {
+      const [r] = await pool.execute('SELECT id, name, status, tags FROM customers WHERE id = ? AND is_deleted = 0 LIMIT 1', [existingCustomerId]);
+      exist = r;
+    }
+    if (!exist.length) {
+      const [r] = await pool.execute('SELECT id, name, status, tags FROM customers WHERE TRIM(name) = ? AND is_deleted = 0 LIMIT 1', [name]);
+      exist = r;
+    }
     if (exist.length) {
       const cid = exist[0].id;
       const sets = [];
       const vals = [];
+      // 客户档案跟随改名，标识保持不变：拜访记录、四表行都还挂在同一个 id 上
+      if (String(exist[0].name || '').trim() !== name) { sets.push('name = ?'); vals.push(name); }
       if (contact) { sets.push('contact = ?'); vals.push(contact); }
       if (phone) { sets.push('phone = ?'); vals.push(phone); }
       // 成交联动：漏斗标记成交时置客户状态为「已成交」（仅置位不回退，避免误改）
@@ -1483,6 +1570,8 @@ router.post('/sales-four-tables/:type', requireSalesWriter, async (req, res) => 
 
     // 方案B：回写成交用户 customerId（销售四表↔客户 双向绑定）
     await linkCustomerToDeal(pool, { table, recordId, customerId: sync.customer?.customerId });
+    // 方案7：新增行同样落稳定客户标识，后续改名不再影响关联
+    await linkRowCustomerId(pool, table, recordId, body.customer_name, sync.customer?.customerId);
 
     // 大项目子表
     if (type === 'project') {
@@ -1537,8 +1626,18 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
       table = meta.table;
       body = extractFunnelBody(req, type);
     }
-    const [check] = await pool.execute(`SELECT created_by FROM ${table} WHERE id = ?`, [id]);
+    const [check] = await pool.execute(`SELECT * FROM ${table} WHERE id = ?`, [id]);
     if (check.length === 0) return res.status(404).json({ success: false, message: '记录不存在' });
+
+    // 改了「客户名单」：立即登记旧名↔新名等价关系，且必须放在下面的项目/客户同步之前，
+    // 这样本次保存触发的拜访镜像就能沿着等价名带出旧名下的历史拜访，不会生成空壳项目。
+    const oldCustomerName = String(check[0].customer_name || '').trim();
+    const newCustomerName = String(body.customer_name || '').trim();
+    // 客户标识是稳定锚点：改名时沿用同一个 id，拜访记录与客户档案都不会另起炉灶
+    const oldCustomerId = rowCustomerId(check[0]);
+    if (oldCustomerName && newCustomerName && oldCustomerName !== newCustomerName) {
+      await recordVisitRename(pool, oldCustomerName, newCustomerName);
+    }
 
     // 意向/重点漏斗：按进展百分比重新归属到对应表
     let destType = type;
@@ -1552,7 +1651,7 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
     // 这样成交用户始终会带出骨架，跨表迁移进重点/成交时也不会漏建。
     const sync = { project: null, customer: null };
     if (destType === 'key' || destType === 'deal') {
-      sync.project = await ensureProjectForFunnel(pool, body, createdBy);
+      sync.project = await ensureProjectForFunnel(pool, body, createdBy, oldCustomerId);
     }
     if (type === 'intention' || type === 'key' || type === 'deal' || type === 'project') {
       sync.customer = await syncCustomerFromFunnel(pool, {
@@ -1561,11 +1660,14 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
         phone: body.phone || '',
         isDeal: destType === 'deal',
         givenUp: String(body.success_or_giveup || '').includes('放弃'),
-        operator: createdBy
+        operator: createdBy,
+        existingCustomerId: oldCustomerId
       });
     }
 
     await linkCustomerToDeal(pool, { table, recordId, customerId: sync.customer?.customerId });
+    // 回写稳定标识：即使客户之后改名，列表统计与拜访弹窗仍按 id 找到历史拜访
+    await linkRowCustomerId(pool, table, recordId, newCustomerName, sync.customer?.customerId || oldCustomerId);
 
     if (destType !== type) {
       // 迁移到目标表
@@ -1578,6 +1680,7 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
       const [insertResult] = await pool.execute(insertSql, [...Object.values(destBody), originalCreator]);
       recordId = insertResult.insertId;
       await linkCustomerToDeal(pool, { table: destTable, recordId, customerId: sync.customer?.customerId });
+      await linkRowCustomerId(pool, destTable, recordId, newCustomerName, sync.customer?.customerId || oldCustomerId);
 
       // 迁移历史版本快照到新记录
       await pool.execute(
@@ -1599,29 +1702,39 @@ router.put('/sales-four-tables/:type/:id', requireSalesWriter, async (req, res) 
     await insertVersion(pool, type, id, { ...body, created_by: check[0].created_by }, createdBy);
 
     if (type === 'project') {
-      const { key_persons = [], competitors = [], visit_records = [] } = req.body;
-      await pool.execute('DELETE FROM sales_project_key_persons WHERE analysis_id = ?', [id]);
-      await pool.execute('DELETE FROM sales_project_competitors WHERE analysis_id = ?', [id]);
-      await pool.execute('DELETE FROM sales_project_visit_records WHERE analysis_id = ?', [id]);
-      for (const p of key_persons) {
-        await pool.execute(
-          'INSERT INTO sales_project_key_persons (analysis_id, role_type, position, name, phone, office, support_level, influenced_by, can_influence, focus, relationship, personal_hobby) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [id, p.role_type || '', p.position || '', p.name || '', p.phone || '', p.office || '', p.support_level || '', p.influenced_by || '', p.can_influence || '', p.focus || '', p.relationship || '', p.personal_hobby || '']
-        );
-      }
-      let seq = 1;
-      for (const c of competitors) {
-        await pool.execute(
-          'INSERT INTO sales_project_competitors (analysis_id, seq, name, recognition, price, relationship, advantage, disadvantage) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          [id, seq++, c.name || '', c.recognition || '', c.price || '', c.relationship || '', c.advantage || '', c.disadvantage || '']
-        );
-      }
-      seq = 1;
-      for (const v of visit_records) {
-        await pool.execute(
-          'INSERT INTO sales_project_visit_records (analysis_id, seq, visit_time, communication_record, next_strategy) VALUES (?, ?, ?, ?, ?)',
-          [id, seq++, v.visit_time || '', v.communication_record || '', v.next_strategy || '']
-        );
+      // 子表全量替换必须由前端显式声明（只有详情接口真的加载成功才带 replace_children=true）。
+      // 原实现无条件 DELETE 三张子表再按请求体重建：详情接口因权限返回 403 时，
+      // 前端回退成只含列表行的空表单，一次保存就把客户的拜访记录物理删除。
+      // 这里加护栏：没带标记就完全不碰子表，宁可少改也不能丢历史数据。
+      const replaceChildren = req.body.replace_children === true;
+      if (!replaceChildren) {
+        console.warn(`[sales-four-tables] 项目 ${id} 保存未带 replace_children，跳过子表同步以保护已有数据`);
+      } else {
+        const { key_persons = [], competitors = [], visit_records = [] } = req.body;
+        await pool.execute('DELETE FROM sales_project_key_persons WHERE analysis_id = ?', [id]);
+        await pool.execute('DELETE FROM sales_project_competitors WHERE analysis_id = ?', [id]);
+        await pool.execute('DELETE FROM sales_project_visit_records WHERE analysis_id = ?', [id]);
+        for (const p of key_persons) {
+          await pool.execute(
+            'INSERT INTO sales_project_key_persons (analysis_id, role_type, position, name, phone, office, support_level, influenced_by, can_influence, focus, relationship, personal_hobby) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [id, p.role_type || '', p.position || '', p.name || '', p.phone || '', p.office || '', p.support_level || '', p.influenced_by || '', p.can_influence || '', p.focus || '', p.relationship || '', p.personal_hobby || '']
+          );
+        }
+        let seq = 1;
+        for (const c of competitors) {
+          await pool.execute(
+            'INSERT INTO sales_project_competitors (analysis_id, seq, name, recognition, price, relationship, advantage, disadvantage) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [id, seq++, c.name || '', c.recognition || '', c.price || '', c.relationship || '', c.advantage || '', c.disadvantage || '']
+          );
+        }
+        seq = 1;
+        for (const v of visit_records) {
+          // 保留来源标识：否则重建后的镜像行在删除全局拜访记录时无法被精确定位
+          await pool.execute(
+            'INSERT INTO sales_project_visit_records (analysis_id, seq, visit_time, communication_record, next_strategy, source_visit_id) VALUES (?, ?, ?, ?, ?, ?)',
+            [id, seq++, v.visit_time || '', v.communication_record || '', v.next_strategy || '', v.source_visit_id || null]
+          );
+        }
       }
     }
 
@@ -2135,6 +2248,9 @@ router.post('/sales-four-tables/:type/import', requireSalesWriter, upload.single
           // 版本快照的 table_type 必须与记录实际所在表一致，否则详情页按 :type 查不到该版本
           await insertVersion(pool, destType, result.insertId, { ...obj, created_by: createdBy }, createdBy);
           imported++;
+          // 方案7：导入行同样回填客户标识，与在线新增保持一致
+          const rowCustomerName = String(obj['客户名单'] || obj['客户名称'] || '').trim();
+          await linkRowCustomerId(pool, destTable, result.insertId, rowCustomerName);
 
           // 大项目进展导入后，把该客户已有的全局拜访记录带出到项目子表
           if (type === 'project') {
